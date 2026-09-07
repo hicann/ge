@@ -386,7 +386,7 @@ classDiagram
 | FLOW_MODEL | FlowModel metadata (ModelRelation, sub-model list, scheduling priority) |
 | FLOW_SUBMODEL | Each sub-model compilation product (multi-thread parallel loading) |
 
-**Deployment planning** (`DeployPlanner::BuildPlan` in `base/deploy/deploy_planner.cc`, invoked by `BuildDeployPlan` at deployment time) converts ModelRelation into specific queue creation and binding plans (DeployPlan): flatten models to supplement control queues to parse data flow connections to adjust devices to identify reusable queues. The Group mechanism handles one-to-many/many-to-one data distribution.
+**Deployment planning** (`DeployPlanner::BuildPlan` in `base/deploy/deploy_planner.cc`, invoked by `BuildDeployPlan` at deployment time) converts ModelRelation into specific queue creation and binding plans (DeployPlan): flatten models to supplement control queues to parse data flow connections to adjust devices to identify reusable queues. The Group mechanism implements load-balancing routing for multi-instance targets and aggregating consumption of multi-source data. For detailed edge planning scenarios and optimization approaches, see [Section 4.3.7](#437-deployment-planning-and-edge-optimization).
 
 ### 4.3 Deployment Layer: Multi-node Master-Slave Deployment
 
@@ -508,7 +508,7 @@ sequenceDiagram
 
 Phase descriptions:
 
-1. **Build plan**: `BuildDeployPlan` allocates device resources and builds the deployment plan (internally calling `DeployPlanner::BuildPlan` in [Section 4.2](#42-model-abstraction-layer-flowmodel-and-modelrelation) to generate the queue creation and binding plan); `FlowRoutePlanner::ResolveFlowRoutePlans` plans flow routes for each node. Before deployment, `DeployDevMaintenanceCfg` pre-distributes maintenance configurations (dump/profiling and other environment variables passed through to child processes)
+1. **Build plan**: `BuildDeployPlan` allocates device resources and builds the deployment plan (internally calling `DeployPlanner::BuildPlan` in [Section 4.2](#42-model-abstraction-layer-flowmodel-and-modelrelation) to generate the queue creation and binding plan; for detailed edge planning scenarios, see [Section 4.3.7](#437-deployment-planning-and-edge-optimization)); `FlowRoutePlanner::ResolveFlowRoutePlans` plans flow routes for each node. Before deployment, `DeployDevMaintenanceCfg` pre-distributes maintenance configurations (dump/profiling and other environment variables passed through to child processes)
 2. **Distribute to nodes**: Distributes route plans, deployment plans, sub-models, variable managers, and data gateway configurations to each node through `FlowModelSender`. Local nodes first `PreDeployLocalFlowRoute` to create queues; remote nodes forward through gRPC to daemon to message queue to sub_deployer for execution, where sub-models and weight files are written to disk in chunks by `FlowModelReceiver` (`model_recv/`) before queues are created
 3. **Load models**: `LoadSubmodels` loads sub-models in parallel on each node; local nodes use `LocalDeployer` to `DeployContext` to `ExecutorManager::GetOrCreateExecutorClient` to create the corresponding executor client based on PNE type and fork the executor process; remote nodes use sub_deployer's `ExecutorManager` to fork executor processes
 4. **Establish queue bindings**: `DeployLocalFlowRoute` completes local flow route deployment, establishing data binding relationships between queues. After deployment completes, a `DeployResult` is produced and handed to `HeterogeneousModelExecutor`; `ModelRunStart` starts scheduling and status-reporting background threads, entering the Feed/Fetch-ready state
@@ -541,6 +541,284 @@ After executor processes load models, they adopt different execution methods bas
 - The npu_executor dispatcher thread dequeues request mbufs from req_msg_queue, parses input addresses, and calls `aclmdlExecute` to execute the dynamic model
 - After execution completes, npu_executor writes output data description information to resp_msg_queue to notify AICPU, which completes output data enqueue
 - Applicable to dynamic shape GraphPp
+
+#### 4.3.7 Deployment Planning and Edge Optimization
+
+The core task of deployment planning is to translate the logical connection relationships produced during graph construction (which FlowNodes connect to which) into physical queue creation and binding plans. To understand how edges are planned, one must first understand the responsibility boundaries of each role after deployment and the queue data flow principles.
+
+##### Deployment Architecture and Queue Data Flow
+
+Three roles are formed after deployment, each with clear responsibility boundaries:
+
+| Role | Responsibility | Queue interaction |
+|------|---------------|-------------------|
+| Application head node | Overall entry and exit point for user Feed/Fetch | Enqueues to input queues on Feed, dequeues from output queues on Fetch |
+| Model executor | Executes model computation (NPU models, UDFs, etc.) | Only dequeues from its input queues and enqueues to its output queues, unaware of how data arrives |
+| flowGW | Data distribution middleware (one per device; whether the host side is deployed is determined by runtime capability detection) | Dequeues from source queues and distributes to target queues |
+
+Data flow follows these principles:
+
+- **Each model input and output corresponds to a queue**, and the model only interacts with its own input/output queues (exceptions: unused outputs are occupied by Dummy queues without creating physical queues, fused multi-outputs share the same physical queue, and one-to-one connections reuse the same queue, see the edge type analysis below)
+- **A queue can only be dequeued by one module** -- models dequeue from their own input queues, flowGW dequeues from the source queues it is responsible for distributing; multiple sources enqueueing to the same queue (many-to-one) is allowed
+- **Same-device one-to-many distribution**: when one output needs to go to multiple models on the same device, the source model only enqueues once to its own output queue, and flowGW takes it from the source queue and distributes it to each target model's own input queue (the GE side only delivers routing and group configurations; the distribution behavior executes inside the flowGW process); same-side data sharing achieves zero-copy through reference counting
+- **Root model input one-to-many**: when a graph input needs to be distributed to multiple targets and all target queues are device-side queues, Feed data is sent directly by the application to each device's target queues, without going through host-side flowGW distribution
+- **Cross-device communication**: transmitted via tags over the hcomm module (HCCL communication; related interfaces in the code use the hcom prefix, such as `hcom_handle`). Each of the two devices allocates one tag to form a tag pair; tag is also used between different devices on the same node when local direct connection is not possible
+- **Between Host and Device**: queues deployed on devices are all created as client queues; host processes (the application head node) can directly enqueue/dequeue them, with copy semantics on both enqueue and dequeue (data transfer performed by the driver), unable to share through reference counting
+
+##### Routing Model and Group
+
+The physical implementation of the above connections is described by two orthogonal dimensions: **topology** (how many sources bind to how many destinations) and **routing element** (what the bound endpoint itself is):
+
+| Dimension | Values | Description |
+|-----------|--------|-------------|
+| Topology | One-to-one / One-to-many / Many-to-one / Many-to-many | Describes the connection count relationship between sources and destinations. One-to-many is copy distribution: each destination gets one copy |
+| Routing element | Queue / tag / group | Describes the type of the bound endpoint. Any endpoint of any topology may appear in group form |
+
+**Group is the routing grouping object inside flowGW**; its members are queues or tags forming a load-balancing relationship; a single queue/tag that is not a group is equivalent to a group containing only one element (degenerate form). Its semantics have two sides:
+
+- **As delivery destination (select-one delivery)**: when data enters a group, it is delivered by strategy to only one member -- by default round-robin on trans_id; when an affinity policy is configured (see [Section 2.4](#24-multi-instance-load-balancing)), distribution follows trans_id plus the route_label generated by the affinity policy, ensuring data with the same key reaches the same member
+- **As data source (ordered consumption)**: the consumer takes only one message at a time from the group for processing, ordered by trans_id by default; scenarios containing N-Mapping nodes or with exception catching enabled do not buffer for ordering and distribute as data arrives
+
+The deployment planner builds groups according to connection topology and delivers them through configuration; execution is performed by flowGW at runtime. Taking one-to-many copy distribution as an example, the routing path is as follows:
+
+```mermaid
+flowchart LR
+    S["Source (model output queue)"] -->|Binding 1: copy one| G1["Destination group of B"]
+    S -->|Binding 2: copy one| G2["Destination group of C"]
+    G1 -->|select-one delivery| Q1["B[0] queue"]
+    G1 -->|select-one delivery| T1["tag -> B[1]"]
+    G2 --> Q2["C[0] queue (single element, degenerates to direct connection)"]
+```
+
+##### Edge Planning Example
+
+The following uses a concrete scenario to illustrate edge planning. Suppose there are 5 models (A/B/C/D/E), each with 2 inputs and 2 outputs, deployed to 2 devices: models A/B/C on Device 0, models D/E on Device 1. Model inputs have reuse relationships (for example, input 0 of A and B comes from the same input data), and some outputs are unused by downstream.
+
+The left figure shows graph edges (logical relationships, device allocation not considered); the right figure shows deployment edges (physical queues and tags, communication method selected by device allocation):
+
+<table>
+<tr>
+<th>Graph edges (logical)</th>
+<th>Deployment edges (physical)</th>
+</tr>
+<tr>
+<td>
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}, 'flowchart': {'nodeSpacing': '35', 'rankSpacing': '35'}}}%%
+flowchart TD
+    D0["FlowData0"] -->|in0| A["Model A"]
+    D0 -->|in0| B["Model B"]
+    D1["FlowData1"] -->|in1| A
+    A -->|out0| B
+    A -->|out0| C["Model C"]
+    A -->|out1| C
+    B -->|out0| D["Model D"]
+    C -->|out0| D
+    C -->|out0| E["Model E"]
+    D -->|out0| E
+    B -->|out1| OUT0["User output 0"]
+    C -->|out1| OUT1["User output 1"]
+    E -->|out1| OUT2["User output 2"]
+    D -.->|out1 unused| DU1["Unused"]
+    E -.->|out0 unused| DU2["Unused"]
+```
+
+</td>
+<td>
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}, 'flowchart': {'nodeSpacing': '35', 'rankSpacing': '35'}}}%%
+flowchart TD
+    subgraph Host["Host"]
+        H["Application head node Feed/Fetch"]
+    end
+    subgraph Dev0["Device 0"]
+        Q3(["Q3"]) -->|in0| A["Model A"]
+        Q6(["Q6"]) -->|in0| B["Model B"]
+        Q2(["Q2"]) -->|in1| A
+        A -->|out0| Q4(["Q4"]) --> Q7(["Q7"]) -->|in1| B
+        Q4 --> Q10(["Q10"]) -->|in0| C["Model C"]
+        A -->|out1| Q5(["Q5"]) -->|in1| C
+        B -->|out0| Q8(["Q8"]) --> T1A(("tag1"))
+        B -->|out1| Q9(["Q9"])
+        C -->|out0| Q11(["Q11"]) --> T2A(("tag2"))
+        C -->|out1| Q12(["Q12"])
+    end
+    subgraph Dev1["Device 1"]
+        T1B(("tag1")) --> Q13(["Q13"]) -->|in0| D["Model D"]
+        T2B(("tag2")) --> Q14(["Q14"]) -->|in1| D
+        T2B --> Q17(["Q17"]) -->|in1| E["Model E"]
+        D -->|out0| Q15(["Q15"]) -->|in0| E
+        D -->|out1| DQ1(["Dummy Q"])
+        E -->|out0| DQ2(["Dummy Q"])
+        E -->|out1| Q19(["Q19"])
+    end
+    H --> Q3
+    H --> Q6
+    H --> Q2
+    Q9 -. Fetch .-> H
+    Q12 -. Fetch .-> H
+    Q19 -. Fetch .-> H
+    T1A -. hcomm .-> T1B
+    T2A -. hcomm .-> T2B
+```
+
+</td>
+</tr>
+</table>
+
+##### Edge Type Analysis
+
+The example above embodies 6 edge types, each using a different communication method:
+
+**Same-device one-to-many (multi-destination copy distribution)**: when one output needs to go to multiple models on the same device, the source queue (such as Q4) binds multiple delivery destinations, and each destination gets one copy. The source model only enqueues once to the source queue, and flowGW distributes to each destination (which can be a queue/tag/group), with same-side data sharing being zero-copy. Without this optimization, the source model would need to enqueue the same data separately to each target queue -- N targets = N copies.
+
+| Connection | Source queue | Destinations | Description |
+|------------|--------------|--------------|-------------|
+| A.out0 -> B.in1 + C.in0 | Q4 | Q7, Q10 | A only enqueues Q4 once, flowGW delivers one copy to each destination |
+
+**One-to-one queue reuse**: for one-to-one connections with both ends deployed on the same node, the source model's output queue and the target model's input queue are reused as the same physical queue, without creating two queues and doing an extra enqueue/dequeue round trip. A host CPU model and an NPU model on the same node are also reused (the physical queue resides on the NPU side).
+
+| Connection | Reused queue | Description |
+|------------|--------------|-------------|
+| FlowData1 -> A.in1 | Q2 | Input queue serves directly as A's input |
+| A.out1 -> C.in1 | Q5 | A's output queue is C's input queue |
+| D.out0 -> E.in0 | Q15 | D's output queue is E's input queue |
+
+**Cross-device one-to-one (tag pair)**: cross-device connections must allocate a tag pair -- the same tag generates one endpoint on each of the two devices (same name on both ends, tag_id identical to the peer), transmitted via hcomm communication.
+
+| Connection | Source side | Target side | tag pair |
+|------------|-------------|-------------|----------|
+| B.out0 -> D.in0 | Q8 -> tag1 | tag1 -> Q13 | tag1 (same name on both ends) |
+
+**Cross-device one-to-many (target-side distribution)**: for cross-device one-to-many with multiple targets on the same target device, these targets share one tag pair, only one copy of data is transferred across devices, and the target device's flowGW distributes to multiple target queues. For example, C.out0 -> D.in1 + E.in1: source-side Q11 goes through tag2 to the same-named endpoint on the target side, which then forks to Q14 and Q17.
+
+**Dummy Q (unused output placeholder)**: when a model output is unused by any downstream, a Dummy Queue is inserted as a placeholder to keep input/output slots aligned, but physical queue creation is skipped. For example, D.out1 and E.out0 are both unused, each allocated a Dummy Q. Root model inputs not consumed by any sub-model are also occupied by Dummy queues.
+
+**Application-side direct broadcast**: when a root model input needs to be distributed to multiple targets and all target queues are device-side queues, distribution does not go through host-side flowGW; Feed data is sent directly by the application to each device's target queues.
+
+##### Multi-instance Deployment Edge Planning
+
+When the same model is deployed with multiple instances, edge planning needs to handle connection relationships between instances. The deployment planner assigns `process_id` to each instance of multi-deployed models through `MarkMultiDeployedModels`, then selects different edge strategies based on the instance count combination of source and target ends. Four scenarios follow.
+
+**Scenario 1: One-to-many (1->N)**: 1 source instance connects to N target instances. For example, model A deploys 1 instance on Device 0, model B deploys 2 instances (B[0] on Device 0, B[1] on Device 1), and A's output needs to be delivered to B's instances (load balancing).
+
+```mermaid
+flowchart TD
+    subgraph Dev0["Device 0"]
+        A0["A[0]"] -->|out0| Q4(["Q4"])
+        Q4 --> G1{{"Destination group of B instances<br/>(select-one delivery)"}}
+        G1 --> Q7(["Q7"]) -->|in0| B0["B[0]"]
+        G1 --> T1A(("tag1"))
+    end
+    subgraph Dev1["Device 1"]
+        T1B(("tag1")) --> Q13(["Q13"]) -->|in0| B1["B[1]"]
+    end
+    T1A -. hcomm .-> T1B
+```
+
+The source-side A only enqueues once to Q4. The access points of B's two instances (local queue Q7 and cross-device tag1) form a destination group, and each message is delivered by strategy to only one instance (same-side data sharing is zero-copy). After `IsOutputMultiConnected` is determined to be true, `PrepareQueuesRelation` creates this group.
+
+**Scenario 2: Many-to-one (M->1)**: M source instances connect to 1 target instance. For example, model A deploys 2 instances (A[0] on Device 0, A[1] on Device 1), model B deploys 1 instance on Device 0, and both A instances' outputs converge into B.
+
+```mermaid
+flowchart TD
+    subgraph Dev0["Device 0"]
+        A0["A[0]"] -->|out0| Q4(["Q4"])
+        Q4 --> G1{{"Source group of B[0]<br/>(ordered consumption)"}}
+        T1B(("tag1")) --> G1
+        G1 --> Q5(["Q5"]) -->|in0| B0["B[0]"]
+    end
+    subgraph Dev1["Device 1"]
+        A1["A[1]"] -->|out0| Q8(["Q8"])
+        Q8 --> T1A(("tag1"))
+    end
+    T1A -. hcomm .-> T1B
+```
+
+B's input comes from multiple sources: the two sources (local queue Q4 and the peer endpoint of cross-device tag1) form B's source group. flowGW takes messages one by one from the group and delivers them to input queue Q5 (ordered by trans_id by default), and B[0] only dequeues from Q5. `IsInputMultiConnected` is determined to be true, and `PrepareQueuesRelation` creates an aggregation group for the target.
+
+**Scenario 3: Many-to-many (same instance count N->N)**: N source instances connect to N target instances, with both ends deployed on the same device set in order. For example, models A and B each deploy 2 instances, A[0]/B[0] on Device 0, A[1]/B[1] on Device 1. The left figure shows the full connection before trimming; the right figure shows the diagonal connections kept after trimming:
+
+<table>
+<tr>
+<th>Before trimming (full connection N x N = 4 edges)</th>
+<th>After trimming (only diagonal N = 2 edges)</th>
+</tr>
+<tr>
+<td>
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}, 'flowchart': {'nodeSpacing': '35', 'rankSpacing': '35'}}}%%
+flowchart TD
+    A3a["A[0]"] --> B3a["B[0]"]
+    A3a -. trim .-> B3b["B[1]"]
+    A3b["A[1]"] -. trim .-> B3a
+    A3b --> B3b
+```
+
+</td>
+<td>
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}, 'flowchart': {'nodeSpacing': '35', 'rankSpacing': '35'}}}%%
+flowchart TD
+    A4a["A[0]@Dev0"] -->|queue reuse| B4a["B[0]@Dev0"]
+    A4b["A[1]@Dev1"] -->|queue reuse| B4b["B[1]@Dev1"]
+```
+
+</td>
+</tr>
+</table>
+
+`CheckSkipBinding` detects that both ends have the same instance count and are deployed on the same device set in order, skips cross-index bindings (A[0]->B[1] and A[1]->B[0]), and keeps only the same-device same-index diagonal connections. After trimming, edges degenerate into pure one-to-one connections going through same-device queue reuse, with no group or tag pair needed, avoiding the overhead of N-squared cross-device tag connections. The kept same-index connections are recorded as trimming relationships through `AddTrimmingEdgesModelInstance` (extended to the entire association tree through transitive closure via DFS at deployment time); when an instance becomes abnormal at runtime, `UpdateAbnormalInstanceForTrimmingModel` cascades the marking to associated instances. No trimming when either side has no locatable deployment or is not multi-instance deployed; no trimming either when the connection contains UDF invoked NN models.
+
+**Scenario 4: Many-to-many (different instance counts M->N, M!=N)**: M source instances connect to N target instances, M!=N, unable to align by index. For example, model A deploys 2 instances (A[0] on Device 0, A[1] on Device 1), model B deploys 3 instances (B[0] on Device 0, B[1] on Device 1, B[2] on Device 2), establishing a full connection M x N = 6 edges.
+
+```mermaid
+flowchart TD
+    subgraph Dev0["Device 0"]
+        A0["A[0]"] -->|out0| Q4(["Q4"])
+        Q4 --> G0{{"Destination group of A[0]<br/>(select-one delivery)"}}
+        G0 --> M1(["Mapping queue M1"])
+        G0 --> T1A(("tag1"))
+        G0 --> T3A(("tag3"))
+        T2B(("tag2")) --> GS0{{"Source group of B[0]<br/>(ordered consumption)"}}
+        M1 --> GS0
+        GS0 --> Q5(["Q5"]) -->|in0| B0["B[0]"]
+    end
+    subgraph Dev1["Device 1"]
+        A1["A[1]"] -->|out0| Q8(["Q8"])
+        Q8 --> G1{{"Destination group of A[1]<br/>(select-one delivery)"}}
+        G1 --> M2(["Mapping queue M2"])
+        G1 --> T2A(("tag2"))
+        G1 --> T4A(("tag4"))
+        T1B(("tag1")) --> GS1{{"Source group of B[1]<br/>(ordered consumption)"}}
+        M2 --> GS1
+        GS1 --> Q9(["Q9"]) -->|in0| B1["B[1]"]
+    end
+    subgraph Dev2["Device 2"]
+        T3B(("tag3")) --> GS2{{"Source group of B[2]<br/>(ordered consumption)"}}
+        T4B(("tag4")) --> GS2
+        GS2 --> Q10(["Q10"]) -->|in0| B2["B[2]"]
+    end
+    T1A -. hcomm .-> T1B
+    T2A -. hcomm .-> T2B
+    T3A -. hcomm .-> T3B
+    T4A -. hcomm .-> T4B
+```
+
+When instance counts differ, `CheckSkipBinding` returns false, no trimming, establishing a full connection. Each source instance holds its own destination group whose members are the access points of each target instance, and each message is delivered by strategy to only one target instance (load balancing): same-device connections (A[0]->B[0], A[1]->B[1]) go through intermediate mapping queues since both ends are multi-connected; the 4 cross-device connections each get an independent tag pair (the two ends of a tag pair share the same name), supporting per-instance load balancing. When a target instance's input comes from multiple sources, the sources (mapping queues or tags) are aggregated by a source group, from which flowGW takes messages one by one into the input queue, ordered by trans_id by default. Additionally, when instance counts are the same but the device sets of both ends cannot be aligned in order for direct connection, trimming is also skipped and a full connection is established.
+
+**Multi-instance edge strategy summary**:
+
+| Scenario | Instance count | Edge strategy | Trimming | Core code |
+|----------|----------------|---------------|----------|-----------|
+| One-to-many | 1->N | Target instance access points form a destination group, select-one delivery (load balancing) | Not involved | `IsOutputMultiConnected` |
+| Many-to-one | M->1 | Sources form the target's source group, ordered consumption | Not involved | `IsInputMultiConnected` |
+| Many-to-many (same instance count) | N->N | Same-index diagonal connections, degenerating to pure one-to-one (no group needed) | Trims N squared minus N | `CheckSkipBinding` |
+| Many-to-many (different instance counts) | M->N | Each source holds an independent destination group for select-one delivery + source groups for ordered consumption, same-device via mapping queues | No trimming | `CheckSkipBinding` returns false |
 
 ### 4.4 Execution Layer: Heterogeneous Executors and Data Alignment
 
