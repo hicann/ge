@@ -197,7 +197,7 @@ During `FlowGraph` construction, the FlowOperator list is built into a GE `Graph
 
 After graph construction, compile and run through `DFlowSession` (`runner/session/dflow_api.h`):
 
-- **Compile+Load**: `BuildGraph` (compile and load combined, lazy compilation on first Feed)
+- **Compile+Load**: `BuildGraph` (compile and load combined; no compilation during graph construction, triggered once on demand by `BuildGraph` or the first Feed; compiles only without loading when `ge.runFlag` is disabled)
 - **Data input**: `FeedDataFlowGraph` (supports Tensor and FlowMsg two paths)
 - **Data retrieval**: `FetchDataFlowGraph` (supports retrieval by index)
 - **Global management**: `DFlowInitialize` / `DFlowFinalize` / multi-session management
@@ -386,7 +386,7 @@ classDiagram
 | FLOW_MODEL | FlowModel metadata (ModelRelation, sub-model list, scheduling priority) |
 | FLOW_SUBMODEL | Each sub-model compilation product (multi-thread parallel loading) |
 
-**Deployment planning** (`DeployPlanner::BuildPlan` in `base/deploy/deploy_planner.cc`) converts ModelRelation into specific queue creation and binding plans (DeployPlan): flatten models to supplement control queues to parse data flow connections to adjust devices to identify reusable queues. The Group mechanism handles one-to-many/many-to-one data distribution.
+**Deployment planning** (`DeployPlanner::BuildPlan` in `base/deploy/deploy_planner.cc`, invoked by `BuildDeployPlan` at deployment time) converts ModelRelation into specific queue creation and binding plans (DeployPlan): flatten models to supplement control queues to parse data flow connections to adjust devices to identify reusable queues. The Group mechanism handles one-to-many/many-to-one data distribution.
 
 ### 4.3 Deployment Layer: Multi-node Master-Slave Deployment
 
@@ -477,12 +477,41 @@ Different communication methods are used between levels:
 
 #### 4.3.4 Deployment Pipeline
 
-Deployment is orchestrated by `HeterogeneousModelDeployer` (`DoDeployModelWithFlow` in `deploy/deployer/heterogeneous_model_deployer.cc`), advancing through key phases:
+The graph construction phase (`AddGraph`) only registers the graph, without compiling or deploying. Compilation and deployment are deferred until the first time the data flow actually needs to run: `BuildGraph` or the first `feed` on the Python side (both paths enter `CompileAndLoadGraph`; whichever comes first triggers it, and it executes only once) first compiles and caches the FlowModel; if the run-switch option `ge.runFlag` is disabled (enabled by default), it returns after compilation only without deploying (offline compilation scenario); otherwise `FlowModelManager::LoadFlowModel` calls `ModelDeployer::DeployModel` to enter the deployment flow, producing a `DeployResult` for the execution layer upon completion. Deployment is orchestrated by `HeterogeneousModelDeployer` (`DoDeployModelWithFlow` in `deploy/deployer/heterogeneous_model_deployer.cc`), advancing through the following phases:
 
-1. **Build plan**: `BuildDeployPlan` allocates device resources and builds the deployment plan; `FlowRoutePlanner::ResolveFlowRoutePlans` plans flow routes for each node
-2. **Distribute to nodes**: Distributes route plans, deployment plans, sub-models, variable managers, and data gateway configurations to each node through `FlowModelSender`. Local nodes first `PreDeployLocalFlowRoute` to create queues; remote nodes forward through gRPC to daemon to message queue to sub_deployer for execution
+```mermaid
+sequenceDiagram
+    participant APP as Application process (head node)
+    participant HMD as HeterogeneousModelDeployer
+    participant RM as Remote path<br/>(daemon to sub_deployer)
+    participant EXE as executor process
+
+    APP->>HMD: DeployModel(FlowModel)
+    HMD->>HMD: 1 BuildDeployPlan<br/>allocate devices + DeployPlanner.BuildPlan generates queue plan
+    HMD->>HMD: 2 FlowRoutePlanner.ResolveFlowRoutePlans<br/>plans flow routes for each node
+    HMD->>RM: 3 DeployDevMaintenanceCfg<br/>pre-distribute maintenance configs (dump/profiling, etc.)
+    HMD->>RM: 4 TransferFlowRoutePlan / TransferDeployPlan
+    alt Local node
+        HMD->>HMD: PreDeployLocalFlowRoute creates queues
+    else Remote node
+        RM->>RM: FlowModelReceiver lands plans<br/>(daemon to sub_deployer message queue forwarding)
+        RM->>RM: create queues
+    end
+    HMD->>RM: TransferSubmodels / DeployRemoteVarManager<br/>TransferDataGwDeployPlan
+    Note over RM: Remote: FlowModelReceiver writes sub-models and<br/>weight files to disk in chunks
+    HMD->>EXE: 5 LoadSubmodels loads sub-models in parallel<br/>local LocalDeployer / remote sub_deployer<br/>fork executors and send load requests
+    EXE->>EXE: load model to attach queue to ready
+    HMD->>HMD: 6 DeployLocalFlowRoute establishes queue bindings
+    HMD-->>APP: returns DeployResult
+    Note over APP: Handed to HeterogeneousModelExecutor;<br/>ModelRunStart starts scheduling/status-reporting threads,<br/>entering the Feed/Fetch-ready state
+```
+
+Phase descriptions:
+
+1. **Build plan**: `BuildDeployPlan` allocates device resources and builds the deployment plan (internally calling `DeployPlanner::BuildPlan` in [Section 4.2](#42-model-abstraction-layer-flowmodel-and-modelrelation) to generate the queue creation and binding plan); `FlowRoutePlanner::ResolveFlowRoutePlans` plans flow routes for each node. Before deployment, `DeployDevMaintenanceCfg` pre-distributes maintenance configurations (dump/profiling and other environment variables passed through to child processes)
+2. **Distribute to nodes**: Distributes route plans, deployment plans, sub-models, variable managers, and data gateway configurations to each node through `FlowModelSender`. Local nodes first `PreDeployLocalFlowRoute` to create queues; remote nodes forward through gRPC to daemon to message queue to sub_deployer for execution, where sub-models and weight files are written to disk in chunks by `FlowModelReceiver` (`model_recv/`) before queues are created
 3. **Load models**: `LoadSubmodels` loads sub-models in parallel on each node; local nodes use `LocalDeployer` to `DeployContext` to `ExecutorManager::GetOrCreateExecutorClient` to create the corresponding executor client based on PNE type and fork the executor process; remote nodes use sub_deployer's `ExecutorManager` to fork executor processes
-4. **Establish queue bindings**: `DeployLocalFlowRoute` completes local flow route deployment, establishing data binding relationships between queues
+4. **Establish queue bindings**: `DeployLocalFlowRoute` completes local flow route deployment, establishing data binding relationships between queues. After deployment completes, a `DeployResult` is produced and handed to `HeterogeneousModelExecutor`; `ModelRunStart` starts scheduling and status-reporting background threads, entering the Feed/Fetch-ready state
 
 After executor process startup: attach MemoryGroup to initialize `MessageServer` to receive model loading requests and load models to attach queue to ready. How loading requests are received varies by executor: npu_executor / host_cpu_executor receive them through message queues; udf_executor loads the model description from the local file pointed to by the startup argument at fork time, and its message queue only carries runtime control messages (suspend/resume/exception notification, etc.).
 
@@ -746,7 +775,7 @@ flowchart TD
         A2 --> A3["df.FlowGraph(outputs=[...])<br/>Reverse traversal extracts nodes+inputs<br/>Build to ComputeGraph"]
     end
     subgraph Compilation Phase
-        B1["graph.feed_data() triggers lazy compilation"] --> B2["DFlowSession.CompileAndLoadGraph"]
+        B1["graph.feed_data() triggers on-demand compilation"] --> B2["DFlowSession.CompileAndLoadGraph"]
         B2 --> B3["FlowModelBuilder.BuildModel<br/>Parse PP→auto deploy→build ModelRelation<br/>→multi-thread parallel subgraph compilation"]
         B3 --> B4["PNE engine compilation<br/>UDF:cmake/make SO<br/>NPU:GeSession compiles OM"]
         B4 --> B5["Produce FlowModel(with ModelRelation+submodels)"]

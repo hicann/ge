@@ -18,8 +18,27 @@ const int kNDimIndex = 1;
 const int kRealDimNchwTo5Hd = 0;
 const int kInputShapeLimit = 4;
 const int kValidNcDimSize = 2;
+const int kSplitvInput2 = 2;
 
-bool SplitCToNOptimizer::CheckSplitDim(const ge::OpDescPtr &op_desc) const {
+bool SplitCToNOptimizer::CheckSplitDim(const ge::NodePtr &node, const ge::OpDescPtr &op_desc) const {
+  if (op_desc->GetType() == fe::SPLITV) {
+    auto in_nodes = node->GetInDataNodes();
+    if (in_nodes.size() >= 3U) {
+      std::string op_type1;
+      std::string op_type2;
+      if (ge::NodeUtils::GetConstOpType(in_nodes.at(1), op_type1) &&
+          ge::NodeUtils::GetConstOpType(in_nodes.at(kSplitvInput2), op_type2)) {
+        ge::GeTensorDescPtr input_tensor = op_desc->MutableInputDesc(0);
+        if (input_tensor == nullptr || input_tensor->GetFormat() != ge::FORMAT_NCHW) {
+          FE_LOGD("[%s] is SplitV but input0 format is not NCHW, cannot optimize.", op_desc->GetName().c_str());
+          return false;
+        }
+        FE_LOGD("[%s] is SplitV with const input1 and input2, skip split_dim check.", op_desc->GetName().c_str());
+        return true;
+      }
+    }
+  }
+
   int64_t split_dim = -1;
   (void)ge::AttrUtils::GetInt(op_desc, SPLIT_DIM, split_dim);
   ge::GeTensorDescPtr input_tensor = op_desc->MutableInputDesc(0);
@@ -88,7 +107,8 @@ bool SplitCToNOptimizer::CheckAxis(const ge::OpDescPtr &op_desc) const {
 
 bool SplitCToNOptimizer::CheckCommonCondition(const ge::ComputeGraph &graph, const ge::NodePtr &node,
                                               const ge::OpDescPtr &op_desc) const {
-  bool is_not_split = op_desc->GetType() != fe::SPLITD && op_desc->GetType() != fe::SPLITVD;
+  bool is_not_split =
+      op_desc->GetType() != fe::SPLITD && op_desc->GetType() != fe::SPLITVD && op_desc->GetType() != fe::SPLITV;
   string node_name = op_desc->GetName();
   if (is_not_split) {
     return false;
@@ -134,7 +154,7 @@ bool SplitCToNOptimizer::NeedSkip(const ge::ComputeGraph &graph, const ge::NodeP
   bool condition_nd_nz = (input_orinal_format == ge::FORMAT_ND && input_format == ge::FORMAT_FRACTAL_NZ);
   bool condition_nchw_5hd = (input_orinal_format == ge::FORMAT_NCHW && input_format == ge::FORMAT_NC1HWC0);
 
-  if (CheckSplitDim(op_desc) && CheckAxis(op_desc) &&
+  if (CheckSplitDim(node, op_desc) && CheckAxis(op_desc) &&
       ((input_orinal_format == input_format) || (condition_nd_nz && MeetDimNumConditionFromNDToNZ(op_desc)) ||
        (condition_nchw_5hd && MeetAlignmentConditionFromNCHWTo5HD(op_desc))) &&
       CheckCommonCondition(graph, node, op_desc)) {

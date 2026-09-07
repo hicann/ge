@@ -35,7 +35,7 @@ static aclError AippInputFormatCheck(const enum CceAippInputFormat inputFormat, 
 
   if (npuArch == NPUARCH_TO_STR(NpuArch::DAV_1001) || npuArch == NPUARCH_TO_STR(NpuArch::DAV_3002) ||
       npuArch == NPUARCH_TO_STR(NpuArch::DAV_2002) || npuArch == NPUARCH_TO_STR(NpuArch::DAV_2201) ||
-      npuArch == NPUARCH_TO_STR(NpuArch::DAV_3510)) {
+      npuArch == NPUARCH_TO_STR(NpuArch::DAV_3510) || npuArch == NPUARCH_TO_STR(NpuArch::DAV_9201)) {
     flag = ((inputFormat != CCE_YUV420SP_U8) && (inputFormat != CCE_XRGB8888_U8) && (inputFormat != CCE_RGB888_U8) &&
             (inputFormat != CCE_YUV400_U8));
     if (flag) {

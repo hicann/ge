@@ -492,7 +492,7 @@ bool NotaskPassBase::IsPreNodeTypeValid(const ge::InDataAnchorPtr &in_anchor) co
     return false;
   }
   const std::string op_type = node->GetType();
-  static std::set<std::string> not_support_type = {DATA, REFDATA, VARIABLE, CONSTANTOP, CONSTANT};
+  static const std::set<std::string> not_support_type = {DATA, REFDATA, VARIABLE, CONSTANTOP, CONSTANT};
   if (not_support_type.count(op_type) != 0U) {
     GELOGD("node [%s] pre node [%s] opType is %s.", cur_pro_node_name_.c_str(), node->GetName().c_str(),
            op_type.c_str());

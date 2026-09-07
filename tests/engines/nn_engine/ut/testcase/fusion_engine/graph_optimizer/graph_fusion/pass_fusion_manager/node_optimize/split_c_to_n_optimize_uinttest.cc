@@ -881,6 +881,68 @@ class UTEST_split_c_to_n_optimize : public testing::Test {
     ge::GraphUtils::AddEdge(split_node->GetOutDataAnchor(0), quant1_node->GetInDataAnchor(0));
     ge::GraphUtils::AddEdge(split_node->GetOutDataAnchor(1), quant2_node->GetInDataAnchor(0));
   }
+
+  static GeTensorDesc MakeTensorDesc(const GeShape &shape, ge::Format fmt, ge::DataType dtype) {
+    GeTensorDesc desc(shape, fmt, dtype);
+    desc.SetOriginFormat(fmt);
+    desc.SetOriginDataType(dtype);
+    desc.SetOriginShape(shape);
+    return desc;
+  }
+
+  void InitSplitVGraph(ComputeGraphPtr &graph) {
+    ge::GeShape shape1({1, 32, 14, 14});
+    GeTensorDesc quant1_out = MakeTensorDesc(shape1, ge::FORMAT_NCHW, ge::DT_INT32);
+    GeTensorDesc const1_out = MakeTensorDesc(GeShape({2}), ge::FORMAT_NCHW, ge::DT_INT32);
+    GeTensorDesc const2_out = MakeTensorDesc(GeShape({1}), ge::FORMAT_NCHW, ge::DT_INT32);
+    GeTensorDesc split_out1 = MakeTensorDesc(shape1, ge::FORMAT_NCHW, ge::DT_FLOAT16);
+    GeTensorDesc split_out2 = MakeTensorDesc(shape1, ge::FORMAT_NCHW, ge::DT_FLOAT16);
+
+    OpDescPtr quant1 = std::make_shared<OpDesc>("quant1", QUANT);
+    OpDescPtr const1 = std::make_shared<OpDesc>("const1", "Const");
+    OpDescPtr const2 = std::make_shared<OpDesc>("const2", "Const");
+    OpDescPtr split = std::make_shared<OpDesc>("split", "SplitV");
+    for (auto *op : {quant1.get(), const1.get(), const2.get()}) {
+      (void)ge::AttrUtils::SetInt(op, ge::ATTR_NAME_IMPLY_TYPE, static_cast<int>(domi::ImplyType::TVM));
+    }
+    quant1->AddOutputDesc(quant1_out);
+    const1->AddOutputDesc(const1_out);
+    const2->AddOutputDesc(const2_out);
+    split->AddInputDesc(quant1_out);
+    split->AddInputDesc(const1_out);
+    split->AddInputDesc(const2_out);
+    split->AddOutputDesc(split_out1);
+    split->AddOutputDesc(split_out2);
+
+    NodePtr quant1_node = graph->AddNode(quant1);
+    NodePtr const1_node = graph->AddNode(const1);
+    NodePtr const2_node = graph->AddNode(const2);
+    NodePtr split_node = graph->AddNode(split);
+
+    InitSplitVGraphConsumers(graph, split_out1, split_out2, quant1_out, split_node);
+
+    ge::GraphUtils::AddEdge(quant1_node->GetOutDataAnchor(0), split_node->GetInDataAnchor(0));
+    ge::GraphUtils::AddEdge(const1_node->GetOutDataAnchor(0), split_node->GetInDataAnchor(1));
+    ge::GraphUtils::AddEdge(const2_node->GetOutDataAnchor(0), split_node->GetInDataAnchor(2));
+  }
+
+  void InitSplitVGraphConsumers(ComputeGraphPtr &graph, const GeTensorDesc &split_out1, const GeTensorDesc &split_out2,
+                                const GeTensorDesc &quant1_out, const NodePtr &split_node) {
+    OpDescPtr quant2 = std::make_shared<OpDesc>("quant2", QUANT);
+    OpDescPtr quant3 = std::make_shared<OpDesc>("quant3", QUANT);
+    for (auto *op : {quant2.get(), quant3.get()}) {
+      (void)ge::AttrUtils::SetInt(op, ge::ATTR_NAME_IMPLY_TYPE, static_cast<int>(domi::ImplyType::TVM));
+    }
+    quant2->AddInputDesc(split_out1);
+    quant2->AddOutputDesc(quant1_out);
+    quant3->AddInputDesc(split_out2);
+    quant3->AddOutputDesc(quant1_out);
+
+    NodePtr quant2_node = graph->AddNode(quant2);
+    NodePtr quant3_node = graph->AddNode(quant3);
+    ge::GraphUtils::AddEdge(split_node->GetOutDataAnchor(0), quant2_node->GetInDataAnchor(0));
+    ge::GraphUtils::AddEdge(split_node->GetOutDataAnchor(1), quant3_node->GetInDataAnchor(0));
+  }
 };
 
 TEST_F(UTEST_split_c_to_n_optimize, split_c_to_n_no_task_suc_001) {
@@ -1056,5 +1118,27 @@ TEST_F(UTEST_split_c_to_n_optimize, split_c_to_n_no_task_fail_008) {
   bool attr_notask = false;
   (void)ge::AttrUtils::GetBool(split_node->GetOpDesc(), ATTR_NAME_NOTASK, attr_notask);
   EXPECT_EQ(attr_notask, false);
+}
+
+TEST_F(UTEST_split_c_to_n_optimize, splitv_no_task_suc_001) {
+  ge::ComputeGraphPtr graph = std::make_shared<ComputeGraph>(GRAPH_NAME);
+  InitSplitVGraph(graph);
+  SplitCToNOptimizer split_c_to_optimize;
+  split_c_to_optimize.SetFusionVirtualOp(*graph);
+
+  auto split_node = graph->FindNode("split");
+  bool attr_notask = false;
+  bool continues_output = false;
+  bool output_reuse_input = false;
+  uint32_t dim_index = 1;
+  (void)ge::AttrUtils::GetBool(split_node->GetOpDesc(), ATTR_NAME_NOTASK, attr_notask);
+  (void)ge::AttrUtils::GetBool(split_node->GetOpDesc(), ge::ATTR_NAME_NOPADDING_CONTINUOUS_OUTPUT, continues_output);
+  (void)ge::AttrUtils::GetBool(split_node->GetOpDesc(), ge::ATTR_NAME_OUTPUT_REUSE_INPUT, output_reuse_input);
+  (void)ge::AttrUtils::GetInt(split_node->GetOpDesc(), ge::ATTR_NAME_REUSE_INPUT_ON_DIM_INDEX, dim_index);
+
+  EXPECT_EQ(attr_notask, true);
+  EXPECT_EQ(continues_output, true);
+  EXPECT_EQ(output_reuse_input, true);
+  EXPECT_EQ(dim_index, 0);
 }
 }  // namespace fe

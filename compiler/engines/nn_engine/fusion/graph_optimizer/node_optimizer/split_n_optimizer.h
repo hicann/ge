@@ -42,6 +42,7 @@ class SplitNOptimizer {
   void GetRealSplitDimFromOriginalFormatToFormat(const ge::OpDescPtr &op_desc, int64_t &split_dim) const;
   static bool InvalidNodeType(const string &node_type);
   static bool InvalidNodeAttr(const ge::OpDescPtr &node_desc);
+  static bool IsInvalidInputNode(const ge::NodePtr &in_node, bool is_splitv, size_t index);
 };
 }  // namespace fe
 #endif  // FUSION_ENGINE_FUSION_GRAPH_OPTIMIZER_NODE_OPTIMIZER_SPLIT_N_OPTIMIZER_H_

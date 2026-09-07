@@ -20,7 +20,7 @@ class SplitCToNOptimizer {
 
  private:
   bool NeedSkip(const ge::ComputeGraph &graph, const ge::NodePtr &node, const ge::OpDescPtr &op_desc) const;
-  bool CheckSplitDim(const ge::OpDescPtr &op_desc) const;
+  bool CheckSplitDim(const ge::NodePtr &node, const ge::OpDescPtr &op_desc) const;
   bool CheckCommonCondition(const ge::ComputeGraph &graph, const ge::NodePtr &node, const ge::OpDescPtr &op_desc) const;
   bool CheckAxis(const ge::OpDescPtr &op_desc) const;
   bool MeetAlignmentConditionFromNCHWTo5HD(const ge::OpDescPtr &op_desc) const;

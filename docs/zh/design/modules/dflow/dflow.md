@@ -197,7 +197,7 @@ classDiagram
 
 构图完成后，通过 `DFlowSession`（`runner/session/dflow_api.h`）编译并运行：
 
-- **编译+加载**：`BuildGraph`（编译与加载合一，首次 Feed 时惰性编译）
+- **编译+加载**：`BuildGraph`（编译与加载合一；构图阶段不编译，`BuildGraph` 或首次 Feed 时按需触发一次；`ge.runFlag` 关闭时仅编译不加载）
 - **数据输入**：`FeedDataFlowGraph`（支持 Tensor 和 FlowMsg 两种路径）
 - **数据获取**：`FetchDataFlowGraph`（支持按索引获取）
 - **全局管理**：`DFlowInitialize` / `DFlowFinalize` / 多 session 管理
@@ -386,7 +386,7 @@ classDiagram
 | FLOW_MODEL | FlowModel 元数据（ModelRelation、子模型列表、调度优先级） |
 | FLOW_SUBMODEL | 各子模型编译产物（多线程并行加载） |
 
-**部署规划**（`base/deploy/deploy_planner.cc` 的 `DeployPlanner::BuildPlan`）将 ModelRelation 转化为具体的队列创建和绑定计划（DeployPlan）：扁平化模型 → 补充控制队列 → 解析数据流连接 → 调整设备 → 识别可复用队列。Group 机制处理一对多/多对一的数据分发。
+**部署规划**（`base/deploy/deploy_planner.cc` 的 `DeployPlanner::BuildPlan`，部署期由 `BuildDeployPlan` 调用）将 ModelRelation 转化为具体的队列创建和绑定计划（DeployPlan）：扁平化模型 → 补充控制队列 → 解析数据流连接 → 调整设备 → 识别可复用队列。Group 机制处理一对多/多对一的数据分发。
 
 ### 4.3 部署层：多节点主从部署
 
@@ -477,12 +477,41 @@ graph TD
 
 #### 4.3.4 部署流水线
 
-部署由 `HeterogeneousModelDeployer`（`deploy/deployer/heterogeneous_model_deployer.cc` 的 `DoDeployModelWithFlow`）编排，按关键阶段推进：
+构图阶段（`AddGraph`）只注册图，不编译也不部署。编译与部署推迟到第一次真正需要运行数据流时触发：`BuildGraph` 或 Python 侧首次 `feed`（两路均进入 `CompileAndLoadGraph`，先到者触发且只执行一次）先编译产出 FlowModel 并缓存；若运行开关选项 `ge.runFlag` 关闭（默认开启），则仅编译不部署直接返回（离线编译场景）；否则由 `FlowModelManager::LoadFlowModel` 调用 `ModelDeployer::DeployModel` 进入部署流程，完成后产出 `DeployResult` 交执行层。部署由 `HeterogeneousModelDeployer`（`deploy/deployer/heterogeneous_model_deployer.cc` 的 `DoDeployModelWithFlow`）编排，按以下阶段推进：
 
-1. **构建计划**：`BuildDeployPlan` 分配设备资源，构建部署计划；`FlowRoutePlanner::ResolveFlowRoutePlans` 为每个节点规划流路由
-2. **分发到各节点**：通过 `FlowModelSender` 将路由计划、部署计划、子模型、变量管理器、数据网关配置分发到各节点。本地节点先 `PreDeployLocalFlowRoute` 创建队列，远程节点经 gRPC → daemon → 消息队列转发 → sub_deployer 执行
+```mermaid
+sequenceDiagram
+    participant APP as 应用进程（头节点）
+    participant HMD as HeterogeneousModelDeployer
+    participant RM as 远程链路<br/>（daemon → sub_deployer）
+    participant EXE as executor 进程
+
+    APP->>HMD: DeployModel(FlowModel)
+    HMD->>HMD: 1 BuildDeployPlan<br/>分配设备 + DeployPlanner.BuildPlan 生成队列计划
+    HMD->>HMD: 2 FlowRoutePlanner.ResolveFlowRoutePlans<br/>为每个节点规划流路由
+    HMD->>RM: 3 DeployDevMaintenanceCfg<br/>先行下发维护配置（dump/profiling 等）
+    HMD->>RM: 4 TransferFlowRoutePlan / TransferDeployPlan
+    alt 本地节点
+        HMD->>HMD: PreDeployLocalFlowRoute 创建队列
+    else 远程节点
+        RM->>RM: FlowModelReceiver 落地计划<br/>（daemon → sub_deployer 消息队列转发）
+        RM->>RM: 创建队列
+    end
+    HMD->>RM: TransferSubmodels / DeployRemoteVarManager<br/>TransferDataGwDeployPlan
+    Note over RM: 远程：FlowModelReceiver 将子模型与<br/>权重文件分块落盘
+    HMD->>EXE: 5 LoadSubmodels 并行加载子模型<br/>本地 LocalDeployer / 远程 sub_deployer<br/>各自 fork executor 并下发加载请求
+    EXE->>EXE: 加载模型 → attach 队列 → 就绪
+    HMD->>HMD: 6 DeployLocalFlowRoute 建立队列绑定
+    HMD-->>APP: 返回 DeployResult
+    Note over APP: 交 HeterogeneousModelExecutor，<br/>ModelRunStart 启动调度/状态上报线程，<br/>进入可 Feed/Fetch 状态
+```
+
+各阶段说明：
+
+1. **构建计划**：`BuildDeployPlan` 分配设备资源，构建部署计划（内部调用 [4.2 节](#42-模型抽象层flowmodel-与-modelrelation)的 `DeployPlanner::BuildPlan` 生成队列创建与绑定计划）；`FlowRoutePlanner::ResolveFlowRoutePlans` 为每个节点规划流路由。部署前 `DeployDevMaintenanceCfg` 先行下发维护配置（dump/profiling 等环境变量透传给子进程）
+2. **分发到各节点**：通过 `FlowModelSender` 将路由计划、部署计划、子模型、变量管理器、数据网关配置分发到各节点。本地节点先 `PreDeployLocalFlowRoute` 创建队列；远程节点经 gRPC → daemon → 消息队列转发 → sub_deployer 执行，子模型与权重文件由 `FlowModelReceiver`（`model_recv/`）分块落盘后创建队列
 3. **加载模型**：`LoadSubmodels` 并行在各节点加载子模型，本节点由 `LocalDeployer` → `DeployContext` → `ExecutorManager::GetOrCreateExecutorClient` 根据 PNE 类型创建对应 executor client 并 fork executor 进程；远程节点由 sub_deployer 的 `ExecutorManager` fork executor 进程
-4. **建立队列绑定**：`DeployLocalFlowRoute` 完成本地流路由部署，建立队列间的数据绑定关系
+4. **建立队列绑定**：`DeployLocalFlowRoute` 完成本地流路由部署，建立队列间的数据绑定关系。部署完成后产出 `DeployResult` 交 `HeterogeneousModelExecutor`，`ModelRunStart` 启动调度与状态上报后台线程，进入可 Feed/Fetch 状态
 
 executor 进程启动后：attach MemoryGroup → 初始化 `MessageServer` → 接收模型加载请求并加载模型 → attach 队列 → 就绪。加载请求的接收方式因执行器而异：npu_executor / host_cpu_executor 通过消息队列接收；udf_executor 的模型描述在 fork 时经启动参数指向的本地文件加载，其消息队列仅承载运行期控制消息（挂起/恢复/异常通知等）。
 
@@ -746,7 +775,7 @@ flowchart TD
         A2 --> A3["df.FlowGraph(outputs=[...])<br/>反向遍历提取节点+输入<br/>构建为ComputeGraph"]
     end
     subgraph 编译阶段
-        B1["graph.feed_data() 触发惰性编译"] --> B2["DFlowSession.CompileAndLoadGraph"]
+        B1["graph.feed_data() 触发按需编译"] --> B2["DFlowSession.CompileAndLoadGraph"]
         B2 --> B3["FlowModelBuilder.BuildModel<br/>解析PP→自动部署→构建ModelRelation<br/>→多线程并行编译子图"]
         B3 --> B4["PNE引擎编译<br/>UDF:cmake/make SO<br/>NPU:GeSession编译OM"]
         B4 --> B5["产出 FlowModel(含ModelRelation+子模型)"]

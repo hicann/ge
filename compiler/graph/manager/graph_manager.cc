@@ -543,7 +543,7 @@ Status GraphManager::Initialize(const std::map<std::string, std::string> &option
   return SUCCESS;
 }
 
-void GraphManager::SetExternalGraphRebuildStateCtrl(std::shared_ptr<GraphRebuildStateCtrl> &rebuild_ctrl) {
+void GraphManager::SetExternalGraphRebuildStateCtrl(const std::shared_ptr<GraphRebuildStateCtrl> &rebuild_ctrl) {
   if (rebuild_ctrl != nullptr) {
     GELOGI("graph rebuild state ctrl is set from external");
     graph_rebuild_state_ctrl_ = rebuild_ctrl;
@@ -4077,7 +4077,7 @@ Status GraphManager::SetCompiledFlag(uint32_t graph_id, bool flag) {
   return SUCCESS;
 }
 
-const std::map<std::string, std::string> *GraphManager::GetGraphOptions(uint32_t graph_id) {
+const std::map<std::string, std::string> *GraphManager::GetGraphOptions(uint32_t graph_id) const {
   GraphNodePtr graph_node = nullptr;
   Status ret = GetGraphNode(graph_id, graph_node);
   if (ret != SUCCESS) {
