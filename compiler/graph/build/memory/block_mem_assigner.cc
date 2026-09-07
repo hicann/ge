@@ -294,7 +294,7 @@ void BlockMemAssigner::InsertStreamOutEdge() {
  */
 void BlockMemAssigner::InsertStreamInEdge(std::set<EdgeLife, CompareEdgeLife> &in_edge_set, const EdgeLife &new_in_edge,
                                           const int64_t src_stream_id, const int64_t dst_stream_id,
-                                          const std::pair<const char *, const char *> &node_names) {
+                                          const std::pair<const char *, const char *> &node_names) const {
   const auto old_in_edge_iter = in_edge_set.find(new_in_edge);
   if (old_in_edge_iter != in_edge_set.end()) {
     if (old_in_edge_iter->peer_node_id < new_in_edge.peer_node_id) {
