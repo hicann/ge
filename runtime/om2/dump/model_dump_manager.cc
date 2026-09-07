@@ -117,13 +117,16 @@ Status ModelDumpManager::IsDataDumpEnabled(const char *op_name, uint8_t *is_data
   }
 
   const char *safe_op_name = (op_name != nullptr) ? op_name : "";
+  const char *model_name = (model_info_.model_name != nullptr) ? model_info_.model_name : "";
+  const char *root_graph_name = (model_info_.root_graph_name != nullptr) ? model_info_.root_graph_name : "";
 
   // 对齐 v1 KernelTaskInfo.is_data_dump_ 的判断逻辑：
   // is_data_dump_ 是纯 data dump 相关的，只判断：
   // 1. data dump 开关已启用
   // 2. 算子在 dump layer/list 配置中
-  const bool need_data_dump =
-      DumpConfig::Instance().IsDataDumpEnabled() && DumpConfig::Instance().IsOpNeedDump(safe_op_name);
+  // data dump 是否生效需要同时满足全局开关和当前模型/op 命中 dump_list，避免 model_name 不匹配时误 dump。
+  const bool need_data_dump = DumpConfig::Instance().IsDataDumpEnabled() &&
+                              DumpConfig::Instance().IsOpNeedDump(model_name, root_graph_name, safe_op_name);
 
   GELOGD("IsDataDumpEnabled: op_name=%s, need_data_dump=%u", safe_op_name, static_cast<uint32_t>(need_data_dump));
   *is_data_dump = need_data_dump ? 1U : 0U;
@@ -148,13 +151,16 @@ Status ModelDumpManager::PreprocessOm2TaskInfo(const GertModelTaskDesc &task_inf
 
 Status ModelDumpManager::AddOm2TaskInfo(const GertModelTaskDesc &task_info) {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
+  const char *model_name = (model_info_.model_name != nullptr) ? model_info_.model_name : "";
+  const char *root_graph_name = (model_info_.root_graph_name != nullptr) ? model_info_.root_graph_name : "";
   GELOGD("AddOm2TaskInfo: op_name=%s, task_id=%u, stream_id=%u", op_name, task_info.task_id, task_info.stream_id);
 
   // 判断该算子是否需要保存到 data dump：
   // 1. 配置了 data dump 且算子在列表中
   // 2. 开启了 overflow dump（所有算子都需要保存用于定位）
-  const bool need_data_dump =
-      DumpConfig::Instance().IsDataDumpEnabled() && DumpConfig::Instance().IsOpNeedDump(op_name);
+  // data dump 是否生效需要同时满足全局开关和当前模型/op 命中 dump_list，避免 model_name 不匹配时误保存任务。
+  const bool need_data_dump = DumpConfig::Instance().IsDataDumpEnabled() &&
+                              DumpConfig::Instance().IsOpNeedDump(model_name, root_graph_name, op_name);
   const bool need_overflow_dump = DumpConfig::Instance().IsOverflowDumpEnabled();
   const bool need_save_to_data_dump = need_data_dump || need_overflow_dump;
 
