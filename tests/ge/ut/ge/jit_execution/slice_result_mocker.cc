@@ -169,6 +169,7 @@ void SliceResultMocker::GenOmFile(const std::string &cache_dir, const std::strin
   GetThreadLocalContext().SetSessionOption({{"ge.graph_compiler_cache_dir", cache_dir + "/jit/"}});
   GetThreadLocalContext().SetGraphOption({{"ge.graph_key", graph_key}});
   GeRootModelPtr ge_root_model = BuildGeRootModel(graph->GetName(), graph);
+  (void)ge_root_model->CheckAndSetNeedSoInOM();
   ModelBufferData model_buffer_data;
   bool is_unknown_shape = false;
   EXPECT_EQ(ge_root_model->CheckIsUnknownShape(is_unknown_shape), SUCCESS);
