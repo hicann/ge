@@ -44,7 +44,7 @@ bool GetIndexValues(const gert::SymbolTensor *tensor, std::vector<int64_t> &valu
 
 }  // namespace
 
-graphStatus GetSliceInputs(gert::InferSymbolComputeContext *context, std::vector<int64_t> &x_dims,
+graphStatus GetSliceInputs(const gert::InferSymbolComputeContext *context, std::vector<int64_t> &x_dims,
                            std::vector<int64_t> &offsets, std::vector<int64_t> &sizes,
                            const std::vector<Expression> *&x_values) {
   const auto x_tensor = context->GetInputSymbolTensor(kXIndex);
@@ -66,7 +66,7 @@ graphStatus GetSliceInputs(gert::InferSymbolComputeContext *context, std::vector
   return GRAPH_SUCCESS;
 }
 
-graphStatus BuildSliceShape(gert::InferSymbolComputeContext *context, const std::vector<int64_t> &x_dims,
+graphStatus BuildSliceShape(const gert::InferSymbolComputeContext *context, const std::vector<int64_t> &x_dims,
                             const std::vector<int64_t> &offsets, const std::vector<int64_t> &sizes,
                             std::vector<Expression> &output_shape, std::vector<int64_t> &output_dims) {
   for (size_t i = 0U; i < x_dims.size(); ++i) {
@@ -88,7 +88,7 @@ graphStatus BuildSliceShape(gert::InferSymbolComputeContext *context, const std:
   return GRAPH_SUCCESS;
 }
 
-graphStatus BuildSliceValues(gert::InferSymbolComputeContext *context, const std::vector<int64_t> &x_dims,
+graphStatus BuildSliceValues(const gert::InferSymbolComputeContext *context, const std::vector<int64_t> &x_dims,
                              const std::vector<int64_t> &offsets, const std::vector<int64_t> &output_dims,
                              const std::vector<Expression> *x_values, std::vector<Expression> &output_values) {
   int64_t output_size = 1L;

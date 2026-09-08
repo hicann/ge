@@ -1126,7 +1126,7 @@ Status ModelExecutor::PrepareOm2Outputs(const GraphNodePtr &graph_node, std::vec
 }
 
 Status ModelExecutor::RunOm2Graph(const GraphNodePtr &graph_node, uint32_t graph_id, const aclrtStream stream,
-                                  const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs) {
+                                  const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs) const {
   const auto ge_root_model = graph_node->GetGeRootModel();
   GE_CHECK_NOTNULL(ge_root_model);
   const uint32_t model_id = ge_root_model->GetModelId();
@@ -1204,7 +1204,7 @@ Status ModelExecutor::RunOm2Graph(const GraphNodePtr &graph_node, uint32_t graph
   return ret;
 }
 
-Status ModelExecutor::UnloadOm2Graph(const GeRootModelPtr &ge_root_model, uint32_t graph_id) {
+Status ModelExecutor::UnloadOm2Graph(const GeRootModelPtr &ge_root_model, uint32_t graph_id) const {
   GE_CHECK_NOTNULL(ge_root_model);
   const uint32_t model_id = ge_root_model->GetModelId();
   if (model_id == INVALID_MODEL_ID) {

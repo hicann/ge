@@ -69,7 +69,7 @@ bool IsSameRefData(const ge::NodePtr &sub_ref_data, const ge::ComputeGraphPtr &s
     return false;
   }
 
-  const auto parent_node = sub_graph->GetParentNode();
+  const auto parent_node = sub_graph->GetParentNodeBarePtr();
   if ((parent_node == nullptr) || (parent_node->GetType() != ge::PARTITIONEDCALL)) {
     return false;
   }
