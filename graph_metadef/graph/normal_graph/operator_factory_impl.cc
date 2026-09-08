@@ -40,6 +40,29 @@ namespace {
 std::atomic<bool> is_register_overridable(false);
 std::shared_ptr<std::map<std::string, OpCreatorV2>> backup_operator_creators_v2_;
 std::shared_ptr<std::map<std::string, OpCreator>> backup_operator_creators_v1_;
+
+template <typename T>
+std::shared_ptr<std::map<std::string, T>> CloneRegInfo(const std::shared_ptr<std::map<std::string, T>> &reg_info) {
+  if (reg_info == nullptr) {
+    return nullptr;
+  }
+  return ComGraphMakeShared<std::map<std::string, T>>(*reg_info);
+}
+
+struct OpsProtoRegInfoBackup {
+  std::shared_ptr<std::map<std::string, OpCreator>> operator_creators;
+  std::shared_ptr<std::map<std::string, OpCreatorV2>> operator_creators_v2;
+  std::shared_ptr<std::map<std::string, InferShapeFunc>> infer_shape_funcs;
+  std::shared_ptr<std::map<std::string, InferFormatFunc>> infer_format_funcs;
+  std::shared_ptr<std::map<std::string, VerifyFunc>> verify_funcs;
+  std::shared_ptr<std::map<std::string, InferDataSliceFunc>> infer_data_slice_funcs;
+  std::shared_ptr<std::map<std::string, InferValueRangePara>> infer_value_range_paras;
+  std::shared_ptr<std::map<std::string, InferAxisSliceFunc>> infer_axis_slice_funcs;
+  std::shared_ptr<std::map<std::string, InferAxisTypeInfoFunc>> infer_axis_type_info_funcs;
+  bool is_valid = false;
+};
+
+OpsProtoRegInfoBackup ops_proto_reg_info_backup;
 }  // namespace
 std::shared_ptr<std::map<std::string, OpCreator>> OperatorFactoryImpl::operator_creators_;
 std::shared_ptr<std::map<std::string, OpCreatorV2>> OperatorFactoryImpl::operator_creators_v2_;
@@ -472,6 +495,42 @@ CustomOpInferMetaFunc OperatorFactoryImpl::GetCustomOpInferMetaFunc() {
 
 void OperatorFactoryImpl::ReleaseRegInfo() {
   ReleaseOpsRegInfo();
+}
+
+void OperatorFactoryImpl::BackupOpsProtoRegInfo() {
+  ops_proto_reg_info_backup.operator_creators = CloneRegInfo(operator_creators_);
+  ops_proto_reg_info_backup.operator_creators_v2 = CloneRegInfo(operator_creators_v2_);
+  ops_proto_reg_info_backup.infer_shape_funcs = CloneRegInfo(operator_infershape_funcs_);
+  ops_proto_reg_info_backup.infer_format_funcs = CloneRegInfo(operator_inferformat_funcs_);
+  ops_proto_reg_info_backup.verify_funcs = CloneRegInfo(operator_verify_funcs_);
+  ops_proto_reg_info_backup.infer_data_slice_funcs = CloneRegInfo(operator_infer_data_slice_funcs_);
+  ops_proto_reg_info_backup.infer_value_range_paras = CloneRegInfo(operator_infer_value_range_paras_);
+  ops_proto_reg_info_backup.infer_axis_slice_funcs = CloneRegInfo(operator_infer_axis_slice_funcs_);
+  ops_proto_reg_info_backup.infer_axis_type_info_funcs = CloneRegInfo(operator_infer_axis_type_info_funcs_);
+  ops_proto_reg_info_backup.is_valid = true;
+  GELOGI("Backup ops proto reg info success.");
+}
+
+bool OperatorFactoryImpl::RestoreOpsProtoRegInfo() {
+  if (!ops_proto_reg_info_backup.is_valid) {
+    GELOGW("Ops proto reg info backup is invalid.");
+    return false;
+  }
+  operator_creators_ = CloneRegInfo(ops_proto_reg_info_backup.operator_creators);
+  operator_creators_v2_ = CloneRegInfo(ops_proto_reg_info_backup.operator_creators_v2);
+  operator_infershape_funcs_ = CloneRegInfo(ops_proto_reg_info_backup.infer_shape_funcs);
+  operator_inferformat_funcs_ = CloneRegInfo(ops_proto_reg_info_backup.infer_format_funcs);
+  operator_verify_funcs_ = CloneRegInfo(ops_proto_reg_info_backup.verify_funcs);
+  operator_infer_data_slice_funcs_ = CloneRegInfo(ops_proto_reg_info_backup.infer_data_slice_funcs);
+  operator_infer_value_range_paras_ = CloneRegInfo(ops_proto_reg_info_backup.infer_value_range_paras);
+  operator_infer_axis_slice_funcs_ = CloneRegInfo(ops_proto_reg_info_backup.infer_axis_slice_funcs);
+  operator_infer_axis_type_info_funcs_ = CloneRegInfo(ops_proto_reg_info_backup.infer_axis_type_info_funcs);
+  GELOGI("Restore ops proto reg info success.");
+  return true;
+}
+
+bool OperatorFactoryImpl::IsOpsProtoRegInfoCleared() {
+  return (operator_creators_ == nullptr) && (operator_creators_v2_ == nullptr);
 }
 
 /**

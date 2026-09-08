@@ -13,6 +13,8 @@
 #include <vector>
 
 #include "graph/opsproto_manager.h"
+#include "graph/operator_factory.h"
+#include "graph/operator_factory_impl.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "graph_metadef/common/plugin/plugin_manager.h"
 
@@ -45,6 +47,31 @@ TEST_F(OpsprotoManagerUt, Instance_Initialize_Finalize) {
   opspm->Finalize();
   EXPECT_EQ(opspm->handles_.size(), 0);
   EXPECT_EQ(opspm->is_init_, false);
+}
+
+TEST_F(OpsprotoManagerUt, Initialize_RestoreRegistrationAfterRelease) {
+  OpsProtoManager *const opspm = OpsProtoManager::Instance();
+  opspm->Finalize();
+  opspm->handles_.clear();
+
+  const std::string op_type = "OpsProtoManagerRestoreRegInfo";
+  ASSERT_EQ(OperatorFactoryImpl::RegisterOperatorCreator(
+                op_type, [](const AscendString &name) { return Operator(name.GetString(), "RestoreRegInfo"); }),
+            GRAPH_SUCCESS);
+  const std::map<std::string, std::string> options = {
+      {"ge.opsProtoLibPath", "./protobuf_build-prefix/src/protobuf_build-build/"}};
+  ASSERT_TRUE(opspm->Initialize(options));
+  ASSERT_FALSE(OperatorFactory::CreateOperator("before_release", op_type).IsEmpty());
+
+  OperatorFactoryImpl::ReleaseRegInfo();
+  EXPECT_TRUE(OperatorFactoryImpl::IsOpsProtoRegInfoCleared());
+  EXPECT_TRUE(OperatorFactory::CreateOperator("after_release", op_type).IsEmpty());
+
+  ASSERT_TRUE(opspm->Initialize(options));
+  EXPECT_FALSE(OperatorFactoryImpl::IsOpsProtoRegInfoCleared());
+  EXPECT_FALSE(OperatorFactory::CreateOperator("after_restore", op_type).IsEmpty());
+  opspm->Finalize();
+  opspm->handles_.clear();
 }
 
 TEST_F(OpsprotoManagerUt, LoadBuiltinOpsPluginSo) {

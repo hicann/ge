@@ -29,6 +29,13 @@ bool OpsProtoManager::Initialize(const std::map<std::string, std::string> &optio
   const std::lock_guard<std::mutex> lock(mutex_);
 
   if (is_init_) {
+    if (OperatorFactoryImpl::IsOpsProtoRegInfoCleared()) {
+      if (!OperatorFactoryImpl::RestoreOpsProtoRegInfo()) {
+        GELOGE(GRAPH_FAILED, "[Initialize][Restore] Ops proto registration was released but cannot be restored.");
+        return false;
+      }
+      GELOGI("OpsProtoManager restored cleared ops proto registration.");
+    }
     GELOGI("OpsProtoManager is already initialized.");
     return true;
   }
@@ -41,6 +48,7 @@ bool OpsProtoManager::Initialize(const std::map<std::string, std::string> &optio
 
   pluginPath_ = iter->second;
   LoadBuiltinOpsPluginSo(pluginPath_);
+  OperatorFactoryImpl::BackupOpsProtoRegInfo();
 
   is_init_ = true;
 
