@@ -102,6 +102,7 @@ Status InheritedOriginAttrAndOpName(const InnerSubgraphBoundary &subgraph,
   auto tmp_opdesc = MakeShared<OpDesc>();
   GE_ASSERT_NOTNULL(tmp_opdesc);
   auto target_graph = subgraph.GetOwnerGraph();
+  GE_ASSERT_NOTNULL(target_graph);
   auto tmp_nodes = target_graph->FuseNodeKeepTopo(nodes_before_fusion, {tmp_opdesc});
   GE_ASSERT_TRUE(tmp_nodes.size() == 1U);
 
@@ -275,6 +276,9 @@ Status SubgraphRewriter::Replace(const SubgraphBoundary &subgraph, const Graph &
   InnerSubgraphBoundary inner_boundary;
   std::string boundary_invalid_reason;
   GE_ASSERT_SUCCESS(inner_boundary.Init(subgraph, boundary_invalid_reason), boundary_invalid_reason.c_str());
+  const auto target_graph = inner_boundary.GetOwnerGraph();
+  GE_ASSERT_NOTNULL(target_graph,
+                    "Subgraph boundary is invalid: it has no output node or its owner graph has been cleared.");
 
   const auto replacement_compute_graph = GraphUtilsEx::GetComputeGraph(replacement);
   GE_ASSERT_NOTNULL(replacement_compute_graph);
@@ -291,7 +295,7 @@ Status SubgraphRewriter::Replace(const SubgraphBoundary &subgraph, const Graph &
   GE_ASSERT_NOTNULL(replacement_backup);
   GE_ASSERT_SUCCESS(GraphUtils::CopyComputeGraph(replacement_compute_graph, replacement_backup));
 
-  return ReplaceSubgraph(inner_boundary.GetOwnerGraph(), inner_boundary, replacement_backup);
+  return ReplaceSubgraph(target_graph, inner_boundary, replacement_backup);
 }
 
 Status SubgraphRewriter::Replace(const SubgraphBoundary &subgraph, Graph &&replacement) {
@@ -302,6 +306,9 @@ Status SubgraphRewriter::Replace(const SubgraphBoundary &subgraph, const Graph &
   InnerSubgraphBoundary boundary;
   std::string boundary_invalid_reason;
   GE_ASSERT_SUCCESS(boundary.Init(subgraph, boundary_invalid_reason), boundary_invalid_reason.c_str());
+  const auto target_graph = boundary.GetOwnerGraph();
+  GE_ASSERT_NOTNULL(target_graph,
+                    "Subgraph boundary is invalid: it has no output node or its owner graph has been cleared.");
   const auto replacement_compute_graph = GraphUtilsEx::GetComputeGraph(replacement);
   GE_ASSERT_NOTNULL(replacement_compute_graph);
   GE_ASSERT_GRAPH_SUCCESS(ge::RecoverIrDefinitions(replacement_compute_graph), "Recover ir definitions failed");
@@ -324,7 +331,7 @@ Status SubgraphRewriter::Replace(const SubgraphBoundary &subgraph, const Graph &
   GE_ASSERT_NOTNULL(replacement_backup);
   GE_ASSERT_SUCCESS(GraphUtils::CopyComputeGraph(replacement_compute_graph, replacement_backup));
 
-  return ReplaceSubgraph(boundary.GetOwnerGraph(), boundary, replacement_backup, &nodes_before_fuse, &ctx);
+  return ReplaceSubgraph(target_graph, boundary, replacement_backup, &nodes_before_fuse, &ctx);
 }
 
 Status SubgraphRewriter::Replace(const SubgraphBoundary &subgraph, Graph &&replacement, CustomPassContext &ctx) {

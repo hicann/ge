@@ -1023,6 +1023,8 @@ TEST_F(UtestDavinciModel, davinci_init_success) {
 
   {
     gert::GertRuntimeStub runtime_stub;
+    runtime_stub.GetSlogStub().NoConsoleOut().SetLevelInfo();
+    runtime_stub.GetSlogStub().Clear();
     dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 1);
 
     // Scene 1: Normal flow.
@@ -1031,6 +1033,9 @@ TEST_F(UtestDavinciModel, davinci_init_success) {
     model.Assign(ge_model);
     model.SetAiCpuCustFlag(true);
     EXPECT_EQ(model.Init(), SUCCESS);
+    ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "InitRuntimeParams: model_id=0,"), -1);
+    ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "Create new stream:"), -1);
+    ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "Logical stream index: 0,"), -1);
     EXPECT_EQ(model.stream_to_task_index_list_.size(), 1);  // 单条流
     uint64_t stream = model.stream_to_task_index_list_.begin()->first;
     EXPECT_EQ(model.stream_to_task_index_list_[stream].size(), 7);             // 单条流，hccl所在流上有7个task

@@ -822,11 +822,13 @@ class PythonCustomOpPybindBridge {
     return GRAPH_FAILED;
   }
 
+  static void *CreateImplHolderCallback(const PythonCustomOpAdapterDescriptorView *desc) {
+    return PythonCustomOpPybindBridge::GetInstance().CreateImplHolder(desc);
+  }
+
   static PythonCustomOpAdapterCallbacks GetCallbacks() {
     PythonCustomOpAdapterCallbacks callbacks;
-    callbacks.create_impl_holder = [](const PythonCustomOpAdapterDescriptorView *desc) -> void * {
-      return PythonCustomOpPybindBridge::GetInstance().CreateImplHolder(desc);
-    };
+    callbacks.create_impl_holder = CreateImplHolderCallback;
     callbacks.destroy_impl_holder = [](void *holder) {
       PythonCustomOpPybindBridge::GetInstance().DestroyImplHolder(static_cast<PythonCustomOpBridgeHolder *>(holder));
     };

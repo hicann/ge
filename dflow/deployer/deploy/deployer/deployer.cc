@@ -404,7 +404,6 @@ Status RemoteDeployer::Finalize() {
 void RemoteDeployer::UpdateNodeInfo(const deployer::InitResponse &init_response) {
   if (!node_config_.lazy_connect) {
     auto dev_count = init_response.dev_count();
-    auto support_flowgw_merged = init_response.support_flowgw_merged();
     int32_t offset = init_response.dgw_port_offset() % kDataGwPortMaxOffset;
     for (int32_t i = 0; i < dev_count; ++i) {
       DeviceInfo device_info;
@@ -416,8 +415,7 @@ void RemoteDeployer::UpdateNodeInfo(const deployer::InitResponse &init_response)
       device_info.SetSupportHcom(true);
       device_info.SetResourceType(node_config_.resource_type);
       device_info.SetPhyDeviceId(i);
-      auto hcom_device_id = support_flowgw_merged ? 0 : i;
-      device_info.SetHcomDeviceId(hcom_device_id);
+      device_info.SetHcomDeviceId(i);
       device_info.SetDeviceIndex(i);
       device_info.SetDgwPort(kDataGwPortBase + offset + i);
       device_info.SetNodeMeshIndex(node_config_.node_mesh_index);

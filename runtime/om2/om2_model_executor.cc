@@ -694,25 +694,38 @@ ge::Status DeserializeManifest(const ge::RAIIZipArchive &archive, const std::str
   return ge::SUCCESS;
 }
 
+struct Om2RequiredFiles {
+  bool has_manifest = false;
+  bool has_op_attr = false;
+  bool has_constants_config = false;
+  bool has_model_meta = false;
+  bool has_so = false;
+};
+
 ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                              gert::Om2ModelData &model_data) {
+                              gert::Om2ModelData &model_data, Om2RequiredFiles &required) {
   if (IsFileNameEndsWith(entry, "manifest.json")) {
+    required.has_manifest = true;
     GE_ASSERT_SUCCESS(DeserializeManifest(archive, entry, model_data));
     return ge::SUCCESS;
   }
   if (entry.find("/runtime/") != std::string::npos && IsFileNameEndsWith(entry, ".so")) {
+    required.has_so = true;
     GE_ASSERT_SUCCESS(DeserializeCodegenEntry(archive, entry, model_data));
     return ge::SUCCESS;
   }
   if (IsFileNameEndsWith(entry, "op_attr.json")) {
+    required.has_op_attr = true;
     GE_ASSERT_SUCCESS(DeserializeOpAttrEntry(archive, entry, model_data));
     return ge::SUCCESS;
   }
   if (IsFileNameEndsWith(entry, "model_meta.json")) {
+    required.has_model_meta = true;
     GE_ASSERT_SUCCESS(DeserializeModelMetaEntry(archive, entry, model_data));
     return ge::SUCCESS;
   }
   if (entry.find("data/constants/") != std::string::npos) {
+    required.has_constants_config = true;
     if (IsFileNameEndsWith(entry, "_constants_config.json")) {
       GE_ASSERT_SUCCESS(DeserializeConstantsConfigEntry(archive, entry, model_data));
     } else if (entry.find("data/constants/constant_") != std::string::npos) {
@@ -743,6 +756,16 @@ ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::stri
   return ge::SUCCESS;
 }
 
+ge::Status CheckRequiredFile(bool found, const char *desc) {
+  if (found) {
+    return ge::SUCCESS;
+  }
+  REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                            std::vector<const char *>({"DeserializeOm2ModelDataFromArchive", desc}));
+  GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2] %s", desc);
+  return ACL_ERROR_GE_PARAM_INVALID;
+}
+
 ge::Status DeserializeOm2ModelDataFromArchive(ge::RAIIZipArchive &archive, gert::Om2ModelData &model_data) {
   const auto &entries = archive.ListFiles();
   if (entries.empty()) {
@@ -750,9 +773,17 @@ ge::Status DeserializeOm2ModelDataFromArchive(ge::RAIIZipArchive &archive, gert:
     return ACL_ERROR_GE_PARAM_INVALID;
   }
 
+  Om2RequiredFiles required;
   for (const auto &entry : entries) {
-    GE_ASSERT_SUCCESS(HandleArchiveEntry(archive, entry, model_data));
+    GE_ASSERT_SUCCESS(HandleArchiveEntry(archive, entry, model_data, required));
   }
+
+  GE_CHK_STATUS_RET_NOLOG(CheckRequiredFile(required.has_manifest, "manifest.json not found in ZIP archive."));
+  GE_CHK_STATUS_RET_NOLOG(CheckRequiredFile(required.has_op_attr, "op_attr.json not found in ZIP archive."));
+  GE_CHK_STATUS_RET_NOLOG(
+      CheckRequiredFile(required.has_constants_config, "constants config not found in ZIP archive."));
+  GE_CHK_STATUS_RET_NOLOG(CheckRequiredFile(required.has_model_meta, "model_meta.json not found in ZIP archive."));
+  GE_CHK_STATUS_RET_NOLOG(CheckRequiredFile(required.has_so, "Compiled .so not found in ZIP archive."));
 
   GE_ASSERT_SUCCESS(ValidateVersionCompatibility(model_data.manifest));
 

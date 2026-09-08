@@ -48,8 +48,6 @@ class DaemonService {
 
   static Status VerifyIpaddr(const std::string &peer_uri);
 
-  static void SetSupportFlowgwMerged(deployer::DeployerResponse &response);
-
   std::unique_ptr<DaemonClientManager> client_manager_;
 };
 

@@ -244,6 +244,68 @@ TEST_F(DumpConfigTest, DefaultValuesTest) {
   EXPECT_EQ(DumpConfig::Instance().GetDumpDebug(), GE_DUMP_DEBUG_DEFAULT);
 }
 
+TEST_F(DumpConfigTest, IsOpNeedDumpByModelNameAndLayerTest) {
+  const char *kModelLayerDumpConfig = R"({
+      "dump": {
+          "dump_path": "/tmp/dump_test",
+          "dump_mode": "all",
+          "dump_list": [
+              {
+                  "model_name": "test_model",
+                  "layer": ["layer1", "layer2"]
+              }
+          ]
+      }
+  })";
+  ASSERT_EQ(DumpConfig::Instance().ParseAndValidate(kModelLayerDumpConfig,
+                                                    static_cast<int32_t>(strlen(kModelLayerDumpConfig))),
+            SUCCESS);
+
+  EXPECT_TRUE(DumpConfig::Instance().IsOpNeedDump("test_model", "root_graph", "layer1"));
+  EXPECT_FALSE(DumpConfig::Instance().IsOpNeedDump("test_model", "root_graph", "layer3"));
+  EXPECT_FALSE(DumpConfig::Instance().IsOpNeedDump("invalid_model", "root_graph", "layer1"));
+  EXPECT_TRUE(DumpConfig::Instance().IsOpNeedDump("invalid_model", "test_model", "layer2"));
+}
+
+TEST_F(DumpConfigTest, IsOpNeedDumpByMatchedModelWithoutLayerTest) {
+  const char *kModelAllOpDumpConfig = R"({
+      "dump": {
+          "dump_path": "/tmp/dump_test",
+          "dump_list": [
+              {
+                  "model_name": "test_model"
+              }
+          ]
+      }
+  })";
+  ASSERT_EQ(DumpConfig::Instance().ParseAndValidate(kModelAllOpDumpConfig,
+                                                    static_cast<int32_t>(strlen(kModelAllOpDumpConfig))),
+            SUCCESS);
+
+  EXPECT_TRUE(DumpConfig::Instance().IsOpNeedDump("test_model", "root_graph", "any_op"));
+  EXPECT_FALSE(DumpConfig::Instance().IsOpNeedDump("invalid_model", "root_graph", "any_op"));
+}
+
+TEST_F(DumpConfigTest, IsOpNeedDumpByGlobalLayerTest) {
+  const char *kGlobalLayerDumpConfig = R"({
+      "dump": {
+          "dump_path": "/tmp/dump_test",
+          "dump_list": [
+              {
+                  "layer": ["layer1"]
+              }
+          ]
+      }
+  })";
+  ASSERT_EQ(DumpConfig::Instance().ParseAndValidate(kGlobalLayerDumpConfig,
+                                                    static_cast<int32_t>(strlen(kGlobalLayerDumpConfig))),
+            SUCCESS);
+
+  EXPECT_TRUE(DumpConfig::Instance().IsOpNeedDump("model1", "root_graph1", "layer1"));
+  EXPECT_TRUE(DumpConfig::Instance().IsOpNeedDump("model2", "root_graph2", "layer1"));
+  EXPECT_FALSE(DumpConfig::Instance().IsOpNeedDump("model1", "root_graph1", "layer2"));
+}
+
 // DumpCallbackManager 测试类
 class DumpCallbackManagerTest : public Test {
  protected:

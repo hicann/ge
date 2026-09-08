@@ -58,6 +58,14 @@ namespace ge {
 namespace {
 constexpr const char *kStInt32Flag = "st_cmd_flag_int32";
 
+const char *GetCurArch() {
+#if defined(__aarch64__) || defined(__arm64__)
+  return "aarch64";
+#else
+  return "x86_64";
+#endif
+}
+
 void EnsureStCmdFlagRegistered() {
   static int32_t &int32_flag = flgs::RegisterParamInt32(kStInt32Flag, 0, "st cmd flag int32");
   (void)int32_flag;
@@ -379,6 +387,7 @@ void MainImplTearDown() {
   system(("rm -r " + opp_path).c_str());
 }
 void CheckPrecisionModeParamValid_Failed_WhenValueInvalid(const std::string &om_arg, const std::string &output_arg) {
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   "--mode=0",
                   "--framework=3",
@@ -388,7 +397,7 @@ void CheckPrecisionModeParamValid_Failed_WhenValueInvalid(const std::string &om_
                   "--deterministic=1",
                   "--input_format=NCHW",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64",
+                  const_cast<char *>(host_env_cpu_arg.c_str()),
                   "--precision_mode=invalid"};
   (void)main_impl(sizeof(argv) / sizeof(argv[0]), argv);
   std::string ge_option;
@@ -396,6 +405,7 @@ void CheckPrecisionModeParamValid_Failed_WhenValueInvalid(const std::string &om_
 }
 
 void CheckPrecisionModeV2ParamValid_Failed_WhenValueInvalid(const std::string &om_arg, const std::string &output_arg) {
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   "--mode=0",
                   "--framework=3",
@@ -405,7 +415,7 @@ void CheckPrecisionModeV2ParamValid_Failed_WhenValueInvalid(const std::string &o
                   "--deterministic=1",
                   "--input_format=NCHW",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64",
+                  const_cast<char *>(host_env_cpu_arg.c_str()),
                   "--precision_mode_v2=invalid"};
   (void)main_impl(sizeof(argv) / sizeof(argv[0]), argv);
   std::string ge_option;
@@ -413,6 +423,7 @@ void CheckPrecisionModeV2ParamValid_Failed_WhenValueInvalid(const std::string &o
 }
 
 void CheckPrecisionModev2ParamValid_Failed_WhenConfigBoth(const std::string &om_arg, const std::string &output_arg) {
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   "--mode=0",
                   "--framework=3",
@@ -422,7 +433,7 @@ void CheckPrecisionModev2ParamValid_Failed_WhenConfigBoth(const std::string &om_
                   "--deterministic=1",
                   "--input_format=NCHW",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64",
+                  const_cast<char *>(host_env_cpu_arg.c_str()),
                   "--precision_mode_v2=fp16",
                   "--precision_mode=force_fp16"};
   (void)main_impl(sizeof(argv) / sizeof(argv[0]), argv);
@@ -434,6 +445,7 @@ void CheckPrecisionModev2ParamValid_Failed_WhenConfigBoth(const std::string &om_
 }
 
 void CheckPrecisionModeParamValid_Success(const std::string &om_arg, const std::string &output_arg) {
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   "--mode=0",
                   "--framework=3",
@@ -443,7 +455,7 @@ void CheckPrecisionModeParamValid_Success(const std::string &om_arg, const std::
                   "--deterministic=1",
                   "--input_format=NCHW",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64",
+                  const_cast<char *>(host_env_cpu_arg.c_str()),
                   "--precision_mode=force_fp16"};
   ge::GEFinalize();
   (void)main_impl(sizeof(argv) / sizeof(argv[0]), argv);
@@ -455,6 +467,7 @@ void CheckPrecisionModeParamValid_Success(const std::string &om_arg, const std::
 }
 
 void CheckPrecisionModeV2ParamValid_Success(const std::string &om_arg, const std::string &output_arg) {
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   "--mode=0",
                   "--framework=3",
@@ -465,7 +478,7 @@ void CheckPrecisionModeV2ParamValid_Success(const std::string &om_arg, const std
                   "--deterministic_level=2",
                   "--input_format=NCHW",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64",
+                  const_cast<char *>(host_env_cpu_arg.c_str()),
                   "--precision_mode_v2=fp16"};
   (void)main_impl(sizeof(argv) / sizeof(argv[0]), argv);
   std::string ge_option;
@@ -504,6 +517,7 @@ TEST_F(AtcCommonSTest, StaticModelInvalidHostEnvOsFailsInFlagCheck) {
   ge::GetThreadLocalContext().SetGlobalOption({});
   std::string om_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = Generatefile("--output=", "invalid_host_env_os");
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   "--mode=0",
                   "--framework=3",
@@ -512,7 +526,7 @@ TEST_F(AtcCommonSTest, StaticModelInvalidHostEnvOsFailsInFlagCheck) {
                   "--soc_version=Ascend310",
                   "--input_format=NCHW",
                   "--host_env_os=linux#",
-                  "--host_env_cpu=x86_64"};
+                  const_cast<char *>(host_env_cpu_arg.c_str())};
 
   EXPECT_NE(main_impl(sizeof(argv) / sizeof(argv[0]), argv), SUCCESS);
   EXPECT_TRUE(GetMutableGlobalOptions().empty());
@@ -1251,6 +1265,7 @@ TEST_F(AtcCommonSTest, mindspore_model_common) {
   auto path = ModelFactory::GenerateModel_1(true, true);
   std::string model_arg = "--model=" + path;
   std::string output_arg = "--output=" + om_path;
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -1261,11 +1276,12 @@ TEST_F(AtcCommonSTest, mindspore_model_common) {
                   "--output_type=FP32",
                   "--status_check=0",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64"};
+                  const_cast<char *>(host_env_cpu_arg.c_str())};
   DUMP_GRAPH_WHEN("PreRunBegin")
   auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
   EXPECT_EQ(ret, 0);
 
+  std::string host_env_cpu_arg2 = std::string("--host_env_cpu=") + GetCurArch();
   char *argv_invalid_name[] = {
       "atc",
       const_cast<char *>(model_arg.c_str()),
@@ -1277,12 +1293,13 @@ TEST_F(AtcCommonSTest, mindspore_model_common) {
       "--output_type=FP32",
       "--status_check=0",
       "--host_env_os=linux",
-      "--host_env_cpu=x86_64",
+      const_cast<char *>(host_env_cpu_arg2.c_str()),
       "--input_shape=data_invalid:1,1",
   };
   ret = main_impl(sizeof(argv_invalid_name) / sizeof(argv_invalid_name[0]), argv_invalid_name);
   EXPECT_NE(ret, 0);
 
+  std::string host_env_cpu_arg3 = std::string("--host_env_cpu=") + GetCurArch();
   char *argv_invalid_type[] = {
       "atc",
       const_cast<char *>(model_arg.c_str()),
@@ -1294,7 +1311,7 @@ TEST_F(AtcCommonSTest, mindspore_model_common) {
       "--output_type=FP32",
       "--status_check=0",
       "--host_env_os=linux",
-      "--host_env_cpu=x86_64",
+      const_cast<char *>(host_env_cpu_arg3.c_str()),
       "--input_shape=relu1:1,1",
   };
   ret = main_impl(sizeof(argv_invalid_type) / sizeof(argv_invalid_type[0]), argv_invalid_type);
@@ -1325,6 +1342,7 @@ TEST_F(AtcCommonSTest, TestAtc_Ok_MindsporeModelWithRefData) {
   auto path = ModelFactory::GenerateModel_refdata(false, false);
   std::string model_arg = "--model=" + path;
   std::string output_arg = "--output=" + om_path;
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -1332,7 +1350,7 @@ TEST_F(AtcCommonSTest, TestAtc_Ok_MindsporeModelWithRefData) {
                   "--soc_version=Ascend310P",
                   "--status_check=0",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64"};
+                  const_cast<char *>(host_env_cpu_arg.c_str())};
   DUMP_GRAPH_WHEN("PreRunBegin")
   auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
   EXPECT_EQ(ret, 0);
@@ -1365,6 +1383,7 @@ TEST_F(AtcCommonSTest, mindspore_model_data_to_netoutput) {
   std::string model_arg = "--model=" + path;
   std::string output_arg = "--output=" + om_path;
 
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -1375,7 +1394,7 @@ TEST_F(AtcCommonSTest, mindspore_model_data_to_netoutput) {
                   "--output_type=FP32",
                   "--status_check=0",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64",
+                  const_cast<char *>(host_env_cpu_arg.c_str()),
                   "--log=debug"};
 
   DUMP_GRAPH_WHEN("PreRunAfterOptimize2")
@@ -1408,6 +1427,7 @@ TEST_F(AtcCommonSTest, mindspore_model_atc_scalar_inputshape) {
   std::string model_arg = "--model=" + path;
   std::string output_arg = "--output=" + om_path;
 
+  std::string host_env_cpu_arg = std::string("--host_env_cpu=") + GetCurArch();
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -1419,7 +1439,7 @@ TEST_F(AtcCommonSTest, mindspore_model_atc_scalar_inputshape) {
                   "--input_shape=data;data1:-1,3,2",
                   "--status_check=0",
                   "--host_env_os=linux",
-                  "--host_env_cpu=x86_64"};
+                  const_cast<char *>(host_env_cpu_arg.c_str())};
 
   DUMP_GRAPH_WHEN("PreRunAfterOptimize2")
   ge::GEFinalize();
@@ -1427,6 +1447,7 @@ TEST_F(AtcCommonSTest, mindspore_model_atc_scalar_inputshape) {
   ge_env.InstallDefault();
   auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
   EXPECT_NE(ret, 0);
+  std::string host_env_cpu_arg2 = std::string("--host_env_cpu=") + GetCurArch();
   char *argv2[] = {"atc",
                    const_cast<char *>(model_arg.c_str()),
                    const_cast<char *>(output_arg.c_str()),
@@ -1438,9 +1459,10 @@ TEST_F(AtcCommonSTest, mindspore_model_atc_scalar_inputshape) {
                    "--input_shape=:;data1:-1,3,2",
                    "--status_check=0",
                    "--host_env_os=linux",
-                   "--host_env_cpu=x86_64"};
+                   const_cast<char *>(host_env_cpu_arg2.c_str())};
   ret = main_impl(sizeof(argv2) / sizeof(argv2[0]), argv2);
   EXPECT_NE(ret, 0);
+  std::string host_env_cpu_arg3 = std::string("--host_env_cpu=") + GetCurArch();
   char *argv3[] = {"atc",
                    const_cast<char *>(model_arg.c_str()),
                    const_cast<char *>(output_arg.c_str()),
@@ -1452,7 +1474,7 @@ TEST_F(AtcCommonSTest, mindspore_model_atc_scalar_inputshape) {
                    "--input_shape=data:-1,3,2;data1:",
                    "--status_check=0",
                    "--host_env_os=linux",
-                   "--host_env_cpu=x86_64"};
+                   const_cast<char *>(host_env_cpu_arg3.c_str())};
   ret = main_impl(sizeof(argv3) / sizeof(argv3[0]), argv3);
   EXPECT_EQ(ret, 0);
   ReInitGe();  // the main_impl will call GEFinalize, so re-init after call it
@@ -1553,7 +1575,7 @@ TEST_F(AtcCommonSTest, pb_model_generate_om_model_hint_shape_with_dyna_param_fai
 // depends on mindspore success
 TEST_F(AtcCommonSTest, om_convert_to_json) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
-  om_path = PathJoin(om_path.c_str(), "ms_1_linux_x86_64");
+  om_path = PathJoin(om_path.c_str(), (std::string("ms_1_linux_") + GetCurArch()).c_str());
 
   // test convert to json
   std::string om_arg = "--om=" + om_path + ".om";
@@ -1626,7 +1648,7 @@ TEST_F(AtcCommonSTest, om_convert_to_json_fail) {
 
 TEST_F(AtcCommonSTest, om_display_info) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
-  om_path = PathJoin(om_path.c_str(), "ms_1_linux_x86_64");
+  om_path = PathJoin(om_path.c_str(), (std::string("ms_1_linux_") + GetCurArch()).c_str());
 
   // test convert to json
   std::string om_arg = "--om=" + om_path + ".om";
@@ -3560,7 +3582,7 @@ TEST_F(AtcCommonSTest, CheckDisplayModelInfo_Failed) {
   ReInitGe();
 
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
-  om_path = PathJoin(om_path.c_str(), "ms_1_linux_x86_64");
+  om_path = PathJoin(om_path.c_str(), (std::string("ms_1_linux_") + GetCurArch()).c_str());
 
   // test convert to json
   std::string om_arg = "--om=" + om_path + ".om";

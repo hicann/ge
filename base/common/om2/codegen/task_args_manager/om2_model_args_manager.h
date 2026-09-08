@@ -83,7 +83,7 @@ class ModelArgsManager {
 
   ~ModelArgsManager() noexcept;
 
-  Status Init(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> *task_code_builder_list_ptr);
+  Status Init(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> *task_list_ptr);
 
   Status GenerateArgsDataForProgramGenerator(Om2CodegenModel &codegen_model);
 

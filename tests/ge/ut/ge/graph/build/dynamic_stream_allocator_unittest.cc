@@ -27,6 +27,7 @@
 #include "api/gelib/gelib.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "register/optimization_option_registry.h"
+#include "stub/gert_runtime_stub.h"
 
 namespace ge {
 class MockMmpaForGeInit : public MmpaStubApiGe {
@@ -984,6 +985,9 @@ TEST_F(UtestDynamicStreamAllocator, dynamic_subgraph_alloc_attached_resource) {
 }
 
 TEST_F(UtestDynamicStreamAllocator, auto_multistream_load_balance_refreshes_dynamic_streams) {
+  gert::GertRuntimeStub runtime_stub;
+  runtime_stub.GetSlogStub().NoConsoleOut().SetLevelInfo();
+  runtime_stub.GetSlogStub().Clear();
   REGISTER_CUSTOM_PASS("MiniDAGStreamPass")
       .CustomAllocateStreamPassFn([](const ge::ConstGraphPtr &graph, ge::StreamPassContext &context) -> ge::Status {
         return ge::RunMiniDAGStreamPass(graph, context);
@@ -1013,6 +1017,8 @@ TEST_F(UtestDynamicStreamAllocator, auto_multistream_load_balance_refreshes_dyna
   DynamicStreamAllocator allocator;
   auto ret = allocator.AssignStreamsForDynamicShapeGraph(graph, subgraph_map);
   EXPECT_EQ(ret, SUCCESS);
+  ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "Refresh stream by node ids of graph: g1,"), -1);
+  ASSERT_NE(runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "Graph: g1, stream num:"), -1);
   EXPECT_EQ(allocator.GetStreamNum(), 2);
   EXPECT_EQ(GetStreamId(graph, "data1"), 0);
   EXPECT_EQ(GetStreamId(graph, "relu1"), 0);

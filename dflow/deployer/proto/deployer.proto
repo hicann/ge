@@ -94,7 +94,6 @@ message InitResponse {
   int32 dgw_port = 3;
   int32 dev_count = 4;
   int32 dgw_port_offset = 5;
-  bool support_flowgw_merged = 6;
 }
 
 message DeviceStatus {

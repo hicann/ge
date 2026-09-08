@@ -726,10 +726,10 @@ Status Om2PackageHelper::BuildCustomKernelBinaries(const GeRootModelPtr &ge_root
       GELOGE(FAILED, "[Allocate][Mem]Allocate mem failed");
       return FAILED;
     }
-    GE_ASSERT_EOK(memcpy_s(bin_data, buffer.size(), buffer.data(), buffer.size()));
     gert::Om2KernelBinary kb;
     kb.data = ge::ReadonlyByteBuffer(bin_data, ge::ConditionalDeleter{true});
     kb.data_size = buffer.size();
+    GE_ASSERT_EOK(memcpy_s(bin_data, buffer.size(), buffer.data(), buffer.size()));
     const size_t hash_id = std::hash<std::string>{}(std::string(kb.data.get(), kb.data.get() + kb.data_size));
     const auto entry_path = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";
     kb.name = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";

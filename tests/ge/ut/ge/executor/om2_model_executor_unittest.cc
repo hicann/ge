@@ -787,6 +787,10 @@ std::string MakeDuplicateIndividualConstantsConfigJson() {
   })";
 }
 
+static std::string MakeEmptyOpAttrJson() {
+  return "{}";
+}
+
 std::string PtrToHexString(const void *ptr) {
   std::ostringstream oss;
   oss << std::hex << reinterpret_cast<uintptr_t>(ptr);
@@ -974,6 +978,8 @@ class Om2ModelExecutorUt : public testing::Test {
       const auto model_meta = MakeModelMetaJson();
       ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
       ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+      const auto op_attr = MakeEmptyOpAttrJson();
+      ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
                                        PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
@@ -1028,6 +1034,8 @@ class Om2ModelExecutorUt : public testing::Test {
       const auto model_meta = MakeModelMetaJson();
       ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
       ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+      const auto op_attr = MakeEmptyOpAttrJson();
+      ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
                                        PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
@@ -1081,6 +1089,8 @@ class Om2ModelExecutorUt : public testing::Test {
       const auto model_meta = MakeModelMetaJson();
       ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
       ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+      const auto op_attr = MakeEmptyOpAttrJson();
+      ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
                                        PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
@@ -1139,6 +1149,8 @@ class Om2ModelExecutorUt : public testing::Test {
       const auto model_meta = MakeModelMetaJson();
       ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
       ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+      const auto op_attr = MakeEmptyOpAttrJson();
+      ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
                                        PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
@@ -1194,6 +1206,8 @@ class Om2ModelExecutorUt : public testing::Test {
       const auto model_meta = MakeModelMetaJson();
       ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
       ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+      const auto op_attr = MakeEmptyOpAttrJson();
+      ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
                                        PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
@@ -1314,7 +1328,14 @@ class Om2ModelExecutorUt : public testing::Test {
     EXPECT_TRUE(zip_writer.IsMemFileOpened());
     const auto model_meta = MakeModelMetaJson();
     EXPECT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+    const auto op_attr = MakeEmptyOpAttrJson();
+    EXPECT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
     EXPECT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+    const auto manifest = MakeManifestJson();
+    EXPECT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+    const std::string constants_config = "{}";
+    EXPECT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                      constants_config.size(), false));
 
     const auto write_weight = [&]() {
       EXPECT_TRUE(zip_writer.WriteBytes("data/variables/var_weight_data", var_weight_data->data(),
@@ -1395,6 +1416,8 @@ TEST_F(Om2ModelExecutorUt, load_ok_with_zip_archive_writer_base_name_prefix) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/constants/constant_0", archive_constant_path, false));
   ASSERT_TRUE(zip_writer.WriteFile("data/constants/model_0_constants_config.json", archive_constant_cfg_path, false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
@@ -1478,7 +1501,12 @@ TEST_F(Om2ModelExecutorUt, load_preserves_zero_copy_and_origin_input_dims_from_m
   const auto model_meta = MakeModelMetaJsonWithZeroCopySize();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
   ASSERT_NE(model_buf.data, nullptr);
   ASSERT_GT(model_buf.length, 0U);
@@ -1573,6 +1601,8 @@ TEST_F(Om2ModelExecutorUt, load_fallbacks_root_graph_name_to_model_name_when_met
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so",
                                    PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"}), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
@@ -1600,6 +1630,8 @@ TEST_F(Om2ModelExecutorUt, load_failed_when_model_desc_is_invalid) {
   const auto model_meta = MakeModelMetaJsonWithoutInputShape();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so",
                                    PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"}), false));
   const std::string constants_config = "{}";
@@ -1971,6 +2003,8 @@ TEST_F(Om2ModelExecutorUt, get_mem_and_weight_size_external_only_with_zero_inter
   ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   size_t work_size = 0U;
@@ -1994,11 +2028,6 @@ TEST_F(Om2ModelExecutorUt, get_mem_and_weight_size_from_mem_ok) {
 // 辅助函数：生成带属性的op_attr.json
 static std::string MakeOpAttrJson() {
   return R"({"test_op":{"_datadump_original_op_names":{"type":"LIST_STRING","value":["original_op1","original_op2"]}}})";
-}
-
-// 辅助函数：生成空op_attr.json
-static std::string MakeEmptyOpAttrJson() {
-  return "{}";
 }
 
 // 辅助函数：生成无效的JSON
@@ -2054,6 +2083,9 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
                                    PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2129,6 +2161,9 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_EmptyOpAttrJson_ReturnsEmptyMap) {
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
                                    PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   // 加载模型并验证GetOpAttr返回空map
@@ -2214,6 +2249,9 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_InvalidOpAttrJson_ReturnsEmptyMap) {
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
                                    PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   // 加载模型，无效JSON时fallback到空map
@@ -2282,6 +2320,9 @@ TEST_F(Om2ModelExecutorUt, ParseOpAttrJsonToMapInternal_MultipleAttrs_ParsesAllA
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
                                    PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   // 加载模型并验证所有属性都被解析
@@ -2367,7 +2408,12 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_InvalidGear_ReturnsError) {
   const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   // 加载模型
@@ -2403,7 +2449,12 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_ValidGear_Success) {
   const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2446,7 +2497,12 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_DynamicHW_Success) {
   const auto model_meta = MakeModelMetaJsonWithDynamicHW();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2489,7 +2545,12 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_DynamicDims_Success) {
   const auto model_meta = MakeModelMetaJsonWithDynamicDims();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2548,7 +2609,12 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_EmptyBatchNum_ReturnsError) {
   const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2583,6 +2649,12 @@ static bool LoadDynamicBatchModel(const std::string &test_work_dir, const std::s
   const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
   if (!zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false)) return false;
   if (!zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false)) return false;
+  const auto op_attr = MakeEmptyOpAttrJson();
+  if (!zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false)) return false;
+  const std::string constants_config = "{}";
+  if (!zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                             constants_config.size(), false))
+    return false;
   if (!zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false)) return false;
   if (!zip_writer.SaveModelDataToFile()) return false;
 
@@ -2980,6 +3052,15 @@ static bool LoadAippModel(const std::string &test_work_dir, const bool is_dynami
   if (!zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false)) {
     return false;
   }
+  const auto op_attr = MakeEmptyOpAttrJson();
+  if (!zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false)) {
+    return false;
+  }
+  const std::string constants_config = "{}";
+  if (!zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                             constants_config.size(), false)) {
+    return false;
+  }
   if (!zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false)) {
     return false;
   }
@@ -3286,6 +3367,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case01_Baseline_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3312,6 +3398,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case02_ExactMatch_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3338,6 +3429,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case03_RequiredLower_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3364,6 +3460,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case04_CompilerMinorHigher_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3390,6 +3491,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case05_CompilerMinorHigher_RequiredMatc
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3415,7 +3521,12 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case06_CompilerMajorHigher_Fail) {
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3441,7 +3552,12 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case07_CompilerMajorHigher_RequiredSati
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3468,6 +3584,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case08_CompilerLower_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3494,6 +3615,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case09_CompilerLower_RequiredLower_Succ
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3520,6 +3646,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case10_EmptyStrings_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3546,6 +3677,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case11_OnlyMajor_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3572,6 +3708,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case12_InvalidFormat_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3598,6 +3739,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case13_RequiredInvalidFormat_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3623,7 +3769,12 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case14_CompatibilityMissing_Fail) {
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3657,6 +3808,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case15_UsedFeaturesMissing_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3683,6 +3839,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case16_UsedFeaturesNotObject_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;
@@ -3709,6 +3870,11 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case17_UsedFeaturesWithData_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
   ModelDataHolder holder;

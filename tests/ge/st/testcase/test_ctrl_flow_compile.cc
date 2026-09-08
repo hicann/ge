@@ -23,6 +23,15 @@ using namespace std;
 using namespace testing;
 
 namespace ge {
+namespace {
+const char *GetCurArch() {
+#if defined(__aarch64__) || defined(__arm64__)
+  return "aarch64";
+#else
+  return "x86_64";
+#endif
+}
+}  // namespace
 class CtrlFlowCompileTest : public testing::Test {
  protected:
   void SetUp() {}
@@ -64,7 +73,7 @@ TEST_F(CtrlFlowCompileTest, TestSwitchAndMerge) {
   auto graph = ToGeGraph(g0);
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
 
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
   ModelBufferData model_buffer_data{};
@@ -104,7 +113,7 @@ TEST_F(CtrlFlowCompileTest, TestSwitchAndMerge_Merge_With_Non_Input) {
   auto graph = ToGeGraph(g0);
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
   ModelBufferData model_buffer_data{};
 

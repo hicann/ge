@@ -188,36 +188,43 @@ bool DumpConfig::NeedDump() const {
   return false;
 }
 
-bool DumpConfig::IsOpNeedDump(const std::string &op_name) const {
+// 规则1：没有配置 dump_list 时，按全局 data dump 开关生效，默认该 op 需要 dump
+// 规则2：model_name 为空时，对齐 OM1 的 DUMP_LAYER_OP_MODEL，表示全局 layer 配置，不绑定具体模型
+// 规则3：非全局 layer 配置时，只有 model_name 或 root_graph_name 命中当前模型，layer 才生效
+// 规则4：模型不匹配时，即使 layer 命中当前 op，也不允许 dump
+// 规则5：模型匹配且 layer/watcher_nodes 为空时，表示 dump 该模型所有 op
+// 规则6：模型匹配且 layer 非空时，只 dump layer 中显式配置的 op
+// 规则7：watcher_nodes 模型匹配后按 watcher node 名精确匹配
+// 规则8：所有 dump_list 项均未匹配当前模型/op 时，不 dump
+bool DumpConfig::IsOpNeedDump(const std::string &model_name, const std::string &root_graph_name,
+                              const std::string &op_name) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  // 如果没有配置 dump list，默认返回 true（由全局开关控制是否真的 dump）
   if (model_dump_config_list_.empty()) {
     return true;
   }
 
-  // 如果配置了 dump list，按照以下逻辑判断
   for (const auto &model_config : model_dump_config_list_) {
-    // layers 为空，表示该模型所有 op 都需要 dump
+    const bool is_global_layer_config = model_config.model_name.empty();
+    const bool is_model_matched = is_global_layer_config || (model_config.model_name == model_name) ||
+                                  (model_config.model_name == root_graph_name);
+    if (!is_model_matched) {
+      continue;
+    }
+
     if (model_config.layers.empty() && model_config.watcher_nodes.empty()) {
       return true;
     }
 
-    // 遍历 layers 匹配（前缀匹配）
-    for (const auto &layer : model_config.layers) {
-      if (op_name == layer) {
-        return true;
-      }
+    if (std::find(model_config.layers.begin(), model_config.layers.end(), op_name) != model_config.layers.end()) {
+      return true;
     }
 
-    // watcher nodes 匹配（精确匹配）
-    for (const auto &node : model_config.watcher_nodes) {
-      if (op_name == node) {
-        return true;
-      }
+    if (std::find(model_config.watcher_nodes.begin(), model_config.watcher_nodes.end(), op_name) !=
+        model_config.watcher_nodes.end()) {
+      return true;
     }
   }
 
-  // 有 dump list，但当前 op 不在列表中
   return false;
 }
 

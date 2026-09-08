@@ -18,7 +18,6 @@
 #include "dflow/base/utils/process_utils.h"
 #include "common/config/configurations.h"
 #include "daemon/daemon_client_manager.h"
-#include "common/utils/rts_api_utils.h"
 #include "deploy/deployer/deployer_service_impl.h"
 #include "deploy/deployer/deployer_proxy.h"
 #include "deploy/resource/resource_manager.h"
@@ -26,9 +25,6 @@
 #include "deploy/deployer/deployer_authentication.h"
 
 namespace ge {
-namespace {
-const std::string kProtocolTypeRdma = "RDMA";
-}
 Status DaemonService::Process(const std::string &peer_uri, const deployer::DeployerRequest &request,
                               deployer::DeployerResponse &response) {
   auto request_type = request.type();
@@ -97,20 +93,6 @@ Status DaemonService::VerifyInitRequest(const std::string &peer_uri, const deplo
   return SUCCESS;
 }
 
-void DaemonService::SetSupportFlowgwMerged(deployer::DeployerResponse &response) {
-  const auto &local_node = Configurations::GetInstance().GetLocalNode();
-  bool support_flowgw_merged = false;  // default not support merged
-  if (local_node.protocol == kProtocolTypeRdma) {
-    support_flowgw_merged = false;
-  } else {
-    int32_t support_merged = 0;
-    (void)aclrtGetDeviceCapability(0, ACL_FEATURE_SYSTEM_MEMQ_EVENT_CROSS_DEV, &support_merged);
-    support_flowgw_merged = (support_merged == 1);
-  }
-  GEEVENT("Support flowgw merged = %d.", static_cast<int32_t>(support_flowgw_merged));
-  response.mutable_init_response()->set_support_flowgw_merged(support_flowgw_merged);
-}
-
 void DaemonService::ProcessInitRequest(const std::string &peer_uri, const deployer::DeployerRequest &request,
                                        deployer::DeployerResponse &response) {
   GEEVENT("[Process][Request] init request start.");
@@ -144,7 +126,6 @@ void DaemonService::ProcessInitRequest(const std::string &peer_uri, const deploy
   response.mutable_init_response()->set_client_id(client_id);
   response.mutable_init_response()->set_dev_count(dev_count);
   response.mutable_init_response()->set_dgw_port_offset(offset);
-  SetSupportFlowgwMerged(response);
 }
 
 void DaemonService::ProcessDisconnectRequest(const std::string &peer_uri, const deployer::DeployerRequest &request,

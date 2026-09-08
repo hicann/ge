@@ -142,13 +142,13 @@ bool ModelParserBase::IsDynamicModel(const ModelFileHeader &file_header) {
 static Status GenInOutTensorDesc(const uint8_t *const data, size_t &offset,
                                  const ModelTensorDescBaseInfo &tensor_base_info, ModelInOutTensorDesc &desc,
                                  const size_t size) {
-  std::string name(PtrToPtr<void, const char>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset))),
-                   static_cast<size_t>(tensor_base_info.name_len));
-  desc.name = std::move(name);
   GE_ASSERT_SUCCESS(CheckUint64AddOverflow(offset, static_cast<uint64_t>(tensor_base_info.name_len)),
                     "[Check][Param] offset:%lu is beyond the UINT64_MAX, info size %u", offset,
                     tensor_base_info.name_len);
   GE_CHECK_LE((offset + tensor_base_info.name_len), size);
+  std::string name(PtrToPtr<void, const char>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset))),
+                   static_cast<size_t>(tensor_base_info.name_len));
+  desc.name = std::move(name);
   offset += tensor_base_info.name_len;
   GE_ASSERT_SUCCESS(CheckUint64AddOverflow(offset, static_cast<uint64_t>(tensor_base_info.dims_len)),
                     "[Check][Param] offset:%lu is beyond the UINT64_MAX, info size %u", offset,

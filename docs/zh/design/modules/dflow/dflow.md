@@ -232,17 +232,17 @@ mbuf 的内存布局（`udf/flow_func/mbuf_flow_msg.h`）：
 
 ```
 ┌─────────────────────────────────────────────┐
-│ mbuf head（默认 256B）                        │
-│   └── 尾部 64B：MbufHeadMsg 控制信息           │
-│       trans_id / version / msg_type /        │
-│       ret_code / start_time / end_time /     │
-│       flags / data_flag / worked_id /        │
-│       step_id / data_label / route_label     │
+│ mbuf head（默认 256B）                      │
+│   └── 尾部 64B：MbufHeadMsg 控制信息        │
+│       trans_id / version / msg_type /       │
+│       ret_code / start_time / end_time /    │
+│       flags / data_flag / worked_id /       │
+│       step_id / data_label / route_label    │
 ├─────────────────────────────────────────────┤
-│ mbuf 数据区                                   │
-│   Tensor 类消息：[RuntimeTensorDesc 1024B]    │
-│                 [真实 tensor 数据]            │
-│   其他消息：原始数据                           │
+│ mbuf 数据区                                 │
+│   Tensor 类消息：[RuntimeTensorDesc 1024B]  │
+│                 [真实 tensor 数据]          │
+│   其他消息：原始数据                        │
 └─────────────────────────────────────────────┘
 ```
 
@@ -386,7 +386,7 @@ classDiagram
 | FLOW_MODEL | FlowModel 元数据（ModelRelation、子模型列表、调度优先级） |
 | FLOW_SUBMODEL | 各子模型编译产物（多线程并行加载） |
 
-**部署规划**（`base/deploy/deploy_planner.cc` 的 `DeployPlanner::BuildPlan`，部署期由 `BuildDeployPlan` 调用）将 ModelRelation 转化为具体的队列创建和绑定计划（DeployPlan）：扁平化模型 → 补充控制队列 → 解析数据流连接 → 调整设备 → 识别可复用队列。Group 机制处理一对多/多对一的数据分发。
+**部署规划**（`base/deploy/deploy_planner.cc` 的 `DeployPlanner::BuildPlan`，部署期由 `BuildDeployPlan` 调用）将 ModelRelation 转化为具体的队列创建和绑定计划（DeployPlan）：扁平化模型 → 补充控制队列 → 解析数据流连接 → 调整设备 → 识别可复用队列。Group 机制实现多实例目标的负载均衡路由与多来源数据的聚合消费。连边规划的详细场景与优化手段见 [4.3.7 节](#437-部署规划与连边优化)。
 
 ### 4.3 部署层：多节点主从部署
 
@@ -508,7 +508,7 @@ sequenceDiagram
 
 各阶段说明：
 
-1. **构建计划**：`BuildDeployPlan` 分配设备资源，构建部署计划（内部调用 [4.2 节](#42-模型抽象层flowmodel-与-modelrelation)的 `DeployPlanner::BuildPlan` 生成队列创建与绑定计划）；`FlowRoutePlanner::ResolveFlowRoutePlans` 为每个节点规划流路由。部署前 `DeployDevMaintenanceCfg` 先行下发维护配置（dump/profiling 等环境变量透传给子进程）
+1. **构建计划**：`BuildDeployPlan` 分配设备资源，构建部署计划（内部调用 [4.2 节](#42-模型抽象层flowmodel-与-modelrelation)的 `DeployPlanner::BuildPlan` 生成队列创建与绑定计划，连边规划的详细场景见 [4.3.7 节](#437-部署规划与连边优化)）；`FlowRoutePlanner::ResolveFlowRoutePlans` 为每个节点规划流路由。部署前 `DeployDevMaintenanceCfg` 先行下发维护配置（dump/profiling 等环境变量透传给子进程）
 2. **分发到各节点**：通过 `FlowModelSender` 将路由计划、部署计划、子模型、变量管理器、数据网关配置分发到各节点。本地节点先 `PreDeployLocalFlowRoute` 创建队列；远程节点经 gRPC → daemon → 消息队列转发 → sub_deployer 执行，子模型与权重文件由 `FlowModelReceiver`（`model_recv/`）分块落盘后创建队列
 3. **加载模型**：`LoadSubmodels` 并行在各节点加载子模型，本节点由 `LocalDeployer` → `DeployContext` → `ExecutorManager::GetOrCreateExecutorClient` 根据 PNE 类型创建对应 executor client 并 fork executor 进程；远程节点由 sub_deployer 的 `ExecutorManager` fork executor 进程
 4. **建立队列绑定**：`DeployLocalFlowRoute` 完成本地流路由部署，建立队列间的数据绑定关系。部署完成后产出 `DeployResult` 交 `HeterogeneousModelExecutor`，`ModelRunStart` 启动调度与状态上报后台线程，进入可 Feed/Fetch 状态
@@ -541,6 +541,284 @@ executor 进程加载模型后，根据模型类型和部署位置采用不同�
 - npu_executor 的 dispatcher 线程从 req_msg_queue dequeue 请求 mbuf，解析输入地址，调用 `aclmdlExecute` 执行动态模型
 - 执行完成后，npu_executor 将输出数据描述信息写入 resp_msg_queue 通知 AICPU，由 AICPU 完成输出数据入队
 - 适用于动态 shape 的 GraphPp
+
+#### 4.3.7 部署规划与连边优化
+
+部署规划的核心任务是将构图阶段产出的逻辑连接关系（FlowNode 之间谁连谁），转化为物理的队列创建和绑定计划。要理解连边如何规划，首先需要理解部署后各角色的职责边界和队列数据流原理。
+
+##### 部署架构与队列数据流
+
+部署后形成三个角色，各有明确的职责边界：
+
+| 角色 | 职责 | 队列交互方式 |
+|------|------|-------------|
+| 应用头节点 | 用户 Feed/Fetch 的总入口和出口 | Feed 时往输入队列入队，Fetch 时从输出队列出队 |
+| 模型 executor | 执行模型计算（NPU 模型、UDF 等） | 只从输入队列 dequeue、往输出队列 enqueue，不感知数据如何到达 |
+| flowGW | 数据分发中间件（每个 device 一个，host 侧是否部署由运行时能力探测决定） | 从源队列 dequeue 后分发到目标队列 |
+
+数据流遵循以下原理：
+
+- **模型的每个输入和输出都对应一个队列**，模型只与自己的输入/输出队列交互（例外：未被使用的输出以 Dummy 队列占位且不创建物理队列、多输出融合时共享同一物理队列、一对一连接复用同一队列，见下文连边类型分析）
+- **一个队列只能被一个模块出队**——模型从自己的输入队列出队，flowGW 从它负责分发的源队列出队；多个源往同一队列入队（多对一）是允许的
+- **同设备一对多分发**：当一份输出需给同设备的多个模型时，源模型只需向自己的输出队列入队一次，由 flowGW 从源队列取出后分发到每个目标模型各自的输入队列（GE 侧仅下发路由与分组配置，分发行为在 flowGW 进程内执行），同侧队列间的数据共享基于引用计数实现零拷贝
+- **根模型输入的一对多**：当图输入需分发给多个目标且目标队列均为 device 侧队列时，Feed 数据由应用直接发送给各个 device 的目标队列，不经过 host 侧 flowGW 分发
+- **跨设备通信**：经 tag 传输，底层走 hcomm 模块（HCCL 通信；代码中相关接口以 hcom 为前缀，如 `hcom_handle`）。两端设备各分配一个 tag 组成 tag pair；同节点不同 device 间不能本地直连时同样使用 tag
+- **Host 与 Device 之间**：部署在 device 上的队列均以 client queue 形式创建，host 进程（应用头节点）可直接向其入队/出队，入队与出队均为拷贝语义（由驱动完成数据搬运），无法引用计数共享
+
+##### 路由模型与 Group
+
+上述各种连接的物理实现由两个正交的维度描述：**拓扑形态**（多少源绑定多少目的）与**路由元素**（绑定的端点本身是什么）：
+
+| 维度 | 取值 | 说明 |
+|------|------|------|
+| 拓扑形态 | 一对一 / 一对多 / 多对一 / 多对多 | 描述源与目的的连接数量关系。一对多为复制分发：每个目的各得一份 |
+| 路由元素 | 队列 / tag / group | 描述绑定端点的类型。任何拓扑的任何端点都可能以 group 形态出现 |
+
+**Group 是 flowGW 内的路由分组对象**，成员为队列或 tag，彼此构成负载均衡关系；非 group 的单一队列/tag 相当于只含一个元素的 group（退化形态）。其语义分两侧：
+
+- **作为投递目的（选一投递）**：数据进入 group 时按策略只投递给其中一个成员——默认按 trans_id 轮询；配置亲和策略（见 [2.4 节](#24-多实例负载均衡)）时按 trans_id 与亲和策略生成的 route_label 分发，保证相同键值的数据到达同一成员
+- **作为数据来源（保序消费）**：消费方每次只从组内取一条消息处理，默认按 trans_id 保序；含 N-Mapping 节点或开启异常捕获的场景不缓存保序，有数据即分发
+
+部署规划器按连接拓扑构建 group 并经配置下发，运行时由 flowGW 执行。以一对多复制分发为例，路由路径如下：
+
+```mermaid
+flowchart LR
+    S["源（模型输出队列）"] -->|绑定 1：复制一份| G1["B 的目的 group"]
+    S -->|绑定 2：复制一份| G2["C 的目的 group"]
+    G1 -->|选一投递| Q1["B[0] 队列"]
+    G1 -->|选一投递| T1["tag → B[1]"]
+    G2 --> Q2["C[0] 队列（单元素，退化为直连）"]
+```
+
+##### 连边规划示例
+
+以下用一个具体场景说明连边规划。假设有 5 个模型（A/B/C/D/E），每个模型 2 输入 2 输出，部署到 2 个设备：模型 A/B/C 在 Device 0，模型 D/E 在 Device 1。模型间的输入存在复用关系（如 A 和 B 的输入 0 来自同一份输入数据），部分输出未被下游使用。
+
+左图为构图连边（逻辑关系，不关心设备分配），右图为部署连边（物理队列与 tag，根据设备分配选择通信方式）：
+
+<table>
+<tr>
+<th>构图连边（逻辑）</th>
+<th>部署连边（物理）</th>
+</tr>
+<tr>
+<td>
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}, 'flowchart': {'nodeSpacing': '35', 'rankSpacing': '35'}}}%%
+flowchart TD
+    D0["FlowData0"] -->|in0| A["模型A"]
+    D0 -->|in0| B["模型B"]
+    D1["FlowData1"] -->|in1| A
+    A -->|out0| B
+    A -->|out0| C["模型C"]
+    A -->|out1| C
+    B -->|out0| D["模型D"]
+    C -->|out0| D
+    C -->|out0| E["模型E"]
+    D -->|out0| E
+    B -->|out1| OUT0["用户输出0"]
+    C -->|out1| OUT1["用户输出1"]
+    E -->|out1| OUT2["用户输出2"]
+    D -.->|out1 未使用| DU1["未使用"]
+    E -.->|out0 未使用| DU2["未使用"]
+```
+
+</td>
+<td>
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}, 'flowchart': {'nodeSpacing': '35', 'rankSpacing': '35'}}}%%
+flowchart TD
+    subgraph Host["Host"]
+        H["应用头节点 Feed/Fetch"]
+    end
+    subgraph Dev0["Device 0"]
+        Q3(["Q3"]) -->|in0| A["模型A"]
+        Q6(["Q6"]) -->|in0| B["模型B"]
+        Q2(["Q2"]) -->|in1| A
+        A -->|out0| Q4(["Q4"]) --> Q7(["Q7"]) -->|in1| B
+        Q4 --> Q10(["Q10"]) -->|in0| C["模型C"]
+        A -->|out1| Q5(["Q5"]) -->|in1| C
+        B -->|out0| Q8(["Q8"]) --> T1A(("tag1"))
+        B -->|out1| Q9(["Q9"])
+        C -->|out0| Q11(["Q11"]) --> T2A(("tag2"))
+        C -->|out1| Q12(["Q12"])
+    end
+    subgraph Dev1["Device 1"]
+        T1B(("tag1")) --> Q13(["Q13"]) -->|in0| D["模型D"]
+        T2B(("tag2")) --> Q14(["Q14"]) -->|in1| D
+        T2B --> Q17(["Q17"]) -->|in1| E["模型E"]
+        D -->|out0| Q15(["Q15"]) -->|in0| E
+        D -->|out1| DQ1(["Dummy Q"])
+        E -->|out0| DQ2(["Dummy Q"])
+        E -->|out1| Q19(["Q19"])
+    end
+    H --> Q3
+    H --> Q6
+    H --> Q2
+    Q9 -. Fetch .-> H
+    Q12 -. Fetch .-> H
+    Q19 -. Fetch .-> H
+    T1A -. hcomm .-> T1B
+    T2A -. hcomm .-> T2B
+```
+
+</td>
+</tr>
+</table>
+
+##### 连边类型分析
+
+上例中体现了 6 种连边类型，每种采用不同的通信方式：
+
+**同设备一对多（多目的复制分发）**：当一份输出需给同设备的多个模型时，源队列（如 Q4）绑定多个投递目的，每个目的各得一份。源模型只向源队列入队一次，由 flowGW 分发到每个目的（目的可为队列/tag/group），同侧数据共享零拷贝。若不优化，源模型需把同一份数据分别 enqueue 到每个目标队列，N 个目标 = N 次拷贝。
+
+| 连接 | 源队列 | 目的 | 说明 |
+|------|--------|------|------|
+| A.out0 → B.in1 + C.in0 | Q4 | Q7, Q10 | A 只入队 Q4 一次，flowGW 对每个目的各分发一份 |
+
+**一对一队列复用**：一对一连接且两端部署在同一节点时，源模型的输出队列和目标模型的输入队列复用为同一个物理队列，无需建两个队列再做一次 enqueue/dequeue 往返。host CPU 模型与同节点 NPU 模型间同样复用（物理队列落在 NPU 侧）。
+
+| 连接 | 复用队列 | 说明 |
+|------|---------|------|
+| FlowData1 → A.in1 | Q2 | 输入队列直接作为 A 的输入 |
+| A.out1 → C.in1 | Q5 | A 的输出队列就是 C 的输入队列 |
+| D.out0 → E.in0 | Q15 | D 的输出队列就是 E 的输入队列 |
+
+**跨设备一对一（tag pair）**：跨设备连接必须分配 tag pair——同一 tag 在两端设备各生成一个端点（两端同名，tag_id 与对端一致），经 hcomm 通信传输。
+
+| 连接 | 源侧 | 目标侧 | tag pair |
+|------|------|--------|---------|
+| B.out0 → D.in0 | Q8 → tag1 | tag1 → Q13 | tag1（两端同名） |
+
+**跨设备一对多（目标侧分发）**：跨设备一对多且多个目标位于同一目标设备时，这些目标共享一个 tag pair，跨设备只传输一份数据，由目标设备的 flowGW 分发到多个目标队列。如 C.out0 → D.in1 + E.in1，源侧 Q11 经 tag2 传到目标侧同名端点，再分叉到 Q14 和 Q17。
+
+**Dummy Q（未使用输出占位）**：模型输出未被任何下游使用时，插入 Dummy Queue 占位保持输入/输出槽位对齐，但跳过物理队列创建。如 D.out1 和 E.out0 均未使用，各分配一个 Dummy Q。根模型输入未被任何子模型消费时同样以 Dummy 队列占位。
+
+**应用侧直接广播**：根模型输入需分发给多个目标且目标队列均为 device 侧队列时，不经过 host 侧 flowGW 分发，Feed 数据由应用直接发送给各个 device 的目标队列。
+
+##### 多实例部署连边规划
+
+当同一模型部署多个实例时，连边规划需要处理实例间的连接关系。部署规划器通过 `MarkMultiDeployedModels` 为多部署模型的每个实例分配 `process_id`，再根据源端和目标端的实例数组合，选择不同的连边策略。以下分四种场景说明。
+
+**场景一：一对多（1→N）**：1 个源实例连接到 N 个目标实例。例如模型 A 部署 1 个实例在 Device 0，模型 B 部署 2 个实例（B[0] 在 Device 0，B[1] 在 Device 1），A 的输出需投递给 B 的实例（负载均衡）。
+
+```mermaid
+flowchart TD
+    subgraph Dev0["Device 0"]
+        A0["A[0]"] -->|out0| Q4(["Q4"])
+        Q4 --> G1{{"B 实例目的 Group<br/>（选一投递）"}}
+        G1 --> Q7(["Q7"]) -->|in0| B0["B[0]"]
+        G1 --> T1A(("tag1"))
+    end
+    subgraph Dev1["Device 1"]
+        T1B(("tag1")) --> Q13(["Q13"]) -->|in0| B1["B[1]"]
+    end
+    T1A -. hcomm .-> T1B
+```
+
+源侧 A 只往 Q4 入队一次。B 的两个实例的接入点（本地队列 Q7 与跨设备 tag1）组成一个目的 group，每条数据按策略只投递给其中一个实例（同侧数据共享零拷贝）。`IsOutputMultiConnected` 判定为 true 后，通过 `PrepareQueuesRelation` 创建该 group。
+
+**场景二：多对一（M→1）**：M 个源实例连接到 1 个目标实例。例如模型 A 部署 2 个实例（A[0] 在 Device 0，A[1] 在 Device 1），模型 B 部署 1 个实例在 Device 0，两个 A 实例的输出都汇入 B。
+
+```mermaid
+flowchart TD
+    subgraph Dev0["Device 0"]
+        A0["A[0]"] -->|out0| Q4(["Q4"])
+        Q4 --> G1{{"B[0] 来源 Group<br/>（保序消费）"}}
+        T1B(("tag1")) --> G1
+        G1 --> Q5(["Q5"]) -->|in0| B0["B[0]"]
+    end
+    subgraph Dev1["Device 1"]
+        A1["A[1]"] -->|out0| Q8(["Q8"])
+        Q8 --> T1A(("tag1"))
+    end
+    T1A -. hcomm .-> T1B
+```
+
+B 的输入来自多个源，两个来源（本地队列 Q4 与跨设备 tag1 的对端）组成 B 的来源 group。flowGW 从组内逐条取消息送入输入队列 Q5（默认按 trans_id 保序），B[0] 只从 Q5 dequeue。`IsInputMultiConnected` 判定为 true，`PrepareQueuesRelation` 为目标创建聚合 group。
+
+**场景三：多对多（相同实例数 N→N）**：N 个源实例连接到 N 个目标实例，且两端按序部署在相同的设备集合上。例如模型 A 和模型 B 各部署 2 个实例，A[0]/B[0] 在 Device 0，A[1]/B[1] 在 Device 1。左图为裁边前的全连接，右图为裁边后保留的对角线连接：
+
+<table>
+<tr>
+<th>裁边前（全连接 N×N = 4 条）</th>
+<th>裁边后（仅保留对角线 N = 2 条）</th>
+</tr>
+<tr>
+<td>
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}, 'flowchart': {'nodeSpacing': '35', 'rankSpacing': '35'}}}%%
+flowchart TD
+    A3a["A[0]"] --> B3a["B[0]"]
+    A3a -. 裁剪 .-> B3b["B[1]"]
+    A3b["A[1]"] -. 裁剪 .-> B3a
+    A3b --> B3b
+```
+
+</td>
+<td>
+
+```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}, 'flowchart': {'nodeSpacing': '35', 'rankSpacing': '35'}}}%%
+flowchart TD
+    A4a["A[0]@Dev0"] -->|队列复用| B4a["B[0]@Dev0"]
+    A4b["A[1]@Dev1"] -->|队列复用| B4b["B[1]@Dev1"]
+```
+
+</td>
+</tr>
+</table>
+
+`CheckSkipBinding` 检测到两端实例数相同且按序部署在相同设备集合时，跳过跨 index 的绑定（A[0]→B[1] 和 A[1]→B[0]），只保留同设备同 index 的对角线连接。裁边后连边退化为纯一对一连接，走同设备队列复用，无需 group 与 tag pair，避免了 N² 条跨设备 tag 连接的开销。被保留的同 index 连接通过 `AddTrimmingEdgesModelInstance` 记录裁边关系（部署期经 DFS 传递闭包扩展到整棵关联树），运行时某实例异常时 `UpdateAbnormalInstanceForTrimmingModel` 级联标记关联实例。任一侧查不到部署位置或非多实例部署时不裁边；连接中含 UDF invoked NN 模型时同样不裁边。
+
+**场景四：多对多（实例数不同 M→N，M≠N）**：M 个源实例连接到 N 个目标实例，M≠N，无法按 index 对齐。例如模型 A 部署 2 个实例（A[0] 在 Device 0，A[1] 在 Device 1），模型 B 部署 3 个实例（B[0] 在 Device 0，B[1] 在 Device 1，B[2] 在 Device 2），建立全连接 M×N = 6 条。
+
+```mermaid
+flowchart TD
+    subgraph Dev0["Device 0"]
+        A0["A[0]"] -->|out0| Q4(["Q4"])
+        Q4 --> G0{{"A[0] 的目的 Group<br/>（选一投递）"}}
+        G0 --> M1(["映射队列 M1"])
+        G0 --> T1A(("tag1"))
+        G0 --> T3A(("tag3"))
+        T2B(("tag2")) --> GS0{{"B[0] 的来源 Group<br/>（保序消费）"}}
+        M1 --> GS0
+        GS0 --> Q5(["Q5"]) -->|in0| B0["B[0]"]
+    end
+    subgraph Dev1["Device 1"]
+        A1["A[1]"] -->|out0| Q8(["Q8"])
+        Q8 --> G1{{"A[1] 的目的 Group<br/>（选一投递）"}}
+        G1 --> M2(["映射队列 M2"])
+        G1 --> T2A(("tag2"))
+        G1 --> T4A(("tag4"))
+        T1B(("tag1")) --> GS1{{"B[1] 的来源 Group<br/>（保序消费）"}}
+        M2 --> GS1
+        GS1 --> Q9(["Q9"]) -->|in0| B1["B[1]"]
+    end
+    subgraph Dev2["Device 2"]
+        T3B(("tag3")) --> GS2{{"B[2] 的来源 Group<br/>（保序消费）"}}
+        T4B(("tag4")) --> GS2
+        GS2 --> Q10(["Q10"]) -->|in0| B2["B[2]"]
+    end
+    T1A -. hcomm .-> T1B
+    T2A -. hcomm .-> T2B
+    T3A -. hcomm .-> T3B
+    T4A -. hcomm .-> T4B
+```
+
+实例数不同时 `CheckSkipBinding` 返回 false，不裁边，建立全连接。每个源实例各自持有一个目的 group，组成员为各目标实例的接入点，每条数据按策略只投递给其中一个目标实例（负载均衡）：同设备的连接（A[0]→B[0]、A[1]→B[1]）因两端均为多连接，经中间映射队列衔接；跨设备的 4 条连接各分配独立的 tag pair（一对 tag pair 两端同名），支持按实例负载均衡。目标实例的输入来自多个源时，各来源（映射队列或 tag）经来源 group 聚合，flowGW 从组内逐条取消息送入输入队列，默认按 trans_id 保序。此外，实例数相同但两端设备集合无法按序对齐直连时，同样不裁边走全连接。
+
+**多实例连边策略总结**：
+
+| 场景 | 实例数 | 连边策略 | 裁边 | 核心代码 |
+|------|--------|---------|------|---------|
+| 一对多 | 1→N | 目标实例接入点组成目的 group，选一投递（负载均衡） | 不涉及 | `IsOutputMultiConnected` |
+| 多对一 | M→1 | 各来源组成目标的来源 group，保序消费 | 不涉及 | `IsInputMultiConnected` |
+| 多对多（相同实例数） | N→N | 同 index 对角线连接，退化为纯一对一（无需 group） | 裁剪 N²-N 条 | `CheckSkipBinding` |
+| 多对多（实例数不同） | M→N | 每源独立目的 group 选一投递 + 来源 group 保序消费，同设备经映射队列 | 不裁剪 | `CheckSkipBinding` 返回 false |
 
 ### 4.4 执行层：异构执行器与数据对齐
 

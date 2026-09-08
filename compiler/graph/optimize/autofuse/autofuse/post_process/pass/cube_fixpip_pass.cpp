@@ -91,7 +91,6 @@ Status CubeFixpip(AscGraph &graph, const NodePtr &asc_node) {
         return SUCCESS;
       }
       // 当前不需要删除relu节点，以防遇到不支持fixpip的tiling key需要走ub模板
-      // GE_ASSERT_SUCCESS(asc_adapt::DelNode(graph, peer_in_node));
       // 后续需要删除relu节点时在此处设置relu标记，不在下方is_relu_only分支设置GE_ASSERT_SUCCESS(SetReluAttr(node));
       is_relu_only = true;
       cube_node = node;

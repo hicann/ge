@@ -70,6 +70,13 @@ namespace {
 constexpr const char *kFormatTime = "[2023-08-08-20:08:00.001.001]";
 constexpr const char *kPlatformIrrelevant =
     "This model is irrelevant to the host platform, parameters about host os and host cpu are ignored.";
+const char *GetCurArch() {
+#if defined(__aarch64__) || defined(__arm64__)
+  return "aarch64";
+#else
+  return "x86_64";
+#endif
+}
 graphStatus StubInferFunction(Operator &op) {
   return GRAPH_SUCCESS;
 }
@@ -278,7 +285,7 @@ TEST_F(GeIrBuildTest, TestBuildModelFailWtihL1OptimizeInVirtual) {
 TEST_F(GeIrBuildTest, test_build_and_bundlesave_flow_model_pp) {
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
 
   auto graph = GraphFactory::VariableAddGraph();
@@ -306,7 +313,7 @@ TEST_F(GeIrBuildTest, test_build_and_bundlesave_flow_model_pp) {
 TEST_F(GeIrBuildTest, test_build_and_bundle_save_variable_modle) {
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
 
   auto graph = GraphFactory::VariableAddGraph();
@@ -327,10 +334,10 @@ TEST_F(GeIrBuildTest, test_build_and_bundle_save_variable_modle) {
   EXPECT_EQ(aclgrphBundleSaveModel("bundle_var_model", bundle_buffer), SUCCESS);
 
   // load bundle model
-  std::ifstream fs("./bundle_var_model_linux_x86_64.om", std::ifstream::binary);
+  std::ifstream fs("./bundle_var_model_linux_" + std::string(GetCurArch()) + ".om", std::ifstream::binary);
   GE_MAKE_GUARD(free, [&fs]() {
     fs.close();
-    system("rm -f ./bundle_var_model_linux_x86_64.om");
+    system(("rm -f ./bundle_var_model_linux_" + std::string(GetCurArch()) + ".om").c_str());
   });
   ASSERT_TRUE(fs.is_open());
   fs.seekg(0, std::ifstream::end);
@@ -438,7 +445,7 @@ TEST_F(GeIrBuildTest, TestBuildOptions) {
 
   init_options.clear();
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), GRAPH_SUCCESS);
 
   init_options.clear();
@@ -472,7 +479,7 @@ TEST_F(GeIrBuildTest, TestBuildModelOm2UnsupportedGlobalOption) {
   aclgrphBuildFinalize();
   std::map<std::string, std::string> init_options = {
       {ge::OPTION_HOST_ENV_OS, "linux"},
-      {ge::OPTION_HOST_ENV_CPU, "x86_64"},
+      {ge::OPTION_HOST_ENV_CPU, GetCurArch()},
   };
   const auto init_ret = aclgrphBuildInitialize(init_options);
   EXPECT_EQ(init_ret, SUCCESS);
@@ -507,7 +514,7 @@ TEST_F(GeIrBuildTest, TestSetOpAttr) {
 TEST_F(GeIrBuildTest, TestBuildModelWithShapeRange) {
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
 
   auto graph = GraphFactory::SingeOpGraph2();
@@ -533,7 +540,7 @@ TEST_F(GeIrBuildTest, TestBuildModelWithShapeRange) {
 TEST_F(GeIrBuildTest, TestBuildModelWithShapeRangeInvalidInput) {
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
 
   auto graph = GraphFactory::SingeOpGraph2();
@@ -1317,7 +1324,7 @@ TEST_F(GeIrBuildTest, TestBuildModelWithShapeRangeWithCpuAndOsEmpty) {
 TEST_F(GeIrBuildTest, TestBuildModelWithShapeRangeWihtOutputFileNameTooLong) {
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
 
   auto graph = GraphFactory::SingeOpGraph2();
@@ -1418,7 +1425,7 @@ TEST_F(GeIrBuildTest, RecoverIrDefinition_graph_ub) {
 
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
   std::map<AscendString, AscendString> build_options;
   ModelBufferData model_buffer_data{};
@@ -1434,7 +1441,9 @@ TEST_F(GeIrBuildTest, RecoverIrDefinition_graph_ub) {
     }
   });
 
-  EXPECT_EQ(ModelParserBase::LoadFromFile("./saved_model_linux_x86_64.om", 1, model_data), SUCCESS);
+  EXPECT_EQ(ModelParserBase::LoadFromFile(("./saved_model_linux_" + std::string(GetCurArch()) + ".om").c_str(), 1,
+                                          model_data),
+            SUCCESS);
   // no memory allocated below
   EXPECT_EQ(ModelParserBase::LoadFromFile("", 1, model_data), ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID);
   system("touch test_xxx");
@@ -1442,7 +1451,7 @@ TEST_F(GeIrBuildTest, RecoverIrDefinition_graph_ub) {
   system("rm -f ./test_xxx");
 
   ModelHelper model_helper;
-  model_data.om_path = "./saved_model_linux_x86_64.om";
+  model_data.om_path = "./saved_model_linux_" + std::string(GetCurArch()) + ".om";
   EXPECT_EQ(model_helper.LoadRootModel(model_data), GRAPH_SUCCESS);
   auto root_model = model_helper.GetGeRootModel();
   ASSERT_NE(root_model, nullptr);
@@ -1769,9 +1778,11 @@ TEST_F(GeIrBuildTest, recover_op_runinfo_dyn_graph) {
       model_data.model_data = nullptr;
     }
   });
-  EXPECT_EQ(ModelParserBase::LoadFromFile("./saved_dyn_model_bin_reuse_linux_x86_64.om", 1, model_data), SUCCESS);
+  EXPECT_EQ(ModelParserBase::LoadFromFile(
+                ("./saved_dyn_model_bin_reuse_linux_" + std::string(GetCurArch()) + ".om").c_str(), 1, model_data),
+            SUCCESS);
   ModelHelper model_helper;
-  model_data.om_path = "./saved_dyn_model_bin_reuse_linux_x86_64.om";
+  model_data.om_path = "./saved_dyn_model_bin_reuse_linux_" + std::string(GetCurArch()) + ".om";
   EXPECT_EQ(model_helper.LoadRootModel(model_data), GRAPH_SUCCESS);
   auto root_model = model_helper.GetGeRootModel();
   ASSERT_NE(root_model, nullptr);
@@ -1827,7 +1838,7 @@ TEST_F(GeIrBuildTest, TestScreenPrintMode_disable) {
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_SCREEN_PRINT_MODE] = "disable";
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
 
   auto graph = GraphFactory::SingeOpGraph2();
@@ -1855,7 +1866,7 @@ TEST_F(GeIrBuildTest, TestScreenPrintMode_enable) {
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_SCREEN_PRINT_MODE] = "enable";
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
 
   auto graph = GraphFactory::SingeOpGraph2();
@@ -1883,7 +1894,7 @@ TEST_F(GeIrBuildTest, TestScreenPrintMode_err) {
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_SCREEN_PRINT_MODE] = "disable_xxx";
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), ge::GRAPH_PARAM_INVALID);
   aclgrphBuildFinalize();
 }
@@ -1896,7 +1907,7 @@ TEST_F(GeIrBuildTest, TestSocVersionCheck_ok) {
   ge_env.InstallDefault();
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   init_options[ge::configure_option::SOC_VERSION] = "";
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
 
@@ -1931,7 +1942,7 @@ TEST_F(GeIrBuildTest, TestSocVersionCheck_ok_Nano) {
   ge_env.InstallDefault();
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   init_options[ge::configure_option::SOC_VERSION] = "Ascend035";
   std::map<std::string, std::string> graph_options = GetThreadLocalContext().GetAllGraphOptions();
   graph_options[ge::SOC_VERSION] = "Ascend035";
@@ -1971,7 +1982,7 @@ TEST_F(GeIrBuildTest, ir_build_so_in_om_multi_customize_priroity) {
 
   std::map<AscendString, AscendString> init_options;
   init_options[ge::OPTION_HOST_ENV_OS] = "linux";
-  init_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  init_options[ge::OPTION_HOST_ENV_CPU] = GetCurArch();
   EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
   std::map<AscendString, AscendString> build_options;
   ModelBufferData model_buffer_data{};

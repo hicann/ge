@@ -11,11 +11,9 @@
 #include "om2_memory_segment_planner.h"
 #include "common/ge_common/debug/ge_log.h"
 
-#include <limits>
-
 namespace ge {
 namespace om2 {
-uintptr_t MemorySegmentPlanner::Allocate(SegmentType type, const uint64_t size) {
+uintptr_t MemorySegmentPlanner::Allocate(SegmentType type, uint64_t size) {
   MemorySegmentInfo segment{};
   segment.type = type;
   segment.base = current_base_;

@@ -893,7 +893,7 @@ TEST_F(Om2CodegenUt, InterfaceDumpApis_EmitInCLinkageAndPtrToU64Outside_Ok) {
                                 "  uint64_t struct_size = sizeof(GertModelLaunchKernelV2Params);\n",
                                 "  aclrtFuncHandle func_handle = nullptr;\n",
                                 "  uint32_t block_dim = 0;\n",
-                                "  uint32_t reserved_1 = 0;\n",
+                                "  uint32_t abi_pad_1 = 0;\n",
                                 "  const void *args_data = nullptr;\n",
                                 "  size_t args_size = 0;\n",
                                 "  aclrtLaunchKernelCfg *config = nullptr;\n",
@@ -902,10 +902,10 @@ TEST_F(Om2CodegenUt, InterfaceDumpApis_EmitInCLinkageAndPtrToU64Outside_Ok) {
                                 "  uint64_t struct_size = sizeof(GertModelLaunchStarsTaskWithFlagParams);\n",
                                 "  const void *task_sqe = nullptr;\n",
                                 "  uint32_t sqe_len = 0;\n",
-                                "  uint32_t reserved_1 = 0;\n",
+                                "  uint32_t abi_pad_1 = 0;\n",
                                 "  aclrtStream stream = nullptr;\n",
                                 "  uint32_t flag = 0;\n",
-                                "  uint32_t reserved_2 = 0;\n",
+                                "  uint32_t abi_pad_2 = 0;\n",
                                 "struct GertModelTaskLaunchInfo {\n",
                                 "  uint64_t struct_size = sizeof(GertModelTaskLaunchInfo);\n",
                                 "  GertModelTaskLaunchType launch_type = ACL_RT_LAUNCH_KERNEL_V2;\n",
@@ -1991,9 +1991,9 @@ TEST(Om2CodegenTypesUt, PublicTypesHaveStableDefaultsAndCallbacks) {
   static_assert(std::is_same<decltype(task.kernel_type), uint64_t>::value);
   static_assert(offsetof(GertModelTaskDesc, task_type) < offsetof(GertModelTaskDesc, kernel_type));
   static_assert(offsetof(GertModelTaskDesc, kernel_type) < offsetof(GertModelTaskDesc, stream));
-  EXPECT_EQ(kernel.reserved_1, 0U);
-  EXPECT_EQ(dsa.reserved_1, 0U);
-  EXPECT_EQ(dsa.reserved_2, 0U);
+  EXPECT_EQ(kernel.abi_pad_1, 0U);
+  EXPECT_EQ(dsa.abi_pad_1, 0U);
+  EXPECT_EQ(dsa.abi_pad_2, 0U);
   EXPECT_EQ(callbacks.report_model_base_info, nullptr);
   EXPECT_EQ(callbacks.launch_func, nullptr);
   EXPECT_FALSE(HasLegacyLaunchCallback<GertModelLoadCallbacks>::value);

@@ -126,8 +126,9 @@ class DumpConfig {
   // 配置是否需要 Dump
   bool NeedDump() const;
 
-  // 判断某个算子是否需要 dump
-  bool IsOpNeedDump(const std::string &op_name) const;
+  // 判断该算子是否需要 dump
+  bool IsOpNeedDump(const std::string &model_name, const std::string &root_graph_name,
+                    const std::string &op_name) const;
 
  private:
   DumpConfig() = default;

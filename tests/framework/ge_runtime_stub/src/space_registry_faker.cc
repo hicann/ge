@@ -22,7 +22,7 @@ const char *const kAscendHomePath = "ASCEND_HOME_PATH";
 const std::string kInner = "built-in";
 const std::string kVendor = "vendors";
 std::string GetCurArch() {
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__arm64__)
   return "aarch64";
 #else
   return "x86_64";

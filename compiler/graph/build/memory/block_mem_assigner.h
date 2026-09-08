@@ -380,7 +380,7 @@ class BlockMemAssigner : public MemAssigner {
   void InsertStreamOutEdge();
   void InsertStreamInEdge(std::set<EdgeLife, CompareEdgeLife> &in_edge_set, const EdgeLife &new_in_edge,
                           const int64_t src_stream_id, const int64_t dst_stream_id,
-                          const std::pair<const char *, const char *> &node_names = {nullptr, nullptr});
+                          const std::pair<const char *, const char *> &node_names = {nullptr, nullptr}) const;
   /// @ingroup GE
   /// @brief Cascade memory scenarios to obtain the actual life time begin of continuous input memory
   /// @return void

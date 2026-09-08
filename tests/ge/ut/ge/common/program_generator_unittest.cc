@@ -1628,15 +1628,16 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
   auto generator = CreateProgramGenerator(ge_root_model);
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
-  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_resources.cpp"
+  const std::string expected = R"(#line 1 "g1_resources.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
-Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority)
-  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), kernel_id_(0), session_scope_mem_ptr_(nullptr), priority_(priority), is_external_rt_model_(false), is_external_streams_(false), is_external_notifies_(false), is_external_events_(false), is_external_labels_(false) {
+Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority)
+  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), owns_total_dev_mem_(false), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), callbacks_(*callbacks), kernel_id_(0), session_scope_mem_ptr_(nullptr), priority_(priority), is_external_rt_model_(false), is_external_streams_(false), is_external_notifies_(false), is_external_events_(false), is_external_labels_(false) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};
   }
+  bin_ids_.resize(1);
   bin_handles_.resize(1);
   func_handles_.resize(1);
   stream_list_.resize(1);
@@ -1648,8 +1649,22 @@ Om2Model::~Om2Model() {
   (void)ReleaseResources();
 }
 
-aclError Om2Model::InitResources(const GertModelExternalResources &external_resources) {
+aclError Om2Model::InitResources(uint64_t reuse_zero_copy, const GertModelExternalResources &external_resources) {
   OM2_LOGI("InitResources begin");
+  OM2_LOGI("model_id=%u, InitResources: work_ptr=%p, work_size=%zu, zero_copy_size=%zu", model_id_, total_dev_mem_ptr_, kModelWorkSize, kModelZeroCopySize);
+  size_t required_work_size = kModelWorkSize;
+  if ((reuse_zero_copy != 0)) {
+    required_work_size = (kModelWorkSize - kModelZeroCopySize);
+  }
+  if ((total_dev_mem_ptr_ != nullptr)) {
+    OM2_LOGI("model_id=%u, InitResources: use external work_ptr=%p", model_id_, total_dev_mem_ptr_);
+  }
+  if (((total_dev_mem_ptr_ == nullptr) && (required_work_size != 0))) {
+    OM2_LOGI("model_id=%u, InitResources: prepare work_ptr allocation, work_size=%zu, zero_copy_size=%zu, malloc_size=%zu", model_id_, kModelWorkSize, kModelZeroCopySize, required_work_size);
+    OM2_CHK_STATUS(AclrtMalloc(&total_dev_mem_ptr_, required_work_size, RT_MEMORY_HBM, 0));
+    owns_total_dev_mem_ = true;
+  }
+
   // 1. 创建 model
   if ((external_resources.external_rt_model != nullptr)) {
     model_handle_ = external_resources.external_rt_model;
@@ -1696,8 +1711,16 @@ aclError Om2Model::ReleaseResources() {
       OM2_CHK_STATUS(aclrtDestroyStream(stream));
     }
   }
-  for (auto bin_handle : bin_handles_) {
-    OM2_CHK_STATUS(aclrtBinaryUnLoad(bin_handle));
+  for (size_t i = 0; (i < bin_handles_.size()); i++) {
+    OM2_CHK_STATUS(callbacks_.lock_bin_handle_store());
+    OM2_MAKE_GUARD(bin_lock_guard, [this]() {
+      (void)callbacks_.unlock_bin_handle_store();
+    });
+    uint8_t need_unload = 0;
+    OM2_CHK_STATUS(callbacks_.release_bin_handle_from_store(bin_ids_[i].c_str(), &need_unload));
+    if ((need_unload != 0)) {
+      OM2_CHK_STATUS(aclrtBinaryUnLoad(bin_handles_[i]));
+    }
   }
   if (!is_external_rt_model_) {
     OM2_CHK_STATUS(aclmdlRIDestroy(model_handle_));
@@ -1715,26 +1738,16 @@ aclError Om2Model::ReleaseResources() {
       OM2_CHK_STATUS(aclrtFree(dev_dynamic_mem_ptrs_[i]));
     }
   }
+  if (((owns_total_dev_mem_ == true) && (total_dev_mem_ptr_ != nullptr))) {
+    OM2_CHK_STATUS(aclrtFree(total_dev_mem_ptr_));
+  }
+  total_dev_mem_ptr_ = nullptr;
+  owns_total_dev_mem_ = false;
   OM2_LOGI("ReleaseResources done");
   return ACL_SUCCESS;
 }
 } // namespace om2)";
-  const auto &source = outputs[GeneratedFileIndex::kResourcesFile];
-  EXPECT_NE(source.find("Om2Model::Om2Model"), std::string::npos);
-  EXPECT_NE(source.find("Om2Model::ReleaseResources"), std::string::npos);
-  EXPECT_EQ(source.find("MallocHbmMemory"), std::string::npos);
-  EXPECT_NE(source.find("AclrtMalloc"), std::string::npos);
-  EXPECT_NE(source.find("RT_MEMORY_HBM"), std::string::npos);
-  EXPECT_NE(source.find("work_size=%zu"), std::string::npos);
-  EXPECT_NE(source.find("zero_copy_size=%zu"), std::string::npos);
-  EXPECT_NE(source.find("malloc_size=%zu"), std::string::npos);
-  EXPECT_NE(source.find("model_id=%u, InitResources: prepare work_ptr allocation"), std::string::npos);
-  EXPECT_NE(source.find("model_id=%u, InitResources: use external work_ptr=%p"), std::string::npos);
-  EXPECT_NE(
-      source.find("InitResources(uint64_t reuse_zero_copy, const GertModelExternalResources &external_resources)"),
-      std::string::npos);
-  EXPECT_NE(source.find("owns_total_dev_mem_"), std::string::npos);
-  EXPECT_NE(source.find("aclrtFree(total_dev_mem_ptr_)"), std::string::npos);
+  ASSERT_EQ(outputs[GeneratedFileIndex::kResourcesFile], expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, GenerateArgsManagerSource_Ok) {
@@ -1751,7 +1764,7 @@ TEST_F(ProgramGeneratorUt, GenerateInterfaceHeader_Ok) {
   auto generator = CreateProgramGenerator(ge_root_model);
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
-  [[maybe_unused]] const std::string expected = R"(#include <iostream>
+  const std::string expected = R"(#include <iostream>
 #include <cstddef>
 #include <ctime>
 #include <chrono>
@@ -1933,73 +1946,70 @@ struct GertModelTaskIoEntry {
   uint64_t offset = 0;
 };
 
-enum GertModelArgKind {
-    GERT_MODEL_ARG_INPUT = 0,
-    GERT_MODEL_ARG_OUTPUT = 1,
-    GERT_MODEL_ARG_WORKSPACE = 2,
-    GERT_MODEL_ARG_TILING = 3,
-    GERT_MODEL_ARG_SHAPE_INFO = 4,
-    GERT_MODEL_ARG_LEVEL1_DESC = 5,
-    GERT_MODEL_ARG_PLACEHOLDER = 6,
-    GERT_MODEL_ARG_CUSTOM_VALUE = 7,
-    GERT_MODEL_ARG_FFTS_ADDR = 8,
-    GERT_MODEL_ARG_EVENT_ADDR = 9,
-    GERT_MODEL_ARG_OVERFLOW_ADDR = 10,
-    GERT_MODEL_ARG_EMPTY_ADDR = 11
+enum GertModelArgKind : uint64_t {
+  GERT_MODEL_ARG_INPUT = 0,
+  GERT_MODEL_ARG_OUTPUT = 1,
+  GERT_MODEL_ARG_WORKSPACE = 2,
+  GERT_MODEL_ARG_TILING = 3,
+  GERT_MODEL_ARG_SHAPE_INFO = 4,
+  GERT_MODEL_ARG_LEVEL1_DESC = 5,
+  GERT_MODEL_ARG_PLACEHOLDER = 6,
+  GERT_MODEL_ARG_CUSTOM_VALUE = 7,
+  GERT_MODEL_ARG_FFTS_ADDR = 8,
+  GERT_MODEL_ARG_EVENT_ADDR = 9,
+  GERT_MODEL_ARG_OVERFLOW_ADDR = 10,
+  GERT_MODEL_ARG_EMPTY_ADDR = 11,
+  GERT_MODEL_ARG_INVALID_KIND = 0xFFFFU
 };
 
 struct GertModelArgSlotInfo {
-    uint32_t kind;
-    uint32_t flags;
-    uint64_t args_offset;
-    uint64_t value;
-    uint32_t related_index;
-    uint32_t event_id;
-    uint64_t level1_target_offset;
+  uint64_t struct_size = sizeof(GertModelArgSlotInfo);
+  GertModelArgKind kind = GERT_MODEL_ARG_INVALID_KIND;
+  uint64_t flags = 0;
+  uint64_t args_offset = 0;
+  uint64_t value = 0;
+  uint64_t related_index = 0;
+  uint64_t event_id = 0;
+  uint64_t level1_target_offset = 0;
 };
 
 struct GertModelTaskRawInfo {
-    uint32_t version;
-    uint32_t need_assert_or_printf;
-    uint64_t arg_num;
-    const struct GertModelArgSlotInfo* args;
+  uint64_t struct_size = sizeof(GertModelTaskRawInfo);
+  uint64_t need_assert_or_printf = 0;
+  uint64_t arg_num = 0;
+  const struct GertModelArgSlotInfo *args = nullptr;
 };
 
 struct GertModelTaskDesc {
-  const char* op_name;
-  const char* op_type;
-  uint32_t task_id;
-  uint32_t stream_id;
-  uint32_t context_id;
-  uint32_t thread_id;
-  uint32_t block_dim;
-  uint64_t op_desc_id;
-  uintptr_t args_base;
-  uint64_t args_size;
-  uint64_t input_num;
-  const struct GertModelTaskIoEntry* inputs;
-  uint32_t output_num;
-  const struct GertModelTaskIoEntry* outputs;
-  uint32_t workspace_num;
-  const uint64_t* workspace_addrs;
-  const uint64_t* workspace_sizes;
-  uint32_t task_type;
-  uint64_t kernel_type = 10000U;
-  void* stream;
-  uint32_t is_raw_address;
-  const struct GertModelTaskRawInfo* task_raw_info;
-  uint64_t launch_begin;
-  const char *original_op_names;
-  uint64_t input_mem_size;
-  uint64_t output_mem_size;
-  uint64_t workspace_mem_size;
-  uint64_t weight_mem_size;
-};
-
-struct GertModelDumpEnabledInfo {
-  uint64_t struct_size = sizeof(GertModelDumpEnabledInfo);
+  uint64_t struct_size = sizeof(GertModelTaskDesc);
   const char *op_name = nullptr;
-  uint64_t enabled = 0;
+  const char *op_type = nullptr;
+  uint64_t task_id = 0;
+  uint64_t stream_id = 0;
+  uint64_t context_id = 0;
+  uint64_t thread_id = 0;
+  uint64_t block_dim = 0;
+  uint64_t op_desc_id = 0;
+  uintptr_t args_base = 0;
+  uint64_t args_size = 0;
+  uint64_t input_num = 0;
+  const struct GertModelTaskIoEntry *inputs = nullptr;
+  uint64_t output_num = 0;
+  const struct GertModelTaskIoEntry *outputs = nullptr;
+  uint64_t workspace_num = 0;
+  const uint64_t *workspace_addrs = nullptr;
+  const uint64_t *workspace_sizes = nullptr;
+  uint64_t task_type = 0;
+  uint64_t kernel_type = 10000U;
+  void *stream = nullptr;
+  uint64_t is_raw_address = 0;
+  const struct GertModelTaskRawInfo *task_raw_info = nullptr;
+  uint64_t launch_begin = 0;
+  const char *original_op_names = nullptr;
+  uint64_t input_mem_size = 0;
+  uint64_t output_mem_size = 0;
+  uint64_t workspace_mem_size = 0;
+  uint64_t weight_mem_size = 0;
 };
 
 struct GertModelBaseInfo {
@@ -2007,8 +2017,6 @@ struct GertModelBaseInfo {
   const void *rt_model_handle = nullptr;
 };
 
-using ReportTaskProcessFunc = int32_t (*)(void *instance_handle, const struct GertModelTaskDesc *info);
-using GetDataDumpEnabledInfoFunc = int32_t (*)(void *instance_handle, struct GertModelDumpEnabledInfo *info);
 using ReportModelBaseInfoFunc = int32_t (*)(void *instance_handle, const struct GertModelBaseInfo *info);
 
 enum GertModelTaskLaunchType : uint64_t {
@@ -2021,7 +2029,7 @@ struct GertModelLaunchKernelV2Params {
   aclrtFuncHandle func_handle = nullptr;
   uint32_t block_dim = 0;
   // 用于填充空洞，保持结构体布局与 ACL 接口一致。
-  uint32_t reserved_1 = 0;
+  uint32_t abi_pad_1 = 0;
   const void *args_data = nullptr;
   size_t args_size = 0;
   aclrtLaunchKernelCfg *config = nullptr;
@@ -2033,11 +2041,11 @@ struct GertModelLaunchStarsTaskWithFlagParams {
   const void *task_sqe = nullptr;
   uint32_t sqe_len = 0;
   // 用于填充空洞，保持结构体布局与 ACL 接口一致。
-  uint32_t reserved_1 = 0;
+  uint32_t abi_pad_1 = 0;
   aclrtStream stream = nullptr;
   uint32_t flag = 0;
   // 用于填充空洞，保持结构体布局与 ACL 接口一致。
-  uint32_t reserved_2 = 0;
+  uint32_t abi_pad_2 = 0;
 };
 
 union GertModelTaskLaunchParams {
@@ -2053,14 +2061,21 @@ struct GertModelTaskLaunchInfo {
 };
 
 using GertModelLaunchFunc = int32_t (*)(void *instance_handle, GertModelTaskLaunchInfo *launch_info);
+using LockBinHandleStoreFunc = int32_t (*)();
+using UnlockBinHandleStoreFunc = int32_t (*)();
+using QueryBinHandleFromStoreFunc = int32_t (*)(const char *bin_id, aclrtBinHandle *bin_handle);
+using SaveBinHandleToStoreFunc = int32_t (*)(const char *bin_id, aclrtBinHandle bin_handle);
+using ReleaseBinHandleFromStoreFunc = int32_t (*)(const char *bin_id, uint8_t *need_unload);
 
 struct GertModelLoadCallbacks {
   uint64_t struct_size = sizeof(GertModelLoadCallbacks);
-  ReportTaskProcessFunc report_task_preprocess = nullptr;
-  ReportTaskProcessFunc report_task_postprocess = nullptr;
-  GetDataDumpEnabledInfoFunc get_data_dump_enabled = nullptr;
   ReportModelBaseInfoFunc report_model_base_info = nullptr;
   GertModelLaunchFunc launch_func = nullptr;
+  LockBinHandleStoreFunc lock_bin_handle_store = nullptr;
+  UnlockBinHandleStoreFunc unlock_bin_handle_store = nullptr;
+  QueryBinHandleFromStoreFunc query_bin_handle_from_store = nullptr;
+  SaveBinHandleToStoreFunc save_bin_handle_to_store = nullptr;
+  ReleaseBinHandleFromStoreFunc release_bin_handle_from_store = nullptr;
 };
 
 using ReportModelRunFunc = int32_t (*)(void *instance_handle, const struct GertModelRunReportInfo *info);
@@ -2090,9 +2105,9 @@ struct GertModelLoadConfig {
   uint64_t *session_id = nullptr;
   uint64_t model_id = 0; // used for logging
   void *instance_handle = nullptr;
-  void *executor_handle = nullptr;
   const struct GertModelLoadCallbacks *callbacks = nullptr;
   int64_t priority = 0;
+  uint64_t reuse_zero_copy = 0;
   aclmdlRI external_rt_model = nullptr;
   aclrtStream *external_streams = nullptr;
   uint64_t external_stream_num = 0;
@@ -2143,20 +2158,6 @@ struct GertModelUnloadOutput {
   uint64_t struct_size = sizeof(GertModelUnloadOutput);
 };
 
-extern "C" {
-__attribute__((weak)) int32_t ReportDfxTaskPreprocess(uint32_t model_id,
-                                                       void* instance_handle,
-                                                       const struct GertModelTaskDesc* task_info,
-                                                       const void* extended_attrs,
-                                                       size_t extended_attrs_size);
-
-__attribute__((weak)) int32_t ReportDfxTaskPostprocess(uint32_t model_id,
-                                                        void* instance_handle,
-                                                        const struct GertModelTaskDesc* task_info,
-                                                        const void* extended_attrs,
-                                                        size_t extended_attrs_size);
-}
-
 struct rtLabelDevInfo {
   uint16_t modelId;
   uint16_t streamId;
@@ -2177,6 +2178,36 @@ rtError_t rtCmoAddrTaskLaunch(void *cmoAddrInfo, uint64_t destMax, rtCmoOpCode_t
 namespace om2 {
 constexpr int32_t INPUT_NUM = 2;
 constexpr int32_t OUTPUT_NUM = 1;
+constexpr size_t kModelWorkSize = 2048UL;
+constexpr size_t kModelZeroCopySize = 0UL;
+inline aclError AclrtMalloc(void **ptr, size_t size, uint32_t mem_type, uint16_t module_id) {
+  *ptr = nullptr;
+  if ((size == 0U)) {
+    return ACL_SUCCESS;
+  }
+  aclrtMallocAttribute attr;
+  attr.attr = ACL_RT_MEM_ATTR_MODULE_ID;
+  attr.value.moduleId = module_id;
+  aclrtMallocConfig cfg;
+  cfg.attrs = &attr;
+  cfg.numAttrs = 1U;
+  switch (mem_type) {
+    case RT_MEMORY_TS:
+      return aclrtMallocForTaskScheduler(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST, &cfg);
+    case RT_MEMORY_HOST:
+      return aclrtMallocHostWithCfg(ptr, size, &cfg);
+    case RT_MEMORY_P2P_HBM:
+    case RT_MEMORY_P2P_DDR:
+      return aclrtMallocWithCfg(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST_P2P, &cfg);
+    case RT_MEMORY_DDR:
+    case RT_MEMORY_DDR_NC:
+      return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_LOW_BAND_WIDTH, &cfg);
+    case RT_MEMORY_HBM:
+    default:
+      return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_HIGH_BAND_WIDTH, &cfg);
+  }
+}
+
 struct BinDataInfo {
   const void *data;
   size_t size;
@@ -2363,10 +2394,10 @@ struct AicoreDispatchInfo {
     uint16_t time_out;        // 超时时间
     uint32_t local_memory_size;  // 本地内存大小
   } launch;
-  struct {                    // L0 信息，构建 GertModelTaskRawInfo
+  struct {                    // 构建 GertModelTaskRawInfo
     uint32_t need_assert_or_printf; // 是否需要 assert/printf
-    uint32_t slots_num;    // L0 slot 数量
-    const GertModelArgSlotInfo *slot_info; // L0 slot 信息数组
+    uint32_t slots_num;    // slot 数量
+    const GertModelArgSlotInfo *slot_info; // slot 信息数组
   } slot_args;
   struct {                     // 融合算子信息，非融合全为 0/nullptr
     const char *original_op_names; // 原始算子名称（分号分隔）
@@ -2561,9 +2592,9 @@ struct DispatchOpContext {
 
 class Om2Model {
   public:
-    Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority);
+    Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority);
     ~Om2Model();
-    aclError InitResources(const GertModelExternalResources &external_resources);
+    aclError InitResources(uint64_t reuse_zero_copy, const GertModelExternalResources &external_resources);
     aclError RegisterKernels();
     aclError Load(const GertModelLoadCallbacks *callbacks);
     aclmdlRI GetRtModelHandle();
@@ -2574,23 +2605,31 @@ class Om2Model {
     void **constants_;
     void **var_addrs_;
     aclmdlRI model_handle_;
+    bool is_external_rt_model_;
+    std::vector<std::string> bin_ids_;
     std::vector<aclrtBinHandle> bin_handles_;
     std::vector<aclrtFuncHandle> func_handles_;
     std::vector<aclrtStream> stream_list_;
+    bool is_external_streams_;
     std::vector<aclrtNotify> notify_list_;
+    bool is_external_notifies_;
     std::vector<aclrtEvent> event_list_;
+    bool is_external_events_;
     std::vector<aclrtLabel> label_list_;
+    bool is_external_labels_;
     std::vector<aclrtLabel> label_used_;
     std::map<uint32_t, aclrtLabelList> label_switch_label_list_;
     std::map<uint32_t, std::pair<void *, uint32_t>> label_goto_args_;
     std::map<uint32_t, aclrtLabelList> label_goto_ex_label_list_;
     void *total_dev_mem_ptr_;
+    bool owns_total_dev_mem_ = false;
     bool is_stream_list_bind_;
     std::unordered_map<std::string, BinDataInfo> bin_info_map_;
     Om2ArgsTable args_table_;
     uint64_t *session_id_;
     uint32_t model_id_;
     void *instance_handle_;
+    GertModelLoadCallbacks callbacks_;
     uint64_t kernel_id_;
     std::vector<void *> dev_ext_info_mem_ptrs_;
     std::map<uint32_t, void *> mem_event_id_mem_map_;
@@ -2598,11 +2637,6 @@ class Om2Model {
     std::vector<void *> dev_dynamic_mem_ptrs_;
     void *session_scope_mem_ptr_;
     int32_t priority_;
-    bool is_external_rt_model_;
-    bool is_external_streams_;
-    bool is_external_notifies_;
-    bool is_external_events_;
-    bool is_external_labels_;
 };
 } // namespace om2
 #ifdef __cplusplus
@@ -2611,13 +2645,13 @@ extern "C" {
 
 typedef void *GertModelHandle;
 
-int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output);
+int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output);
 
-int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
+int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
 
-int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
+int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
 
-int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output);
+int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output);
 
 uint64_t GertModelGetStreamNum();
 
@@ -2635,20 +2669,9 @@ int32_t GertModelGetNotifyDesc(uint64_t *notify_flags, uint64_t notify_num, void
 
 #ifdef __cplusplus
 }
-#endif)";
-  const auto &source = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
-  EXPECT_NE(source.find("struct GertModelLoadCallbacks"), std::string::npos);
-  EXPECT_NE(source.find("GertModelLaunchFunc launch_func"), std::string::npos);
-  EXPECT_NE(source.find("constexpr size_t kModelWorkSize"), std::string::npos);
-  EXPECT_NE(source.find("constexpr size_t kModelZeroCopySize"), std::string::npos);
-  EXPECT_NE(source.find("inline aclError AclrtMalloc"), std::string::npos);
-  EXPECT_NE(source.find("aclrtMallocWithCfg"), std::string::npos);
-  EXPECT_NE(source.find("RT_MEMORY_HBM"), std::string::npos);
-  EXPECT_NE(source.find("ACL_MEM_TYPE_HIGH_BAND_WIDTH"), std::string::npos);
-  EXPECT_NE(source.find("ACL_RT_MEM_ATTR_MODULE_ID"), std::string::npos);
-  EXPECT_NE(source.find("    case RT_MEMORY_HBM:\n    default:\n      return aclrtMallocWithCfg"), std::string::npos);
-  EXPECT_NE(source.find("void *work_ptr"), std::string::npos);
-  EXPECT_EQ(source.find("reuse_zero_copy_"), std::string::npos);
+#endif
+)";
+  ASSERT_EQ(outputs[GeneratedFileIndex::kInterfaceHeaderFile], expected);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateKernelRegSource_Ok) {
@@ -2852,7 +2875,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
@@ -2887,6 +2910,7 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
                              uint64_t output_mem_size = 0U,
                              uint64_t workspace_mem_size = 0U,
                              uint64_t weight_mem_size = 0U) {
+  task_info->struct_size = sizeof(GertModelTaskDesc);
   task_info->op_name = op_name;
   task_info->op_type = op_type;
   task_info->task_id = task_id;
@@ -2915,103 +2939,6 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
   task_info->workspace_mem_size = workspace_mem_size;
   task_info->weight_mem_size = weight_mem_size;
   return ACL_SUCCESS;
-}
-
-aclError ReportOm2TaskPreprocess(const char *op_name, const char *op_type, uint64_t op_desc_id,
-                                uintptr_t args_base, uint64_t args_size,
-                                const std::vector<GertModelTaskIoEntry> &inputs,
-                                const std::vector<GertModelTaskIoEntry> &outputs,
-                                const std::vector<uint64_t> &workspace_addrs,
-                                const std::vector<uint64_t> &workspace_sizes,
-                                uint32_t task_type, uint32_t block_dim, void *stream,
-                                const GertModelTaskRawInfo *l0_info,
-                                uint32_t model_id, void *instance_handle,
-                                uint32_t is_raw_address = 0U) {
-  uint32_t stream_id = 0U;
-  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
-
-  OM2_CHK_TRUE(workspace_addrs.size() == workspace_sizes.size());
-
-  GertModelTaskDesc task_info{};
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, 0U, stream_id, block_dim,
-                                      op_desc_id, args_base, args_size,
-                                      inputs.data(), static_cast<uint64_t>(inputs.size()),
-                                      outputs.data(), static_cast<uint32_t>(outputs.size()),
-                                      workspace_addrs.empty() ? nullptr : workspace_addrs.data(),
-                                      workspace_sizes.empty() ? nullptr : workspace_sizes.data(),
-                                      static_cast<uint32_t>(workspace_addrs.size()),
-                                      task_type, stream, is_raw_address));
-  task_info.task_raw_info = l0_info;
-  if (ReportDfxTaskPreprocess != nullptr && instance_handle != nullptr) {
-    OM2_CHK_STATUS(ReportDfxTaskPreprocess(model_id, instance_handle, &task_info, nullptr, 0U));
-  }
-  return ACL_SUCCESS;
-}
-
-aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_t op_desc_id,
-                               uintptr_t args_base, uint64_t args_size,
-                               const GertModelTaskIoEntry *inputs, uint64_t input_num,
-                               const GertModelTaskIoEntry *outputs, uint32_t output_num,
-                               const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
-                               uint32_t workspace_num,
-                               uint32_t task_type, uint32_t block_dim, void *stream,
-                               uint32_t model_id, void *instance_handle,
-                               uint32_t is_raw_address = 0U,
-                               uint64_t launch_begin = 0U,
-                               const char *original_op_names = nullptr,
-                               uint64_t input_mem_size = 0U,
-                               uint64_t output_mem_size = 0U,
-                               uint64_t workspace_mem_size = 0U,
-                               uint64_t weight_mem_size = 0U) {
-  uint32_t task_id = 0U;
-  OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
-
-  uint32_t stream_id = 0U;
-  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
-
-  GertModelTaskDesc task_info{};
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, task_id, stream_id, block_dim,
-                                      op_desc_id, args_base, args_size,
-                                      inputs, input_num,
-                                      outputs, output_num,
-                                      workspace_addrs, workspace_sizes, workspace_num,
-                                      task_type, stream, is_raw_address,
-                                      launch_begin,
-                                      original_op_names,
-                                      input_mem_size, output_mem_size,
-                                      workspace_mem_size, weight_mem_size));
-  task_info.task_raw_info = nullptr;
-  if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
-    OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
-  }
-  return ACL_SUCCESS;
-}
-
-aclError AclrtMalloc(void **ptr, size_t size, uint32_t mem_type, uint16_t module_id) {
-  *ptr = nullptr;
-  if ((size == 0U)) {
-    return ACL_SUCCESS;
-  }
-  aclrtMallocAttribute attr;
-  attr.attr = ACL_RT_MEM_ATTR_MODULE_ID;
-  attr.value.moduleId = module_id;
-  aclrtMallocConfig cfg;
-  cfg.attrs = &attr;
-  cfg.numAttrs = 1U;
-  switch (mem_type) {
-    case RT_MEMORY_TS:
-    return aclrtMallocForTaskScheduler(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST, &cfg);
-    case RT_MEMORY_HOST:
-    return aclrtMallocHostWithCfg(ptr, size, &cfg);
-    case RT_MEMORY_P2P_HBM:
-    case RT_MEMORY_P2P_DDR:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST_P2P, &cfg);
-    case RT_MEMORY_DDR:
-    case RT_MEMORY_DDR_NC:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_LOW_BAND_WIDTH, &cfg);
-    default:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_HIGH_BAND_WIDTH, &cfg);
-  }
 }
 constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
@@ -3170,100 +3097,97 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_OUTPUT:
       case OP_ARG_CONST_TENSOR:
       case OP_ARG_VAR_TENSOR:
-      {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-        GertModelTaskIoEntry _entry = {sizeof(GertModelTaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
-        if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
-          report_inputs.push_back(_entry);
-        } else {
-          report_outputs.push_back(_entry);
+        {
+          _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
+          io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+          GertModelTaskIoEntry _entry = {sizeof(GertModelTaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
+          if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
+            report_inputs.push_back(_entry);
+          } else {
+            report_outputs.push_back(_entry);
+          }
+          break;
         }
-        break;
-      }
       case OP_ARG_WORKSPACE:
-      {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        report_workspace_addrs.push_back(_addr);
-        report_workspace_sizes.push_back(a.data.tensor.size);
-        break;
-      }
+        {
+          _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
+          report_workspace_addrs.push_back(_addr);
+          report_workspace_sizes.push_back(a.data.tensor.size);
+          break;
+        }
       case OP_ARG_LEVEL1_DESC:
-      {
-        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
-        OM2_CHK_NOTNULL(_desc);
-        _addr = reinterpret_cast<uint64_t>(_desc);
-        break;
-      }
+        {
+          void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
+          OM2_CHK_NOTNULL(_desc);
+          _addr = reinterpret_cast<uint64_t>(_desc);
+          break;
+        }
       case OP_ARG_SHAPE_INFO:
       case OP_ARG_CUSTOM_VALUE:
-      {
-        _addr = a.data.custom_value;
-        break;
-      }
+        {
+          _addr = a.data.custom_value;
+          break;
+        }
       case OP_ARG_PLACEHOLDER:
       case OP_ARG_OPTIONAL_EMPTY:
-      {
-        _addr = 0U;
-        break;
-      }
+        {
+          _addr = 0U;
+          break;
+        }
       case OP_ARG_FFTS_ADDR:
-      {
-        void *_ffts = nullptr;
-        OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&_ffts));
-        _addr = reinterpret_cast<uint64_t>(_ffts);
-        break;
-      }
+        {
+          void *_ffts = nullptr;
+          OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&_ffts));
+          _addr = reinterpret_cast<uint64_t>(_ffts);
+          break;
+        }
       case OP_ARG_EVENT_ADDR:
-      {
-        void *_event = nullptr;
-        OM2_CHK_STATUS(GetEventIdAddr(_event, ctx.event_id_mem_map, static_cast<uint32_t>(a.data.custom_value), ctx.dev_dynamic_mem_ptrs));
-        _addr = reinterpret_cast<uint64_t>(_event);
-        break;
-      }
+        {
+          void *_event = nullptr;
+          OM2_CHK_STATUS(GetEventIdAddr(_event, ctx.event_id_mem_map, static_cast<uint32_t>(a.data.custom_value), ctx.dev_dynamic_mem_ptrs));
+          _addr = reinterpret_cast<uint64_t>(_event);
+          break;
+        }
       case OP_ARG_OVERFLOW_ADDR:
-      {
-        _addr = reinterpret_cast<uint64_t>(ctx.overflow_addr);
-        break;
-      }
+        {
+          _addr = reinterpret_cast<uint64_t>(ctx.overflow_addr);
+          break;
+        }
       case OP_ARG_TILING:
-      {
-        void *_tiling = nullptr;
-        OM2_CHK_STATUS(MallocDeviceMemory(_tiling, a.data.tiling.raw_data_len, 2U, ctx.dev_dynamic_mem_ptrs));
-        OM2_CHK_STATUS(aclrtMemcpy(_tiling, a.data.tiling.raw_data_len, a.data.tiling.raw_data, a.data.tiling.raw_data_len, ACL_MEMCPY_HOST_TO_DEVICE));
-        _addr = reinterpret_cast<uint64_t>(_tiling);
-        break;
-      }
+        {
+          void *_tiling = nullptr;
+          OM2_CHK_STATUS(MallocDeviceMemory(_tiling, a.data.tiling.raw_data_len, 2U, ctx.dev_dynamic_mem_ptrs));
+          OM2_CHK_STATUS(aclrtMemcpy(_tiling, a.data.tiling.raw_data_len, a.data.tiling.raw_data, a.data.tiling.raw_data_len, ACL_MEMCPY_HOST_TO_DEVICE));
+          _addr = reinterpret_cast<uint64_t>(_tiling);
+          break;
+        }
       default:
-      {
-        _addr = 0U;
-        break;
-      }
+        {
+          _addr = 0U;
+          break;
+        }
     }
     ordered_io_addrs.push_back(_addr);
   }
-  GertModelTaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
+  GertModelTaskRawInfo task_raw_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   GertModelTaskDesc task_info;
   OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   OM2_CHK_STATUS(aclrtStreamGetId(task_info.stream, reinterpret_cast<int32_t *>(&task_info.stream_id)));
   task_info.kernel_type = op->dispatch_info.aicore.kernel_type;
-  task_info.task_raw_info = &l0_info;
-  GertModelLaunchKernelV2Params kernel_params = {
-    .func_handle = ctx.func_handles[op->dispatch_info.aicore.func_idx],
-    .block_dim = op->dispatch_info.aicore.block_dim,
-    .args_data = args_info->dev_addr,
-    .args_size = args_info->size,
-    .config = &cfg_holder.cfg,
-    .stream = ctx.stream_list[op->dispatch_info.aicore.stream_id],
-  };
-  GertModelTaskLaunchParams launch_params = {
-    .launch_kernel_v2_params = kernel_params,
-  };
-  GertModelTaskLaunchInfo launch_info = {
-    .launch_type = ACL_RT_LAUNCH_KERNEL_V2,
-    .task_info = &task_info,
-    .launch_params = &launch_params,
-  };
+  task_info.task_raw_info = &task_raw_info;
+  GertModelLaunchKernelV2Params kernel_params = {};
+  kernel_params.func_handle = ctx.func_handles[op->dispatch_info.aicore.func_idx];
+  kernel_params.block_dim = op->dispatch_info.aicore.block_dim;
+  kernel_params.args_data = args_info->dev_addr;
+  kernel_params.args_size = args_info->size;
+  kernel_params.config = &cfg_holder.cfg;
+  kernel_params.stream = ctx.stream_list[op->dispatch_info.aicore.stream_id];
+  GertModelTaskLaunchParams launch_params = {};
+  launch_params.launch_kernel_v2_params = kernel_params;
+  GertModelTaskLaunchInfo launch_info = {};
+  launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;
+  launch_info.task_info = &task_info;
+  launch_info.launch_params = &launch_params;
   OM2_CHK_STATUS(KernelTaskDistribute(&launch_info, ctx.launch_func, ctx.instance_handle, args_info, ordered_io_addrs));
   return ACL_SUCCESS;
 }
@@ -3310,22 +3234,19 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U));
   OM2_CHK_STATUS(aclrtStreamGetId(aicpu_task_info.stream, reinterpret_cast<int32_t *>(&aicpu_task_info.stream_id)));
   aicpu_task_info.kernel_type = op->dispatch_info.aicpu.kernel_type;
-  GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {
-    .func_handle = ctx.func_handles[op->dispatch_info.aicpu.func_idx],
-    .block_dim = op->dispatch_info.aicpu.block_dim,
-    .args_data = aicpu_args_info->dev_addr,
-    .args_size = aicpu_args_info->size,
-    .config = &aicpu_cfg_holder.cfg,
-    .stream = ctx.stream_list[op->dispatch_info.aicpu.stream_id],
-  };
-  GertModelTaskLaunchParams aicpu_launch_params = {
-    .launch_kernel_v2_params = aicpu_launch_kernel_v2_params,
-  };
-  GertModelTaskLaunchInfo aicpu_launch_info = {
-    .launch_type = ACL_RT_LAUNCH_KERNEL_V2,
-    .task_info = &aicpu_task_info,
-    .launch_params = &aicpu_launch_params,
-  };
+  GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {};
+  aicpu_launch_kernel_v2_params.func_handle = ctx.func_handles[op->dispatch_info.aicpu.func_idx];
+  aicpu_launch_kernel_v2_params.block_dim = op->dispatch_info.aicpu.block_dim;
+  aicpu_launch_kernel_v2_params.args_data = aicpu_args_info->dev_addr;
+  aicpu_launch_kernel_v2_params.args_size = aicpu_args_info->size;
+  aicpu_launch_kernel_v2_params.config = &aicpu_cfg_holder.cfg;
+  aicpu_launch_kernel_v2_params.stream = ctx.stream_list[op->dispatch_info.aicpu.stream_id];
+  GertModelTaskLaunchParams aicpu_launch_params = {};
+  aicpu_launch_params.launch_kernel_v2_params = aicpu_launch_kernel_v2_params;
+  GertModelTaskLaunchInfo aicpu_launch_info = {};
+  aicpu_launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;
+  aicpu_launch_info.task_info = &aicpu_task_info;
+  aicpu_launch_info.launch_params = &aicpu_launch_params;
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(aicpu_args_var, aicpu_args_info, &aicpu_launch_info, ctx.launch_func, ctx.instance_handle));
   return ACL_SUCCESS;
 }
@@ -3342,11 +3263,11 @@ aclError DispatchKernel(const TaskDispatchInfo *op, const DispatchOpContext &ctx
 aclError DispatchOp(const TaskDispatchInfo *op, const DispatchOpContext &ctx) {
   switch (op->dispatch_type) {
     case 0:
-    return DispatchKernel(op, ctx);
+      return DispatchKernel(op, ctx);
     case 1:
-    return DispatchKernel(op, ctx);
+      return DispatchKernel(op, ctx);
     default:
-    return ACL_ERROR_FAILURE;
+      return ACL_ERROR_FAILURE;
   }
 }
 const TaskDispatchInfo kOpDefs[] = {{
@@ -3369,7 +3290,7 @@ const TaskDispatchInfo kOpDefs[] = {{
       .task_type = 0,
       .kernel_type = 2,
       .launch = {0, 0, 0, false, 0, 0},
-      .slot_args = {0, 4, (const GertModelArgSlotInfo[]){{GERT_MODEL_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {GERT_MODEL_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {GERT_MODEL_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {GERT_MODEL_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
+      .slot_args = {0, 4, (const GertModelArgSlotInfo[]){{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
       .fusion_op = {nullptr, 0UL, 0UL, 0UL, 0UL},
     },
   },
@@ -3460,18 +3381,18 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority, uint64_t reuse_zero_copy, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, priority);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, callbacks, priority);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
-  auto ret = obj->InitResources({sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
+  auto ret = obj->InitResources(reuse_zero_copy, {sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
   if (ret != ACL_SUCCESS) {
     OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
     delete obj;
@@ -3516,8 +3437,8 @@ aclError Om2ModelDestroy(GertModelHandle *model_handle) {
 
 // ==================== model load/run/unload api ====================
 
-int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
-                  struct GertModelLoadOutput *output) {
+int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
+                      struct GertModelLoadOutput *output) {
   if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelLoad: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -3532,7 +3453,8 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
                                 config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                static_cast<int32_t>(config->priority),
+                                config->callbacks,
+                                static_cast<int32_t>(config->priority), config->reuse_zero_copy,
                                 config->external_rt_model,
                                 config->external_streams, config->external_stream_num,
                                 config->external_notifies, config->external_notify_num,
@@ -3545,8 +3467,8 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
   return static_cast<om2::Om2Model *>(*model_handle)->Load(config->callbacks);
 }
 
-int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
-                      const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
+                          const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRunAsync: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -3559,8 +3481,8 @@ int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
                           config->output_data, run_callbacks);
 }
 
-int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
-                 struct GertModelRunOutput *output) {
+int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
+                     struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRun: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -3573,8 +3495,8 @@ int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *
                      config->output_data, config->stream_sync_timeout_ms, run_callbacks);
 }
 
-int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
-                    struct GertModelUnloadOutput *output) {
+int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
+                        struct GertModelUnloadOutput *output) {
   if (model_handle == nullptr) {
     OM2_LOGE("GertModelUnload: invalid handle");
     return ACL_ERROR_FAILURE;
@@ -3635,13 +3557,7 @@ int32_t GertModelGetNotifyDesc(uint64_t *notify_flags, uint64_t notify_num, void
 #ifdef __cplusplus
 }
 #endif)";
-  const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
-  EXPECT_NE(source.find("DispatchKernelAicore"), std::string::npos);
-  EXPECT_NE(source.find("KernelTaskDistribute"), std::string::npos);
-  EXPECT_NE(source.find("ctx.launch_func"), std::string::npos);
-  EXPECT_NE(source.find("config->work_ptr"), std::string::npos);
-  EXPECT_NE(source.find("config->reuse_zero_copy"), std::string::npos);
-  EXPECT_EQ(source.find("aclError AclrtMalloc"), std::string::npos);
+  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
@@ -3650,7 +3566,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
@@ -3685,6 +3601,7 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
                              uint64_t output_mem_size = 0U,
                              uint64_t workspace_mem_size = 0U,
                              uint64_t weight_mem_size = 0U) {
+  task_info->struct_size = sizeof(GertModelTaskDesc);
   task_info->op_name = op_name;
   task_info->op_type = op_type;
   task_info->task_id = task_id;
@@ -3713,103 +3630,6 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
   task_info->workspace_mem_size = workspace_mem_size;
   task_info->weight_mem_size = weight_mem_size;
   return ACL_SUCCESS;
-}
-
-aclError ReportOm2TaskPreprocess(const char *op_name, const char *op_type, uint64_t op_desc_id,
-                                uintptr_t args_base, uint64_t args_size,
-                                const std::vector<GertModelTaskIoEntry> &inputs,
-                                const std::vector<GertModelTaskIoEntry> &outputs,
-                                const std::vector<uint64_t> &workspace_addrs,
-                                const std::vector<uint64_t> &workspace_sizes,
-                                uint32_t task_type, uint32_t block_dim, void *stream,
-                                const GertModelTaskRawInfo *l0_info,
-                                uint32_t model_id, void *instance_handle,
-                                uint32_t is_raw_address = 0U) {
-  uint32_t stream_id = 0U;
-  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
-
-  OM2_CHK_TRUE(workspace_addrs.size() == workspace_sizes.size());
-
-  GertModelTaskDesc task_info{};
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, 0U, stream_id, block_dim,
-                                      op_desc_id, args_base, args_size,
-                                      inputs.data(), static_cast<uint64_t>(inputs.size()),
-                                      outputs.data(), static_cast<uint32_t>(outputs.size()),
-                                      workspace_addrs.empty() ? nullptr : workspace_addrs.data(),
-                                      workspace_sizes.empty() ? nullptr : workspace_sizes.data(),
-                                      static_cast<uint32_t>(workspace_addrs.size()),
-                                      task_type, stream, is_raw_address));
-  task_info.task_raw_info = l0_info;
-  if (ReportDfxTaskPreprocess != nullptr && instance_handle != nullptr) {
-    OM2_CHK_STATUS(ReportDfxTaskPreprocess(model_id, instance_handle, &task_info, nullptr, 0U));
-  }
-  return ACL_SUCCESS;
-}
-
-aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_t op_desc_id,
-                               uintptr_t args_base, uint64_t args_size,
-                               const GertModelTaskIoEntry *inputs, uint64_t input_num,
-                               const GertModelTaskIoEntry *outputs, uint32_t output_num,
-                               const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
-                               uint32_t workspace_num,
-                               uint32_t task_type, uint32_t block_dim, void *stream,
-                               uint32_t model_id, void *instance_handle,
-                               uint32_t is_raw_address = 0U,
-                               uint64_t launch_begin = 0U,
-                               const char *original_op_names = nullptr,
-                               uint64_t input_mem_size = 0U,
-                               uint64_t output_mem_size = 0U,
-                               uint64_t workspace_mem_size = 0U,
-                               uint64_t weight_mem_size = 0U) {
-  uint32_t task_id = 0U;
-  OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
-
-  uint32_t stream_id = 0U;
-  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
-
-  GertModelTaskDesc task_info{};
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, task_id, stream_id, block_dim,
-                                      op_desc_id, args_base, args_size,
-                                      inputs, input_num,
-                                      outputs, output_num,
-                                      workspace_addrs, workspace_sizes, workspace_num,
-                                      task_type, stream, is_raw_address,
-                                      launch_begin,
-                                      original_op_names,
-                                      input_mem_size, output_mem_size,
-                                      workspace_mem_size, weight_mem_size));
-  task_info.task_raw_info = nullptr;
-  if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
-    OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
-  }
-  return ACL_SUCCESS;
-}
-
-aclError AclrtMalloc(void **ptr, size_t size, uint32_t mem_type, uint16_t module_id) {
-  *ptr = nullptr;
-  if ((size == 0U)) {
-    return ACL_SUCCESS;
-  }
-  aclrtMallocAttribute attr;
-  attr.attr = ACL_RT_MEM_ATTR_MODULE_ID;
-  attr.value.moduleId = module_id;
-  aclrtMallocConfig cfg;
-  cfg.attrs = &attr;
-  cfg.numAttrs = 1U;
-  switch (mem_type) {
-    case RT_MEMORY_TS:
-    return aclrtMallocForTaskScheduler(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST, &cfg);
-    case RT_MEMORY_HOST:
-    return aclrtMallocHostWithCfg(ptr, size, &cfg);
-    case RT_MEMORY_P2P_HBM:
-    case RT_MEMORY_P2P_DDR:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST_P2P, &cfg);
-    case RT_MEMORY_DDR:
-    case RT_MEMORY_DDR_NC:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_LOW_BAND_WIDTH, &cfg);
-    default:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_HIGH_BAND_WIDTH, &cfg);
-  }
 }
 constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
@@ -3968,100 +3788,97 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_OUTPUT:
       case OP_ARG_CONST_TENSOR:
       case OP_ARG_VAR_TENSOR:
-      {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-        GertModelTaskIoEntry _entry = {sizeof(GertModelTaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
-        if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
-          report_inputs.push_back(_entry);
-        } else {
-          report_outputs.push_back(_entry);
+        {
+          _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
+          io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+          GertModelTaskIoEntry _entry = {sizeof(GertModelTaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
+          if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
+            report_inputs.push_back(_entry);
+          } else {
+            report_outputs.push_back(_entry);
+          }
+          break;
         }
-        break;
-      }
       case OP_ARG_WORKSPACE:
-      {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        report_workspace_addrs.push_back(_addr);
-        report_workspace_sizes.push_back(a.data.tensor.size);
-        break;
-      }
+        {
+          _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
+          report_workspace_addrs.push_back(_addr);
+          report_workspace_sizes.push_back(a.data.tensor.size);
+          break;
+        }
       case OP_ARG_LEVEL1_DESC:
-      {
-        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
-        OM2_CHK_NOTNULL(_desc);
-        _addr = reinterpret_cast<uint64_t>(_desc);
-        break;
-      }
+        {
+          void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
+          OM2_CHK_NOTNULL(_desc);
+          _addr = reinterpret_cast<uint64_t>(_desc);
+          break;
+        }
       case OP_ARG_SHAPE_INFO:
       case OP_ARG_CUSTOM_VALUE:
-      {
-        _addr = a.data.custom_value;
-        break;
-      }
+        {
+          _addr = a.data.custom_value;
+          break;
+        }
       case OP_ARG_PLACEHOLDER:
       case OP_ARG_OPTIONAL_EMPTY:
-      {
-        _addr = 0U;
-        break;
-      }
+        {
+          _addr = 0U;
+          break;
+        }
       case OP_ARG_FFTS_ADDR:
-      {
-        void *_ffts = nullptr;
-        OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&_ffts));
-        _addr = reinterpret_cast<uint64_t>(_ffts);
-        break;
-      }
+        {
+          void *_ffts = nullptr;
+          OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&_ffts));
+          _addr = reinterpret_cast<uint64_t>(_ffts);
+          break;
+        }
       case OP_ARG_EVENT_ADDR:
-      {
-        void *_event = nullptr;
-        OM2_CHK_STATUS(GetEventIdAddr(_event, ctx.event_id_mem_map, static_cast<uint32_t>(a.data.custom_value), ctx.dev_dynamic_mem_ptrs));
-        _addr = reinterpret_cast<uint64_t>(_event);
-        break;
-      }
+        {
+          void *_event = nullptr;
+          OM2_CHK_STATUS(GetEventIdAddr(_event, ctx.event_id_mem_map, static_cast<uint32_t>(a.data.custom_value), ctx.dev_dynamic_mem_ptrs));
+          _addr = reinterpret_cast<uint64_t>(_event);
+          break;
+        }
       case OP_ARG_OVERFLOW_ADDR:
-      {
-        _addr = reinterpret_cast<uint64_t>(ctx.overflow_addr);
-        break;
-      }
+        {
+          _addr = reinterpret_cast<uint64_t>(ctx.overflow_addr);
+          break;
+        }
       case OP_ARG_TILING:
-      {
-        void *_tiling = nullptr;
-        OM2_CHK_STATUS(MallocDeviceMemory(_tiling, a.data.tiling.raw_data_len, 2U, ctx.dev_dynamic_mem_ptrs));
-        OM2_CHK_STATUS(aclrtMemcpy(_tiling, a.data.tiling.raw_data_len, a.data.tiling.raw_data, a.data.tiling.raw_data_len, ACL_MEMCPY_HOST_TO_DEVICE));
-        _addr = reinterpret_cast<uint64_t>(_tiling);
-        break;
-      }
+        {
+          void *_tiling = nullptr;
+          OM2_CHK_STATUS(MallocDeviceMemory(_tiling, a.data.tiling.raw_data_len, 2U, ctx.dev_dynamic_mem_ptrs));
+          OM2_CHK_STATUS(aclrtMemcpy(_tiling, a.data.tiling.raw_data_len, a.data.tiling.raw_data, a.data.tiling.raw_data_len, ACL_MEMCPY_HOST_TO_DEVICE));
+          _addr = reinterpret_cast<uint64_t>(_tiling);
+          break;
+        }
       default:
-      {
-        _addr = 0U;
-        break;
-      }
+        {
+          _addr = 0U;
+          break;
+        }
     }
     ordered_io_addrs.push_back(_addr);
   }
-  GertModelTaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
+  GertModelTaskRawInfo task_raw_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   GertModelTaskDesc task_info;
   OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   OM2_CHK_STATUS(aclrtStreamGetId(task_info.stream, reinterpret_cast<int32_t *>(&task_info.stream_id)));
   task_info.kernel_type = op->dispatch_info.aicore.kernel_type;
-  task_info.task_raw_info = &l0_info;
-  GertModelLaunchKernelV2Params kernel_params = {
-    .func_handle = ctx.func_handles[op->dispatch_info.aicore.func_idx],
-    .block_dim = op->dispatch_info.aicore.block_dim,
-    .args_data = args_info->dev_addr,
-    .args_size = args_info->size,
-    .config = &cfg_holder.cfg,
-    .stream = ctx.stream_list[op->dispatch_info.aicore.stream_id],
-  };
-  GertModelTaskLaunchParams launch_params = {
-    .launch_kernel_v2_params = kernel_params,
-  };
-  GertModelTaskLaunchInfo launch_info = {
-    .launch_type = ACL_RT_LAUNCH_KERNEL_V2,
-    .task_info = &task_info,
-    .launch_params = &launch_params,
-  };
+  task_info.task_raw_info = &task_raw_info;
+  GertModelLaunchKernelV2Params kernel_params = {};
+  kernel_params.func_handle = ctx.func_handles[op->dispatch_info.aicore.func_idx];
+  kernel_params.block_dim = op->dispatch_info.aicore.block_dim;
+  kernel_params.args_data = args_info->dev_addr;
+  kernel_params.args_size = args_info->size;
+  kernel_params.config = &cfg_holder.cfg;
+  kernel_params.stream = ctx.stream_list[op->dispatch_info.aicore.stream_id];
+  GertModelTaskLaunchParams launch_params = {};
+  launch_params.launch_kernel_v2_params = kernel_params;
+  GertModelTaskLaunchInfo launch_info = {};
+  launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;
+  launch_info.task_info = &task_info;
+  launch_info.launch_params = &launch_params;
   OM2_CHK_STATUS(KernelTaskDistribute(&launch_info, ctx.launch_func, ctx.instance_handle, args_info, ordered_io_addrs));
   return ACL_SUCCESS;
 }
@@ -4108,22 +3925,19 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U));
   OM2_CHK_STATUS(aclrtStreamGetId(aicpu_task_info.stream, reinterpret_cast<int32_t *>(&aicpu_task_info.stream_id)));
   aicpu_task_info.kernel_type = op->dispatch_info.aicpu.kernel_type;
-  GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {
-    .func_handle = ctx.func_handles[op->dispatch_info.aicpu.func_idx],
-    .block_dim = op->dispatch_info.aicpu.block_dim,
-    .args_data = aicpu_args_info->dev_addr,
-    .args_size = aicpu_args_info->size,
-    .config = &aicpu_cfg_holder.cfg,
-    .stream = ctx.stream_list[op->dispatch_info.aicpu.stream_id],
-  };
-  GertModelTaskLaunchParams aicpu_launch_params = {
-    .launch_kernel_v2_params = aicpu_launch_kernel_v2_params,
-  };
-  GertModelTaskLaunchInfo aicpu_launch_info = {
-    .launch_type = ACL_RT_LAUNCH_KERNEL_V2,
-    .task_info = &aicpu_task_info,
-    .launch_params = &aicpu_launch_params,
-  };
+  GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {};
+  aicpu_launch_kernel_v2_params.func_handle = ctx.func_handles[op->dispatch_info.aicpu.func_idx];
+  aicpu_launch_kernel_v2_params.block_dim = op->dispatch_info.aicpu.block_dim;
+  aicpu_launch_kernel_v2_params.args_data = aicpu_args_info->dev_addr;
+  aicpu_launch_kernel_v2_params.args_size = aicpu_args_info->size;
+  aicpu_launch_kernel_v2_params.config = &aicpu_cfg_holder.cfg;
+  aicpu_launch_kernel_v2_params.stream = ctx.stream_list[op->dispatch_info.aicpu.stream_id];
+  GertModelTaskLaunchParams aicpu_launch_params = {};
+  aicpu_launch_params.launch_kernel_v2_params = aicpu_launch_kernel_v2_params;
+  GertModelTaskLaunchInfo aicpu_launch_info = {};
+  aicpu_launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;
+  aicpu_launch_info.task_info = &aicpu_task_info;
+  aicpu_launch_info.launch_params = &aicpu_launch_params;
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(aicpu_args_var, aicpu_args_info, &aicpu_launch_info, ctx.launch_func, ctx.instance_handle));
   return ACL_SUCCESS;
 }
@@ -4140,11 +3954,11 @@ aclError DispatchKernel(const TaskDispatchInfo *op, const DispatchOpContext &ctx
 aclError DispatchOp(const TaskDispatchInfo *op, const DispatchOpContext &ctx) {
   switch (op->dispatch_type) {
     case 0:
-    return DispatchKernel(op, ctx);
+      return DispatchKernel(op, ctx);
     case 1:
-    return DispatchKernel(op, ctx);
+      return DispatchKernel(op, ctx);
     default:
-    return ACL_ERROR_FAILURE;
+      return ACL_ERROR_FAILURE;
   }
 }
 const TaskDispatchInfo kOpDefs[] = {{
@@ -4167,7 +3981,7 @@ const TaskDispatchInfo kOpDefs[] = {{
       .task_type = 0,
       .kernel_type = 2,
       .launch = {0, 0, 0, false, 0, 0},
-      .slot_args = {0, 4, (const GertModelArgSlotInfo[]){{GERT_MODEL_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {GERT_MODEL_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {GERT_MODEL_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {GERT_MODEL_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
+      .slot_args = {0, 4, (const GertModelArgSlotInfo[]){{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
       .fusion_op = {nullptr, 0UL, 0UL, 0UL, 0UL},
     },
   },
@@ -4258,18 +4072,18 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority, uint64_t reuse_zero_copy, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, priority);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, callbacks, priority);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
-  auto ret = obj->InitResources({sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
+  auto ret = obj->InitResources(reuse_zero_copy, {sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
   if (ret != ACL_SUCCESS) {
     OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
     delete obj;
@@ -4314,8 +4128,8 @@ aclError Om2ModelDestroy(GertModelHandle *model_handle) {
 
 // ==================== model load/run/unload api ====================
 
-int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
-                  struct GertModelLoadOutput *output) {
+int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
+                      struct GertModelLoadOutput *output) {
   if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelLoad: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -4330,7 +4144,8 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
                                 config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                static_cast<int32_t>(config->priority),
+                                config->callbacks,
+                                static_cast<int32_t>(config->priority), config->reuse_zero_copy,
                                 config->external_rt_model,
                                 config->external_streams, config->external_stream_num,
                                 config->external_notifies, config->external_notify_num,
@@ -4343,8 +4158,8 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
   return static_cast<om2::Om2Model *>(*model_handle)->Load(config->callbacks);
 }
 
-int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
-                      const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
+                          const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRunAsync: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -4357,8 +4172,8 @@ int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
                           config->output_data, run_callbacks);
 }
 
-int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
-                 struct GertModelRunOutput *output) {
+int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
+                     struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRun: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -4371,8 +4186,8 @@ int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *
                      config->output_data, config->stream_sync_timeout_ms, run_callbacks);
 }
 
-int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
-                    struct GertModelUnloadOutput *output) {
+int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
+                        struct GertModelUnloadOutput *output) {
   if (model_handle == nullptr) {
     OM2_LOGE("GertModelUnload: invalid handle");
     return ACL_ERROR_FAILURE;
@@ -4433,9 +4248,7 @@ int32_t GertModelGetNotifyDesc(uint64_t *notify_flags, uint64_t notify_num, void
 #ifdef __cplusplus
 }
 #endif)";
-  const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
-  EXPECT_NE(source.find("DispatchKernelAicore"), std::string::npos);
-  EXPECT_NE(source.find("KernelTaskDistribute"), std::string::npos);
+  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ConstInputTensor_Ok) {
@@ -4476,7 +4289,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForAicpu_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
@@ -4511,6 +4324,7 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
                              uint64_t output_mem_size = 0U,
                              uint64_t workspace_mem_size = 0U,
                              uint64_t weight_mem_size = 0U) {
+  task_info->struct_size = sizeof(GertModelTaskDesc);
   task_info->op_name = op_name;
   task_info->op_type = op_type;
   task_info->task_id = task_id;
@@ -4539,103 +4353,6 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
   task_info->workspace_mem_size = workspace_mem_size;
   task_info->weight_mem_size = weight_mem_size;
   return ACL_SUCCESS;
-}
-
-aclError ReportOm2TaskPreprocess(const char *op_name, const char *op_type, uint64_t op_desc_id,
-                                uintptr_t args_base, uint64_t args_size,
-                                const std::vector<GertModelTaskIoEntry> &inputs,
-                                const std::vector<GertModelTaskIoEntry> &outputs,
-                                const std::vector<uint64_t> &workspace_addrs,
-                                const std::vector<uint64_t> &workspace_sizes,
-                                uint32_t task_type, uint32_t block_dim, void *stream,
-                                const GertModelTaskRawInfo *l0_info,
-                                uint32_t model_id, void *instance_handle,
-                                uint32_t is_raw_address = 0U) {
-  uint32_t stream_id = 0U;
-  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
-
-  OM2_CHK_TRUE(workspace_addrs.size() == workspace_sizes.size());
-
-  GertModelTaskDesc task_info{};
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, 0U, stream_id, block_dim,
-                                      op_desc_id, args_base, args_size,
-                                      inputs.data(), static_cast<uint64_t>(inputs.size()),
-                                      outputs.data(), static_cast<uint32_t>(outputs.size()),
-                                      workspace_addrs.empty() ? nullptr : workspace_addrs.data(),
-                                      workspace_sizes.empty() ? nullptr : workspace_sizes.data(),
-                                      static_cast<uint32_t>(workspace_addrs.size()),
-                                      task_type, stream, is_raw_address));
-  task_info.task_raw_info = l0_info;
-  if (ReportDfxTaskPreprocess != nullptr && instance_handle != nullptr) {
-    OM2_CHK_STATUS(ReportDfxTaskPreprocess(model_id, instance_handle, &task_info, nullptr, 0U));
-  }
-  return ACL_SUCCESS;
-}
-
-aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_t op_desc_id,
-                               uintptr_t args_base, uint64_t args_size,
-                               const GertModelTaskIoEntry *inputs, uint64_t input_num,
-                               const GertModelTaskIoEntry *outputs, uint32_t output_num,
-                               const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
-                               uint32_t workspace_num,
-                               uint32_t task_type, uint32_t block_dim, void *stream,
-                               uint32_t model_id, void *instance_handle,
-                               uint32_t is_raw_address = 0U,
-                               uint64_t launch_begin = 0U,
-                               const char *original_op_names = nullptr,
-                               uint64_t input_mem_size = 0U,
-                               uint64_t output_mem_size = 0U,
-                               uint64_t workspace_mem_size = 0U,
-                               uint64_t weight_mem_size = 0U) {
-  uint32_t task_id = 0U;
-  OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
-
-  uint32_t stream_id = 0U;
-  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
-
-  GertModelTaskDesc task_info{};
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, task_id, stream_id, block_dim,
-                                      op_desc_id, args_base, args_size,
-                                      inputs, input_num,
-                                      outputs, output_num,
-                                      workspace_addrs, workspace_sizes, workspace_num,
-                                      task_type, stream, is_raw_address,
-                                      launch_begin,
-                                      original_op_names,
-                                      input_mem_size, output_mem_size,
-                                      workspace_mem_size, weight_mem_size));
-  task_info.task_raw_info = nullptr;
-  if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
-    OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
-  }
-  return ACL_SUCCESS;
-}
-
-aclError AclrtMalloc(void **ptr, size_t size, uint32_t mem_type, uint16_t module_id) {
-  *ptr = nullptr;
-  if ((size == 0U)) {
-    return ACL_SUCCESS;
-  }
-  aclrtMallocAttribute attr;
-  attr.attr = ACL_RT_MEM_ATTR_MODULE_ID;
-  attr.value.moduleId = module_id;
-  aclrtMallocConfig cfg;
-  cfg.attrs = &attr;
-  cfg.numAttrs = 1U;
-  switch (mem_type) {
-    case RT_MEMORY_TS:
-    return aclrtMallocForTaskScheduler(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST, &cfg);
-    case RT_MEMORY_HOST:
-    return aclrtMallocHostWithCfg(ptr, size, &cfg);
-    case RT_MEMORY_P2P_HBM:
-    case RT_MEMORY_P2P_DDR:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST_P2P, &cfg);
-    case RT_MEMORY_DDR:
-    case RT_MEMORY_DDR_NC:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_LOW_BAND_WIDTH, &cfg);
-    default:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_HIGH_BAND_WIDTH, &cfg);
-  }
 }
 constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
@@ -4794,100 +4511,97 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_OUTPUT:
       case OP_ARG_CONST_TENSOR:
       case OP_ARG_VAR_TENSOR:
-      {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-        GertModelTaskIoEntry _entry = {sizeof(GertModelTaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
-        if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
-          report_inputs.push_back(_entry);
-        } else {
-          report_outputs.push_back(_entry);
+        {
+          _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
+          io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+          GertModelTaskIoEntry _entry = {sizeof(GertModelTaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
+          if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
+            report_inputs.push_back(_entry);
+          } else {
+            report_outputs.push_back(_entry);
+          }
+          break;
         }
-        break;
-      }
       case OP_ARG_WORKSPACE:
-      {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        report_workspace_addrs.push_back(_addr);
-        report_workspace_sizes.push_back(a.data.tensor.size);
-        break;
-      }
+        {
+          _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
+          report_workspace_addrs.push_back(_addr);
+          report_workspace_sizes.push_back(a.data.tensor.size);
+          break;
+        }
       case OP_ARG_LEVEL1_DESC:
-      {
-        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
-        OM2_CHK_NOTNULL(_desc);
-        _addr = reinterpret_cast<uint64_t>(_desc);
-        break;
-      }
+        {
+          void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
+          OM2_CHK_NOTNULL(_desc);
+          _addr = reinterpret_cast<uint64_t>(_desc);
+          break;
+        }
       case OP_ARG_SHAPE_INFO:
       case OP_ARG_CUSTOM_VALUE:
-      {
-        _addr = a.data.custom_value;
-        break;
-      }
+        {
+          _addr = a.data.custom_value;
+          break;
+        }
       case OP_ARG_PLACEHOLDER:
       case OP_ARG_OPTIONAL_EMPTY:
-      {
-        _addr = 0U;
-        break;
-      }
+        {
+          _addr = 0U;
+          break;
+        }
       case OP_ARG_FFTS_ADDR:
-      {
-        void *_ffts = nullptr;
-        OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&_ffts));
-        _addr = reinterpret_cast<uint64_t>(_ffts);
-        break;
-      }
+        {
+          void *_ffts = nullptr;
+          OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&_ffts));
+          _addr = reinterpret_cast<uint64_t>(_ffts);
+          break;
+        }
       case OP_ARG_EVENT_ADDR:
-      {
-        void *_event = nullptr;
-        OM2_CHK_STATUS(GetEventIdAddr(_event, ctx.event_id_mem_map, static_cast<uint32_t>(a.data.custom_value), ctx.dev_dynamic_mem_ptrs));
-        _addr = reinterpret_cast<uint64_t>(_event);
-        break;
-      }
+        {
+          void *_event = nullptr;
+          OM2_CHK_STATUS(GetEventIdAddr(_event, ctx.event_id_mem_map, static_cast<uint32_t>(a.data.custom_value), ctx.dev_dynamic_mem_ptrs));
+          _addr = reinterpret_cast<uint64_t>(_event);
+          break;
+        }
       case OP_ARG_OVERFLOW_ADDR:
-      {
-        _addr = reinterpret_cast<uint64_t>(ctx.overflow_addr);
-        break;
-      }
+        {
+          _addr = reinterpret_cast<uint64_t>(ctx.overflow_addr);
+          break;
+        }
       case OP_ARG_TILING:
-      {
-        void *_tiling = nullptr;
-        OM2_CHK_STATUS(MallocDeviceMemory(_tiling, a.data.tiling.raw_data_len, 2U, ctx.dev_dynamic_mem_ptrs));
-        OM2_CHK_STATUS(aclrtMemcpy(_tiling, a.data.tiling.raw_data_len, a.data.tiling.raw_data, a.data.tiling.raw_data_len, ACL_MEMCPY_HOST_TO_DEVICE));
-        _addr = reinterpret_cast<uint64_t>(_tiling);
-        break;
-      }
+        {
+          void *_tiling = nullptr;
+          OM2_CHK_STATUS(MallocDeviceMemory(_tiling, a.data.tiling.raw_data_len, 2U, ctx.dev_dynamic_mem_ptrs));
+          OM2_CHK_STATUS(aclrtMemcpy(_tiling, a.data.tiling.raw_data_len, a.data.tiling.raw_data, a.data.tiling.raw_data_len, ACL_MEMCPY_HOST_TO_DEVICE));
+          _addr = reinterpret_cast<uint64_t>(_tiling);
+          break;
+        }
       default:
-      {
-        _addr = 0U;
-        break;
-      }
+        {
+          _addr = 0U;
+          break;
+        }
     }
     ordered_io_addrs.push_back(_addr);
   }
-  GertModelTaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
+  GertModelTaskRawInfo task_raw_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   GertModelTaskDesc task_info;
   OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   OM2_CHK_STATUS(aclrtStreamGetId(task_info.stream, reinterpret_cast<int32_t *>(&task_info.stream_id)));
   task_info.kernel_type = op->dispatch_info.aicore.kernel_type;
-  task_info.task_raw_info = &l0_info;
-  GertModelLaunchKernelV2Params kernel_params = {
-    .func_handle = ctx.func_handles[op->dispatch_info.aicore.func_idx],
-    .block_dim = op->dispatch_info.aicore.block_dim,
-    .args_data = args_info->dev_addr,
-    .args_size = args_info->size,
-    .config = &cfg_holder.cfg,
-    .stream = ctx.stream_list[op->dispatch_info.aicore.stream_id],
-  };
-  GertModelTaskLaunchParams launch_params = {
-    .launch_kernel_v2_params = kernel_params,
-  };
-  GertModelTaskLaunchInfo launch_info = {
-    .launch_type = ACL_RT_LAUNCH_KERNEL_V2,
-    .task_info = &task_info,
-    .launch_params = &launch_params,
-  };
+  task_info.task_raw_info = &task_raw_info;
+  GertModelLaunchKernelV2Params kernel_params = {};
+  kernel_params.func_handle = ctx.func_handles[op->dispatch_info.aicore.func_idx];
+  kernel_params.block_dim = op->dispatch_info.aicore.block_dim;
+  kernel_params.args_data = args_info->dev_addr;
+  kernel_params.args_size = args_info->size;
+  kernel_params.config = &cfg_holder.cfg;
+  kernel_params.stream = ctx.stream_list[op->dispatch_info.aicore.stream_id];
+  GertModelTaskLaunchParams launch_params = {};
+  launch_params.launch_kernel_v2_params = kernel_params;
+  GertModelTaskLaunchInfo launch_info = {};
+  launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;
+  launch_info.task_info = &task_info;
+  launch_info.launch_params = &launch_params;
   OM2_CHK_STATUS(KernelTaskDistribute(&launch_info, ctx.launch_func, ctx.instance_handle, args_info, ordered_io_addrs));
   return ACL_SUCCESS;
 }
@@ -4934,22 +4648,19 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U));
   OM2_CHK_STATUS(aclrtStreamGetId(aicpu_task_info.stream, reinterpret_cast<int32_t *>(&aicpu_task_info.stream_id)));
   aicpu_task_info.kernel_type = op->dispatch_info.aicpu.kernel_type;
-  GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {
-    .func_handle = ctx.func_handles[op->dispatch_info.aicpu.func_idx],
-    .block_dim = op->dispatch_info.aicpu.block_dim,
-    .args_data = aicpu_args_info->dev_addr,
-    .args_size = aicpu_args_info->size,
-    .config = &aicpu_cfg_holder.cfg,
-    .stream = ctx.stream_list[op->dispatch_info.aicpu.stream_id],
-  };
-  GertModelTaskLaunchParams aicpu_launch_params = {
-    .launch_kernel_v2_params = aicpu_launch_kernel_v2_params,
-  };
-  GertModelTaskLaunchInfo aicpu_launch_info = {
-    .launch_type = ACL_RT_LAUNCH_KERNEL_V2,
-    .task_info = &aicpu_task_info,
-    .launch_params = &aicpu_launch_params,
-  };
+  GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {};
+  aicpu_launch_kernel_v2_params.func_handle = ctx.func_handles[op->dispatch_info.aicpu.func_idx];
+  aicpu_launch_kernel_v2_params.block_dim = op->dispatch_info.aicpu.block_dim;
+  aicpu_launch_kernel_v2_params.args_data = aicpu_args_info->dev_addr;
+  aicpu_launch_kernel_v2_params.args_size = aicpu_args_info->size;
+  aicpu_launch_kernel_v2_params.config = &aicpu_cfg_holder.cfg;
+  aicpu_launch_kernel_v2_params.stream = ctx.stream_list[op->dispatch_info.aicpu.stream_id];
+  GertModelTaskLaunchParams aicpu_launch_params = {};
+  aicpu_launch_params.launch_kernel_v2_params = aicpu_launch_kernel_v2_params;
+  GertModelTaskLaunchInfo aicpu_launch_info = {};
+  aicpu_launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;
+  aicpu_launch_info.task_info = &aicpu_task_info;
+  aicpu_launch_info.launch_params = &aicpu_launch_params;
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(aicpu_args_var, aicpu_args_info, &aicpu_launch_info, ctx.launch_func, ctx.instance_handle));
   return ACL_SUCCESS;
 }
@@ -4966,11 +4677,11 @@ aclError DispatchKernel(const TaskDispatchInfo *op, const DispatchOpContext &ctx
 aclError DispatchOp(const TaskDispatchInfo *op, const DispatchOpContext &ctx) {
   switch (op->dispatch_type) {
     case 0:
-    return DispatchKernel(op, ctx);
+      return DispatchKernel(op, ctx);
     case 1:
-    return DispatchKernel(op, ctx);
+      return DispatchKernel(op, ctx);
     default:
-    return ACL_ERROR_FAILURE;
+      return ACL_ERROR_FAILURE;
   }
 }
 const TaskDispatchInfo kOpDefs[] = {{
@@ -5116,18 +4827,18 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority, uint64_t reuse_zero_copy, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, priority);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, callbacks, priority);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
-  auto ret = obj->InitResources({sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
+  auto ret = obj->InitResources(reuse_zero_copy, {sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
   if (ret != ACL_SUCCESS) {
     OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
     delete obj;
@@ -5172,8 +4883,8 @@ aclError Om2ModelDestroy(GertModelHandle *model_handle) {
 
 // ==================== model load/run/unload api ====================
 
-int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
-                  struct GertModelLoadOutput *output) {
+int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
+                      struct GertModelLoadOutput *output) {
   if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelLoad: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -5188,7 +4899,8 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
                                 config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                static_cast<int32_t>(config->priority),
+                                config->callbacks,
+                                static_cast<int32_t>(config->priority), config->reuse_zero_copy,
                                 config->external_rt_model,
                                 config->external_streams, config->external_stream_num,
                                 config->external_notifies, config->external_notify_num,
@@ -5201,8 +4913,8 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
   return static_cast<om2::Om2Model *>(*model_handle)->Load(config->callbacks);
 }
 
-int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
-                      const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
+                          const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRunAsync: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -5215,8 +4927,8 @@ int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
                           config->output_data, run_callbacks);
 }
 
-int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
-                 struct GertModelRunOutput *output) {
+int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
+                     struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRun: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -5229,8 +4941,8 @@ int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *
                      config->output_data, config->stream_sync_timeout_ms, run_callbacks);
 }
 
-int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
-                    struct GertModelUnloadOutput *output) {
+int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
+                        struct GertModelUnloadOutput *output) {
   if (model_handle == nullptr) {
     OM2_LOGE("GertModelUnload: invalid handle");
     return ACL_ERROR_FAILURE;
@@ -5291,9 +5003,7 @@ int32_t GertModelGetNotifyDesc(uint64_t *notify_flags, uint64_t notify_num, void
 #ifdef __cplusplus
 }
 #endif)";
-  const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
-  EXPECT_NE(source.find("AicpuKernelTaskDistribute"), std::string::npos);
-  EXPECT_NE(source.find("ctx.launch_func"), std::string::npos);
+  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
@@ -5302,7 +5012,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  [[maybe_unused]] const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
+  const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
 #include "g1_interface.h"
 
 namespace om2 {
@@ -5337,6 +5047,7 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
                              uint64_t output_mem_size = 0U,
                              uint64_t workspace_mem_size = 0U,
                              uint64_t weight_mem_size = 0U) {
+  task_info->struct_size = sizeof(GertModelTaskDesc);
   task_info->op_name = op_name;
   task_info->op_type = op_type;
   task_info->task_id = task_id;
@@ -5365,103 +5076,6 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
   task_info->workspace_mem_size = workspace_mem_size;
   task_info->weight_mem_size = weight_mem_size;
   return ACL_SUCCESS;
-}
-
-aclError ReportOm2TaskPreprocess(const char *op_name, const char *op_type, uint64_t op_desc_id,
-                                uintptr_t args_base, uint64_t args_size,
-                                const std::vector<GertModelTaskIoEntry> &inputs,
-                                const std::vector<GertModelTaskIoEntry> &outputs,
-                                const std::vector<uint64_t> &workspace_addrs,
-                                const std::vector<uint64_t> &workspace_sizes,
-                                uint32_t task_type, uint32_t block_dim, void *stream,
-                                const GertModelTaskRawInfo *l0_info,
-                                uint32_t model_id, void *instance_handle,
-                                uint32_t is_raw_address = 0U) {
-  uint32_t stream_id = 0U;
-  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
-
-  OM2_CHK_TRUE(workspace_addrs.size() == workspace_sizes.size());
-
-  GertModelTaskDesc task_info{};
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, 0U, stream_id, block_dim,
-                                      op_desc_id, args_base, args_size,
-                                      inputs.data(), static_cast<uint64_t>(inputs.size()),
-                                      outputs.data(), static_cast<uint32_t>(outputs.size()),
-                                      workspace_addrs.empty() ? nullptr : workspace_addrs.data(),
-                                      workspace_sizes.empty() ? nullptr : workspace_sizes.data(),
-                                      static_cast<uint32_t>(workspace_addrs.size()),
-                                      task_type, stream, is_raw_address));
-  task_info.task_raw_info = l0_info;
-  if (ReportDfxTaskPreprocess != nullptr && instance_handle != nullptr) {
-    OM2_CHK_STATUS(ReportDfxTaskPreprocess(model_id, instance_handle, &task_info, nullptr, 0U));
-  }
-  return ACL_SUCCESS;
-}
-
-aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_t op_desc_id,
-                               uintptr_t args_base, uint64_t args_size,
-                               const GertModelTaskIoEntry *inputs, uint64_t input_num,
-                               const GertModelTaskIoEntry *outputs, uint32_t output_num,
-                               const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
-                               uint32_t workspace_num,
-                               uint32_t task_type, uint32_t block_dim, void *stream,
-                               uint32_t model_id, void *instance_handle,
-                               uint32_t is_raw_address = 0U,
-                               uint64_t launch_begin = 0U,
-                               const char *original_op_names = nullptr,
-                               uint64_t input_mem_size = 0U,
-                               uint64_t output_mem_size = 0U,
-                               uint64_t workspace_mem_size = 0U,
-                               uint64_t weight_mem_size = 0U) {
-  uint32_t task_id = 0U;
-  OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
-
-  uint32_t stream_id = 0U;
-  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
-
-  GertModelTaskDesc task_info{};
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, task_id, stream_id, block_dim,
-                                      op_desc_id, args_base, args_size,
-                                      inputs, input_num,
-                                      outputs, output_num,
-                                      workspace_addrs, workspace_sizes, workspace_num,
-                                      task_type, stream, is_raw_address,
-                                      launch_begin,
-                                      original_op_names,
-                                      input_mem_size, output_mem_size,
-                                      workspace_mem_size, weight_mem_size));
-  task_info.task_raw_info = nullptr;
-  if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
-    OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
-  }
-  return ACL_SUCCESS;
-}
-
-aclError AclrtMalloc(void **ptr, size_t size, uint32_t mem_type, uint16_t module_id) {
-  *ptr = nullptr;
-  if ((size == 0U)) {
-    return ACL_SUCCESS;
-  }
-  aclrtMallocAttribute attr;
-  attr.attr = ACL_RT_MEM_ATTR_MODULE_ID;
-  attr.value.moduleId = module_id;
-  aclrtMallocConfig cfg;
-  cfg.attrs = &attr;
-  cfg.numAttrs = 1U;
-  switch (mem_type) {
-    case RT_MEMORY_TS:
-    return aclrtMallocForTaskScheduler(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST, &cfg);
-    case RT_MEMORY_HOST:
-    return aclrtMallocHostWithCfg(ptr, size, &cfg);
-    case RT_MEMORY_P2P_HBM:
-    case RT_MEMORY_P2P_DDR:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_MALLOC_HUGE_FIRST_P2P, &cfg);
-    case RT_MEMORY_DDR:
-    case RT_MEMORY_DDR_NC:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_LOW_BAND_WIDTH, &cfg);
-    default:
-    return aclrtMallocWithCfg(ptr, size, ACL_MEM_TYPE_HIGH_BAND_WIDTH, &cfg);
-  }
 }
 constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
@@ -5620,100 +5234,97 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
       case OP_ARG_OUTPUT:
       case OP_ARG_CONST_TENSOR:
       case OP_ARG_VAR_TENSOR:
-      {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
-        GertModelTaskIoEntry _entry = {sizeof(GertModelTaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
-        if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
-          report_inputs.push_back(_entry);
-        } else {
-          report_outputs.push_back(_entry);
+        {
+          _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
+          io_tensors.push_back(BuildTensor(reinterpret_cast<void *>(_addr), a.data.tensor.size, a.data.tensor.data_type, a.data.tensor.format, a.data.tensor.shape, a.data.tensor.shape_dims));
+          GertModelTaskIoEntry _entry = {sizeof(GertModelTaskIoEntry), &io_tensors.back(), a.data.tensor.args_offset};
+          if (((a.type == OP_ARG_INPUT) || (a.type == OP_ARG_CONST_TENSOR))) {
+            report_inputs.push_back(_entry);
+          } else {
+            report_outputs.push_back(_entry);
+          }
+          break;
         }
-        break;
-      }
       case OP_ARG_WORKSPACE:
-      {
-        _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
-        report_workspace_addrs.push_back(_addr);
-        report_workspace_sizes.push_back(a.data.tensor.size);
-        break;
-      }
+        {
+          _addr = reinterpret_cast<uint64_t>(ResolveOpAddr(a.addr.mem_src, a.addr.index, a.addr.offset, ctx.total_dev_mem_ptr, ctx.session_scope_mem_ptr, ctx.constants, ctx.var_addrs));
+          report_workspace_addrs.push_back(_addr);
+          report_workspace_sizes.push_back(a.data.tensor.size);
+          break;
+        }
       case OP_ARG_LEVEL1_DESC:
-      {
-        void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
-        OM2_CHK_NOTNULL(_desc);
-        _addr = reinterpret_cast<uint64_t>(_desc);
-        break;
-      }
+        {
+          void *_desc = ctx.args_table.GetDevArgAddr(a.data.custom_value, 0);
+          OM2_CHK_NOTNULL(_desc);
+          _addr = reinterpret_cast<uint64_t>(_desc);
+          break;
+        }
       case OP_ARG_SHAPE_INFO:
       case OP_ARG_CUSTOM_VALUE:
-      {
-        _addr = a.data.custom_value;
-        break;
-      }
+        {
+          _addr = a.data.custom_value;
+          break;
+        }
       case OP_ARG_PLACEHOLDER:
       case OP_ARG_OPTIONAL_EMPTY:
-      {
-        _addr = 0U;
-        break;
-      }
+        {
+          _addr = 0U;
+          break;
+        }
       case OP_ARG_FFTS_ADDR:
-      {
-        void *_ffts = nullptr;
-        OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&_ffts));
-        _addr = reinterpret_cast<uint64_t>(_ffts);
-        break;
-      }
+        {
+          void *_ffts = nullptr;
+          OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&_ffts));
+          _addr = reinterpret_cast<uint64_t>(_ffts);
+          break;
+        }
       case OP_ARG_EVENT_ADDR:
-      {
-        void *_event = nullptr;
-        OM2_CHK_STATUS(GetEventIdAddr(_event, ctx.event_id_mem_map, static_cast<uint32_t>(a.data.custom_value), ctx.dev_dynamic_mem_ptrs));
-        _addr = reinterpret_cast<uint64_t>(_event);
-        break;
-      }
+        {
+          void *_event = nullptr;
+          OM2_CHK_STATUS(GetEventIdAddr(_event, ctx.event_id_mem_map, static_cast<uint32_t>(a.data.custom_value), ctx.dev_dynamic_mem_ptrs));
+          _addr = reinterpret_cast<uint64_t>(_event);
+          break;
+        }
       case OP_ARG_OVERFLOW_ADDR:
-      {
-        _addr = reinterpret_cast<uint64_t>(ctx.overflow_addr);
-        break;
-      }
+        {
+          _addr = reinterpret_cast<uint64_t>(ctx.overflow_addr);
+          break;
+        }
       case OP_ARG_TILING:
-      {
-        void *_tiling = nullptr;
-        OM2_CHK_STATUS(MallocDeviceMemory(_tiling, a.data.tiling.raw_data_len, 2U, ctx.dev_dynamic_mem_ptrs));
-        OM2_CHK_STATUS(aclrtMemcpy(_tiling, a.data.tiling.raw_data_len, a.data.tiling.raw_data, a.data.tiling.raw_data_len, ACL_MEMCPY_HOST_TO_DEVICE));
-        _addr = reinterpret_cast<uint64_t>(_tiling);
-        break;
-      }
+        {
+          void *_tiling = nullptr;
+          OM2_CHK_STATUS(MallocDeviceMemory(_tiling, a.data.tiling.raw_data_len, 2U, ctx.dev_dynamic_mem_ptrs));
+          OM2_CHK_STATUS(aclrtMemcpy(_tiling, a.data.tiling.raw_data_len, a.data.tiling.raw_data, a.data.tiling.raw_data_len, ACL_MEMCPY_HOST_TO_DEVICE));
+          _addr = reinterpret_cast<uint64_t>(_tiling);
+          break;
+        }
       default:
-      {
-        _addr = 0U;
-        break;
-      }
+        {
+          _addr = 0U;
+          break;
+        }
     }
     ordered_io_addrs.push_back(_addr);
   }
-  GertModelTaskRawInfo l0_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
+  GertModelTaskRawInfo task_raw_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   GertModelTaskDesc task_info;
   OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
   OM2_CHK_STATUS(aclrtStreamGetId(task_info.stream, reinterpret_cast<int32_t *>(&task_info.stream_id)));
   task_info.kernel_type = op->dispatch_info.aicore.kernel_type;
-  task_info.task_raw_info = &l0_info;
-  GertModelLaunchKernelV2Params kernel_params = {
-    .func_handle = ctx.func_handles[op->dispatch_info.aicore.func_idx],
-    .block_dim = op->dispatch_info.aicore.block_dim,
-    .args_data = args_info->dev_addr,
-    .args_size = args_info->size,
-    .config = &cfg_holder.cfg,
-    .stream = ctx.stream_list[op->dispatch_info.aicore.stream_id],
-  };
-  GertModelTaskLaunchParams launch_params = {
-    .launch_kernel_v2_params = kernel_params,
-  };
-  GertModelTaskLaunchInfo launch_info = {
-    .launch_type = ACL_RT_LAUNCH_KERNEL_V2,
-    .task_info = &task_info,
-    .launch_params = &launch_params,
-  };
+  task_info.task_raw_info = &task_raw_info;
+  GertModelLaunchKernelV2Params kernel_params = {};
+  kernel_params.func_handle = ctx.func_handles[op->dispatch_info.aicore.func_idx];
+  kernel_params.block_dim = op->dispatch_info.aicore.block_dim;
+  kernel_params.args_data = args_info->dev_addr;
+  kernel_params.args_size = args_info->size;
+  kernel_params.config = &cfg_holder.cfg;
+  kernel_params.stream = ctx.stream_list[op->dispatch_info.aicore.stream_id];
+  GertModelTaskLaunchParams launch_params = {};
+  launch_params.launch_kernel_v2_params = kernel_params;
+  GertModelTaskLaunchInfo launch_info = {};
+  launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;
+  launch_info.task_info = &task_info;
+  launch_info.launch_params = &launch_params;
   OM2_CHK_STATUS(KernelTaskDistribute(&launch_info, ctx.launch_func, ctx.instance_handle, args_info, ordered_io_addrs));
   return ACL_SUCCESS;
 }
@@ -5760,22 +5371,19 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U));
   OM2_CHK_STATUS(aclrtStreamGetId(aicpu_task_info.stream, reinterpret_cast<int32_t *>(&aicpu_task_info.stream_id)));
   aicpu_task_info.kernel_type = op->dispatch_info.aicpu.kernel_type;
-  GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {
-    .func_handle = ctx.func_handles[op->dispatch_info.aicpu.func_idx],
-    .block_dim = op->dispatch_info.aicpu.block_dim,
-    .args_data = aicpu_args_info->dev_addr,
-    .args_size = aicpu_args_info->size,
-    .config = &aicpu_cfg_holder.cfg,
-    .stream = ctx.stream_list[op->dispatch_info.aicpu.stream_id],
-  };
-  GertModelTaskLaunchParams aicpu_launch_params = {
-    .launch_kernel_v2_params = aicpu_launch_kernel_v2_params,
-  };
-  GertModelTaskLaunchInfo aicpu_launch_info = {
-    .launch_type = ACL_RT_LAUNCH_KERNEL_V2,
-    .task_info = &aicpu_task_info,
-    .launch_params = &aicpu_launch_params,
-  };
+  GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {};
+  aicpu_launch_kernel_v2_params.func_handle = ctx.func_handles[op->dispatch_info.aicpu.func_idx];
+  aicpu_launch_kernel_v2_params.block_dim = op->dispatch_info.aicpu.block_dim;
+  aicpu_launch_kernel_v2_params.args_data = aicpu_args_info->dev_addr;
+  aicpu_launch_kernel_v2_params.args_size = aicpu_args_info->size;
+  aicpu_launch_kernel_v2_params.config = &aicpu_cfg_holder.cfg;
+  aicpu_launch_kernel_v2_params.stream = ctx.stream_list[op->dispatch_info.aicpu.stream_id];
+  GertModelTaskLaunchParams aicpu_launch_params = {};
+  aicpu_launch_params.launch_kernel_v2_params = aicpu_launch_kernel_v2_params;
+  GertModelTaskLaunchInfo aicpu_launch_info = {};
+  aicpu_launch_info.launch_type = ACL_RT_LAUNCH_KERNEL_V2;
+  aicpu_launch_info.task_info = &aicpu_task_info;
+  aicpu_launch_info.launch_params = &aicpu_launch_params;
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(aicpu_args_var, aicpu_args_info, &aicpu_launch_info, ctx.launch_func, ctx.instance_handle));
   return ACL_SUCCESS;
 }
@@ -5792,11 +5400,11 @@ aclError DispatchKernel(const TaskDispatchInfo *op, const DispatchOpContext &ctx
 aclError DispatchOp(const TaskDispatchInfo *op, const DispatchOpContext &ctx) {
   switch (op->dispatch_type) {
     case 0:
-    return DispatchKernel(op, ctx);
+      return DispatchKernel(op, ctx);
     case 1:
-    return DispatchKernel(op, ctx);
+      return DispatchKernel(op, ctx);
     default:
-    return ACL_ERROR_FAILURE;
+      return ACL_ERROR_FAILURE;
   }
 }
 const TaskDispatchInfo kOpDefs[] = {{
@@ -5839,7 +5447,7 @@ const TaskDispatchInfo kOpDefs[] = {{
       .task_type = 0,
       .kernel_type = 2,
       .launch = {0, 0, 0, false, 0, 0},
-      .slot_args = {0, 9, (const GertModelArgSlotInfo[]){{GERT_MODEL_ARG_LEVEL1_DESC, 0U, 0U, 0UL, 0U, 0U, 24U}, {GERT_MODEL_ARG_LEVEL1_DESC, 0U, 8U, 0UL, 0U, 0U, 80U}, {GERT_MODEL_ARG_LEVEL1_DESC, 0U, 16U, 0UL, 0U, 0U, 136U}, {GERT_MODEL_ARG_SHAPE_INFO, 0U, 24U, 6UL, 0U, 0U, 0U}, {GERT_MODEL_ARG_INPUT, 0U, 72U, 0UL, 9U, 0U, 0U}, {GERT_MODEL_ARG_SHAPE_INFO, 0U, 80U, 6UL, 0U, 0U, 0U}, {GERT_MODEL_ARG_INPUT, 0U, 128U, 0UL, 16U, 0U, 0U}, {GERT_MODEL_ARG_SHAPE_INFO, 0U, 136U, 6UL, 0U, 0U, 0U}, {GERT_MODEL_ARG_OUTPUT, 0U, 184U, 0UL, 23U, 0U, 0U}}},
+      .slot_args = {0, 9, (const GertModelArgSlotInfo[]){{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_LEVEL1_DESC, 0U, 0U, 0UL, 0U, 0U, 24U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_LEVEL1_DESC, 0U, 8U, 0UL, 0U, 0U, 80U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_LEVEL1_DESC, 0U, 16U, 0UL, 0U, 0U, 136U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_SHAPE_INFO, 0U, 24U, 6UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 72U, 0UL, 9U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_SHAPE_INFO, 0U, 80U, 6UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 128U, 0UL, 16U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_SHAPE_INFO, 0U, 136U, 6UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_OUTPUT, 0U, 184U, 0UL, 23U, 0U, 0U}}},
       .fusion_op = {nullptr, 0UL, 0UL, 0UL, 0UL},
     },
   },
@@ -5930,18 +5538,18 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
+aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority, uint64_t reuse_zero_copy, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
   OM2_LOGI("Om2ModelCreate");
   if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
     OM2_LOGE("Om2ModelCreate: invalid handle");
     return ACL_ERROR_FAILURE;
   }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, priority);
+  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, callbacks, priority);
   if (obj == nullptr) {
     OM2_LOGE("Om2ModelCreate: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
-  auto ret = obj->InitResources({sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
+  auto ret = obj->InitResources(reuse_zero_copy, {sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
   if (ret != ACL_SUCCESS) {
     OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
     delete obj;
@@ -5986,8 +5594,8 @@ aclError Om2ModelDestroy(GertModelHandle *model_handle) {
 
 // ==================== model load/run/unload api ====================
 
-int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
-                  struct GertModelLoadOutput *output) {
+int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
+                      struct GertModelLoadOutput *output) {
   if ((model_handle == nullptr) || (*model_handle != nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelLoad: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -6002,7 +5610,8 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
                                 config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                static_cast<int32_t>(config->priority),
+                                config->callbacks,
+                                static_cast<int32_t>(config->priority), config->reuse_zero_copy,
                                 config->external_rt_model,
                                 config->external_streams, config->external_stream_num,
                                 config->external_notifies, config->external_notify_num,
@@ -6015,8 +5624,8 @@ int GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *mod
   return static_cast<om2::Om2Model *>(*model_handle)->Load(config->callbacks);
 }
 
-int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
-                      const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
+int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
+                          const struct GertModelRunConfig *config, struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRunAsync: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -6029,8 +5638,8 @@ int GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
                           config->output_data, run_callbacks);
 }
 
-int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
-                 struct GertModelRunOutput *output) {
+int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
+                     struct GertModelRunOutput *output) {
   if ((model_handle == nullptr) || (config == nullptr)) {
     OM2_LOGE("GertModelRun: invalid handle or config");
     return ACL_ERROR_FAILURE;
@@ -6043,8 +5652,8 @@ int GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *
                      config->output_data, config->stream_sync_timeout_ms, run_callbacks);
 }
 
-int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
-                    struct GertModelUnloadOutput *output) {
+int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
+                        struct GertModelUnloadOutput *output) {
   if (model_handle == nullptr) {
     OM2_LOGE("GertModelUnload: invalid handle");
     return ACL_ERROR_FAILURE;
@@ -6105,9 +5714,7 @@ int32_t GertModelGetNotifyDesc(uint64_t *notify_flags, uint64_t notify_num, void
 #ifdef __cplusplus
 }
 #endif)";
-  const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
-  EXPECT_NE(source.find("DispatchKernelAicore"), std::string::npos);
-  EXPECT_NE(source.find("GertModelTaskLaunchInfo"), std::string::npos);
+  ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
 TEST_F(ProgramGeneratorUt, GeneratedResolverAddsVariableRelativeOffset) {
