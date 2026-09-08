@@ -122,7 +122,8 @@ Status ModelAdapter::InitIoNodes(const ComputeGraphPtr &compute_graph) {
 }
 
 Status ModelAdapter::InitDataOp(const ComputeGraphPtr &graph, const NodePtr &node, uint32_t &data_op_index,
-                                std::map<uint32_t, OpDescPtr> &index_to_data, std::set<uint64_t> &input_outside_addrs) {
+                                std::map<uint32_t, OpDescPtr> &index_to_data,
+                                const std::set<uint64_t> &input_outside_addrs) const {
   (void)input_outside_addrs;
   const auto op_desc = node->GetOpDesc();
   if (node->GetOwnerComputeGraph() != graph) {
@@ -159,7 +160,8 @@ Status ModelAdapter::InitDataOp(const ComputeGraphPtr &graph, const NodePtr &nod
 }
 
 Status ModelAdapter::InitNetOutput(const ComputeGraphPtr &graph, const NodePtr &node,
-                                   std::vector<OpDescPtr> &output_op_list, std::set<uint64_t> &output_outside_addrs) {
+                                   std::vector<OpDescPtr> &output_op_list,
+                                   const std::set<uint64_t> &output_outside_addrs) {
   (void)output_outside_addrs;
   const auto op_desc = node->GetOpDesc();
   if (node->GetOwnerComputeGraph() != graph) {
