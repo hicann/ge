@@ -12,6 +12,7 @@
 #include "framework/runtime/dump/dump_config.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/framework_types_internal.h"
+#include "graph/def_types.h"
 #include "rt_external.h"
 #include "acl/acl_rt.h"
 
@@ -69,7 +70,7 @@ Status DataDumpImpl::SaveTask(const GertModelTaskDesc &task_info, ModelTaskType 
       const auto &tensor = *entry.tensor;
       InnerTensorInfo inner_tensor{};
       inner_tensor.offset = entry.offset;
-      inner_tensor.device_address = reinterpret_cast<uint64_t>(tensor.GetAddr());
+      inner_tensor.device_address = PtrToValue(tensor.GetAddr());
       inner_tensor.size = tensor.GetSize();
       inner_tensor.data_type = tensor.GetDataType();
       inner_tensor.format = tensor.GetStorageFormat();
@@ -180,7 +181,7 @@ Status DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
     return RT_FAILED;
   }
   step_id_dev_addr_ = step_id_dev_addr;
-  op_mapping_info.set_step_id_addr(reinterpret_cast<uint64_t>(step_id_dev_addr));
+  op_mapping_info.set_step_id_addr(PtrToValue(step_id_dev_addr));
 
   // loop_cond_addr 和 iterations_per_loop_addr 保持原逻辑
   if (model_info.loop_cond_addr != 0U) {
@@ -352,7 +353,7 @@ void DataDumpImpl::BuildOpDebugTask(toolkit::aicpu::dump::OpMappingInfo &op_mapp
   output.set_data_type(DT_UINT8);
   output.set_format(FORMAT_ND);
   output.mutable_shape()->add_dim(kOpDebugShape);
-  output.set_address(reinterpret_cast<uintptr_t>(op_debug_addr_));
+  output.set_address(PtrToValue(op_debug_addr_));
   output.set_size(kOpDebugSize);
   output.set_addr_type(toolkit::aicpu::dump::AddressType::TRADITIONAL_ADDR);
 

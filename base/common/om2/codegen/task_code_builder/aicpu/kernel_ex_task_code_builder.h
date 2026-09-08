@@ -50,7 +50,7 @@ class KernelExTaskCodeBuilder : public TaskCodeBuilder {
   Status RenderDispatchFunc(std::vector<DeclNode *> &items);
   Status RenderDispatchFuncSetup(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
   Status RenderDispatchFuncLaunch(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
-  Status RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op);
+  Status RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op) const;
   Status RenderDispatchFuncAssembleExInfo(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
   Status RenderDispatchFuncLaunchTask(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
   Status RenderDispatchFuncTaskInfo(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);

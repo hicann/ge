@@ -12,6 +12,7 @@
 #include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 #include "framework/runtime/dump/dump_config.h"
+#include "graph/def_types.h"
 #include <dump/adump_api.h>
 #include "common/dump/adump_opinfo_builder.h"
 #include "rt_external_kernel.h"
@@ -178,8 +179,7 @@ void BuildInputTensorInfos(const GertModelTaskDesc &task_info, std::vector<Adx::
       tensor_info.placement = gert::TensorPlacement::kOnDeviceHbm;
       tensor_info.type = Adx::TensorType::INPUT;
       tensor_info.argsOffSet = task_info.inputs[i].offset;
-      tensor_info.tensorAddr =
-          reinterpret_cast<int64_t *>(reinterpret_cast<uintptr_t>(task_info.inputs[i].tensor->GetAddr()));
+      tensor_info.tensorAddr = static_cast<int64_t *>(ValueToPtr(PtrToValue(task_info.inputs[i].tensor->GetAddr())));
       tensor_infos.push_back(tensor_info);
     }
   }
@@ -195,8 +195,7 @@ void BuildOutputTensorInfos(const GertModelTaskDesc &task_info, std::vector<Adx:
       tensor_info.placement = gert::TensorPlacement::kOnDeviceHbm;
       tensor_info.type = Adx::TensorType::OUTPUT;
       tensor_info.argsOffSet = task_info.outputs[i].offset;
-      tensor_info.tensorAddr =
-          reinterpret_cast<int64_t *>(reinterpret_cast<uintptr_t>(task_info.outputs[i].tensor->GetAddr()));
+      tensor_info.tensorAddr = static_cast<int64_t *>(ValueToPtr(PtrToValue(task_info.outputs[i].tensor->GetAddr())));
       tensor_infos.push_back(tensor_info);
     }
   }
@@ -212,7 +211,7 @@ void BuildWorkspaceTensorInfos(const GertModelTaskDesc &task_info, std::vector<A
       tensor_info.placement = gert::TensorPlacement::kOnDeviceHbm;
       tensor_info.type = Adx::TensorType::WORKSPACE;
       if (task_info.workspace_addrs != nullptr) {
-        tensor_info.tensorAddr = reinterpret_cast<int64_t *>(static_cast<uintptr_t>(task_info.workspace_addrs[i]));
+        tensor_info.tensorAddr = static_cast<int64_t *>(ValueToPtr(task_info.workspace_addrs[i]));
       }
       tensor_infos.push_back(tensor_info);
     }
@@ -338,7 +337,7 @@ Status ExceptionDumpImpl::SaveOpInfo(const GertModelTaskDesc &task_info) {
     return PARAM_INVALID;
   }
   for (uint32_t i = 0; i < task_info.workspace_num; ++i) {
-    op_info.space_addrs.push_back(reinterpret_cast<void *>(task_info.workspace_addrs[i]));
+    op_info.space_addrs.push_back(ValueToPtr(task_info.workspace_addrs[i]));
     op_info.workspace_bytes.push_back(task_info.workspace_sizes[i]);
   }
 
@@ -431,7 +430,7 @@ void ExceptionDumpImpl::FillAdumpOpInfoBuilder(const OpDescInfo &op_info, std::v
       .TersorInfo(input_infos)
       .TersorInfo(output_infos)
       .TersorInfo(workspace_infos)
-      .DeviceInfo(Adx::DEVICE_INFO_NAME_ARGS, reinterpret_cast<void *>(op_info.args), op_info.args_size);
+      .DeviceInfo(Adx::DEVICE_INFO_NAME_ARGS, ValueToPtr(static_cast<uint64_t>(op_info.args)), op_info.args_size);
 }
 
 Status ExceptionDumpImpl::SubmitToAdump(const char *op_name, const GertModelTaskDesc &task_info,

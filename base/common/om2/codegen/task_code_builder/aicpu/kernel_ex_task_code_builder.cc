@@ -435,7 +435,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncSetup(std::vector<BodyItem> &b
   return SUCCESS;
 }
 
-Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op) {
+Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op) const {
   auto cfg_holder = ast_.Var("LaunchKernelCfgHolder", "cfg_holder");
   (void)body.emplace_back(ast_.VarDecl(cfg_holder));
   auto launch_config = ast_.Var("LaunchKernelConfig", "launch_config");
