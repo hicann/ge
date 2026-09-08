@@ -1153,15 +1153,9 @@ void GetConstDataPointer(const nlohmann::json &json_array, std::vector<uint8_t> 
 
 void CopyConstDataWithFloat16(const nlohmann::json &json_array, std::vector<uint8_t> &value) {
   std::vector<float> const_value = json_array.get<std::vector<float>>();
-  float *const_data_ptr = const_value.data();
-  if (const_data_ptr == nullptr) {
-    GE_LOGE("Failed to get constant data pointer");
-    return;
-  }
   std::vector<uint16_t> const_data_vec;
-  const size_t size = sizeof(const_value) / sizeof(float);
-  for (size_t i = 0; i < size; ++i) {
-    const float const_data = const_data_ptr[i];
+  const_data_vec.reserve(const_value.size());
+  for (const float const_data : const_value) {
     uint16_t const_data_uint16 = optiling::Float32ToFloat16(const_data);
     (void)const_data_vec.emplace_back(const_data_uint16);
   }

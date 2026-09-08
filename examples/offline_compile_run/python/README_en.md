@@ -24,15 +24,11 @@ python/
 
 ### 3.1 Prepare CANN Package
 
-- This sample requires installing two sets of CANN: the latest development package for graph compilation, and the official release package from the website providing [`pyACL`](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900beta1/appdevg/acldevg/aclpythondevg_0096.html) module for graph execution. "Compilation" and "execution" in this document specifically refer to graph compilation and graph execution, not GE source code compilation.
-- Installation instructions:
-  - Latest development package, for graph compilation, providing the latest GE/Python capabilities this sample depends on. Refer to [Environment Preparation](../../../docs/zh/quick_install.md) section "Method 3: Manual Package Installation > Scenario 1: Experience master version capabilities or develop based on master version", install the latest `toolkit` and `ops` packages
-  - Official CANN `toolkit` and `ops` packages released on the website, for graph execution, providing `pyACL`. Refer to [Environment Preparation](../../../docs/zh/quick_install.md) section "Method 3: Manual Package Installation > Scenario 2: Experience released version capabilities or develop based on released version", install official release version software packages
-- Set environment variables (assuming latest development package installed in /usr/local/Ascend/, official release package installed in /usr/local/Ascend-release/)
+- Refer to [Environment Preparation](../../../docs/zh/quick_install.md) section "Method 3: Manual Package Installation > Scenario 1: Experience master version capabilities or develop based on master version", install the latest `toolkit` and `ops` packages.
+- Set environment variables (assuming the package is installed in /usr/local/Ascend/)
 
 ```bash
 source /usr/local/Ascend/cann/set_env.sh
-export PYTHONPATH="$PYTHONPATH:/usr/local/Ascend-release/cann/python/site-packages"
 ```
 
 ### 3.2 Graph Compilation and Execution
@@ -46,7 +42,7 @@ bash run_sample.sh -t sample_and_run_python
 This command will:
 
 1. Build `Add` graph, compile offline and generate `add_sample.om`
-2. Load and execute the offline model via pyACL
+2. Load and execute the offline model
 
 Execute bundle sample:
 
@@ -57,7 +53,7 @@ bash run_sample.sh -t sample_and_run_bundle_python
 This command will:
 
 1. Bundle `Add` graph and `Mul` graph, compile offline and generate `bundle_sample.om`
-2. Load Bundle via pyACL and execute two sub-models separately
+2. Load Bundle and execute two sub-models separately
 
 For offline compilation in cardless scenarios where you need to specify target chip version, add `--soc-version`:
 

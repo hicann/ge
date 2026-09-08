@@ -20,14 +20,10 @@ python/
 
 ## 3、使用方法
 ### 3.1、准备cann包
-- 本样例需要同时安装两套 CANN：最新开发包用于图编译，官网正式发布包提供 [`pyACL`](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900beta1/appdevg/acldevg/aclpythondevg_0096.html) 模块用于图执行。本文中的“编译”和“执行”均特指图编译和图执行，不指 GE 工程源码编译。
-- 安装请参考：
-  - 最新开发包，用于图编译，提供本样例依赖的最新 GE/Python 能力。安装请参考 [环境准备](../../../docs/zh/quick_install.md) 中“方式三：手动安装软件包 > 场景1：体验master版本能力或基于master版本进行开发”，安装最新版本的 `toolkit` 和 `ops` 包
-  - 官网正式发布的 CANN `toolkit` 和 `ops` 包，用于图执行，提供 `pyACL`。安装请参考 [环境准备](../../../docs/zh/quick_install.md) 中“方式三：手动安装软件包 > 场景2：体验已发布版本能力或基于已发布版本进行开发”，安装官网正式发布版本的软件包
-- 设置环境变量 (假设最新开发包安装在/usr/local/Ascend/，官网正式发布包安装在/usr/local/Ascend-release/)
+- 请参考 [环境准备](../../../docs/zh/quick_install.md) 中“方式三：手动安装软件包 > 场景1：体验master版本能力或基于master版本进行开发”，正确安装 `toolkit` 和 `ops` 包。
+- 设置环境变量 (假设包安装在/usr/local/Ascend/)
 ```
 source /usr/local/Ascend/cann/set_env.sh
-export PYTHONPATH="$PYTHONPATH:/usr/local/Ascend-release/cann/python/site-packages"
 ```
 
 ### 3.2、图编译和图执行
@@ -38,7 +34,7 @@ bash run_sample.sh -t sample_and_run_python
 ```
 该命令会：
 1. 构建 `Add` 图，离线编译并生成 `add_sample.om`
-2. 通过 pyACL 加载并执行该离线模型
+2. 加载并执行该离线模型
 
 执行 bundle 样例：
 ```bash
@@ -46,7 +42,7 @@ bash run_sample.sh -t sample_and_run_bundle_python
 ```
 该命令会：
 1. 将 `Add` 图与 `Mul` 图打成 Bundle，离线编译并生成 `bundle_sample.om`
-2. 通过 pyACL 加载 Bundle，并分别执行两个子模型
+2. 加载 Bundle，并分别执行两个子模型
 
 离线编译在无卡场景下如需指定目标芯片版本，可增加 `--soc-version`：
 ```bash
