@@ -1176,9 +1176,12 @@ void ExpectGeneratedMakefileSupportsEnvCompiler(const RAIIZipArchive &archive, c
   EXPECT_NE(makefile.find("ifndef CPPFLAGS"), std::string::npos);
   EXPECT_NE(makefile.find("CPPFLAGS :="), std::string::npos);
   EXPECT_NE(makefile.find("ifndef CXXFLAGS"), std::string::npos);
-  EXPECT_NE(makefile.find("CXXFLAGS := -std=c++17 -O2 -fPIC"), std::string::npos);
+  EXPECT_NE(makefile.find("CXXFLAGS := -std=c++17 -O2 -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2"),
+            std::string::npos);
   EXPECT_NE(makefile.find("ifndef LDFLAGS"), std::string::npos);
-  EXPECT_NE(makefile.find("LDFLAGS := -shared -L$(LIB_PATH) -Wl,--no-as-needed"), std::string::npos);
+  EXPECT_NE(makefile.find(
+                "LDFLAGS := -shared -L$(LIB_PATH) -Wl,--no-as-needed -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -s"),
+            std::string::npos);
   EXPECT_NE(makefile.find("ifndef LDLIBS"), std::string::npos);
   EXPECT_NE(makefile.find("LDLIBS := -lacl_rt -Wl,--as-needed"), std::string::npos);
   EXPECT_NE(makefile.find("$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)"), std::string::npos);
