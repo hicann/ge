@@ -44,7 +44,7 @@ ge::Status Om2ModelManager::LoadModel(uint32_t model_id, const gert::Om2ModelDat
   return SUCCESS;
 }
 
-ge::Status Om2ModelManager::RunModel(uint32_t model_id, void *stream, std::vector<gert::Tensor *> &inputs,
+ge::Status Om2ModelManager::RunModel(const uint32_t model_id, void *const stream, std::vector<gert::Tensor *> &inputs,
                                      std::vector<gert::Tensor *> &outputs) {
   std::shared_ptr<gert::Om2ModelExecutor> executor;
   {

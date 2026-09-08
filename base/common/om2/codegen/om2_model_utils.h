@@ -36,7 +36,7 @@ class Om2ModelUtils {
   static Status GetRtAddress(const TaskSemanticContributeContext &context, const uintptr_t logic_addr,
                              AddrSemantic &addr_node, bool isInput, uint32_t index);
 
-  static bool FindVarAddress(const VarAddrRangeMap &var_addr_ranges, uint64_t effective, VarAddressMatch &match);
+  static bool FindVarAddress(const VarAddrRangeMap &var_addr_ranges, const uint64_t effective, VarAddressMatch &match);
 
   static uint32_t ArgsSizeAlign8(uint32_t args_size);
   static uint64_t ArgsSizeAlign8(uint64_t args_size);

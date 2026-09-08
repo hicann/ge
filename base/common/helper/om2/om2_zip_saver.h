@@ -23,7 +23,7 @@ namespace ge {
 
 class Om2ZipSaver {
  public:
-  static Status Save(const gert::Om2ModelData &model_data, ModelBufferData &model, bool is_offline,
+  static Status Save(const gert::Om2ModelData &model_data, ModelBufferData &model, const bool is_offline,
                      const std::string &writer_path = "");
 };
 

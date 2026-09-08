@@ -48,7 +48,8 @@ Om2RTVarManager::~Om2RTVarManager() {
   Finalize();
 }
 
-ge::Status Om2RTVarManager::Init(const RTVarResource &resource, void *external_var_addr, uint64_t external_var_size) {
+ge::Status Om2RTVarManager::Init(const RTVarResource &resource, void *const external_var_addr,
+                                 const uint64_t external_var_size) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   external_var_addr_ = external_var_addr;
   external_var_size_ = external_var_size;
@@ -85,7 +86,7 @@ const RTVarRuntimeState *Om2RTVarManager::GetRuntimeState(const std::string &var
   return &it->second;
 }
 
-ge::Status Om2RTVarManager::GetVarDevAddr(const std::string &var_name, uint32_t device_id, void *&dev_addr) {
+ge::Status Om2RTVarManager::GetVarDevAddr(const std::string &var_name, const uint32_t device_id, void *&dev_addr) {
   const auto *entry = var_resource_.GetEntryByName(var_name);
   if (entry == nullptr) {
     GELOGE(ge::PARAM_INVALID, "[OM2][Var] var_name=%s not found.", var_name.c_str());
@@ -94,7 +95,7 @@ ge::Status Om2RTVarManager::GetVarDevAddr(const std::string &var_name, uint32_t 
   return GetVarDevAddr(*entry, device_id, dev_addr);
 }
 
-ge::Status Om2RTVarManager::GetVarDevAddr(const RTVarEntry &entry, uint32_t device_id, void *&dev_addr) {
+ge::Status Om2RTVarManager::GetVarDevAddr(const RTVarEntry &entry, const uint32_t device_id, void *&dev_addr) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   auto &state = GetOrCreateRuntimeState(entry.var_key);
   auto it = state.dev_addrs.find(device_id);
@@ -178,7 +179,8 @@ void Om2RTVarManager::Finalize() noexcept {
   legacy_device_to_vars_.clear();
 }
 
-ge::Status Om2RTVarManager::GetOrCreateVarAddr(const std::string &key, uint32_t device_id, size_t size, void *&addr) {
+ge::Status Om2RTVarManager::GetOrCreateVarAddr(const std::string &key, const uint32_t device_id, const size_t size,
+                                               void *&addr) {
   addr = nullptr;
   if (size == 0U) {
     return ge::SUCCESS;
@@ -226,7 +228,7 @@ ge::Status Om2RTVarManager::GetOrCreateVarAddr(const std::string &key, uint32_t 
   return ge::SUCCESS;
 }
 
-bool Om2RTVarManager::TryGetVarAddr(const std::string &key, uint32_t device_id, void *&addr) const {
+bool Om2RTVarManager::TryGetVarAddr(const std::string &key, const uint32_t device_id, void *&addr) const {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   addr = nullptr;
   auto dev_it = legacy_device_to_vars_.find(device_id);
@@ -242,7 +244,7 @@ bool Om2RTVarManager::TryGetVarAddr(const std::string &key, uint32_t device_id, 
 }
 
 ge::Status Om2RTVarManager::CopyVarFromDevice(const RTVarEntry &entry, const RTVarRuntimeState &state,
-                                              uint32_t device_id, std::vector<uint8_t> &host_buf) {
+                                              const uint32_t device_id, std::vector<uint8_t> &host_buf) {
   auto it = state.dev_addrs.find(device_id);
   if (it == state.dev_addrs.end() || it->second == nullptr) {
     GELOGE(ge::FAILED, "[OM2][Var] dev_addr not allocated for var=%s, device=%u.", entry.var_name.c_str(), device_id);
@@ -257,8 +259,8 @@ ge::Status Om2RTVarManager::CopyVarFromDevice(const RTVarEntry &entry, const RTV
   return ge::SUCCESS;
 }
 
-ge::Status Om2RTVarManager::CopyVarToDevice(const RTVarEntry &entry, const RTVarRuntimeState &state, uint32_t device_id,
-                                            const std::vector<uint8_t> &host_buf) {
+ge::Status Om2RTVarManager::CopyVarToDevice(const RTVarEntry &entry, const RTVarRuntimeState &state,
+                                            const uint32_t device_id, const std::vector<uint8_t> &host_buf) {
   auto it = state.dev_addrs.find(device_id);
   if (it == state.dev_addrs.end() || it->second == nullptr) {
     GELOGE(ge::FAILED, "[OM2][Var] dev_addr not allocated for var=%s, device=%u.", entry.var_name.c_str(), device_id);
@@ -338,7 +340,7 @@ ge::Status Om2RTVarManager::TransVarOnHost(const RTVarTransRoad &trans_road, std
   return ge::SUCCESS;
 }
 
-ge::Status Om2RTVarManager::TransSingleVarData(const std::string &var_name, uint32_t device_id) {
+ge::Status Om2RTVarManager::TransSingleVarData(const std::string &var_name, const uint32_t device_id) {
   const auto *entry = var_resource_.GetEntryByName(var_name);
   if (entry == nullptr) {
     return ge::FAILED;
@@ -376,8 +378,8 @@ ge::Status Om2RTVarManager::TransSingleVarData(const std::string &var_name, uint
   return ge::SUCCESS;
 }
 
-ge::Status Om2RTVarManager::TransAllVarData(const std::vector<std::string> &var_names, uint32_t device_id,
-                                            uint32_t graph_id) {
+ge::Status Om2RTVarManager::TransAllVarData(const std::vector<std::string> &var_names, const uint32_t device_id,
+                                            const uint32_t graph_id) {
   if (var_names.empty()) {
     return ge::SUCCESS;
   }
@@ -443,7 +445,7 @@ ge::Status Om2RTVarManager::TransAllVarData(const std::vector<std::string> &var_
   return ge::SUCCESS;
 }
 
-ge::Status Om2RTVarManager::CopyVarData(const std::vector<std::string> &var_names, uint32_t device_id) {
+ge::Status Om2RTVarManager::CopyVarData(const std::vector<std::string> &var_names, const uint32_t device_id) {
   for (const auto &var_name : var_names) {
     const auto *entry = var_resource_.GetEntryByName(var_name);
     if (entry == nullptr) {
@@ -522,7 +524,7 @@ Om2RTVarManagerPool::~Om2RTVarManagerPool() {
   Destroy();
 }
 
-Om2RTVarManagerPtr Om2RTVarManagerPool::GetManager(uint64_t session_id) {
+Om2RTVarManagerPtr Om2RTVarManagerPool::GetManager(const uint64_t session_id) {
   const std::lock_guard<std::mutex> lock(mutex_);
   auto &manager = session_id_to_manager_[session_id];
   if (manager == nullptr) {
@@ -535,7 +537,7 @@ Om2RTVarManagerPtr Om2RTVarManagerPool::GetManager(uint64_t session_id) {
   return manager;
 }
 
-void Om2RTVarManagerPool::RemoveManager(uint64_t session_id) {
+void Om2RTVarManagerPool::RemoveManager(const uint64_t session_id) {
   Om2RTVarManagerPtr manager = nullptr;
   {
     const std::lock_guard<std::mutex> lock(mutex_);

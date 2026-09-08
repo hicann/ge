@@ -35,7 +35,7 @@ class Om2ModelManager {
   ge::Status LoadModel(uint32_t model_id, const gert::Om2ModelData &model_data, const gert::Om2ModelLoadArg &load_arg,
                        uint64_t session_id);
 
-  ge::Status RunModel(uint32_t model_id, void *stream, std::vector<gert::Tensor *> &inputs,
+  ge::Status RunModel(const uint32_t model_id, void *const stream, std::vector<gert::Tensor *> &inputs,
                       std::vector<gert::Tensor *> &outputs);
 
   ge::Status UnloadModel(uint32_t model_id);
