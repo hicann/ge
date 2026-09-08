@@ -479,7 +479,7 @@ int32_t SuperKernelPass::GetScopeIdByCtrlEdge(const NodePtr &node, bool is_send)
   return GetScopeId(related_node);
 }
 
-uint32_t SuperKernelPass::GetEventId(const NodePtr &node) {
+uint32_t SuperKernelPass::GetEventId(const NodePtr &node) const {
   uint32_t event_id = 0;
   auto type = node->GetType();
   if (type == SENDNOTIFY) {
@@ -494,7 +494,7 @@ uint32_t SuperKernelPass::GetEventId(const NodePtr &node) {
   return event_id;
 }
 
-aclskScopeVerifyKernelType SuperKernelPass::GetKernelType(const NodePtr &node) {
+aclskScopeVerifyKernelType SuperKernelPass::GetKernelType(const NodePtr &node) const {
   std::string core_type;
   (void)AttrUtils::GetStr(node->GetOpDescBarePtr(), ATTR_NAME_CUBE_VECTOR_CORE_TYPE, core_type);
   if (core_type == "AIC") {
@@ -510,7 +510,7 @@ aclskScopeVerifyKernelType SuperKernelPass::GetKernelType(const NodePtr &node) {
 }
 
 void SuperKernelPass::FillCoreLimit(const OpDesc *op_desc, aclskScopeVerifyNodeInfo &info, int32_t ai_core_cnt_global,
-                                    int32_t vector_core_cnt_global) {
+                                    int32_t vector_core_cnt_global) const {
   info.flag = 0U;
   info.coreLimit[0] = ai_core_cnt_global;
   info.coreLimit[1] = vector_core_cnt_global;
