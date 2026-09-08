@@ -12,9 +12,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="${SCRIPT_DIR}"
-BUILD_DIR="${PROJECT_DIR}/build"
-OUTPUT_DIR="${PROJECT_DIR}/output"
+BUILD_DIR="${SCRIPT_DIR}/build"
+OUTPUT_DIR="${SCRIPT_DIR}/output"
 
 info() {
   echo "[INFO] $*"
@@ -43,7 +42,7 @@ fi
 mkdir -p "${BUILD_DIR}" "${OUTPUT_DIR}"
 
 info "Step 1/3: build custom op library and session_run"
-cmake -S "${PROJECT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
+cmake -S "${SCRIPT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
 cmake --build "${BUILD_DIR}" -j"$(nproc 2>/dev/null || echo 8)"
 cmake --install "${BUILD_DIR}"
 

@@ -12,9 +12,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="${SCRIPT_DIR}"
-BUILD_DIR="${PROJECT_DIR}/build"
-OUTPUT_DIR="${PROJECT_DIR}/output"
+BUILD_DIR="${SCRIPT_DIR}/build"
+OUTPUT_DIR="${SCRIPT_DIR}/output"
 
 info() {
   echo "[INFO] $*"
@@ -45,10 +44,10 @@ mkdir -p "${BUILD_DIR}" "${OUTPUT_DIR}"
 # Step 1: 编译 TileLang kernel，产出 .so
 info "Step 1/4: compile TileLang kernel"
 (
-  cd "${PROJECT_DIR}/add_custom_kernel"
+  cd "${SCRIPT_DIR}/add_custom_kernel"
   python3 add_custom_kernel.py
 )
-if [[ ! -f "${PROJECT_DIR}/add_custom_kernel/add_kernel.so" ]]; then
+if [[ ! -f "${SCRIPT_DIR}/add_custom_kernel/add_kernel.so" ]]; then
   error "TileLang kernel .so not found: add_custom_kernel/add_kernel.so"
   error "Please check TileLang installation and kernel compilation output."
   exit 1
@@ -57,7 +56,7 @@ info "TileLang kernel .so generated."
 
 # Step 2: 构建 libcust_opapi.so + session_run（含将 add_kernel.so 安装到 OPP 包）
 info "Step 2/4: build custom op library and session_run"
-cmake -S "${PROJECT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
+cmake -S "${SCRIPT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
 cmake --build "${BUILD_DIR}" -j"$(nproc 2>/dev/null || echo 8)"
 cmake --install "${BUILD_DIR}"
 
