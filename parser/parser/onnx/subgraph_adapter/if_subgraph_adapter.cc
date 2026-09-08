@@ -9,7 +9,6 @@
  */
 
 #include "if_subgraph_adapter.h"
-#include <unordered_set>
 #include "subgraph_adapter_factory.h"
 #include "common/util.h"
 #include "framework/common/debug/ge_log.h"
@@ -21,6 +20,84 @@ namespace {
 const std::map<std::string, int> kAttrNameToIndex = {{"then_branch", 0}, {"else_branch", 1}};
 const int kIfNodeAttrSize = 2;
 const char *kIf = "If";
+
+void CollectGraphFreeInputs(const ge::onnx::GraphProto &onnx_graph, std::set<std::string> &free_inputs);
+
+void CollectGraphDefinedValues(const ge::onnx::GraphProto &onnx_graph, std::set<std::string> &defined_values) {
+  for (int i = 0; i < onnx_graph.input_size(); i++) {
+    const std::string &input_name = onnx_graph.input(i).name();
+    if (!input_name.empty()) {
+      defined_values.emplace(input_name);
+    }
+  }
+  for (int i = 0; i < onnx_graph.initializer_size(); i++) {
+    const std::string &initializer_name = onnx_graph.initializer(i).name();
+    if (!initializer_name.empty()) {
+      defined_values.emplace(initializer_name);
+    }
+  }
+}
+
+void CollectNestedGraphFreeInputs(const ge::onnx::NodeProto &node_proto, std::set<std::string> &used_values) {
+  for (int j = 0; j < node_proto.attribute_size(); j++) {
+    const ge::onnx::AttributeProto &attribute = node_proto.attribute(j);
+    if (attribute.has_g()) {
+      std::set<std::string> nested_free_inputs;
+      CollectGraphFreeInputs(attribute.g(), nested_free_inputs);
+      used_values.insert(nested_free_inputs.begin(), nested_free_inputs.end());
+    }
+    for (int k = 0; k < attribute.graphs_size(); k++) {
+      std::set<std::string> nested_free_inputs;
+      CollectGraphFreeInputs(attribute.graphs(k), nested_free_inputs);
+      used_values.insert(nested_free_inputs.begin(), nested_free_inputs.end());
+    }
+  }
+}
+
+void CollectNodeUsedAndDefinedValues(const ge::onnx::NodeProto &node_proto, std::set<std::string> &used_values,
+                                     std::set<std::string> &defined_values) {
+  for (int j = 0; j < node_proto.input_size(); j++) {
+    const std::string &input_name = node_proto.input(j);
+    if (!input_name.empty()) {
+      used_values.emplace(input_name);
+    }
+  }
+  for (int j = 0; j < node_proto.output_size(); j++) {
+    const std::string &output_name = node_proto.output(j);
+    if (!output_name.empty()) {
+      defined_values.emplace(output_name);
+    }
+  }
+  CollectNestedGraphFreeInputs(node_proto, used_values);
+}
+
+// 收集当前图及其节点属性嵌套子图中引用的名字，排除当前图作用域内已定义的值。
+// ONNX 的 If 分支可能直接引用祖先图中的值而不在 GraphProto 输入中声明，
+// 因此嵌套子图的自由输入集合必须逐层向上传播。
+void CollectGraphFreeInputs(const ge::onnx::GraphProto &onnx_graph, std::set<std::string> &free_inputs) {
+  std::set<std::string> used_values;
+  std::set<std::string> defined_values;
+  CollectGraphDefinedValues(onnx_graph, defined_values);
+
+  for (int i = 0; i < onnx_graph.node_size(); i++) {
+    CollectNodeUsedAndDefinedValues(onnx_graph.node(i), used_values, defined_values);
+  }
+
+  // 图输出本身也可能是外层作用域的值（无本地节点产生时），将其视为一次使用，
+  // 避免捕获信息在图边界丢失。
+  for (int i = 0; i < onnx_graph.output_size(); i++) {
+    const std::string &output_name = onnx_graph.output(i).name();
+    if (!output_name.empty()) {
+      used_values.emplace(output_name);
+    }
+  }
+
+  for (const std::string &used_value : used_values) {
+    if (defined_values.count(used_value) == 0) {
+      free_inputs.emplace(used_value);
+    }
+  }
+}
 }  // namespace
 domi::Status IfSubgraphAdapter::AdaptAndFindAllSubgraphs(
     ge::onnx::NodeProto *parent_node, std::vector<ge::onnx::GraphProto *> &onnx_graphs,
@@ -91,34 +168,28 @@ domi::Status IfSubgraphAdapter::ParseIfNodeSubgraphs(ge::onnx::NodeProto &parent
 
 domi::Status IfSubgraphAdapter::GetSubgraphsAllInputs(ge::onnx::GraphProto &onnx_graph,
                                                       std::set<std::string> &all_inputs) const {
-  std::unordered_set<std::string> graph_inputs;
-  std::unordered_set<std::string> graph_outputs;
-  for (int i = 0; i < onnx_graph.node_size(); i++) {
-    ge::onnx::NodeProto *node_proto = onnx_graph.mutable_node(i);
-    for (int j = 0; j < node_proto->input_size(); j++) {
-      graph_inputs.emplace(node_proto->input(j));
-    }
-    for (int j = 0; j < node_proto->output_size(); j++) {
-      graph_outputs.emplace(node_proto->output(j));
-    }
+  std::set<std::string> graph_free_inputs;
+  CollectGraphFreeInputs(onnx_graph, graph_free_inputs);
+  for (const auto &free_input : graph_free_inputs) {
+    GELOGD("[Collect][FreeInput] Subgraph %s captures outer-scope value %s.", onnx_graph.name().c_str(),
+           free_input.c_str());
   }
-  std::unordered_set<std::string> graph_initializer_tensors;
-  for (int32_t i = 0; i < onnx_graph.initializer_size(); i++) {
-    graph_initializer_tensors.emplace(onnx_graph.initializer(i).name());
-  }
-  for (const auto &input : graph_inputs) {
-    if (graph_outputs.count(input) == 0 && graph_initializer_tensors.count(input) == 0) {
-      // Record input node need to be constructed
-      all_inputs.emplace(input);
-    }
-  }
-
+  all_inputs.insert(graph_free_inputs.begin(), graph_free_inputs.end());
   return SUCCESS;
 }
 
 void IfSubgraphAdapter::AddInputNodeForGraph(const std::set<std::string> &all_inputs,
                                              ge::onnx::GraphProto &onnx_graph) const {
+  std::set<std::string> existing_inputs;
+  for (int i = 0; i < onnx_graph.input_size(); i++) {
+    existing_inputs.emplace(onnx_graph.input(i).name());
+  }
   for (const auto &input_name : all_inputs) {
+    if (!existing_inputs.emplace(input_name).second) {
+      continue;
+    }
+    GELOGI("[Add][SubgraphInput] Add outer-scope input %s to subgraph %s.", input_name.c_str(),
+           onnx_graph.name().c_str());
     ge::onnx::ValueInfoProto *value_info = onnx_graph.add_input();
     value_info->set_name(input_name);
   }
@@ -126,7 +197,16 @@ void IfSubgraphAdapter::AddInputNodeForGraph(const std::set<std::string> &all_in
 
 void IfSubgraphAdapter::AddInputForParentNode(const std::set<std::string> &all_inputs,
                                               ge::onnx::NodeProto &parent_node) const {
+  std::set<std::string> existing_inputs;
+  for (int i = 0; i < parent_node.input_size(); i++) {
+    existing_inputs.emplace(parent_node.input(i));
+  }
   for (const auto &input_name : all_inputs) {
+    if (!existing_inputs.emplace(input_name).second) {
+      continue;
+    }
+    GELOGI("[Add][ParentNodeInput] Add outer-scope input %s to if node %s.", input_name.c_str(),
+           parent_node.name().c_str());
     parent_node.add_input(input_name);
   }
 }
