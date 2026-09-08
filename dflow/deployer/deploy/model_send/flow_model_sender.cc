@@ -439,18 +439,18 @@ Status FlowModelSender::TransferDataGwDeployPlan(DeployState &deploy_state) {
       datagw_config_info->set_is_proxy(is_proxy_q);
       if (submodel_desc.sched_input_queue_indices.size() == 1) {
         datagw_config_info->set_input_queue_indice(submodel_desc.sched_input_queue_indices[0]);
-        GELOGI("DynamicSched set datagw sched info, input queue indice=%d.",
+        GELOGI("DynamicSched set datagw sched info, input queue index is %d.",
                submodel_desc.sched_input_queue_indices[0]);
       } else {
-        GELOGE(FAILED, "DynamicSched set datagw sched info failed, input indice num %u!",
+        GELOGE(FAILED, "DynamicSched set datagw sched info failed, input index num %u!",
                submodel_desc.sched_input_queue_indices.size());
       }
       if (submodel_desc.sched_output_queue_indices.size() == 1) {
         datagw_config_info->set_output_queue_indice(submodel_desc.sched_output_queue_indices[0]);
-        GELOGI("DynamicSched set datagw sched info, output queue indice=%d.",
+        GELOGI("DynamicSched set datagw sched info, output queue index=%d.",
                submodel_desc.sched_output_queue_indices[0]);
       } else {
-        GELOGE(FAILED, "DynamicSched set datagw sched info failed, output indice num %u!",
+        GELOGE(FAILED, "DynamicSched set datagw sched info failed, output index num %u!",
                submodel_desc.sched_output_queue_indices.size());
       }
       datagw_devices_used[submodel_desc.device_info.GetKey()] = &submodel_desc.device_info;
@@ -544,11 +544,11 @@ void FlowModelSender::AddDynamicSchedInfo(const DeployState &deploy_state, const
     if (iter != dynamic_sched_model.end()) {
       for (const auto &idx : iter->second.status_input_queue_indices) {
         submodel_desc.add_status_input_queue_indices(idx);
-        GELOGI("DynamicSched add status input queue indice=%d, model name=%s.", idx, model_instance_name.c_str());
+        GELOGI("DynamicSched add status input queue index=%d, model name=%s.", idx, model_instance_name.c_str());
       }
       for (const auto &idx : iter->second.status_output_queue_indices) {
         submodel_desc.add_status_output_queue_indices(idx);
-        GELOGI("DynamicSched add status output queue indice=%d, model name=%s.", idx, model_instance_name.c_str());
+        GELOGI("DynamicSched add status output queue index=%d, model name=%s.", idx, model_instance_name.c_str());
       }
     }
   }

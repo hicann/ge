@@ -573,7 +573,7 @@ int64_t TeCacheSpaceManager::GetCacheSpaceMaxSizeCfg() {
     return DEFAULT_MAX_OP_CACHE_SIZE * SIZE_MB_UNIT;
   }
   if (maxSizeIntCfg == 0 || maxSizeIntCfg < CACHE_AGING_FUCNTION_SWITCH || maxSizeIntCfg >= INT_MAX) {
-    TE_WARNLOGF("ASCEND_MAX_OP_CACHE_SIZE[%s] is invalid, it should be -1 or [1, %ld), use default size:500.",
+    TE_WARNLOGF("ASCEND_MAX_OP_CACHE_SIZE[%s] is invalid, it should be -1 or [1, %ld), use default size:500 MB.",
                 maxCacheSizeCfg.c_str(), INT_MAX);
     std::map<std::string, std::string> maxSizeMap = {{"invalid_value", maxCacheSizeCfg},
                                                      {"argument", "ASCEND_MAX_OP_CACHE_SIZE"}};

@@ -2228,12 +2228,12 @@ Status DeployPlannerBase::AssignDynamicSchedDequeueQueue(const DeployPlan::Queue
   if (queue_info.queue_action == DeployPlan::QueueAction::kStatus) {
     auto &submodel_info = MutableSubmodelInfo(model_instance_name);
     submodel_info.status_input_queue_indices.push_back(dst_endpoint_idx);
-    GELOGI("DynamicSched, add status input indices, model instance name=%s, input indice=%d.",
+    GELOGI("DynamicSched, add status input indices, model instance name=%s, input indices=%d.",
            model_instance_name.c_str(), dst_endpoint_idx);
   } else {
     auto &submodel_info = MutableSubmodelInfo(model_instance_name);
     submodel_info.sched_input_queue_indices.push_back(dst_endpoint_idx);
-    GELOGI("DynamicSched, add sched input indices, model instance name=%s, input indice=%d.",
+    GELOGI("DynamicSched, add sched input indices, model instance name=%s, input indices=%d.",
            model_instance_name.c_str(), dst_endpoint_idx);
     deploy_plan_.dynamic_sched_plan_.datagw_request_bindings_[src_endpoint_idx] = dst_endpoint_idx;
     GELOGI("DynamicSched, datagw request bindings, datagw input=%d, sched app output=%d.", dst_endpoint_idx,

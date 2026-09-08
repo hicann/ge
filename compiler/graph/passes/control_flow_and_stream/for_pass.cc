@@ -73,7 +73,7 @@ Status ForPass::Run(NodePtr &node) {
     return FAILED;
   }
 
-  GE_CHK_STATUS_RET(UpdateForBodyInputMapping(while_info), "[Update][InputMapping] for for-body-graph failed, node:%s.",
+  GE_CHK_STATUS_RET(UpdateForBodyInputMapping(while_info), "[Update][InputMapping] for-body-graph failed, node:%s.",
                     node->GetName().c_str());
 
   // for node has and only has one subgraph

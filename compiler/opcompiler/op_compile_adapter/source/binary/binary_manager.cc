@@ -610,7 +610,7 @@ void BinaryManager::GetConstValue(const std::string &key, std::string &dtype, js
   if (iter != constValue.end()) {
     valueJson = iter.value();
   } else {
-    TE_DBGLOGF("Get const value value did not succeed.");
+    TE_DBGLOGF("Get const value did not succeed.");
   }
 }
 
