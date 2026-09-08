@@ -124,6 +124,11 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 
 **Use Skill**: `ge-code-reviewer`
 
+### PR Log Check
+> **Trigger Words**: check PR log, PR log check, log spec check, log check, check log, one-click log check, log evaluation, check this PR log
+
+**Use Skill**: `cann-pr-log-check`
+
 ### Design Document Checklist
 
 > **Trigger Words**: Design document, design spec, spec output, design document, design solution output, brainstorming output document, write design document, write spec, write design, save spec, save spec, save design, write to docs/superpowers/specs, design solution, architecture design, technical solution

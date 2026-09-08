@@ -122,6 +122,11 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 
 **使用技能**: `ge-code-reviewer`
 
+### PR 日志规范检查（PR Log Check）
+> **触发词**：检查PR日志、PR日志检查、日志规范检查、log check、检查日志、检查改动日志、检查修改的日志、一键日志检查、日志检查、log evaluation、检查这个PR的日志、看看日志有没有问题
+
+**使用技能**: `cann-pr-log-check`
+
 ### 设计文档检查项（Design Document Checklist）
 
 > **触发词**：设计文档、设计spec、spec输出、design document、设计方案输出、brainstorming 输出文档、写入设计文档、写spec、写设计、保存spec、save spec、save design、写入 docs/superpowers/specs、设计方案、架构设计、技术方案
