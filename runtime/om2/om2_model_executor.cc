@@ -1503,11 +1503,15 @@ class Om2ModelExecutor::Impl {
   ge::Status GetAippType(const uint32_t index, ge::InputAippType &aipp_type, size_t &aipp_data_index) const {
     if (!has_aipp_ || index >= aipp_infos_.size()) {
       aipp_type = ge::DATA_WITHOUT_AIPP;
-      aipp_data_index = 0xFFFFFFFFU;
+      aipp_data_index = kOm2InvalidAippDataIndex;
       return ge::SUCCESS;
     }
     aipp_type = aipp_infos_[index].aipp_type;
-    aipp_data_index = aipp_infos_[index].aipp_data_index;
+    if (aipp_type != ge::DATA_WITH_DYNAMIC_AIPP) {
+      aipp_data_index = kOm2InvalidAippDataIndex;
+    } else {
+      aipp_data_index = aipp_infos_[index].aipp_data_index;
+    }
     return ge::SUCCESS;
   }
 

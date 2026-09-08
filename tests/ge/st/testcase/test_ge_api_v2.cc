@@ -2494,4 +2494,24 @@ TEST_F(GeApiV2Test, InitializeWithEnablePcieThroughOption) {
   GEFinalizeV2();
   ReInitGe();
 }
+
+TEST_F(GeApiV2Test, InitializeWithPcieThroughEnvVarDisabled) {
+  GEFinalizeV2();
+  (void)setenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE", "0", 1);
+  std::map<AscendString, AscendString> options = {{"ge.exec.disable_pcie_through", "0"}};
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GEFinalizeV2();
+  (void)unsetenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  ReInitGe();
+}
+
+TEST_F(GeApiV2Test, InitializeWithPcieThroughEnvVarEnabled) {
+  GEFinalizeV2();
+  (void)setenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE", "1", 1);
+  std::map<AscendString, AscendString> options = {{"ge.exec.disable_pcie_through", "0"}};
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GEFinalizeV2();
+  (void)unsetenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  ReInitGe();
+}
 }  // namespace ge

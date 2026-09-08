@@ -3150,7 +3150,7 @@ TEST_F(Om2ModelExecutorUt, GetAippType_StaticAipp_ReturnsCorrectType) {
   const auto status = executor.GetAippType(0U, aipp_type, aipp_data_index);
   EXPECT_EQ(status, SUCCESS);
   EXPECT_EQ(aipp_type, ge::DATA_WITH_STATIC_AIPP);
-  EXPECT_EQ(aipp_data_index, 0U);
+  EXPECT_EQ(aipp_data_index, 0xFFFFFFFFU);
 }
 
 TEST_F(Om2ModelExecutorUt, GetAippType_DynamicAipp_ReturnsCorrectType) {
@@ -3176,6 +3176,7 @@ TEST_F(Om2ModelExecutorUt, GetAippType_DynamicAippConf_ReturnsCorrectType) {
   const auto status = executor.GetAippType(0U, aipp_type, aipp_data_index);
   EXPECT_EQ(status, SUCCESS);
   EXPECT_EQ(aipp_type, ge::DYNAMIC_AIPP_NODE);
+  EXPECT_EQ(aipp_data_index, 0xFFFFFFFFU);
 }
 
 TEST_F(Om2ModelExecutorUt, GetOrigInputInfo_NoAipp_ReturnsNotExist) {

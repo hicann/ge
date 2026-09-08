@@ -694,7 +694,7 @@ TEST_F(Om2CodegenUt, AstDsl_AllPublicInterfaces_Ok) {
                                 "auto ne_v = (lhs != 1);\n",
                                 "auto lt_v = (lhs < rhs);\n",
                                 "auto le_v = (lhs <= rhs);\n",
-                                "auto gt_v = (lhs > rhs);\n",
+                                "auto gt_v = lhs > rhs;\n",
                                 "auto ge_v = (lhs >= rhs);\n",
                                 "auto land_v = (lhs && rhs);\n",
                                 "auto lor_v = (lhs || rhs);\n",
@@ -722,7 +722,7 @@ TEST_F(Om2CodegenUt, AstDsl_AllPublicInterfaces_Ok) {
                                 "auto reinterpret_v = reinterpret_cast<void *>(ptr);\n",
                                 "auto init_v = {lhs, rhs, nullptr};\n",
                                 "obj.field = Compute(lhs, rhs, \"string_literal\");\n",
-                                "if ((lhs > rhs)) {\n",
+                                "if (lhs > rhs) {\n",
                                 "return lhs;\n",
                                 "return rhs;\n",
                             });

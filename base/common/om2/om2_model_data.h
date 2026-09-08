@@ -52,9 +52,10 @@ struct Om2ProgramBody {
 };
 
 /// AIPP 元数据，编译期从 ComputeGraph 提取，序列化到 model_meta.json 的 aipp 字段
+constexpr size_t kOm2InvalidAippDataIndex = 0xFFFFFFFFUL;
 struct Om2AippMeta {
   ge::InputAippType aipp_type = ge::DATA_WITHOUT_AIPP;
-  size_t aipp_data_index = 0U;
+  size_t aipp_data_index = kOm2InvalidAippDataIndex;
   ge::AippConfigInfo aipp_config_info;
   std::vector<ge::InputOutputDims> aipp_input_dims;
   std::vector<ge::InputOutputDims> aipp_output_dims;

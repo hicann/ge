@@ -417,9 +417,13 @@ static Status ExtractAippMetaFromOpDesc(const OpDescPtr &op_desc, const std::map
   if (ge::AttrUtils::GetNamedAttrs(op_desc, ATTR_NAME_AIPP, aipp_attr)) {
     ConvertAippAttrToConfigInfo(aipp_attr, meta.aipp_config_info);
   }
-  const std::string *related_name = ge::AttrUtils::GetStr(op_desc, ATTR_DATA_AIPP_DATA_NAME_MAP);
-  if (related_name != nullptr) {
-    meta.aipp_data_index = ResolveAippDataIndex(data_index_map, *related_name);
+  if (meta.aipp_type == ge::DATA_WITH_DYNAMIC_AIPP) {
+    const std::string *related_name = ge::AttrUtils::GetStr(op_desc, ATTR_DATA_AIPP_DATA_NAME_MAP);
+    if (related_name != nullptr) {
+      meta.aipp_data_index = ResolveAippDataIndex(data_index_map, *related_name);
+    }
+  } else {
+    meta.aipp_data_index = gert::kOm2InvalidAippDataIndex;
   }
   std::vector<std::string> aipp_inputs;
   std::vector<std::string> aipp_outputs;

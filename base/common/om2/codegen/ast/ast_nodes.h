@@ -31,7 +31,18 @@ class AstNode {
 
 class DeclNode : public AstNode {};
 class Stmt : public AstNode {};
-class Expr : public AstNode {};
+class Expr : public AstNode {
+ public:
+  void SetNeedParen(bool v) {
+    need_paren_ = v;
+  }
+  bool GetNeedParen() const {
+    return need_paren_;
+  }
+
+ private:
+  bool need_paren_ = true;
+};
 
 enum class BuiltinType : uint8_t {
   kVoid = 0,

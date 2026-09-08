@@ -9,6 +9,7 @@
  */
 
 #include "bg_tiling.h"
+#include <cstdlib>
 #include <nlohmann/json.hpp>
 #include "common/checker.h"
 #include "common/util.h"
@@ -47,6 +48,12 @@ namespace bg {
 namespace {
 
 bool IsPcieThroughEnabled() {
+  const char *pcie_through_check_env = std::getenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  if (pcie_through_check_env == nullptr || std::string(pcie_through_check_env) != "1") {
+    GELOGI("pcie through check is not enabled (OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE=%s)",
+           (pcie_through_check_env == nullptr) ? "0" : pcie_through_check_env);
+    return false;
+  }
   std::string disable_pcie_through;
   if (ge::GetContext().GetOption("ge.exec.disable_pcie_through", disable_pcie_through) == ge::GRAPH_SUCCESS &&
       disable_pcie_through == "1") {

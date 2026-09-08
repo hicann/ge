@@ -5986,6 +5986,8 @@ TEST_F(UtestGraphManagerTest, test_ParseHintInputShape_invalid_pattern) {
 }
 
 TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SkipWhenDisabledByOption) {
+  EnvValueGuard env_guard("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  (void)setenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE", "1", 1);
   auto back_options = ge::GetThreadLocalContext().GetAllGlobalOptions();
   auto global_options = back_options;
   global_options["ge.exec.disable_pcie_through"] = "1";
@@ -6004,6 +6006,8 @@ TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SkipWhenDisabledByOption) {
 }
 
 TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SkipWhenPlatformNotSupport) {
+  EnvValueGuard env_guard("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  (void)setenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE", "1", 1);
   auto graph = CreateGraphWithNullOutput();
   GraphManager graph_manager;
   EXPECT_EQ(graph_manager.ProcessPcieThrough(graph), ge::SUCCESS);
@@ -6015,6 +6019,8 @@ TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SkipWhenPlatformNotSupport) {
 }
 
 TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SetsFlagWhenSupported) {
+  EnvValueGuard env_guard("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  (void)setenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE", "1", 1);
   SetPcieThroughPartialSupport(true);
   gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
   auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
@@ -6038,6 +6044,54 @@ TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SetsFlagWhenSupported) {
   pcie_through_flag = false;
   EXPECT_TRUE(ge::AttrUtils::GetBool(cast2_node->GetOpDesc(), ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag));
   EXPECT_TRUE(pcie_through_flag);
+
+  SetPcieThroughPartialSupport(false);
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
+}
+
+TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SkipWhenEnvVarNotSet) {
+  EnvValueGuard env_guard("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  (void)unsetenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  SetPcieThroughPartialSupport(true);
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("Cast");
+  ASSERT_NE(op_impl_func, nullptr);
+  op_impl_func->SetSupportPcieThrough();
+
+  auto graph = CreateGraphWithNullOutput();
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.ProcessPcieThrough(graph), ge::SUCCESS);
+
+  auto cast1_node = graph->FindNode("cast1");
+  ASSERT_NE(cast1_node, nullptr);
+  bool pcie_through_flag = true;
+  EXPECT_FALSE(ge::AttrUtils::GetBool(cast1_node->GetOpDesc(), ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag));
+
+  SetPcieThroughPartialSupport(false);
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
+}
+
+TEST_F(UtestGraphManagerTest, ProcessPcieThrough_SkipWhenEnvVarZero) {
+  EnvValueGuard env_guard("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  (void)setenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE", "0", 1);
+  SetPcieThroughPartialSupport(true);
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("Cast");
+  ASSERT_NE(op_impl_func, nullptr);
+  op_impl_func->SetSupportPcieThrough();
+
+  auto graph = CreateGraphWithNullOutput();
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.ProcessPcieThrough(graph), ge::SUCCESS);
+
+  auto cast1_node = graph->FindNode("cast1");
+  ASSERT_NE(cast1_node, nullptr);
+  bool pcie_through_flag = true;
+  EXPECT_FALSE(ge::AttrUtils::GetBool(cast1_node->GetOpDesc(), ge::ATTR_NAME_PCIE_THROUGH_FLAG, pcie_through_flag));
 
   SetPcieThroughPartialSupport(false);
   gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);

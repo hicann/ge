@@ -461,6 +461,7 @@ IfStmt *IfStmt::Create(AstContext &ctx, Expr *cond, BlockStmt *then_block, Block
                        bool is_preprocessor) {
   GE_ASSERT_NOTNULL(cond);
   GE_ASSERT_NOTNULL(then_block);
+  cond->SetNeedParen(false);
   return AllocateNode<IfStmt>(ctx, cond, then_block, else_block, is_preprocessor);
 }
 
@@ -506,6 +507,7 @@ Status BreakStmt::Accept(CodeEmitter &emitter, std::string &output) const {
 }
 
 SwitchStmt *SwitchStmt::Create(AstContext &ctx, Expr *cond, BlockStmt *body) {
+  cond->SetNeedParen(false);
   return AllocateNode<SwitchStmt>(ctx, cond, body);
 }
 Status SwitchStmt::Accept(CodeEmitter &emitter, std::string &output) const {

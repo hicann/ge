@@ -39,6 +39,7 @@
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "aicpu_bin_handler.h"
+#include "kernel/common_kernel_impl/infer_shape.h"
 
 using namespace ge;
 
@@ -420,6 +421,12 @@ ge::graphStatus AicpuHostExecFunc(KernelContext *context) {
   AicpuHostProcFunc aicpu_host_execute_func = *(AicpuHostProcFunc *)aicpu_host_execute_addr;
   GE_ASSERT_NOTNULL(aicpu_host_execute_func);
   GE_ASSERT_SUCCESS(aicpu_host_execute_func(context));
+
+  const auto extended_context = reinterpret_cast<ExtendedKernelContext *>(context);
+  GE_ASSERT_NOTNULL(extended_context);
+  const auto compute_node_info = extended_context->GetComputeNodeInfo();
+  GE_ASSERT_NOTNULL(compute_node_info);
+  GE_ASSERT_SUCCESS(TransformAllOutputsShape(compute_node_info, context));
   return ge::GRAPH_SUCCESS;
 }
 
