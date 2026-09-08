@@ -79,7 +79,7 @@ class ExecutorContext {
     virtual Status DoLoadModelWithQ(const ModelData &model_data, const ComputeGraphPtr &root_graph,
                                     const LoadParam &params);
 
-    virtual Status DoUnloadModel(uint32_t model_id);
+    Status DoUnloadModel(uint32_t model_id);
     virtual std::unique_ptr<DynamicModelExecutor> CreateDynamicModelExecutor(bool is_host);
     virtual std::unique_ptr<ProxyDynamicModelExecutor> CreateProxyDynamicModelExecutor();
 
