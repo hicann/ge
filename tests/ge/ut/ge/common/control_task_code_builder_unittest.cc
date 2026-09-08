@@ -341,7 +341,7 @@ TEST_F(ControlTaskCodeGeneratorUt, GenerateControlTaskFiles_Ok) {
   EXPECT_NE(load_file.find("DispatchLabelGotoEx"), std::string::npos);
   EXPECT_NE(load_file.find("return DispatchLabelGotoEx(op, ctx)"), std::string::npos);
   EXPECT_NE(load_file.find("MallocDeviceMemory"), std::string::npos);
-  EXPECT_NE(load_file.find("if ((mem_type == RT_MEMORY_TS))"), std::string::npos);
+  EXPECT_NE(load_file.find("if (mem_type == RT_MEMORY_TS)"), std::string::npos);
   EXPECT_NE(load_file.find("OM2_CHK_STATUS(aclrtMemcpy"), std::string::npos);
 
   [[maybe_unused]] const std::string expected_header = R"(#include <iostream>
@@ -1240,7 +1240,7 @@ Om2Model::~Om2Model() {
 aclError Om2Model::InitResources(const GertModelExternalResources &external_resources) {
   OM2_LOGI("InitResources begin");
   // 1. 创建 model
-  if ((external_resources.external_rt_model != nullptr)) {
+  if (external_resources.external_rt_model != nullptr) {
     model_handle_ = external_resources.external_rt_model;
     is_external_rt_model_ = true;
   } else {
@@ -1252,8 +1252,8 @@ aclError Om2Model::InitResources(const GertModelExternalResources &external_reso
 
   // 3. 创建其他资源
   // 创建下沉Stream并绑定模型
-  if ((external_resources.external_stream_num != 0U)) {
-    if ((external_resources.external_stream_num != stream_list_.size())) {
+  if (external_resources.external_stream_num != 0U) {
+    if (external_resources.external_stream_num != stream_list_.size()) {
       OM2_LOGE("external_stream_num mismatch, expected %zu, got %lu", stream_list_.size(), external_resources.external_stream_num);
       return ACL_ERROR_FAILURE;
     }
@@ -1277,8 +1277,8 @@ aclError Om2Model::InitResources(const GertModelExternalResources &external_reso
   OM2_CHK_STATUS(aclmdlRIBindStream(model_handle_, stream_list_[2], bind2_flag));
   is_stream_list_bind_ = true;
   // 创建Notify
-  if ((external_resources.external_notify_num != 0U)) {
-    if ((external_resources.external_notify_num != notify_list_.size())) {
+  if (external_resources.external_notify_num != 0U) {
+    if (external_resources.external_notify_num != notify_list_.size()) {
       OM2_LOGE("external_notify_num mismatch, expected %zu, got %lu", notify_list_.size(), external_resources.external_notify_num);
       return ACL_ERROR_FAILURE;
     }
@@ -1292,8 +1292,8 @@ aclError Om2Model::InitResources(const GertModelExternalResources &external_reso
     }
   }
   // 创建Event
-  if ((external_resources.external_event_num != 0U)) {
-    if ((external_resources.external_event_num != event_list_.size())) {
+  if (external_resources.external_event_num != 0U) {
+    if (external_resources.external_event_num != event_list_.size()) {
       OM2_LOGE("external_event_num mismatch, expected %zu, got %lu", event_list_.size(), external_resources.external_event_num);
       return ACL_ERROR_FAILURE;
     }
@@ -1307,8 +1307,8 @@ aclError Om2Model::InitResources(const GertModelExternalResources &external_reso
     }
   }
   // 创建Label
-  if ((external_resources.external_label_num != 0U)) {
-    if ((external_resources.external_label_num != label_list_.size())) {
+  if (external_resources.external_label_num != 0U) {
+    if (external_resources.external_label_num != label_list_.size()) {
       OM2_LOGE("external_label_num mismatch, expected %zu, got %lu", label_list_.size(), external_resources.external_label_num);
       return ACL_ERROR_FAILURE;
     }
@@ -1332,7 +1332,7 @@ aclError Om2Model::ReleaseResources() {
   OM2_LOGI("ReleaseResources begin");
   if (!is_external_labels_) {
     for (auto label : label_list_) {
-      if ((label != nullptr)) {
+      if (label != nullptr) {
         OM2_CHK_STATUS(aclrtDestroyLabel(label));
       }
     }
@@ -1358,7 +1358,7 @@ aclError Om2Model::ReleaseResources() {
     }
   }
   for (auto &label : label_switch_label_list_) {
-    if ((label.second != nullptr)) {
+    if (label.second != nullptr) {
       OM2_CHK_STATUS(aclrtDestroyLabelList(label.second));
     }
   }
@@ -1367,7 +1367,7 @@ aclError Om2Model::ReleaseResources() {
   }
   for (auto &label_goto_arg : label_goto_args_) {
     void *arg_addr = label_goto_arg.second.first;
-    if ((arg_addr != nullptr)) {
+    if (arg_addr != nullptr) {
       OM2_CHK_STATUS(aclrtDestroyLabelList(arg_addr));
     }
   }
@@ -1375,16 +1375,16 @@ aclError Om2Model::ReleaseResources() {
   if (!is_external_rt_model_) {
     OM2_CHK_STATUS(aclmdlRIDestroy(model_handle_));
   }
-  if ((session_scope_mem_ptr_ != nullptr)) {
+  if (session_scope_mem_ptr_ != nullptr) {
     OM2_CHK_STATUS(aclrtFree(session_scope_mem_ptr_));
   }
   for (int i = 0; (i < dev_ext_info_mem_ptrs_.size()); i++) {
-    if ((dev_ext_info_mem_ptrs_[i] != nullptr)) {
+    if (dev_ext_info_mem_ptrs_[i] != nullptr) {
       OM2_CHK_STATUS(aclrtFree(dev_ext_info_mem_ptrs_[i]));
     }
   }
   for (int i = 0; (i < dev_dynamic_mem_ptrs_.size()); i++) {
-    if ((dev_dynamic_mem_ptrs_[i] != nullptr)) {
+    if (dev_dynamic_mem_ptrs_[i] != nullptr) {
       OM2_CHK_STATUS(aclrtFree(dev_dynamic_mem_ptrs_[i]));
     }
   }

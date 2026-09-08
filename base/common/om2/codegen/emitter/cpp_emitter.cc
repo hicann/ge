@@ -544,7 +544,9 @@ Status CppEmitter::Emit(const AssignExpr &node, std::string &output) {
 }
 
 Status CppEmitter::Emit(const BinaryExpr &node, std::string &output) {
-  (void)output.append("(");
+  if (node.GetNeedParen()) {
+    (void)output.append("(");
+  }
   auto status = node.GetLhs()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
@@ -556,7 +558,9 @@ Status CppEmitter::Emit(const BinaryExpr &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  (void)output.append(")");
+  if (node.GetNeedParen()) {
+    (void)output.append(")");
+  }
   return SUCCESS;
 }
 
