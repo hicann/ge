@@ -145,7 +145,7 @@ ge::graphStatus AddLaunchCopyFlowH2DInputDescFromCopyFlow(const ge::OpDescPtr &o
 }
 
 SplitCopyFlowLaunchNodes CreateSplitCopyFlowLaunchNodesFromCopyFlow(ge::ExecuteGraph *const graph,
-                                                                    ge::FastNode *const copy_flow_node) {
+                                                                    const ge::FastNode *const copy_flow_node) {
   const auto copy_flow_count = static_cast<size_t>(copy_flow_node->GetDataOutNum());
   GE_ASSERT_TRUE((copy_flow_count > 0U) &&
                  (copy_flow_count <= static_cast<size_t>(std::numeric_limits<int64_t>::max())));
@@ -263,8 +263,8 @@ ge::graphStatus AddSplitCopyFlowInputEdges(ge::FastNode *const copy_flow_node,
   return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus MoveCopyFlowOutputEdges(ge::FastNode *const copy_flow_node, ge::FastNode *const prepare_result_node,
-                                        ge::FastNode *const launch_copy_node) {
+ge::graphStatus MoveCopyFlowOutputEdges(const ge::FastNode *const copy_flow_node,
+                                        ge::FastNode *const prepare_result_node, ge::FastNode *const launch_copy_node) {
   auto graph = copy_flow_node->GetExtendInfo()->GetOwnerGraphBarePtr();
   GE_ASSERT_NOTNULL(graph);
   std::vector<ge::Edge<ge::FastNode> *> output_edges;
@@ -302,7 +302,7 @@ ge::graphStatus SplitLegacyCopyFlowLaunchNode(ge::FastNode *const copy_flow_node
   return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus SplitLegacyCopyFlowLaunchNodes(ge::ExecuteGraph *const graph, bool &changed) {
+ge::graphStatus SplitLegacyCopyFlowLaunchNodes(const ge::ExecuteGraph *const graph, bool &changed) {
   const auto copy_flow_nodes = graph->GetAllNodes(IsLegacyCopyFlowLaunchNode);
   for (const auto copy_flow_node : copy_flow_nodes) {
     GE_ASSERT_SUCCESS(SplitLegacyCopyFlowLaunchNode(copy_flow_node, changed));
@@ -364,7 +364,7 @@ struct SplitDeviceCopyNodes {
   ge::FastNode *launch_copy_node;
 };
 
-SplitDeviceCopyNodes CreateSplitDeviceCopyNodes(ge::ExecuteGraph *const graph, ge::FastNode *const copy_node,
+SplitDeviceCopyNodes CreateSplitDeviceCopyNodes(ge::ExecuteGraph *const graph, const ge::FastNode *const copy_node,
                                                 size_t output_index) {
   const auto split_node_name = copy_node->GetName() + "_Split_" + std::to_string(output_index);
   auto calc_op_desc = ge::MakeShared<ge::OpDesc>(split_node_name + "_CalcDeviceCopySizes", "CalcDeviceCopySizes");
@@ -481,7 +481,7 @@ ge::graphStatus AddRefTensorLaunchControlEdges(ge::ExecuteGraph *const graph, ge
   return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus MoveDeviceCopyOutputEdges(ge::FastNode *const copy_node, size_t output_index,
+ge::graphStatus MoveDeviceCopyOutputEdges(const ge::FastNode *const copy_node, size_t output_index,
                                           ge::FastNode *const share_copy_result_node,
                                           ge::FastNode *const launch_copy_node) {
   auto graph = copy_node->GetExtendInfo()->GetOwnerGraphBarePtr();
@@ -531,7 +531,7 @@ ge::graphStatus SplitMixedDeviceCopyNode(ge::FastNode *const copy_node, bool &ch
   return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus SplitRemainingMixedDeviceCopyNodes(ge::ExecuteGraph *const graph, bool &changed) {
+ge::graphStatus SplitRemainingMixedDeviceCopyNodes(const ge::ExecuteGraph *const graph, bool &changed) {
   const auto copy_nodes = graph->GetAllNodes(IsMixedDeviceCopyNode);
   for (const auto copy_node : copy_nodes) {
     GE_ASSERT_SUCCESS(SplitMixedDeviceCopyNode(copy_node, changed));
