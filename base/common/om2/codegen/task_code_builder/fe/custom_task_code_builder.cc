@@ -19,7 +19,7 @@
 
 namespace ge {
 namespace {
-constexpr uint32_t kAddressLen = static_cast<uint32_t>(sizeof(uint64_t));
+constexpr uint64_t kAddressLen = sizeof(uint64_t);
 }  // namespace
 
 int64_t CustomTaskCodeBuilder::ParseOpIndex(const domi::TaskDef &task_def) {
@@ -103,7 +103,7 @@ Status CustomTaskCodeBuilder::RenderOpDefTableFields(std::vector<std::pair<std::
       {"task_type", static_cast<int64_t>(build_data_.semantic.task_type)},
   };
   auto custom_dispatch = ast_.DesignatedInit({{"custom", ast_.DesignatedInit(custom_fields)}});
-  fields.emplace_back("dispatch_info", custom_dispatch);
+  (void)fields.emplace_back("dispatch_info", custom_dispatch);
 
   return SUCCESS;
 }
@@ -126,7 +126,7 @@ void CustomTaskCodeBuilder::AssignTaskLocalIoNames() {
   }
 }
 
-void CustomTaskCodeBuilder::InitArgsTableEntry(const TaskSemanticContributeContext &context, const uint32_t args_size) {
+void CustomTaskCodeBuilder::InitArgsTableEntry(const TaskSemanticContributeContext &context, const uint64_t args_size) {
   (void)build_data_.semantic.args_table_entry.emplace();
   build_data_.semantic.args_table_entry->table_index = *context.next_args_table_index;
   build_data_.semantic.args_table_entry->args_size = args_size;
@@ -138,14 +138,14 @@ Status CustomTaskCodeBuilder::RenderDispatchCustomKernel(const VarRef &op, const
                                                          std::vector<DeclNode *> &items) {
   std::vector<BodyItem> body;
   auto setup = RenderDispatchSetup(op, ctx);
-  body.insert(body.end(), setup.begin(), setup.end());
+  (void)body.insert(body.end(), setup.begin(), setup.end());
   body.push_back(RenderDispatchLoop(op, ctx));
   auto distribution = RenderDistribution(op, ctx);
-  body.insert(body.end(), distribution.begin(), distribution.end());
+  (void)body.insert(body.end(), distribution.begin(), distribution.end());
   return TaskCodeBuilderUtil::RenderDispatchFunc(ast_, "DispatchCustomKernel", body, items);
 }
 
-std::vector<BodyItem> CustomTaskCodeBuilder::RenderDispatchSetup(const VarRef &op, const VarRef &ctx) {
+std::vector<BodyItem> CustomTaskCodeBuilder::RenderDispatchSetup(const VarRef &op, const VarRef &ctx) const {
   return {
       ast_.VarDecl(
           ast_.Var("ArgsInfo *", "args_info"),
@@ -189,7 +189,7 @@ BodyItem CustomTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRe
                   });
 }
 
-std::vector<BodyItem> CustomTaskCodeBuilder::RenderDistribution(const VarRef &op, const VarRef &ctx) {
+std::vector<BodyItem> CustomTaskCodeBuilder::RenderDistribution(const VarRef &op, const VarRef &ctx) const {
   auto custom = op.Arrow("dispatch_info").Attr("custom");
   auto stream = ctx.Attr("stream_list")[custom.Attr("stream_id")];
 
@@ -200,7 +200,7 @@ std::vector<BodyItem> CustomTaskCodeBuilder::RenderDistribution(const VarRef &op
   };
 }
 
-std::vector<BodyItem> CustomTaskCodeBuilder::HandleInputOutputArg(const VarRef &a, const VarRef &ctx) {
+std::vector<BodyItem> CustomTaskCodeBuilder::HandleInputOutputArg(const VarRef &a, const VarRef &ctx) const {
   return {
       ast_.Assign(
           ast_.Var("", "_addr"),
