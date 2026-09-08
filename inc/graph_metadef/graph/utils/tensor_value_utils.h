@@ -15,7 +15,6 @@
 
 #include "graph/attr_value_serializable.h"
 #include "graph/def_types.h"
-#include "graph/error_codes.h"
 #include "graph/ge_tensor.h"
 #include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/type_utils.h"
