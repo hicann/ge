@@ -203,5 +203,5 @@ OpCompiler *LocalCompiler::CreateCompiler() {
   return new (std::nothrow) LocalCompiler();
 }
 
-static OpCompilerRegister g_registerNativeCompiler(NATIVE_COMPILER, &LocalCompiler::CreateCompiler);
+static OpCompilerRegister g_registerNativeCompiler(CompileStrategy::NATIVE_COMPILER, &LocalCompiler::CreateCompiler);
 }  // namespace acl
