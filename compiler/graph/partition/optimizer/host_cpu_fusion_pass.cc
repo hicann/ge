@@ -76,7 +76,7 @@ bool HasValidHostCpuFusionAttrs(const NodePtr &node) {
 
 bool HasValidHostCpuFusionInputs(const NodePtr &node) {
   const auto op_desc = node->GetOpDesc();
-  for (const auto &input : node->GetAllInDataAnchors()) {
+  for (const auto *input : node->GetAllInDataAnchorsPtr()) {
     if (input == nullptr) {
       GELOGD("Skip HostCPU fusion node[%s]: input anchor is null.", node->GetNamePtr());
       return false;
@@ -221,9 +221,9 @@ void AppendNodeFingerprint(uint64_t &hash, const NodePtr &node) {
     append(op_desc->GetOutputNameByIndex(static_cast<uint32_t>(i)));
     AppendTensorFingerprint(hash, desc);
     const auto output = node->GetOutDataAnchor(static_cast<int32_t>(i));
-    append(std::to_string(output->GetPeerInDataAnchors().size()));
-    for (const auto &consumer : output->GetPeerInDataAnchors()) {
-      append(consumer->GetOwnerNode()->GetName());
+    append(std::to_string(output->GetPeerInDataAnchorsPtr().size()));
+    for (const auto *consumer : output->GetPeerInDataAnchorsPtr()) {
+      append(consumer->GetOwnerNodeBarePtr()->GetNamePtr());
       append(std::to_string(consumer->GetIdx()));
     }
   }
@@ -401,9 +401,9 @@ HostCpuFusionRegion BuildRegionForSinkGroup(const std::vector<NodePtr> &topologi
   }
   std::unordered_set<const OutDataAnchor *> seen_inputs;
   for (const auto &node : region.nodes) {
-    for (const auto &input : node->GetAllInDataAnchors()) {
+    for (const auto *input : node->GetAllInDataAnchorsPtr()) {
       const auto source = input->GetPeerOutAnchor();
-      if ((source == nullptr) || (region_set.count(source->GetOwnerNode().get()) == 0U)) {
+      if ((source == nullptr) || (region_set.count(source->GetOwnerNodeBarePtr()) == 0U)) {
         AddExternalInput(source, region.external_inputs, seen_inputs);
       }
     }
@@ -419,7 +419,7 @@ void CollectRegionExternalOutputs(const std::unordered_set<const Node *> &compon
       for (const auto &output : node->GetAllOutDataAnchors()) {
         std::vector<InDataAnchorPtr> external_consumers;
         for (const auto &consumer : output->GetPeerInDataAnchors()) {
-          if (component_set.count(consumer->GetOwnerNode().get()) == 0U) {
+          if (component_set.count(consumer->GetOwnerNodeBarePtr()) == 0U) {
             external_consumers.emplace_back(consumer);
           }
         }
@@ -505,7 +505,7 @@ struct PreparedGraphFusion {
 
 bool AddFusedInputDescs(const HostCpuFusionRegion &region, const OpDescPtr &op_desc) {
   for (size_t i = 0U; i < region.external_inputs.size(); ++i) {
-    const auto owner = region.external_inputs[i]->GetOwnerNode();
+    const auto *owner = region.external_inputs[i]->GetOwnerNodeBarePtr();
     if ((owner == nullptr) || (owner->GetOpDesc() == nullptr) ||
         (op_desc->AddInputDesc(GetHostCpuFusionInputName(region.external_inputs[i], i),
                                owner->GetOpDesc()->GetOutputDesc(region.external_inputs[i]->GetIdx())) != SUCCESS)) {
@@ -519,7 +519,7 @@ bool AddFusedInputDescs(const HostCpuFusionRegion &region, const OpDescPtr &op_d
 
 bool AddFusedOutputDescs(const HostCpuFusionRegion &region, const OpDescPtr &op_desc) {
   for (size_t i = 0U; i < region.external_outputs.size(); ++i) {
-    const auto owner = region.external_outputs[i].source->GetOwnerNode();
+    const auto *owner = region.external_outputs[i].source->GetOwnerNodeBarePtr();
     if ((owner == nullptr) || (owner->GetOpDesc() == nullptr) ||
         (op_desc->AddOutputDesc("output_" + std::to_string(i),
                                 owner->GetOpDesc()->GetOutputDesc(region.external_outputs[i].source->GetIdx())) !=
