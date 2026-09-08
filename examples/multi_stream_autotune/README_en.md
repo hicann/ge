@@ -166,7 +166,7 @@ python3 ge_ms_autotune.py --run-command "..." \
 |---|---|---|
 | `--mode` | `online` | `online` runs locally; `offline` builds OMs and runs them on a target machine |
 | `--run-command` | required (online) | Command under test, quoted as a whole; split with shell lexing and executed directly, not through a shell |
-| `--compile-command` | required (offline) | OM build command; use `{om}` (with `.om`) or `{om_prefix}` (without suffix) for the output path. For dynamic shapes ATC **always** renames the artifact to `<prefix>_<os>_<cpu>.om` (e.g. `_linux_x86_64`, taken from the target runtime environment, with no switch to disable it); the driver accepts both names and only picks the artifact written by the current build |
+| `--compile-command` | required (offline) | OM build command; the output path use `{om_prefix}` |
 | `--target` | required (offline) | Path to the target machine JSON, see [Offline mode](#offline-mode-target-machine) |
 | `--om-dir` | `<current-run-dir>/om` | offline: where OMs and build logs are stored |
 | `--strategies` | `LoadBalance,MainStream` | Candidate strategies: `LoadBalance`, `MainStream`, `WeightedLoadBalance`, `cv` |
@@ -379,30 +379,3 @@ Notes:
 - a failing build aborts immediately; a failing remote run only voids that run, the rest continue,
   and the remote directory is still cleaned up at the end;
 - the CANN/GE version and chip model must match across the build machine, the OM and the target.
-
-## Moving the result into production
-
-Pin the tuning result on the business side instead of keeping the sample pass around:
-
-- online: pass the option `ge.autoMultistreamParallelMode=<config>` when initializing the Session;
-- offline: pass the same option to `atc`;
-- uninstall the tuning pass (see step 1) so `_auto_multistream_tuning_mode` is no longer written
-  and debug recording stays off.
-
-## Troubleshooting
-
-| Symptom | Where to look |
-|---|---|
-| Every candidate reports a `mode` mismatch | The pass is missing, installed in the wrong directory, or shadowed by another pass under `vendors` |
-| No STEP record at all | The GE build has no recording support, or the workload uses an uncovered path (`aclmdlExecuteAsyncV2`, DFlow) |
-| An OM2 model produces no result | The OM2 path does not support auto multi-stream, so no candidate can be applied and tuning is impossible |
-| Overlapping intervals reported | The workload submits runs concurrently; serialize it or select a single object with `--main-graph` |
-| Nearly identical costs across candidates | The graph has no parallel branches, or single-operator cost dominates the multi-stream gain |
-| Large CV and unstable conclusions | The device is shared, profiling is still on, or `--repeat`/`--min-steps` are too small |
-| Parameter error together with `ge.enableSingleStream=true` | Single stream and auto multi-stream are mutually exclusive |
-| offline: `sshpass` is reported as missing | Install it on the build machine, or switch to key authentication with `identity_file` |
-| offline: ssh cannot connect or keeps asking for a password | Verify `ssh -i <key> user@host` by hand first; the driver uses `BatchMode=yes` and never prompts |
-| offline: a candidate fails to build | Read `om/compile_<config>.log` under the current run directory and check that `{om_prefix}` matches the real output path |
-| offline: "no OM produced" although the om directory is not empty | Those files are left over from an earlier run; the driver only accepts artifacts written by the current build. Rerun with a fresh `--output-dir` |
-| offline: "multiple OMs produced" | One build command emitted several artifacts (e.g. two architectures); make it emit exactly one per candidate |
-| offline: no STEP record at all | The target program uses an uncovered ACL path, or `cann_env` is unset so the plog lands elsewhere |
