@@ -557,6 +557,12 @@ Status ParseModelDescExtend(const ModelData *modelData, uint8_t *data, size_t si
     GELOGE(ACL_ERROR_GE_PARAM_INVALID, "extend part magic invalid.");
     return ACL_ERROR_GE_LOAD_MODEL;
   }
+  const size_t tlvListSize = size - sizeof(struct ModelExtendHead);
+  if (extendDesc->len > (uint64_t)tlvListSize) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "extend part len[%lu] exceeds tlv list size[%zu].", extendDesc->len,
+           tlvListSize);
+    return ACL_ERROR_GE_LOAD_MODEL;
+  }
   return ParseTlvList(modelData, data + sizeof(struct ModelExtendHead), extendDesc->len, mdlDesc);
 }
 

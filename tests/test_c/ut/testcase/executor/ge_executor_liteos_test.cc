@@ -869,6 +869,38 @@ TEST_F(UtestGEExecutorLiteOSTest, GeExecutorCaseParseModelDescExtendNormal) {
   GeFinalize();
 }
 
+TEST_F(UtestGEExecutorLiteOSTest, GeExecutorCaseParseModelDescExtendLenExceedsPartitionSize) {
+  ExeModelBuilder modelBuilder;
+  modelBuilder
+      .AddPartition(PRE_MODEL_DESC,
+                    [](std::vector<uint8_t> &model) {
+                      ModelDesc desc = {
+                          .task_num = 1,
+                          .workspace_size = 100,
+                          .weight_size = 103,
+                          .weight_type = 0,
+                          .profile_enable = 0,
+                          .model_interrupt = 0,
+                      };
+                      std::copy_n((uint8_t *)(&desc), sizeof(ModelDesc), std::back_inserter(model));
+                    })
+      .AddPartition(PRE_MODEL_DESC_EXTEND, [](std::vector<uint8_t> &model) { StubExtendPartitionNormalLiteOS(model); })
+      // Keep the TLV bytes in the file while excluding the last byte from the declared partition.
+      .AddPartitionPos(PRE_MODEL_DESC_EXTEND, -1)
+      .Build();
+
+  const std::string fileName = "./test.exeom";
+  FILE *f = fopen(fileName.c_str(), "wb+");
+  ASSERT_NE(f, nullptr);
+  ASSERT_EQ(fwrite(modelBuilder.ModelData(), modelBuilder.ModelLen(), 1, f), 1U);
+  ASSERT_EQ(fclose(f), 0);
+
+  GeInitialize();
+  GePartitionSize partitionSize;
+  EXPECT_EQ(GetPartitionSize(fileName.c_str(), &partitionSize), ACL_ERROR_GE_LOAD_MODEL);
+  GeFinalize();
+}
+
 TEST_F(UtestGEExecutorLiteOSTest, GeExecutorCaseParseModelDescExtendAbnormalInvalidModelExtendHead) {
   ExeModelBuilder modelBuilder;
   modelBuilder
