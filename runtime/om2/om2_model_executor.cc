@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include "acl/acl_rt.h"
 #include "registry/op_impl_space_registry_v2.h"
+#include "framework/om2/model_api/om2_model_api.h"
 #include "framework/runtime/rt_session.h"
 #include "framework/runtime/gert_model/gert_model_executor_callbacks.h"
 #include "framework/runtime/dump/model_dump_manager.h"
@@ -53,65 +54,6 @@ namespace {
 constexpr size_t kMaxErrorStringLen = 128U;
 constexpr size_t FILE_MAGIC_HEADER_SIZE = 4U;
 constexpr uint8_t OM2_MAGIC[] = {0x50, 0x4B, 0x03, 0x04};
-
-using GertModelHandle = void *;
-
-// 入参合并为结构体：首字段 struct_size 版本号，新字段只能追加；整数类型统一 uint64_t
-struct GertModelLoadConfig {                                 // 合并 Create+Load：容纳原 Om2ModelCreate 全部参数
-  uint64_t struct_size = sizeof(GertModelLoadConfig);        // 布局变化时更新
-  const char **bin_files = nullptr;                          // 输入：bin 文件路径列表
-  const void **bin_data = nullptr;                           // 输入：bin 内存数据列表
-  uint64_t *bin_size = nullptr;                              // 输入：bin 大小列表
-  uint64_t bin_num = 0;                                      // 输入：bin 数量
-  void **constants = nullptr;                                // 输入：常量
-  void **var_addrs = nullptr;                                // 输入：vars
-  void *work_ptr = nullptr;                                  // 输入：工作内存指针
-  uint64_t *session_id = nullptr;                            // 输入：session id
-  uint64_t model_id = 0;                                     // 输入：model id，打印日志用
-  void *instance_handle = nullptr;                           // Om2ModelExecutor*，回调函数的首参数
-  const struct GertModelLoadCallbacks *callbacks = nullptr;  // 输入：dump 回调表，可空（nullptr = 不使能 dump）
-  int64_t priority = 0;                                      // 输入：优先级
-  uint64_t reuse_zero_copy = 0;                              // 输入：是否复用零拷贝内存
-  aclmdlRI external_rt_model = nullptr;      // 输入：外部创建的 rtModel，可空（nullptr = pbody 自行创建）
-  aclrtStream *external_streams = nullptr;   // 输入：外部创建的 stream 数组，可空
-  uint64_t external_stream_num = 0;          // 输入：外部 stream 数量
-  aclrtEvent *external_events = nullptr;     // 输入：外部创建的 event 数组，可空
-  uint64_t external_event_num = 0;           // 输入：外部 event 数量
-  aclrtLabel *external_labels = nullptr;     // 输入：外部创建的 label 数组，可空
-  uint64_t external_label_num = 0;           // 输入：外部 label 数量
-  aclrtNotify *external_notifies = nullptr;  // 输入：外部创建的 notify 数组，可空
-  uint64_t external_notify_num = 0;          // 输入：外部 notify 数量
-};
-
-struct GertModelRunConfig {
-  uint64_t struct_size = sizeof(GertModelRunConfig);  // 布局变化时更新
-  uint64_t input_count = 0;                           // 输入数量
-  gert::Tensor **input_data = nullptr;                // 输入数据
-  uint64_t output_count = 0;                          // 输出数量
-  gert::Tensor **output_data = nullptr;               // 输出数据
-  uint64_t stream_sync_timeout_ms = 0;                // Run 使用（同步超时）；RunAsync 置 0
-  const struct GertModelRunCallbacks *run_callbacks;
-};
-
-struct GertModelUnloadConfig {
-  uint64_t struct_size = sizeof(GertModelUnloadConfig);  // 布局变化时更新
-};
-
-// ============================================================
-// 接口输出结构：所有接口 Config 为输入，Output 为输出；首字段 struct_size 版本号，新字段只能追加
-// ============================================================
-
-struct GertModelLoadOutput {
-  uint64_t struct_size = sizeof(GertModelLoadOutput);  // 布局变化时更新
-};
-
-struct GertModelRunOutput {
-  uint64_t struct_size = sizeof(GertModelRunOutput);  // 布局变化时更新
-};
-
-struct GertModelUnloadOutput {
-  uint64_t struct_size = sizeof(GertModelUnloadOutput);  // 布局变化时更新
-};
 
 using LoadFunc = int (*)(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
                          struct GertModelLoadOutput *output);

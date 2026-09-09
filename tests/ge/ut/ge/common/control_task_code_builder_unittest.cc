@@ -179,11 +179,12 @@ GeModelPtr CreateGeModelWithControlTasks() {
 }
 
 const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
+    {GeneratedFileIndex::kModelApiHeaderFile, "om2_model_api.h"},
     {GeneratedFileIndex::kKernelRegistryFile, "g1_kernel_reg.cpp"},
     {GeneratedFileIndex::kResourcesFile, "g1_resources.cpp"},
     {GeneratedFileIndex::kArgsManagerFile, "g1_args_manager.cpp"},
     {GeneratedFileIndex::kLoadingAndRunningFile, "g1_load_and_run.cpp"},
-    {GeneratedFileIndex::kInterfaceHeaderFile, "g1_interface.h"},
+    {GeneratedFileIndex::kInterfaceHeaderFile, "g1_internal.h"},
     {GeneratedFileIndex::kCMakeListsFile, "Makefile"},
 };
 
@@ -326,6 +327,10 @@ TEST_F(ControlTaskCodeGeneratorUt, GenerateControlTaskFiles_Ok) {
   std::string header_file;
   ASSERT_EQ(ReadGeneratedArtifact(artifacts, GeneratedFileIndex::kInterfaceHeaderFile, header_file), SUCCESS);
   ASSERT_FALSE(header_file.empty());
+
+  std::string model_api_header;
+  ASSERT_EQ(ReadGeneratedArtifact(artifacts, GeneratedFileIndex::kModelApiHeaderFile, model_api_header), SUCCESS);
+  ASSERT_FALSE(model_api_header.empty());
 
   std::string resources_file;
   ASSERT_EQ(ReadGeneratedArtifact(artifacts, GeneratedFileIndex::kResourcesFile, resources_file), SUCCESS);
@@ -1217,7 +1222,7 @@ int GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadCo
 }
 #endif)";
   [[maybe_unused]] const std::string expected_resources = R"(#line 1 "g1_resources.cpp"
-#include "_interface.h"
+#include "_internal.h"
 
 namespace om2 {
 Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, int32_t priority)

@@ -254,45 +254,4 @@ std::vector<DeclNode *> InterfaceFileCodeGenerator::BuildRtForwardDecls() {
   };
 }
 
-std::vector<DeclNode *> InterfaceFileCodeGenerator::BuildExternalApiDecls() {
-  return {
-      ast_.TypeAlias("void *", "GertModelHandle"),
-      ast_.DeclareFunction(
-          "GertModelLoad",
-          {ast_.Var("const struct GertModelLoadConfig *", "config"), ast_.Var("GertModelHandle *", "model_handle"),
-           ast_.Var("struct GertModelLoadOutput *", "output")},
-          "int32_t"),
-      ast_.DeclareFunction(
-          "GertModelRunAsync",
-          {ast_.Var("GertModelHandle", "model_handle"), ast_.Var("aclrtStream", "stream"),
-           ast_.Var("const struct GertModelRunConfig *", "config"), ast_.Var("struct GertModelRunOutput *", "output")},
-          "int32_t"),
-      ast_.DeclareFunction(
-          "GertModelRun",
-          {ast_.Var("GertModelHandle", "model_handle"), ast_.Var("const struct GertModelRunConfig *", "config"),
-           ast_.Var("struct GertModelRunOutput *", "output")},
-          "int32_t"),
-      ast_.DeclareFunction(
-          "GertModelUnload",
-          {ast_.Var("GertModelHandle", "model_handle"), ast_.Var("const struct GertModelUnloadConfig *", "config"),
-           ast_.Var("struct GertModelUnloadOutput *", "output")},
-          "int32_t"),
-      ast_.DeclareFunction("GertModelGetStreamNum", {}, "uint64_t"),
-      ast_.DeclareFunction("GertModelGetStreamDesc",
-                           {ast_.Var("uint32_t *", "stream_flags"), ast_.Var("uint64_t", "stream_num"),
-                            ast_.Var("void *", "extended_attrs")},
-                           "int32_t"),
-      ast_.DeclareFunction("GertModelGetEventNum", {}, "uint64_t"),
-      ast_.DeclareFunction("GertModelGetEventDesc",
-                           {ast_.Var("uint32_t *", "event_flags"), ast_.Var("uint64_t", "event_num"),
-                            ast_.Var("void *", "extended_attrs")},
-                           "int32_t"),
-      ast_.DeclareFunction("GertModelGetLabelNum", {}, "uint64_t"),
-      ast_.DeclareFunction("GertModelGetNotifyNum", {}, "uint64_t"),
-      ast_.DeclareFunction("GertModelGetNotifyDesc",
-                           {ast_.Var("uint64_t *", "notify_flags"), ast_.Var("uint64_t", "notify_num"),
-                            ast_.Var("void *", "extended_attrs")},
-                           "int32_t"),
-  };
-}
 }  // namespace ge

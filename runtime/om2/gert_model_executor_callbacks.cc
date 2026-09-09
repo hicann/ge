@@ -9,6 +9,7 @@
  */
 
 #include "framework/runtime/gert_model/gert_model_executor_callbacks.h"
+#include "framework/runtime/dump/model_dump_c_api.h"
 
 #include <array>
 #include <cstddef>
