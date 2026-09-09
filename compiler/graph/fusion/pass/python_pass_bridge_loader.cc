@@ -12,13 +12,13 @@
 
 #include <dlfcn.h>
 
-#include <cstdio>
 #include <mutex>
 #include <string>
 #include <vector>
 
 #include "common/python_runtime/python_artifact_utils.h"
 #include "common/python_runtime/python_bridge_loader_utils.h"
+#include "common/python_runtime/python_fallback_codegen_helper.h"
 #include "ge/ge_api_types.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph_metadef/graph/utils/file_utils.h"
@@ -26,56 +26,15 @@
 #include "python_pass_adapter.h"
 #include "python_pass_bridge_loader_helper.h"
 #include "python_pass_bridge_c_api.h"
-#include "python_pass_fallback_codegen_helper.h"
 
 namespace ge {
 namespace fusion {
 namespace {
 constexpr const char *kPythonPassArtifactsRelativePath = "passes/python_pass_artifacts";
-constexpr const char *kPythonRuntimeProbeScript =
-    " -c \"import sys; print('cp%d%d' % sys.version_info[:2]); print(sys.version.split()[0])\" 2>/dev/null";
-
 namespace artifact = ::ge::python_artifact;
 namespace bridge_loader = ::ge::python_bridge_loader;
 namespace loader_helper = python_pass_bridge_loader;
-namespace fallback_codegen = python_pass_fallback_codegen;
-
-bool ReadCommandOutput(const std::string &command, std::string &output) {
-  FILE *fp = popen(command.c_str(), "r");
-  if (fp == nullptr) {
-    return false;
-  }
-  char buffer[256] = {0};
-  while (fgets(buffer, sizeof(buffer), fp) != nullptr) {
-    output += buffer;
-  }
-  const auto ret = pclose(fp);
-  return (ret == 0) && (!output.empty());
-}
-
-bool ProbePythonRuntimeFromCommand(const char *python_command, artifact::PythonRuntimeKey &runtime_key) {
-  std::string output;
-  if (!ReadCommandOutput(std::string(python_command) + kPythonRuntimeProbeScript, output)) {
-    return false;
-  }
-  const auto python_tag = loader_helper::FirstLine(output);
-  if (python_tag.empty()) {
-    return false;
-  }
-  runtime_key = artifact::PythonRuntimeKey{};
-  runtime_key.python_tag = python_tag;
-  runtime_key.version = loader_helper::SecondLine(output);
-  runtime_key.python_command = python_command;
-  runtime_key.source = std::string("PATH command[") + python_command + "]";
-  return true;
-}
-
-fallback_codegen::FallbackCodegenDependencies BuildFallbackCodegenDependencies() {
-  return fallback_codegen::FallbackCodegenDependencies{
-      &ReadCommandOutput,
-      &ProbePythonRuntimeFromCommand,
-  };
-}
+namespace fallback_codegen = ::ge::python_fallback_codegen;
 
 artifact::PythonRuntimeKey ResolveTargetPythonRuntimeKey() {
   auto runtime_key = artifact::ResolveLoadedPythonRuntimeKey();
@@ -83,7 +42,8 @@ artifact::PythonRuntimeKey ResolveTargetPythonRuntimeKey() {
     return runtime_key;
   }
   artifact::PythonRuntimeKey probed_key;
-  if (ProbePythonRuntimeFromCommand("python3", probed_key) || ProbePythonRuntimeFromCommand("python", probed_key)) {
+  if (fallback_codegen::ProbePythonRuntimeFromCommand("python3", probed_key) ||
+      fallback_codegen::ProbePythonRuntimeFromCommand("python", probed_key)) {
     return probed_key;
   }
   return runtime_key;
@@ -221,7 +181,9 @@ class PythonFusionPassBridgeLoader {
   bool TryLoadFallbackBridge(const artifact::PythonRuntimeKey &runtime_key,
                              const bridge_loader::BridgeLoadDependencies &deps) {
     std::string gen_artifact_root;
-    if (!fallback_codegen::RunFallbackCodegen(runtime_key, BuildFallbackCodegenDependencies(), gen_artifact_root)) {
+    if (!fallback_codegen::RunFallbackCodegenForModule(
+            runtime_key, fallback_codegen::BuildFallbackCodegenDependencies(), "ge.passes.fallback_runtime",
+            "run_fallback_codegen", gen_artifact_root)) {
       return false;
     }
     const auto candidate = artifact::LoadBridgeCandidateFromArtifactRoot(gen_artifact_root, runtime_key,

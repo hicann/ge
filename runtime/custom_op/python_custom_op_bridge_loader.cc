@@ -28,6 +28,7 @@
 #include "common/ge_common/string_util.h"
 #include "common/python_runtime/python_artifact_utils.h"
 #include "common/python_runtime/python_bridge_loader_utils.h"
+#include "common/python_runtime/python_fallback_codegen_helper.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/ascend_string.h"
 #include "graph/custom_op_factory.h"
@@ -47,6 +48,7 @@ constexpr const char *kPythonPackageInitFile = "__init__.py";
 
 namespace artifact = ::ge::python_artifact;
 namespace bridge_loader = ::ge::python_bridge_loader;
+namespace fallback_codegen = ::ge::python_fallback_codegen;
 
 bool IsPythonFile(const std::string &path) {
   return (path.size() > strlen(kPythonFileSuffix)) &&
@@ -464,7 +466,7 @@ class PythonCustomOpBridgeLoader {
       return FAILED;
     }
     GELOGI("Python custom op runtime key before loading bridge: %s.", runtime_key.ToString().c_str());
-    if (TryLoadPrebuiltBridge(runtime_key)) {
+    if (TryLoadPrebuiltBridge(runtime_key) || TryLoadFallbackBridge(runtime_key)) {
       return SUCCESS;
     }
     GELOGE(FAILED, "Load python custom op bridge library failed.");
@@ -475,6 +477,22 @@ class PythonCustomOpBridgeLoader {
     const auto candidates = artifact::BuildPrebuiltBridgeLibraryCandidates(
         runtime_key, GetLoaderLibraryPath(), kCustomOpArtifactsRelativePath, kPythonCustomOpBridgeAbiVersion);
     return TryLoadBridgeCandidates(runtime_key, candidates);
+  }
+
+  bool TryLoadFallbackBridge(const artifact::PythonRuntimeKey &runtime_key) {
+    std::string gen_artifact_root;
+    if (!fallback_codegen::RunFallbackCodegenForModule(
+            runtime_key, fallback_codegen::BuildFallbackCodegenDependencies(), "ge.custom_op.fallback_runtime",
+            "run_fallback_codegen", gen_artifact_root)) {
+      return false;
+    }
+    const auto candidate =
+        artifact::LoadBridgeCandidateFromArtifactRoot(gen_artifact_root, runtime_key, kPythonCustomOpBridgeAbiVersion);
+    if (candidate.bridge_path.empty()) {
+      GELOGE(FAILED, "Python custom op fallback generated an invalid artifact root[%s].", gen_artifact_root.c_str());
+      return false;
+    }
+    return TryLoadBridgeCandidates(runtime_key, {candidate});
   }
 
   bool TryLoadBridgeCandidates(const artifact::PythonRuntimeKey &runtime_key,

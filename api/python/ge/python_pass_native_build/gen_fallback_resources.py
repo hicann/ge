@@ -10,7 +10,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Generate runtime fallback resources for GE Python pass."""
+"""Generate embedded fallback resources for GE Python native artifacts."""
 
 import argparse
 import base64
@@ -23,17 +23,27 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 
-def _collect_files(files: Iterable[Path], subdir: str) -> List[Tuple[str, bytes]]:
+def _collect_files(
+    files: Iterable[Path], subdir: str, nested_subdir: str = ""
+) -> List[Tuple[str, bytes]]:
     resources: List[Tuple[str, bytes]] = []
     for src in files:
         src_path = src.resolve()
-        rel_path = f"{subdir}/{src_path.name}"
+        rel_path = (
+            f"{subdir}/{nested_subdir}/{src_path.name}"
+            if nested_subdir
+            else f"{subdir}/{src_path.name}"
+        )
         resources.append((rel_path, src_path.read_bytes()))
     return resources
 
 
 def _split_encoded_content(encoded_content: str) -> str:
-    chunks = [encoded_content[index : index + 76] for index in range(0, len(encoded_content), 76)]
+    chunks = []
+    remaining = encoded_content
+    while remaining:
+        chunks.append(remaining[:76])
+        remaining = remaining[76:]
     return "\n".join(f'        "{chunk}"' for chunk in chunks)
 
 
@@ -51,7 +61,7 @@ def _build_resource_module(resources: Dict[str, bytes]) -> str:
         "# See LICENSE in the root of the software repository for the full text of the License.",
         "# -----------------------------------------------------------------------------------------------------------",
         "",
-        '"""Generated fallback source resources for GE Python pass."""',
+        '"""Generated fallback source resources for GE Python native artifacts."""',
         "",
         "import base64",
         "import gzip",
@@ -60,7 +70,9 @@ def _build_resource_module(resources: Dict[str, bytes]) -> str:
         "_RESOURCES = {",
     ]
     for rel_path, content in sorted(resources.items()):
-        encoded_content = base64.b64encode(gzip.compress(content, mtime=0)).decode("ascii")
+        encoded_content = base64.b64encode(gzip.compress(content, mtime=0)).decode(
+            "ascii"
+        )
         lines.append(f"    {rel_path!r}: (")
         lines.append(_split_encoded_content(encoded_content))
         lines.append("    ),")
@@ -220,19 +232,25 @@ def _rewrite_rpath_arg(arg: str, cann_root: Path) -> Optional[List[str]]:
     return None
 
 
-def _rewrite_library_arg(arg: str, cwd: Path, cann_lib_dir: Path) -> Optional[List[str]]:
+def _rewrite_library_arg(
+    arg: str, cwd: Path, cann_lib_dir: Path
+) -> Optional[List[str]]:
     if _is_libpython_arg(arg):
         return ["@PYTHON_LIBRARY@"]
     library_info = _library_file_info(arg, cwd)
     if library_info is None:
         return None
     library_name, library_path = library_info
-    if (cann_lib_dir / library_path.name).exists() or "/tests/depends/" not in library_path.as_posix():
+    if (
+        cann_lib_dir / library_path.name
+    ).exists() or "/tests/depends/" not in library_path.as_posix():
         return [f"-l{library_name}"]
     return []
 
 
-def _rewrite_library_dir_arg(args: Sequence[str], index: int, cann_root: Path) -> Optional[Tuple[List[str], int]]:
+def _rewrite_library_dir_arg(
+    args: Sequence[str], index: int, cann_root: Path
+) -> Optional[Tuple[List[str], int]]:
     def mapped_arg(path_arg: str) -> List[str]:
         mapped = _map_library_dir(path_arg, cann_root)
         if mapped is None:
@@ -249,7 +267,9 @@ def _rewrite_library_dir_arg(args: Sequence[str], index: int, cann_root: Path) -
     return None
 
 
-def _rewrite_link_args(link_args: Sequence[str], cwd: Path, cann_root: Path) -> List[str]:
+def _rewrite_link_args(
+    link_args: Sequence[str], cwd: Path, cann_root: Path
+) -> List[str]:
     rewritten: List[str] = ["-L@CANN_LIB64@"]
     cann_lib_dir = _normalized(cann_root / "lib64")
     args = list(link_args[1:]) if link_args else []
@@ -294,18 +314,26 @@ class _FallbackTargetSpec:
     local_include_dir: str
 
 
-def _load_target_config(build_dir: Path, cann_root: Path, spec: _FallbackTargetSpec) -> dict:
-    target_dir = build_dir / spec.relative_dir / "CMakeFiles" / f"{spec.target_name}.dir"
+def _load_target_config(
+    build_dir: Path, cann_root: Path, spec: _FallbackTargetSpec
+) -> dict:
+    target_dir = (
+        build_dir / spec.relative_dir / "CMakeFiles" / f"{spec.target_name}.dir"
+    )
     flags_make = target_dir / "flags.make"
     link_txt = target_dir / "link.txt"
     if not flags_make.is_file() or not link_txt.is_file():
-        raise RuntimeError(f"Cannot find generated build metadata for target {spec.target_name} under {target_dir}")
+        raise RuntimeError(
+            f"Cannot find generated build metadata for target {spec.target_name} under {target_dir}"
+        )
 
     cxx_defines = _read_make_variable(flags_make, "CXX_DEFINES")
     cxx_includes = [
         "-I",
         f"@FALLBACK_ROOT@/{spec.local_include_dir}",
-    ] + _rewrite_include_args(_read_make_variable(flags_make, "CXX_INCLUDES"), cann_root)
+    ] + _rewrite_include_args(
+        _read_make_variable(flags_make, "CXX_INCLUDES"), cann_root
+    )
     cxx_flags = _read_make_variable(flags_make, "CXX_FLAGS")
     link_args = _rewrite_link_args(
         shlex.split(link_txt.read_text(encoding="utf-8")),
@@ -324,30 +352,32 @@ def _load_target_config(build_dir: Path, cann_root: Path, spec: _FallbackTargetS
 def _build_config(args: argparse.Namespace) -> dict:
     build_dir = args.build_dir
     cann_root = args.cann_root
+    targets = {}
+    if args.bridge_target:
+        targets["bridge"] = _load_target_config(
+            build_dir,
+            cann_root,
+            _FallbackTargetSpec(
+                args.bridge_target_dir,
+                args.bridge_target,
+                args.bridge_output,
+                "include/bridge",
+            ),
+        )
+    targets["native"] = _load_target_config(
+        build_dir,
+        cann_root,
+        _FallbackTargetSpec(
+            args.native_target_dir,
+            args.native_target,
+            args.native_output,
+            "include/native",
+        ),
+    )
     return {
-        "bridge_abi": args.bridge_abi,
-        "targets": {
-            "bridge": _load_target_config(
-                build_dir,
-                cann_root,
-                _FallbackTargetSpec(
-                    "compiler",
-                    "ge_python_pass_bridge",
-                    "libge_python_pass_bridge.so",
-                    "include/bridge",
-                ),
-            ),
-            "native": _load_target_config(
-                build_dir,
-                cann_root,
-                _FallbackTargetSpec(
-                    "api/python/ge/ge/passes",
-                    "_ge_pass_native",
-                    "_ge_pass_native.so",
-                    "include/native",
-                ),
-            ),
-        },
+        args.abi_key: args.abi,
+        "link_python": args.link_python,
+        "targets": targets,
     }
 
 
@@ -356,11 +386,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--cann-root", type=Path, required=True)
-    parser.add_argument("--bridge-abi", type=int, required=True)
-    parser.add_argument("--bridge-source", type=Path, nargs="+", required=True)
-    parser.add_argument("--bridge-header", type=Path, nargs="+", required=True)
+    parser.add_argument("--component", default="pass")
+    parser.add_argument("--abi-key", default="bridge_abi")
+    parser.add_argument("--abi", "--bridge-abi", dest="abi", type=int, required=True)
+    parser.add_argument(
+        "--link-python", action=argparse.BooleanOptionalAction, default=True
+    )
+    parser.add_argument("--bridge-target", default="ge_python_pass_bridge")
+    parser.add_argument(
+        "--no-bridge-target", dest="bridge_target", action="store_const", const=""
+    )
+    parser.add_argument("--bridge-target-dir", default="compiler")
+    parser.add_argument("--bridge-output", default="libge_python_pass_bridge.so")
+    parser.add_argument("--native-target", default="_ge_pass_native")
+    parser.add_argument("--native-target-dir", default="api/python/ge/ge/passes")
+    parser.add_argument("--native-output", default="_ge_pass_native.so")
+    parser.add_argument("--bridge-source", type=Path, nargs="*", default=[])
+    parser.add_argument("--bridge-header", type=Path, nargs="*", default=[])
+    parser.add_argument("--bridge-tree-header", type=Path, nargs="*", default=[])
+    parser.add_argument("--bridge-graph-header", type=Path, nargs="*", default=[])
+    parser.add_argument("--bridge-utils-header", type=Path, nargs="*", default=[])
+    parser.add_argument("--bridge-framework-header", type=Path, nargs="*", default=[])
     parser.add_argument("--native-source", type=Path, nargs="+", required=True)
     parser.add_argument("--native-header", type=Path, nargs="+", required=True)
+    parser.add_argument("--native-tree-header", type=Path, nargs="*", default=[])
     return parser.parse_args()
 
 
@@ -374,14 +423,27 @@ def main() -> None:
     resources = dict(
         _collect_files(args.bridge_source, "src/bridge")
         + _collect_files(args.bridge_header, "include/bridge")
+        + _collect_files(args.bridge_tree_header, "include/bridge", "runtime/custom_op")
+        + _collect_files(args.bridge_graph_header, "include/bridge", "graph/custom_op")
+        + _collect_files(args.bridge_utils_header, "include/bridge", "graph/utils")
+        + _collect_files(
+            args.bridge_framework_header, "include/bridge", "framework/common"
+        )
         + _collect_files(args.native_source, "src/native")
         + _collect_files(args.native_header, "include/native")
+        + _collect_files(
+            args.native_tree_header, "include/native", "runtime/native_bindings"
+        )
     )
 
     config = _build_config(args)
-    config_bytes = json.dumps(config, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    config_bytes = json.dumps(
+        config, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
     (output_dir / "build_config.json").write_bytes(config_bytes)
-    (output_dir / "_sources.py").write_text(_build_resource_module(resources), encoding="utf-8")
+    (output_dir / "_sources.py").write_text(
+        _build_resource_module(resources), encoding="utf-8"
+    )
     (output_dir / "__init__.py").write_text("", encoding="utf-8")
 
 

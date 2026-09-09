@@ -647,6 +647,92 @@ The implementation follows the existing Python pass and GE runtime style:
 - The Python custom op depends on matching versions of `ge_py`, bridge/native SO, and the Python ABI in the runtime environment.
 - `ASCEND_CUSTOM_OPP_PATH` is an existing environment variable. Adding Python file and package recognition does not affect C++ OPP paths that have no Python entries.
 
+### 8.1 Python Version Release and Fallback Compatibility Strategy
+
+The version release goal of the Python custom op is consistent with the Python pass, adopting the "main wheel + Python-version native sub-wheels + runtime fallback + pip auto-selection + multi-version build pipeline" model.
+
+The runtime/custom-op fallback code integration is complete in the repository: the main wheel carries the two kinds of fallback resources, and both the Python-side native loader and the C++ custom-op bridge loader follow the order of "matching prebuilt artifact first, then generating and loading per the current Python runtime on a miss". The actual number of generated multi-version native wheels still depends on the Python interpreters available in the build environment and must be further confirmed by CI matrix artifacts; the configuration completeness of a single environment alone cannot determine that all versions have been built.
+
+#### 8.1.1 Python Version Matrix
+
+The officially supported Python tags are:
+
+- `cp39`
+- `cp310`
+- `cp311`
+- `cp312`
+- `cp313`
+- `cp314`
+
+The main wheel contains only pure Python code and must not embed the default native artifact of any build environment. Each Python minor version generates its own native wheel, with wheel tags produced by the standard `bdist_wheel`. The build matrix follows the implementation strategy of the Python pass: the build tool automatically detects available interpreters, a version missing in the current environment is allowed to be skipped while other available versions continue to be generated, and the build result must record the Python tags actually generated and skipped.
+
+The build tools uniformly use `python_pass_native_build/build_python_native_matrix.py` and `build_python_native_wheel.py`. CMake generates `--component-config` for pass/runtime/custom-op respectively, passing the target, sources, artifacts, wheel metadata, manifest ABI fields, and whether to link Python into the common build tool; the Python scripts no longer maintain static configuration for the three component kinds. The three native wheels share the build process but are still built and released independently.
+
+#### 8.1.2 Wheel Split and Runtime Ownership
+
+The recommended release artifacts are as follows:
+
+```text
+ge_py-<version>-py3-none-any.whl
+ge_py_runtime_native-<version>-cpXY-<platform>.whl
+ge_py_pass_bridge-<version>-cpXY-<platform>.whl
+ge_py_custom_op_bridge-<version>-cpXY-<platform>.whl
+```
+
+Among them:
+
+- The `ge_py` main wheel carries only the Python API, registry, bootstrap, loader, and fallback resources.
+- `ge_py_runtime_native` carries only `_ge_runtime_native.so`; the runtime module is responsible for building, version selection, ABI validation, caching, and fallback codegen.
+- `ge_py_custom_op_bridge` carries `libge_python_custom_op_bridge.so` and `_ge_custom_op_native.so`; the custom-op module is responsible for building and selection.
+- The content and responsibilities of `ge_py_pass_bridge` remain unchanged per the existing Python pass design, but it shares the same Python environment with the runtime native wheel at installation.
+
+The runtime ABI and the custom-op bridge ABI are maintained independently and validated by their own manifests; the two are not required to have identical ABI values or to be upgraded in the same batch. The custom-op bridge and `_ge_custom_op_native.so` still belong to the same custom-op artifact set and must use the same Python tag, platform, and compatible protocol.
+
+The run package can carry native wheels for multiple Python tags. The installation script hands wheel selection over to pip via `--find-links` and the package name, and must not pass the paths of all incompatible wheels as installation parameters at the same time. Uninstall, upgrade, and rollback must cover the native wheels of runtime, pass, and custom-op together, but must not delete a runtime wheel still used by other modules.
+
+#### 8.1.3 Artifact Directories
+
+The final artifact directories after precompiled and fallback compilation remain separated by module:
+
+```text
+ge/runtime/python_runtime_artifacts/<python_tag>-<platform>/
+ge/passes/python_pass_artifacts/<python_tag>-<platform>/
+ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/
+```
+
+The manifest under each directory describes only that module's artifact set and ABI. runtime and custom-op do not share the final `.so` directory, avoiding implicit coupling among the selector, the loader, and independent ABIs.
+
+#### 8.1.4 Fallback Responsibilities and Invocation Order
+
+Fallback still follows the strategy of "prebuilt artifact set first, runtime generation on a miss". Module responsibilities are as follows:
+
+1. `ge.runtime._native` is responsible for finding or generating `_ge_runtime_native.so` and writing the artifact to `ge/runtime/python_runtime_artifacts/<python_tag>-<platform>/`.
+2. `ge.custom_op._native` or the custom-op bridge loader invokes the runtime's internal ensure mechanism before loading its own native/bridge, ensuring the runtime native is already available.
+3. The custom-op fallback generates only `libge_python_custom_op_bridge.so` and `_ge_custom_op_native.so`, writes them to `ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/`, and does not copy the runtime's sources or build logic.
+4. runtime fallback resources and custom-op fallback resources are placed in `ge/runtime/fallback_codegen/` and `ge/custom_op/fallback_codegen/` respectively; build intermediate files may share a temporary working directory, but the final artifacts and manifests must be published separately.
+
+Python-side code entries: the C++ bridge loaders of custom-op and pass invoke `run_fallback_codegen()` through the module names `ge.custom_op.fallback_runtime` and `ge.passes.fallback_runtime` respectively; `ge.runtime.fallback_runtime` is a symmetric module-level entry reserved for potential future C++ callers. The common fallback compile engine is located in `ge/_internal/fallback_runtime.py`, and the common loading decision (prebuilt artifact -> fallback attempts in order, failure diagnostics) is located in `ge/_internal/native_loader.py`; both accept only artifacts validated by the manifest (Python tag, platform tag, ABI). Before the custom-op fallback generates artifacts, it explicitly ensures that the runtime native is already loaded, avoiding duplicated maintenance of the runtime build logic.
+
+The custom op's requirement on the runtime is a dependency, not ownership. If the runtime fallback succeeds while the custom-op fallback fails, the runtime artifact can be retained; the custom-op loader must clean up its own incomplete intermediate artifacts and return a clear error.
+
+#### 8.1.5 Runtime Selection and Compatibility Validation
+
+- Both the Python side and the C++ side use the actual Python runtime key of the current process as the version selection basis, and do not substitute the outer launcher Python version for the current process version.
+- runtime, pass, and custom-op each select artifacts by their own Python tag, platform, and ABI.
+- After a bridge is loaded, the current process Python version is validated again; on mismatch it fails directly, and another CPython minor version must not be brought up in the same process.
+- When no matching native wheel is available, the module's own fallback is attempted first; when fallback is unavailable, custom-op reports failure only when a Python custom-op entry actually exists, without affecting C++ paths that have no Python custom op.
+
+#### 8.1.6 Version Compatibility Test Requirements
+
+At least the following must be verified under every available Python tag:
+
+- Offline installation and pip auto-selection of the main wheel, runtime native wheel, and custom-op native wheel;
+- `import ge.runtime`, `import ge.custom_op`, and native type loading;
+- `execute`, `compile`, `infer_meta`, and `declare_launch_args` callbacks of the Python custom op;
+- Combination scenarios of runtime precompiled/custom-op fallback and runtime fallback/custom-op precompiled;
+- Errors and rollback on mismatched Python tag, platform, runtime ABI, or custom-op ABI;
+- Online execution, offline atc compilation, AnnotatedArgs address refresh, and RT2 dynamic shape scenarios.
+
 ## 9. DT Design
 
 ### 9.1 Test Boundaries

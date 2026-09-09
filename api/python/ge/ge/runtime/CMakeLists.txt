@@ -37,6 +37,7 @@ target_link_libraries(_ge_runtime_native PRIVATE
         $<BUILD_INTERFACE:slog_headers>
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:pybind_options>
+        $<BUILD_INTERFACE:air_headers>
         c_sec_headers
         c_sec
         graph_base

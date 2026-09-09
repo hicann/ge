@@ -12,14 +12,19 @@
 
 """Pytest coverage for Python pass fallback artifact discovery."""
 
+import dataclasses
 import json
 import sys
 import types
 from pathlib import Path
 
+from ge._internal import fallback_runtime as fallback_engine
 from ge._internal.artifact_utils import current_platform_tag, current_python_tag
+from ge._internal.native_loader import ensure_native_module
+from ge.custom_op import fallback_runtime as custom_op_fallback_runtime
 from ge.passes import _artifact_utils as artifact_utils
-from ge.passes import runtime
+from ge.passes import fallback_runtime as pass_fallback_runtime
+from ge.runtime import fallback_runtime as runtime_fallback_runtime
 
 
 def _write_codegen_config(codegen_dir: Path, content: str = "{}") -> None:
@@ -127,35 +132,15 @@ def test_find_prebuilt_artifact_rejects_missing_bridge(tmp_path, monkeypatch):
     assert artifact_utils.find_prebuilt_artifact() is None
 
 
-def test_resolve_build_inputs_returns_codegen_sources(tmp_path, monkeypatch):
-    codegen_dir = tmp_path / "codegen"
-    source_dir = codegen_dir / "src" / "bridge"
-    include_dir = codegen_dir / "include" / "bridge"
-    source_dir.mkdir(parents=True)
-    include_dir.mkdir(parents=True)
-    source_path = source_dir / "bridge.cc"
-    source_path.write_text("int x = 0;\n", encoding="utf-8")
-    (include_dir / "bridge.h").write_text("#pragma once\n", encoding="utf-8")
-    _write_codegen_config(codegen_dir)
-    monkeypatch.setattr(runtime, "_codegen_root", lambda: codegen_dir)
-
-    build_inputs = runtime._resolve_build_inputs()
-    assert build_inputs is not None
-    assert build_inputs.root == codegen_dir
-    assert build_inputs.src_dir == codegen_dir / "src"
-    assert build_inputs.include_dir == codegen_dir / "include"
-
-
-def test_resolve_fallback_build_inputs_materializes_resource_module(
-    tmp_path, monkeypatch
-):
+def test_fallback_engine_materializes_resource_module(tmp_path):
     codegen_dir = tmp_path / "codegen"
     resources = _fallback_resources()
     _write_codegen_config(codegen_dir)
     _write_fallback_sources(codegen_dir, resources)
-    monkeypatch.setattr(runtime, "_codegen_root", lambda: codegen_dir)
 
-    build_inputs = runtime._resolve_fallback_build_inputs(tmp_path / "work")
+    build_inputs = fallback_engine._resolve_fallback_build_inputs(
+        codegen_dir, tmp_path / "work"
+    )
 
     assert build_inputs is not None
     assert build_inputs.root == tmp_path / "work" / "fallback_sources"
@@ -176,11 +161,17 @@ def test_run_fallback_codegen_publishes_artifact_and_cleans_work_dir(
     _write_codegen_config(codegen_dir)
     _write_fallback_sources(codegen_dir, resources)
     artifacts_dir = tmp_path / "python_pass_artifacts"
-    monkeypatch.setattr(runtime, "artifacts_root", lambda: artifacts_dir)
-    monkeypatch.setattr(runtime, "_codegen_root", lambda: codegen_dir)
+    monkeypatch.setattr(
+        pass_fallback_runtime,
+        "SPEC",
+        dataclasses.replace(
+            pass_fallback_runtime.SPEC,
+            artifacts_root=lambda: artifacts_dir,
+            codegen_dir=codegen_dir,
+        ),
+    )
 
     def fake_compile_artifact_set(build_inputs, work_dir):
-        assert build_inputs.root == work_dir / "fallback_sources"
         assert (build_inputs.root / "src/bridge/bridge.cc").read_bytes() == resources[
             "src/bridge/bridge.cc"
         ]
@@ -189,7 +180,7 @@ def test_run_fallback_codegen_publishes_artifact_and_cleans_work_dir(
         native_path = work_dir / "_ge_pass_native.so"
         bridge_path.write_text("bridge", encoding="utf-8")
         native_path.write_text("native", encoding="utf-8")
-        python_info = runtime.PythonBuildInfo(
+        python_info = fallback_engine.PythonBuildInfo(
             tag=current_python_tag(),
             executable=sys.executable,
             version="3.test",
@@ -197,7 +188,7 @@ def test_run_fallback_codegen_publishes_artifact_and_cleans_work_dir(
             library=tmp_path / "libpython.so",
             pybind_include=tmp_path / "pybind11",
         )
-        return runtime._CompiledArtifactSet(
+        return fallback_engine._CompiledArtifactSet(
             artifact_paths={
                 "libge_python_pass_bridge.so": bridge_path,
                 "_ge_pass_native.so": native_path,
@@ -205,11 +196,13 @@ def test_run_fallback_codegen_publishes_artifact_and_cleans_work_dir(
             python_info=python_info,
         )
 
-    monkeypatch.setattr(runtime, "_compile_artifact_set", fake_compile_artifact_set)
+    monkeypatch.setattr(
+        fallback_engine, "_compile_artifact_set", fake_compile_artifact_set
+    )
 
-    artifact = runtime.run_fallback_codegen()
+    artifact = pass_fallback_runtime.run_fallback_codegen()
 
-    final_dir = runtime._fallback_artifact_dir()
+    final_dir = artifacts_dir / f"{current_python_tag()}-{current_platform_tag()}"
     assert final_dir.parent == artifacts_dir
     assert artifact.root == final_dir.resolve()
     assert (final_dir / "libge_python_pass_bridge.so").read_text(
@@ -238,10 +231,37 @@ def test_ensure_native_module_uses_fallback_when_no_artifact_is_loadable(
     assert artifact is not None
     native_module = types.ModuleType(artifact_utils.NATIVE_MODULE_NAME)
 
-    monkeypatch.setattr(runtime, "find_prebuilt_artifact", lambda: None)
-    monkeypatch.setattr(runtime, "run_fallback_codegen", lambda: artifact)
     monkeypatch.setattr(
-        runtime, "load_native_module", lambda native_path: native_module
+        pass_fallback_runtime,
+        "SPEC",
+        dataclasses.replace(
+            pass_fallback_runtime.SPEC,
+            find_prebuilt_artifact=lambda: None,
+            run_fallback_codegen=lambda: artifact,
+            load_native_module=lambda native_path: native_module,
+        ),
     )
 
-    assert runtime.ensure_native_module() is native_module
+    assert ensure_native_module(pass_fallback_runtime.SPEC) is native_module
+
+
+def test_component_fallback_entrypoints_delegate_to_shared_codegen(monkeypatch):
+    sentinel = object()
+    monkeypatch.setattr(
+        custom_op_fallback_runtime,
+        "run_fallback_codegen_for_component",
+        lambda spec: sentinel,
+    )
+    monkeypatch.setattr(
+        runtime_fallback_runtime,
+        "run_fallback_codegen_for_component",
+        lambda spec: sentinel,
+    )
+    monkeypatch.setattr(
+        pass_fallback_runtime,
+        "run_fallback_codegen_for_component",
+        lambda spec: sentinel,
+    )
+    assert custom_op_fallback_runtime.run_fallback_codegen() is sentinel
+    assert runtime_fallback_runtime.run_fallback_codegen() is sentinel
+    assert pass_fallback_runtime.run_fallback_codegen() is sentinel

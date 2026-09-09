@@ -10,7 +10,9 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Runtime for GE Python pass bridge/native artifact set."""
+"""Shared fallback compiler for Python-versioned GE native artifacts."""
+
+from __future__ import annotations
 
 import importlib.util
 import json
@@ -25,21 +27,12 @@ from pathlib import Path
 from types import ModuleType
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from ge._internal.artifact_utils import (
+from .artifact_utils import (
     PythonArtifact,
     current_platform_tag,
     current_python_tag,
 )
-
-from ._artifact_utils import (
-    BRIDGE_ABI_VERSION,
-    NATIVE_MODULE_NAME,
-    artifacts_root,
-    find_prebuilt_artifact,
-    iter_artifacts,
-    load_artifact_from_dir,
-    load_native_module,
-)
+from .native_loader import NativeComponentSpec
 
 _FALLBACK_RESOURCES_MODULE = "_sources.py"
 _MATERIALIZED_CODEGEN_DIR = "fallback_sources"
@@ -69,22 +62,12 @@ class _CompiledArtifactSet:
     python_info: PythonBuildInfo
 
 
-def _codegen_root() -> Path:
-    return Path(__file__).resolve().parent / "fallback_codegen"
-
-
-def _fallback_artifact_dir() -> Path:
-    return artifacts_root() / f"{current_python_tag()}-{current_platform_tag()}"
-
-
 def _resolve_pybind_include() -> Optional[Path]:
     try:
         import pybind11
 
         include = Path(pybind11.get_include())
-        if not include.is_dir():
-            return None
-        return include
+        return include if include.is_dir() else None
     except Exception:
         return None
 
@@ -174,18 +157,8 @@ def _build_inputs_from_root(root: Path, config: dict) -> Optional[_BuildInputs]:
     )
 
 
-def _resolve_build_inputs() -> Optional[_BuildInputs]:
-    root = _codegen_root()
-    config = _load_codegen_config(root)
-    if config is None:
-        return None
-    return _build_inputs_from_root(root, config)
-
-
 def _load_fallback_resources_module(module_path: Path) -> Optional[ModuleType]:
-    spec = importlib.util.spec_from_file_location(
-        "_ge_pass_fallback_resources", module_path
-    )
+    spec = importlib.util.spec_from_file_location("_ge_fallback_resources", module_path)
     if spec is None or spec.loader is None:
         return None
     module = importlib.util.module_from_spec(spec)
@@ -218,13 +191,14 @@ def _materialize_fallback_resources(
     return _build_inputs_from_root(resource_root, config)
 
 
-def _resolve_fallback_build_inputs(work_dir: Path) -> Optional[_BuildInputs]:
-    root = _codegen_root()
-    config = _load_codegen_config(root)
+def _resolve_fallback_build_inputs(
+    codegen_dir: Path, work_dir: Path
+) -> Optional[_BuildInputs]:
+    config = _load_codegen_config(codegen_dir)
     if config is None:
         return None
-    if (root / _FALLBACK_RESOURCES_MODULE).is_file():
-        return _materialize_fallback_resources(root, config, work_dir)
+    if (codegen_dir / _FALLBACK_RESOURCES_MODULE).is_file():
+        return _materialize_fallback_resources(codegen_dir, config, work_dir)
     return None
 
 
@@ -246,7 +220,7 @@ def _resolve_cann_paths() -> Optional[Tuple[Path, Path, Path]]:
             - include/
             - lib64/
             - pkg_inc/
-            - python/site-packages/ge/passes/runtime.py
+            - python/site-packages/ge/_internal/fallback_runtime.py
 
     2. if current Python file is not in the package structure above, you need to source set_env.bash
        before execution
@@ -277,7 +251,8 @@ def _resolve_build_config(
         raise RuntimeError(
             "Cannot resolve pybind11 include. Please install pybind11 for this Python."
         )
-    if python_info.library is None:
+    link_python = bool(config.get("link_python", True))
+    if link_python and python_info.library is None:
         raise RuntimeError(
             "Cannot resolve libpython shared library for current Python."
         )
@@ -287,8 +262,12 @@ def _resolve_build_config(
     cann_include, cann_lib64, cann_pkg_inc = cann_paths
     replacements = {
         "@PYTHON_INCLUDE@": os.fspath(python_info.include_dir),
-        "@PYTHON_LIBRARY@": os.fspath(python_info.library),
-        "@PYTHON_LIBDIR@": os.fspath(python_info.library.parent),
+        "@PYTHON_LIBRARY@": (
+            os.fspath(python_info.library) if python_info.library else ""
+        ),
+        "@PYTHON_LIBDIR@": (
+            os.fspath(python_info.library.parent) if python_info.library else ""
+        ),
         "@PYBIND11_INCLUDE@": os.fspath(python_info.pybind_include),
         "@CANN_INCLUDE_DIR@": os.fspath(cann_include),
         "@CANN_PKG_INC@": os.fspath(cann_pkg_inc),
@@ -449,116 +428,65 @@ def _format_optional_path(path: Optional[Path]) -> str:
     return os.fspath(path) if path is not None else "not-found"
 
 
-def _build_manifest_json(python_info: PythonBuildInfo) -> bytes:
+def _build_manifest_json(
+    python_info: PythonBuildInfo,
+    abi_key: str,
+    abi_value: int,
+    artifacts: Dict[str, str],
+    link_python: bool,
+) -> bytes:
     manifest = {
         "python_tag": current_python_tag(),
         "python_version": python_info.version,
         "platform": current_platform_tag(),
-        "bridge_abi": BRIDGE_ABI_VERSION,
+        abi_key: abi_value,
         "build_python": {
             "executable": python_info.executable,
             "version": python_info.version,
             "include": os.fspath(python_info.include_dir),
             "libpython": _format_optional_path(python_info.library),
             "pybind11_include": _format_optional_path(python_info.pybind_include),
-            "link_python": True,
+            "link_python": link_python,
         },
-        "artifacts": {
-            "bridge": "libge_python_pass_bridge.so",
-            "native": "_ge_pass_native.so",
-        },
+        "artifacts": artifacts,
     }
     return (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
-def _iter_load_candidates() -> Iterable[PythonArtifact]:
-    prebuilt = find_prebuilt_artifact()
-    if prebuilt is not None:
-        yield prebuilt
-
-
-def _format_missing_artifact_error(load_errors: List[str]) -> str:
-    python_tag = current_python_tag()
-    platform_tag = current_platform_tag()
-    discovered_artifacts = sorted(
-        f"{artifact.python_tag}-{artifact.platform_tag}-abi{artifact.abi}"
-        for artifact in iter_artifacts()
+def run_fallback_codegen_for_component(
+    spec: "NativeComponentSpec",
+) -> PythonArtifact:
+    codegen_dir = spec.codegen_dir
+    artifact_dir = (
+        spec.artifacts_root() / f"{current_python_tag()}-{current_platform_tag()}"
     )
-    discovered_text = (
-        ", ".join(discovered_artifacts) if discovered_artifacts else "none"
-    )
-    expected_wheel = f"ge_py_pass_bridge-*-{python_tag}-{python_tag}-*.whl"
-    load_error_text = "; ".join(load_errors) if load_errors else "none"
-    return (
-        "Failed to load GE Python pass native artifact for runtime "
-        f"python tag '{python_tag}', platform '{platform_tag}', "
-        f"bridge ABI {BRIDGE_ABI_VERSION}. "
-        f"Searched artifact root: {artifacts_root()}. "
-        f"Discovered valid artifacts: {discovered_text}. "
-        f"Load errors: {load_error_text}. "
-        "Please install the native artifact wheel that matches this Python "
-        f"runtime, for example '{expected_wheel}', or reinstall the CANN run "
-        "package that contains the matching ge_py_pass_bridge wheel."
-    )
-
-
-def ensure_native_module() -> ModuleType:
-    loaded_module = sys.modules.get(NATIVE_MODULE_NAME)
-    if loaded_module is not None:
-        return loaded_module
-
-    load_errors: List[str] = []
-    native: Optional[ModuleType] = None
-    for artifact in _iter_load_candidates():
-        try:
-            native = load_native_module(artifact.native_path)
-            break
-        except Exception as err:
-            load_errors.append(
-                f"load native artifact '{artifact.native_path}' failed: {err}"
-            )
-            continue
-
-    if native is None:
-        try:
-            artifact = run_fallback_codegen()
-        except Exception as err:
-            load_errors.append(f"fallback codegen failed: {err}")
-        else:
-            try:
-                native = load_native_module(artifact.native_path)
-            except Exception as err:
-                load_errors.append(
-                    f"load fallback native artifact '{artifact.native_path}' failed: {err}"
-                )
-
-    if native is None:
-        raise ImportError(_format_missing_artifact_error(load_errors))
-    return native
-
-
-def run_fallback_codegen() -> PythonArtifact:
-    final_dir = _fallback_artifact_dir()
-    final_dir.mkdir(parents=True, exist_ok=True)
-    work_dir = _make_unique_work_dir(final_dir)
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _make_unique_work_dir(artifact_dir)
     try:
-        build_inputs = _resolve_fallback_build_inputs(work_dir)
+        build_inputs = _resolve_fallback_build_inputs(codegen_dir, work_dir)
         if build_inputs is None:
             raise RuntimeError(
                 "Fallback codegen unavailable: codegen resources are invalid or unavailable."
             )
         compiled = _compile_artifact_set(build_inputs, work_dir)
         for filename, path in compiled.artifact_paths.items():
-            _atomic_publish_file(path, final_dir / filename)
+            _atomic_publish_file(path, artifact_dir / filename)
         _atomic_write(
-            final_dir / "manifest.json", _build_manifest_json(compiled.python_info)
+            artifact_dir / "manifest.json",
+            _build_manifest_json(
+                compiled.python_info,
+                spec.abi_key,
+                spec.abi_version,
+                spec.fallback_artifacts,
+                bool(build_inputs.config.get("link_python", True)),
+            ),
         )
     finally:
         _remove_tree_quietly(work_dir)
 
-    artifact = load_artifact_from_dir(final_dir)
+    artifact = spec.load_artifact_manifest(artifact_dir / "manifest.json")
     if artifact is None:
         raise RuntimeError(
-            f"Fallback codegen completed but published artifact is incomplete: {final_dir}"
+            f"Fallback codegen completed but published artifact is incomplete: {artifact_dir}"
         )
     return artifact

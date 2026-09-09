@@ -182,6 +182,8 @@ remove_ge_py_pass_bridge_wheels(){
 
   chmod u+w "${wheel_dir}" 2> /dev/null
   rm -f "${wheel_dir}/ge_py_pass_bridge-"*.whl 2> /dev/null
+  rm -f "${wheel_dir}/ge_py_runtime_native-"*.whl 2> /dev/null
+  rm -f "${wheel_dir}/ge_py_custom_op_bridge-"*.whl 2> /dev/null
 }
 
 WHL_INSTALL_DIR_PATH="${common_parse_dir}/python/site-packages"
@@ -189,6 +191,8 @@ DATAFLOW_NAME="dataflow"
 LLM_DATADIST_NAME="llm_datadist_v1"
 GE_PY_NAME="ge_py"
 GE_PY_PASS_BRIDGE_NAME="ge-py-pass-bridge"
+GE_PY_RUNTIME_NATIVE_NAME="ge-py-runtime-native"
+GE_PY_CUSTOM_OP_BRIDGE_NAME="ge-py-custom-op-bridge"
 
 custom_uninstall() {
     if [ -z "$common_parse_dir/share/info/ge-compiler" ]; then
@@ -206,9 +210,13 @@ custom_uninstall() {
         chmod +w -R "${WHL_INSTALL_DIR_PATH}/ge_py" 2> /dev/null
         chmod +w -R "${WHL_INSTALL_DIR_PATH}/ge_py-*.dist-info" 2> /dev/null
         chmod +w -R "${WHL_INSTALL_DIR_PATH}/ge_py_pass_bridge-*.dist-info" 2> /dev/null
+        chmod +w -R "${WHL_INSTALL_DIR_PATH}/ge_py_runtime_native-*.dist-info" 2> /dev/null
+        chmod +w -R "${WHL_INSTALL_DIR_PATH}/ge_py_custom_op_bridge-*.dist-info" 2> /dev/null
 
         log "INFO" "uninstall ge-compiler tool begin..."
         whl_uninstall_package "${GE_PY_PASS_BRIDGE_NAME}" "${WHL_INSTALL_DIR_PATH}"
+        whl_uninstall_package "${GE_PY_RUNTIME_NATIVE_NAME}" "${WHL_INSTALL_DIR_PATH}"
+        whl_uninstall_package "${GE_PY_CUSTOM_OP_BRIDGE_NAME}" "${WHL_INSTALL_DIR_PATH}"
         whl_uninstall_package "${DATAFLOW_NAME}" "${WHL_INSTALL_DIR_PATH}"
         whl_uninstall_package "${LLM_DATADIST_NAME}" "${WHL_INSTALL_DIR_PATH}"
         whl_uninstall_package "${GE_PY_NAME}" "${WHL_INSTALL_DIR_PATH}"
@@ -218,8 +226,12 @@ custom_uninstall() {
         rm -fr "${WHL_INSTALL_DIR_PATH}/dataflow" 2> /dev/null
         rm -fr "${WHL_INSTALL_DIR_PATH}/ge_py" 2> /dev/null
         rm -fr "${WHL_INSTALL_DIR_PATH}/ge/passes/python_pass_artifacts" 2> /dev/null
+        rm -fr "${WHL_INSTALL_DIR_PATH}/ge/runtime/python_runtime_artifacts" 2> /dev/null
+        rm -fr "${WHL_INSTALL_DIR_PATH}/ge/custom_op/python_custom_op_artifacts" 2> /dev/null
         rm -f "${WHL_INSTALL_DIR_PATH}/ge/passes/_ge_pass_native.so" 2> /dev/null
         rm -fr "${WHL_INSTALL_DIR_PATH}/ge_py_pass_bridge-"*.dist-info 2> /dev/null
+        rm -fr "${WHL_INSTALL_DIR_PATH}/ge_py_runtime_native-"*.dist-info 2> /dev/null
+        rm -fr "${WHL_INSTALL_DIR_PATH}/ge_py_custom_op_bridge-"*.dist-info 2> /dev/null
         remove_ge_py_pass_bridge_wheels
 
         log "INFO" "ge-compiler tool uninstalled successfully!"

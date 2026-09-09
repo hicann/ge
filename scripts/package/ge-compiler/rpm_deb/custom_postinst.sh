@@ -31,10 +31,16 @@ done
 if [ -f "${WHL_GE_PY}" ]; then
     py_tag=$(python3 -c 'import sys; print("cp%d%d" % sys.version_info[:2])' 2>/dev/null)
     bridge_whl=$(ls "${WHL_BRIDGE_DIR}/ge_py_pass_bridge-*-${py_tag}-${py_tag}-*.whl" 2>/dev/null | head -1)
-    if [ -n "${bridge_whl}" ]; then
-        echo "[ge-compiler] installing ${WHL_GE_PY} with bridge ${bridge_whl}"
-        run_pip install --disable-pip-version-check --upgrade --no-index --no-deps --force-reinstall -t "${WHL_INSTALL_DIR_PATH}" "${WHL_GE_PY}" "${bridge_whl}" || \
-        { echo "[ge-compiler] bridge install failed, fallback to ge_py only"; run_pip install --disable-pip-version-check --upgrade --no-deps --force-reinstall -t "${WHL_INSTALL_DIR_PATH}" "${WHL_GE_PY}"; } || true
+    runtime_whl=$(ls "${WHL_BRIDGE_DIR}/ge_py_runtime_native-*-${py_tag}-${py_tag}-*.whl" 2>/dev/null | head -1)
+    custom_op_whl=$(ls "${WHL_BRIDGE_DIR}/ge_py_custom_op_bridge-*-${py_tag}-${py_tag}-*.whl" 2>/dev/null | head -1)
+    native_wheels=()
+    [ -n "${bridge_whl}" ] && native_wheels+=("${bridge_whl}")
+    [ -n "${runtime_whl}" ] && native_wheels+=("${runtime_whl}")
+    [ -n "${custom_op_whl}" ] && native_wheels+=("${custom_op_whl}")
+    if [ ${#native_wheels[@]} -ne 0 ]; then
+        echo "[ge-compiler] installing ${WHL_GE_PY} with matching native wheels: ${native_wheels[*]}"
+        run_pip install --disable-pip-version-check --upgrade --no-index --no-deps --force-reinstall -t "${WHL_INSTALL_DIR_PATH}" "${WHL_GE_PY}" "${native_wheels[@]}" || \
+        { echo "[ge-compiler] native wheel install failed, fallback to ge_py only"; run_pip install --disable-pip-version-check --upgrade --no-deps --force-reinstall -t "${WHL_INSTALL_DIR_PATH}" "${WHL_GE_PY}"; } || true
     else
         echo "[ge-compiler] installing ${WHL_GE_PY}"
         run_pip install --disable-pip-version-check --upgrade --no-deps --force-reinstall -t "${WHL_INSTALL_DIR_PATH}" "${WHL_GE_PY}" || true
