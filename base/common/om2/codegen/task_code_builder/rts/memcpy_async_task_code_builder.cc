@@ -69,7 +69,7 @@ void MemcpyAsyncTaskCodeBuilder::ResolveInternalIndex(TaskSemanticContributeCont
   }
 }
 
-void MemcpyAsyncTaskCodeBuilder::CheckIoRefresh(TaskSemanticContributeContext &context) {
+void MemcpyAsyncTaskCodeBuilder::CheckIoRefresh(const TaskSemanticContributeContext &context) {
   (void)context;
   build_data_.io_refresh = (input_addr_node_.memory_app == om2::MemoryAppType::kMemoryTypeModelIo) ||
                            (output_addr_node_.memory_app == om2::MemoryAppType::kMemoryTypeModelIo);
