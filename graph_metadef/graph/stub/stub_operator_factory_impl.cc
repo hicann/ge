@@ -27,9 +27,6 @@ class OperatorFactoryImpl {
   static void RemoveCustomOpCreators(const std::vector<std::string> &op_types);
   static void MergeBackupCreatorsOnce();
   static void BackupAndClearRegInfoOnce();
-  static void BackupOpsProtoRegInfo();
-  static bool RestoreOpsProtoRegInfo();
-  static bool IsOpsProtoRegInfoCleared();
 };
 
 void OperatorFactoryImpl::SetRegisterOverridable(const bool &) {}
@@ -43,14 +40,4 @@ void OperatorFactoryImpl::RemoveCustomOpCreators(const std::vector<std::string> 
 void OperatorFactoryImpl::MergeBackupCreatorsOnce() {}
 
 void OperatorFactoryImpl::BackupAndClearRegInfoOnce() {}
-
-void OperatorFactoryImpl::BackupOpsProtoRegInfo() {}
-
-bool OperatorFactoryImpl::RestoreOpsProtoRegInfo() {
-  return true;
-}
-
-bool OperatorFactoryImpl::IsOpsProtoRegInfoCleared() {
-  return false;
-}
 }  // namespace ge

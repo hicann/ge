@@ -144,14 +144,6 @@ class GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY OperatorFactoryImpl {
 
   static void ReleaseRegInfo();
 
-  // Save and restore the registrations loaded by OpsProtoManager. The restored maps are deep copies so that
-  // registrations added after the snapshot do not become part of the next restore.
-  static void BackupOpsProtoRegInfo();
-
-  static bool RestoreOpsProtoRegInfo();
-
-  static bool IsOpsProtoRegInfoCleared();
-
   static void RemoveCustomOpCreators(const std::vector<std::string> &op_types);
 
   static void BackupAndClearRegInfoOnce();

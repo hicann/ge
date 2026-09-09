@@ -174,19 +174,6 @@ TEST(UtestGeOperatorFactory, IncCov_GetOpsTypeListFallback) {
   EXPECT_NE(all_ops.size(), 0U);
   OperatorFactoryImpl::operator_creators_v2_ = v2_temp;
 }
-
-TEST(UtestGeOperatorFactory, RestoreOpsProtoRegInfoAfterRelease) {
-  ASSERT_FALSE(OperatorFactory::CreateOperator("acosh", "Acosh").IsEmpty());
-  OperatorFactoryImpl::BackupOpsProtoRegInfo();
-
-  OperatorFactoryImpl::ReleaseRegInfo();
-  EXPECT_TRUE(OperatorFactoryImpl::IsOpsProtoRegInfoCleared());
-  EXPECT_TRUE(OperatorFactory::CreateOperator("acosh", "Acosh").IsEmpty());
-
-  ASSERT_TRUE(OperatorFactoryImpl::RestoreOpsProtoRegInfo());
-  EXPECT_FALSE(OperatorFactoryImpl::IsOpsProtoRegInfoCleared());
-  EXPECT_FALSE(OperatorFactory::CreateOperator("acosh", "Acosh").IsEmpty());
-}
 /*
 TEST(UtestGeOperatorFactory, get_ops_type_list_fail) {
   auto operator_creators_temp = OperatorFactoryImpl::operator_creators_;
