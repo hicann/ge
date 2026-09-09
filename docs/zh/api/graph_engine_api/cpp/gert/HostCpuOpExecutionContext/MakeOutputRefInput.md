@@ -32,9 +32,18 @@ output\_index对应的输出Tensor指针。
 
 ## 约束说明
 
-无
+- output_index对应的输出参数和input_index对应的输入参数，在算子IR原型定义中的名称必须一致，否则接口调用失败。
 
 ## 调用示例
+
+以下为一个简单的算子IR原型定义，输入和输出参数的名称均为x。
+
+```c++
+REG_OP(Identity)
+    .INPUT(x, TensorType::ALL())
+    .OUTPUT(x, TensorType::ALL())
+    .OP_END_FACTORY_REG(Identity)
+```
 
 以下片段位于`HostCpuExecuteOp::Execute`实现中，将第0个输出设置为引用第0个输入的内存地址，并检查返回值。
 
