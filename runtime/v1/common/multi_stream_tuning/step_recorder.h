@@ -14,7 +14,7 @@
 #include <cstdint>
 #include <string>
 
-#include "ge/ge_error_codes.h"
+#include "common/ge_visibility.h"
 
 namespace ge {
 namespace multistream_tune {
@@ -27,7 +27,7 @@ constexpr const char *kSiteModelV2Executor = "ModelV2Executor";
 /// @brief 为无 model_id 的执行对象（RT2.0 执行器）分配打点用执行对象标识。
 /// @return 进程内唯一的标识，取值区间与 model_id 不重叠。
 ///
-GE_FUNC_VISIBILITY uint32_t AllocateExecutionId();
+VISIBILITY_EXPORT uint32_t AllocateExecutionId();
 
 ///
 /// @brief 自动多流寻优单步耗时打点，RAII 兜底 + 显式停表。
@@ -42,7 +42,7 @@ GE_FUNC_VISIBILITY uint32_t AllocateExecutionId();
 /// 这种记录本身按失败落盘、会被寻优工具丢弃，同步既无统计价值，
 /// 又会等待与本次执行无关的历史任务，或绕过调用方原有的超时/Abort 处理。
 ///
-class GE_FUNC_VISIBILITY StepScope {
+class VISIBILITY_EXPORT StepScope {
  public:
   ///
   /// @param [in] site 打点位置标识，取 kSite* 常量

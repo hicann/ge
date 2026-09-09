@@ -299,7 +299,7 @@ graphStatus StreamUtils::GetAutoMultistreamParallelMode(const ComputeGraphPtr &g
 }
 
 graphStatus StreamUtils::ParseAutoMultistreamParallelMode(const std::string &multi_stream_mode,
-                                                          AutoMultistreamConfig &config, const bool from_graph) {
+                                                          AutoMultistreamConfig &config, bool from_graph) {
   config = AutoMultistreamConfig{};
   if (multi_stream_mode.empty()) {
     return GRAPH_SUCCESS;

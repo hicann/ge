@@ -208,7 +208,7 @@ graphStatus CoreNumUtils::GetCoreNumFromGraph(const ge::ComputeGraphPtr &compute
   return GRAPH_SUCCESS;
 }
 
-graphStatus CoreNumUtils::FillCoreNumOptions(const int32_t aicore_num, const int32_t vectorcore_num,
+graphStatus CoreNumUtils::FillCoreNumOptions(int32_t aicore_num, int32_t vectorcore_num,
                                              std::map<std::string, std::string> &options) {
   if (aicore_num >= 0) {
     options[AICORE_NUM] = std::to_string(aicore_num);
