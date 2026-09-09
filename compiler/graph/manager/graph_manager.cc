@@ -10,6 +10,7 @@
 
 #include "graph/manager/graph_manager.h"
 #include <cinttypes>
+#include <cstdlib>
 
 #include <pthread.h>
 #include <future>
@@ -1231,6 +1232,14 @@ Status GraphManager::ProcessNullableOutput(ComputeGraphPtr &compute_graph) const
 }
 
 Status GraphManager::ProcessPcieThrough(ComputeGraphPtr &compute_graph) const {
+  const char *pcie_through_check_env = std::getenv("OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE");
+  if (pcie_through_check_env == nullptr || std::string(pcie_through_check_env) != "1") {
+    GELOGI(
+        "pcie through check is not enabled (OP_PCIE_THROUGH_ACCESS_HOST_MEM_CHECK_ENABLE=%s), "
+        "skip ProcessPcieThrough",
+        (pcie_through_check_env == nullptr) ? "0" : pcie_through_check_env);
+    return SUCCESS;
+  }
   std::string disable_pcie_through;
   if (GetContext().GetOption(OPTION_EXEC_DISABLE_PCIE_THROUGH, disable_pcie_through) == SUCCESS &&
       disable_pcie_through == "1") {
@@ -1264,7 +1273,7 @@ Status GraphManager::ProcessPcieThrough(ComputeGraphPtr &compute_graph) const {
     if (op_impl == nullptr) {
       continue;
     }
-    GELOGI("IsSupportPcieThrough: %d", op_impl->IsSupportPcieThrough());
+    GELOGI("Node: %s IsSupportPcieThrough: %d", node->GetNamePtr(), op_impl->IsSupportPcieThrough());
     if (op_impl->IsSupportPcieThrough()) {
       (void)ge::AttrUtils::SetBool(op_desc, ge::ATTR_NAME_PCIE_THROUGH_FLAG, true);
     }
@@ -1276,7 +1285,7 @@ Status GraphManager::PreRunOptimizeSubGraph(const GraphNodePtr &graph_node, ge::
                                             uint64_t session_id) {
   GE_CHECK_NOTNULL(graph_node);
   GE_CHECK_NOTNULL(compute_graph);
-  GM_RUN_AND_DUMP_PERF("ProcessPcieThrough", ProcessPcieThrough, compute_graph);
+  GE_RETURN_WITH_LOG_IF_ERROR(ProcessPcieThrough(compute_graph), "ProcessPcieThrough failed");
   GM_RUN_AND_DUMP_PERF("ProcessNullableOutput", ProcessNullableOutput, compute_graph);
   GM_RUN_AND_DUMP_PERF("OptimizeSubgraph", OptimizeSubgraph, graph_node, compute_graph, session_id);
 
