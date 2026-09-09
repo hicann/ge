@@ -12,7 +12,7 @@
 
 - 模型中的所有层算子除const算子外，输入和输出需要满足dim!=0。
 
-- 只支持《[算子库](https://gitcode.com/cann/docs/blob/master/docs/zh/ops-lib/0_README.md)》\>“Ascend IR算子规格说明”中的算子，并需满足算子限制条件。
+- 只支持《[算子库](https://hiascend.com/document/redirect/CannCommunityOplist)》\>“Ascend IR算子规格说明”中的算子，并需满足算子限制条件。
 
 - 由于软件约束（动态shape场景下暂不支持输入数据为DT\_INT8），量化后的部署模型使用ATC工具进行模型转换时，不能使用动态shape相关参数，例如[--dynamic\_batch\_size](--dynamic_batch_size.md)和[--dynamic\_image\_size](--dynamic_image_size.md)等，否则模型转换会失败。
 

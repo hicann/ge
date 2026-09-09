@@ -23,7 +23,7 @@ EsTensorHolder &SetFormat(const ge::Format format)
 
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
-| format | 输入 | 张量格式。详情请参见[Format](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)。 |
+| format | 输入 | 张量格式。详情请参见[Format](https://gitcode.com/cann/metadef/blob/9.2.0/docs/zh/api/README.md)。 |
 
 ## 返回值说明
 

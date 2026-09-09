@@ -13,7 +13,7 @@
 
 推导Operator输出的shape和DataType。
 
-关于DataType数据类型的定义，请参见[DataType](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)。
+关于DataType数据类型的定义，请参见[DataType](https://gitcode.com/cann/metadef/blob/9.2.0/docs/zh/api/README.md)。
 
 ## 函数原型
 

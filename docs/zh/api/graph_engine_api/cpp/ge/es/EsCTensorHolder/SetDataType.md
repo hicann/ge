@@ -23,7 +23,7 @@ ge::Status SetDataType(const ge::DataType data_type)
 
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
-| data_type | 输入 | 数据类型。详情请参见[DataType](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)。 |
+| data_type | 输入 | 数据类型。详情请参见[DataType](https://gitcode.com/cann/metadef/blob/9.2.0/docs/zh/api/README.md)。 |
 
 ## 返回值说明
 

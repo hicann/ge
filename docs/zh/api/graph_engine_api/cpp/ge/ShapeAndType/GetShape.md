@@ -25,7 +25,7 @@ const Shape &GetShape() const
 
 ## 返回值
 
-ShapeAndType对象中的[Shape](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)。
+ShapeAndType对象中的[Shape](https://gitcode.com/cann/metadef/blob/9.2.0/docs/zh/api/README.md)。
 
 ## 约束说明
 

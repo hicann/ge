@@ -66,7 +66,7 @@ df.finalize()
 **图2**  通过FlowNode构图并执行
 ![](figures/graph_construct_and_execute_use_flownode.png "通过FlowNode构图并执行")
 
-示例代码如下。完整示例代码请参考[sample\_base](https://gitcode.com/cann/ge/blob/master/examples/dflow/python/sample_base.py)。
+示例代码如下。完整示例代码请参考[sample\_base](../../../../../../examples/dflow/python/sample_base.py)。
 
 ```python
 import dataflow as df

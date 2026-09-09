@@ -8,7 +8,7 @@
 
 ## CBLAS接口替换方案
 
-CBLAS接口主要分为两类功能：执行矩阵-向量乘法和执行矩阵-矩阵乘法。其核心步骤包括：使用ATC工具编译算子、加载算子模型文件（如aclopLoad接口）以及执行算子（例如aclblasGemvEx）。矩阵-向量乘法和矩阵-矩阵乘法对应不同的执行接口，且输入输出数据类型也存在差异。**因此CBLAS接口与aclnn算子接口之间不存在直接的一一对应关系，替换时需要通过Matmul、Muls和Add等aclnn基础算子接口的组合来实现，样例代码请参见[Link](https://gitcode.com/cann/ge/blob/master/examples/acl/4_sample_acl_gemm/README.md)。**
+CBLAS接口主要分为两类功能：执行矩阵-向量乘法和执行矩阵-矩阵乘法。其核心步骤包括：使用ATC工具编译算子、加载算子模型文件（如aclopLoad接口）以及执行算子（例如aclblasGemvEx）。矩阵-向量乘法和矩阵-矩阵乘法对应不同的执行接口，且输入输出数据类型也存在差异。**因此CBLAS接口与aclnn算子接口之间不存在直接的一一对应关系，替换时需要通过Matmul、Muls和Add等aclnn基础算子接口的组合来实现，样例代码请参见[Link](https://gitcode.com/cann/ge/blob/9.2.0/examples/acl/4_sample_acl_gemm/README.md)。**
 
 具体替换方案如下：
 

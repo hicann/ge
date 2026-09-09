@@ -101,9 +101,9 @@ For developers who do not depend on Ascend devices, if you want to quickly set u
      | `bash` | Command to execute immediately after container starts. | Required |
 
      > **Note**:
-     > - Scenario 1 is suitable for GE compilation build only, no NPU device support required
-     > - Scenario 2 is suitable for scenarios that need to run samples or perform NPU-related tests, requiring NPU driver and firmware installed on the host machine
-     > - If using other chip models (such as 950, Atlas A3 series products), please adjust device names in `--device` parameter accordingly
+     > - Scenario 1 is suitable for GE compilation build only, no NPU device support required.
+     > - Scenario 2 is suitable for scenarios that need to run samples or perform NPU-related tests, requiring NPU driver and firmware installed on the host machine.
+     > - If using other chip models (such as 950, Atlas A3 series products), please adjust device names in `--device` parameter accordingly.
 
 4. **Initialize Environment**
 

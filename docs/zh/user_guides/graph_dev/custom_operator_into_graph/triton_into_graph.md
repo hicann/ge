@@ -302,9 +302,9 @@ g++ -std=c++14 -shared $SOURCE_FILES -o outputs/libcustom_ops.so -fPIC ${TF_CFLA
     ```
     <!-- end id1 -->
 
-    其中，aclrtBinaryLoadFromFile、aclrtBinaryGetFunction、aclrtLaunchKernelWithHostArgs接口详细说明请参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/master/docs/zh/api_ref/README.md)》中的“Kernel加载与执行”。
+    其中，aclrtBinaryLoadFromFile、aclrtBinaryGetFunction、aclrtLaunchKernelWithHostArgs接口详细说明请参见《[Runtime运行时API](https://gitcode.com/cann/runtime/blob/9.2.0/docs/zh/api_ref/README.md)》中的“Kernel加载与执行”。
 
-    GetAddr、GetShape、GetSize、GetDataType、GetFormat、GetShapeSize接口详细说明请参见《[基础数据结构和接口](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)》。
+    GetAddr、GetShape、GetSize、GetDataType、GetFormat、GetShapeSize接口详细说明请参见《[基础数据结构和接口](https://gitcode.com/cann/metadef/blob/9.2.0/docs/zh/api/README.md)》。
 
     其他接口详细说明请参见[EagerExecuteOp](../../../api/graph_engine_api/cpp/ge/EagerExecuteOp/EagerExecuteOp.md/)、[Execute](../../../api/graph_engine_api/cpp/ge/EagerExecuteOp/Execute.md)、[GetInputTensor](../../../api/graph_engine_api/cpp/gert/EagerOpExecutionContext/GetInputTensor.md)、[MallocOutputTensor](../../../api/graph_engine_api/cpp/gert/EagerOpExecutionContext/MallocOutputTensor.md)、[GetStream](../../../api/graph_engine_api/cpp/gert/EagerOpExecutionContext/GetStream.md)、[REG\_AUTO\_MAPPING\_OP](../../../api/graph_engine_api/cpp/ge/REG_AUTO_MAPPING_OP.md)。
 

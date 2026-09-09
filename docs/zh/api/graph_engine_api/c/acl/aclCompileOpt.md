@@ -304,7 +304,7 @@ Atlas 推理系列产品，该选项默认值为enable。
 <!-- end id13 -->
 
 <!-- npu="950,A3,910b,910,310p,310b" id17 -->
-若本参数的取值为disable，则需要安装算子二进制文件包，请参见《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
+若本参数的取值为disable，则需要安装算子二进制文件包，请参见《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
 <!-- end id17 -->
 
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclCompileOpt_res.md#id2 -->

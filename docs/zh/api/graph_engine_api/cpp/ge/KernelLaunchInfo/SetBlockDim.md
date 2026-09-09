@@ -29,7 +29,7 @@ graphStatus SetBlockDim(uint32_t block_dim)
 
 设置成功时返回“ge::GRAPH\_SUCCESS”。
 
-关于graphStatus的定义，请参见[ge::graphStatus](https://gitcode.com/cann/metadef/blob/master/docs/zh/api/README.md)。
+关于graphStatus的定义，请参见[ge::graphStatus](https://gitcode.com/cann/metadef/blob/9.2.0/docs/zh/api/README.md)。
 
 ## 约束说明
 

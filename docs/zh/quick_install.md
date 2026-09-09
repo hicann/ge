@@ -6,10 +6,10 @@
 
 软件安装方式请根据如下描述进行选择：
 
-| 安装方式       | 说明                                                         | 使用场景                                                     |
+| 安装方式 | 说明 | 使用场景 |
 | :------------- | :----------------------------------------------------------- | :----------------------------------------------------------- |
-| CANNLab | 一站式开发平台，提供在线直接运行的昇腾环境，无需手动安装。<br>当前可提供单机算力，**默认安装最新商发版CANN包**。 | 适用于没有昇腾设备的开发者。                                 |
-|  Docker  | Docker镜像是一种高效部署方式，一键部署CANN包和必备依赖。<br>当前OS仅支持Ubuntu操作系统，**默认安装最新商发版CANN包**。 |适用有昇腾设备，需要快速搭建环境的开发者。|
+| CANNLab | 一站式开发平台，提供在线直接运行的昇腾环境，无需手动安装。<br>当前可提供单机算力，**默认安装最新商发版CANN包**。 | 适用于没有昇腾设备的开发者。 |
+| Docker | Docker镜像是一种高效部署方式，一键部署CANN包和必备依赖。<br>当前OS仅支持Ubuntu操作系统，**默认安装最新商发版CANN包**。 | 适用有昇腾设备，需要快速搭建环境的开发者。 |
 | 手动安装 | 手动安装CANN包和基础依赖，灵活性高。 | 适用有昇腾设备，想体验手动安装CANN包或体验最新master分支能力的开发者。 |
 
 ### 方式一：CANNLab
@@ -38,7 +38,7 @@
 
 1.**安装驱动与固件（运行态依赖）**
 
-宿主机上昇腾驱动与固件的下载和安装操作请参考《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》中“准备软件包”和“安装NPU驱动和固件”章节。驱动与固件是运行态依赖，若仅编译算子，可以不安装。
+宿主机上昇腾驱动与固件的下载和安装操作请参考《[CANN软件安装](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)》中“准备软件包”和“安装NPU驱动和固件”章节。驱动与固件是运行态依赖，若仅编译算子，可以不安装。
 
 2.**下载镜像**
 
@@ -100,24 +100,28 @@ docker run --name cann_container \
 | `bash` | 容器启动后立即执行的命令。 | 必选 |
 
 > **说明**：
-> - 场景1适用于仅编译构建GE的场合，无需NPU设备支持
-> - 场景2适用于需要运行样例或进行NPU相关测试的场合，需要宿主机已安装NPU驱动和固件
-> - 如果使用其他型号芯片（如950、Atlas A3系列产品），请相应调整 `--device` 参数中的设备名称
+>
+> - 场景1适用于仅编译构建GE的场合，无需NPU设备支持。
+> - 场景2适用于需要运行样例或进行NPU相关测试的场合，需要宿主机已安装NPU驱动和固件。
+> - 如果使用其他型号芯片（如950、Atlas A3系列产品），请相应调整 `--device` 参数中的设备名称。
 
 4.**初始化环境**
 进入容器后，执行以下命令初始化环境：
 
 - **场景1（仅编译构建）**：
+
     ```bash
     curl -fsSL https://raw.gitcode.com/cann/ge/raw/master/scripts/init_env.sh | bash
     ```
 
 - **场景2（需要运行样例，以Atlas A2系列产品为例）**：
+
     ```bash
     curl -fsSL https://raw.gitcode.com/cann/ge/raw/master/scripts/init_env.sh | bash -s -- --chip-type 910b
     ```
 
 > **说明**：
+>
 > - 对于其他芯片型号，请将 `--chip-type` 参数替换为对应的型号（如 `950`、`A3` ）
 
 ### 方式三：手动安装软件包
@@ -128,9 +132,9 @@ docker run --name cann_container \
 
         驱动与固件是运行态依赖，若仅编译源码，可以不安装。使用`npu-smi info`检查是否有NPU相关信息，若没有，请参考《[CANN快速安装](https://www.hiascend.com/cann/download)》完成驱动与固件安装。
 
-   2. **安装CANN包**
+    2. **安装CANN包**
 
-         请单击[下载链接](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master)获取最新时间版本，并根据产品型号和环境架构下载对应包。安装命令如下，更多指导请参考《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
+         请单击[下载链接](https://ascend.devcloud.huaweicloud.com/artifactory/cann-run-mirror/software/master)获取最新时间版本，并根据产品型号和环境架构下载对应包。安装命令如下，更多指导请参考《[CANN软件安装](https://www.hiascend.com/document/redirect/CannCommunityInstWizard)》。
 
          - 安装CANN Toolkit开发套件包。
 
