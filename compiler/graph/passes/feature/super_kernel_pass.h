@@ -104,7 +104,7 @@ class SuperKernelPass : public GraphPass {
   bool FillVerifyNodeInfo(const NodePtr &node, aclskScopeVerifyNodeInfo &info, int32_t ai_core_cnt_global,
                           int32_t vector_core_cnt_global);
   void FillCoreLimit(const OpDesc *op_desc, aclskScopeVerifyNodeInfo &info, int32_t ai_core_cnt_global,
-                     int32_t vector_core_cnt_global);
+                     int32_t vector_core_cnt_global) const;
   Status CallAclskVerify(const ComputeGraphPtr &graph, std::vector<aclskScopeVerifyNodeInfo> &verify_nodes,
                          std::vector<NodePtr> &node_mapping, std::vector<aclskScopeVerifySplitResult> &split_results);
   bool IsFirstNodeInScope(const std::string &scope_name, int64_t topo_id);
@@ -115,10 +115,10 @@ class SuperKernelPass : public GraphPass {
                              const aclskScopeVerifyNodeInfo *verify_nodes_base,
                              const std::vector<NodePtr> &node_mapping, std::set<std::string> &need_split_scopes,
                              std::map<std::string, std::vector<ScopeCutPoint>> &scope_cut_id);
-  aclskScopeVerifyKernelType GetKernelType(const NodePtr &node);
+  aclskScopeVerifyKernelType GetKernelType(const NodePtr &node) const;
   int32_t GetScopeId(const NodePtr &node);
   int32_t GetScopeIdByCtrlEdge(const NodePtr &node, bool is_send);
-  uint32_t GetEventId(const NodePtr &node);
+  uint32_t GetEventId(const NodePtr &node) const;
 
   std::map<std::string, std::vector<NodePtr>> ori_super_nodes_;
   std::map<std::string, std::map<int64_t, std::vector<size_t>>> ori_super_nodes_id_;

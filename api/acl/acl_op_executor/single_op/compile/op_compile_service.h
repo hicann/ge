@@ -19,7 +19,7 @@ using CompilerCreator = OpCompiler *(*)();
 
 const int32_t ACL_ERROR_COMPILER_NOT_REGISTERED = 16;
 
-enum CompileStrategy { NO_COMPILER, NATIVE_COMPILER, REMOTE_COMPILER };
+enum class CompileStrategy { NO_COMPILER, NATIVE_COMPILER, REMOTE_COMPILER };
 
 class ACL_FUNC_VISIBILITY OpCompileService {
  public:

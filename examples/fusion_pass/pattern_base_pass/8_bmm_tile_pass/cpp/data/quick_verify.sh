@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 # ----------------------------------------------------------------------------
 # Copyright (c) 2026 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of
@@ -251,7 +253,7 @@ for round in $(seq 1 $TEST_ROUNDS); do
     echo "【第${round}轮测试】"
 
     bench_output=$(./benchmark_model 1000 50 2>&1)
-    echo "$bench_output" | grep -E "Average time|Total time|Throughput"
+    echo "$bench_output" | grep -E "Average time|Total time|Throughput" || true
 
     avg_ms=$(echo "$bench_output" | grep "Average time per iteration" | awk -F'[ :]' '{for(i=1;i<=NF;i++) if($i ~ /^[0-9]/) print $i; exit}')
 

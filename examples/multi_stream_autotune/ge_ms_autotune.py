@@ -586,10 +586,7 @@ def compile_candidates(
         slug = config.replace(":", "")
         prefix = args.om_dir / "model_{}".format(slug)
         om_path = prefix.with_suffix(".om")
-        argv = [
-            item.format(om=str(om_path), om_prefix=str(prefix))
-            for item in args.compile_argv
-        ]
+        argv = [item.format(om_prefix=str(prefix)) for item in args.compile_argv]
         environment = os.environ.copy()
         environment[MODE_ENV] = config
         print("[编译] 候选={} → {}".format(config, om_path.name))
@@ -1002,7 +999,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-command", help="online 必填：被测命令，整体加引号")
     parser.add_argument(
         "--compile-command",
-        help="offline 必填：编译 OM 的命令，用 {om} 或 {om_prefix} 占位输出路径",
+        help="offline 必填：编译 OM 的命令，输出路径用 {om_prefix} 占位",
     )
     parser.add_argument("--target", help="offline 必填：目标机配置 JSON 路径")
     parser.add_argument("--om-dir", help="offline：OM 产物目录，默认 <output-dir>/om")
@@ -1083,8 +1080,13 @@ def prepare_mode_args(args: argparse.Namespace) -> None:
     if not args.compile_command or not args.target:
         raise AutotuneError("--mode offline 需要 --compile-command 与 --target。")
     args.compile_argv = shlex.split(args.compile_command)
-    if not any("{om}" in item or "{om_prefix}" in item for item in args.compile_argv):
-        raise AutotuneError("--compile-command 必须包含 {om} 或 {om_prefix} 占位符。")
+    if any("{om}" in item for item in args.compile_argv):
+        raise AutotuneError(
+            "--compile-command 不支持 {om} 占位符，请改用 {om_prefix}："
+            "ATC 的 --output 会自动补 .om 后缀。"
+        )
+    if not any("{om_prefix}" in item for item in args.compile_argv):
+        raise AutotuneError("--compile-command 必须包含 {om_prefix} 占位符。")
     args.argv = []
     args.target = load_target(args.target)
     args.command_text = args.target.run_command

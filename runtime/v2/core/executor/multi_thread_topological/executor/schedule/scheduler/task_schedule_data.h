@@ -15,8 +15,8 @@
 
 namespace gert {
 struct TaskScheduleData {
-  explicit TaskScheduleData(const void *execution_data);
-  TaskScheduleData(const void *execution_data, const FreeLaunchRelationCsr &free_launch_relation_csr);
+  explicit TaskScheduleData(const void *exec_data);
+  TaskScheduleData(const void *exec_data, const FreeLaunchRelationCsr &relation_csr);
   const void *execution_data;
   size_t schedule_limit;
   FreeLaunchRelationCsr free_launch_relation_csr;

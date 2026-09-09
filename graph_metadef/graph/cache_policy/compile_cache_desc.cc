@@ -196,7 +196,7 @@ bool TensorInfoArgs::IsShapeInRange(const TensorInfoArgs &other) const {
   // check shape range when shape is dynamic
   if (this->IsUnknownShape()) {
     if (this->shape_.size() != this->shape_range_.size()) {
-      GELOGD("shape size %zu is not match shape rang size %zu", this->shape_.size(), this->shape_range_.size());
+      GELOGD("shape size %zu is not match shape range size %zu", this->shape_.size(), this->shape_range_.size());
       return false;
     }
     for (size_t i = 0U; i < this->shape_range_.size(); ++i) {

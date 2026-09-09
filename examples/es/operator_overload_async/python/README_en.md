@@ -22,15 +22,11 @@ python/
 
 ### 3.1. Prepare CANN Package
 
-- This sample requires installing two sets of CANN simultaneously: latest development package for graph compilation, officially released package from website provides [`pyACL`](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900beta1/appdevg/acldevg/aclpythondevg_0096.html) module for graph execution. "Compilation" and "execution" in this text specifically refer to graph compilation and graph execution, not GE engineering source code compilation.
-- Installation please refer to:
-  - Latest development package, for graph compilation, provides latest GE/Python capabilities required by this sample. Installation please refer to [Environment Preparation](../../../../docs/zh/quick_install.md) "Method 3: Manual installation of software packages > Scenario 1: Experience master version capabilities or develop based on master version", install latest version of `toolkit` and `ops` packages
-  - Officially released CANN `toolkit` and `ops` packages, for graph execution, provide `pyACL`. Installation please refer to [Environment Preparation](../../../../docs/zh/quick_install.md) "Method 3: Manual installation of software packages > Scenario 2: Experience released version capabilities or develop based on released version", install officially released software packages
-- Set environment variables (assuming latest development package is installed at /usr/local/Ascend/, officially released package is installed at /usr/local/Ascend-release/)
+- Please refer to [Environment Preparation](../../../../docs/zh/quick_install.md) "Method 3: Manual installation of software packages > Scenario 1: Experience master version capabilities or develop based on master version", install the latest `toolkit` and `ops` packages.
+- Set environment variables (assuming the package is installed at /usr/local/Ascend/)
 
 ```bash
 source /usr/local/Ascend/cann/set_env.sh
-export PYTHONPATH="$PYTHONPATH:/usr/local/Ascend-release/cann/python/site-packages"
 ```
 
 ### 3.2. Execute

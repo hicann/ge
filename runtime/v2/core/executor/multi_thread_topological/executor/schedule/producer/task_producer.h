@@ -13,7 +13,7 @@
 
 #include "core/executor/multi_thread_topological/executor/schedule/task/task_package.h"
 #include "ge/ge_api_types.h"
-#include "ge_common/ge_api_error_codes.h"
+#include "ge/ge_api_error_codes.h"
 
 namespace gert {
 class TaskProducer {

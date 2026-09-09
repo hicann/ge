@@ -605,7 +605,7 @@ static const char_t *TransTensorNameToReal(const aclmdlDesc *const modelDesc, co
   std::vector<std::string> valArr;
   acl::StringUtils::Split(tensorName, '_', valArr);
   if ((valArr.size() != TENSOR_NAME_ATTR_NUM) && (valArr.size() != (TENSOR_NAME_ATTR_NUM + 1U))) {
-    ACL_LOG_INNER_ERROR("[Check][Params]tensorName[%s] cannot be devided into %zu parts", tensorName.c_str(),
+    ACL_LOG_INNER_ERROR("[Check][Params]tensorName[%s] cannot be divided into %zu parts", tensorName.c_str(),
                         TENSOR_NAME_ATTR_NUM);
     return nullptr;
   }

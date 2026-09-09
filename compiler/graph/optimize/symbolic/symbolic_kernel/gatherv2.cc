@@ -120,7 +120,7 @@ graphStatus CalOutputSymbolValue(gert::InferSymbolComputeContext *context, const
   const int64_t block_num =
       static_cast<int64_t>(param_values.size()) / outer_loop_num / block_size / param_dims[static_cast<size_t>(axis)];
   const int64_t outer_block_size = static_cast<int64_t>(param_values.size()) / outer_loop_num;
-  GELOGD("param total size: %zu, indice total size:%zu, axis dim num: %lld, node %s[%s].", param_values.size(),
+  GELOGD("param total size: %zu, indices total size:%zu, axis dim num: %lld, node %s[%s].", param_values.size(),
          indice_values.size(), param_dims[static_cast<size_t>(axis)], context->GetNodeName(), context->GetNodeType());
   for (int64_t i = 0L; i < outer_loop_num; i++) {
     for (int64_t j = 0L; j < block_num; j++) {
@@ -128,7 +128,7 @@ graphStatus CalOutputSymbolValue(gert::InferSymbolComputeContext *context, const
         int64_t gather_index = indice_values[static_cast<size_t>(k + indice_block_size * i)];
         GE_ASSERT_TRUE(
             gather_index < param_dims[static_cast<size_t>(axis)],
-            "SymbolicKernel compute failed, reason: indice index:%lld should be less than axis:%lld dim:%lld, "
+            "SymbolicKernel compute failed, reason: indices index:%lld should be less than axis:%lld dim:%lld, "
             "node %s[%s].",
             gather_index, axis, param_dims[axis], context->GetNodeName(), context->GetNodeType());
         const auto start_iter =

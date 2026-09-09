@@ -75,7 +75,7 @@ aclError OpCompileProcessor::SetOption() {
 
   std::map<std::string, std::string> options = {{ge::SOC_VERSION, std::string(socVersion)},
                                                 {ge::OP_SELECT_IMPL_MODE, std::string("high_precision")}};
-  return OpCompileService::GetInstance().SetCompileStrategy(NATIVE_COMPILER, options);
+  return OpCompileService::GetInstance().SetCompileStrategy(CompileStrategy::NATIVE_COMPILER, options);
 }
 
 aclError OpCompileProcessor::OpCompile(AclOp &aclOp) {

@@ -150,6 +150,7 @@ ge::graphStatus DeviceHbmToHostPermanent(const ge::Node *node, LoweringGlobalDat
   GE_ASSERT_NOTNULL(allocator_holder);
   auto dst_address = bg::DevMemValueHolder::CreateSingleDataOutput(
       "CopyD2H", {src.address, tensor_size, allocator_holder}, src_logic_stream_id);
+  GE_ASSERT_NOTNULL(dst_address);
   bg::ValueHolder::AddDependency(sync_stream_holder, dst_address);
 
   dst.order_holders.clear();

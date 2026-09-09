@@ -11,13 +11,6 @@
 #ifndef INC_FRAMEWORK_OMG_OMG_INNER_TYPES_H_
 #define INC_FRAMEWORK_OMG_OMG_INNER_TYPES_H_
 
-#include <functional>
-#include <map>
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <utility>
-#include <vector>
 #include "framework/common/fmk_error_codes.h"
 #include "register/register_fmk_types.h"
 #include "graph/node.h"

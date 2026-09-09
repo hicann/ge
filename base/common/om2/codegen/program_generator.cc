@@ -255,7 +255,7 @@ CPPFLAGS := \
 endif
 
 ifndef CXXFLAGS
-CXXFLAGS := -std=c++17 -O2 -fPIC
+CXXFLAGS := -std=c++17 -O2 -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2
 endif
 
 ifeq ($(USE_STUB_LIB),1)
@@ -265,7 +265,7 @@ LIB_PATH ?= $(CANN_ROOT)/lib64
 endif
 
 ifndef LDFLAGS
-LDFLAGS := -shared -L$(LIB_PATH) -Wl,--no-as-needed
+LDFLAGS := -shared -L$(LIB_PATH) -Wl,--no-as-needed -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -s
 endif
 ifndef LDLIBS
 LDLIBS := -lacl_rt -Wl,--as-needed

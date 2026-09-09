@@ -7,7 +7,6 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#include <array>
 #include <functional>
 #include <numeric>
 #include <vector>
@@ -71,20 +70,23 @@ graphStatus GetInput(const gert::InferSymbolComputeContext *context, size_t inde
 }
 
 graphStatus GetScatterInputs(const gert::InferSymbolComputeContext *context, ScatterInputs &inputs) {
-  const std::array<std::vector<int64_t> *, 3U> dims = {&inputs.x_dims, &inputs.indices_dims, &inputs.updates_dims};
-  const std::array<const std::vector<Expression> **, 3U> values = {&inputs.x_values, &inputs.indices_values,
-                                                                   &inputs.updates_values};
-  const std::array<size_t, 3U> input_indices = {kXIndex, kIndicesIndex, kUpdatesIndex};
-  for (size_t i = 0U; i < input_indices.size(); ++i) {
-    const auto ret = GetInput(context, input_indices[i], *dims[i], *values[i]);
-    if (ret != GRAPH_SUCCESS) {
-      return ret;
-    }
+  const auto x_ret = GetInput(context, kXIndex, inputs.x_dims, inputs.x_values);
+  if (x_ret != GRAPH_SUCCESS) {
+    return x_ret;
   }
-  return GRAPH_SUCCESS;
+  const auto indices_ret = GetInput(context, kIndicesIndex, inputs.indices_dims, inputs.indices_values);
+  if (indices_ret != GRAPH_SUCCESS) {
+    return indices_ret;
+  }
+  return GetInput(context, kUpdatesIndex, inputs.updates_dims, inputs.updates_values);
 }
 
 graphStatus ValidateScatterInputs(const gert::InferSymbolComputeContext *context, const ScatterInputs &inputs) {
+  if ((inputs.x_values == nullptr) || (inputs.indices_values == nullptr) || (inputs.updates_values == nullptr)) {
+    GELOGW("TensorScatterUpdate symbolic compute unsupported: input SymbolicValue is null, node %s[%s].",
+           context->GetNodeName(), context->GetNodeType());
+    return UNSUPPORTED;
+  }
   const int64_t x_count = ElementCount(inputs.x_dims);
   const int64_t indices_count = ElementCount(inputs.indices_dims);
   const int64_t updates_count = ElementCount(inputs.updates_dims);

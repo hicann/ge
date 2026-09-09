@@ -27,6 +27,7 @@
 #include "parser/onnx/onnx_file_constant_parser.h"
 #include "parser/onnx/onnx_util.h"
 #include "parser/onnx/onnx_parser_internal.h"
+#include "parser/onnx/subgraph_adapter/if_subgraph_adapter.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
@@ -125,6 +126,215 @@ ge::onnx::GraphProto CreateOnnxGraph() {
   tensor_proto->set_data_location(ge::onnx::TensorProto_DataLocation_DEFAULT);
 
   return onnx_graph;
+}
+
+namespace {
+bool HasInput(const ge::onnx::NodeProto &node, const std::string &name) {
+  for (int i = 0; i < node.input_size(); ++i) {
+    if (node.input(i) == name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool HasGraphInput(const ge::onnx::GraphProto &graph, const std::string &name) {
+  for (int i = 0; i < graph.input_size(); ++i) {
+    if (graph.input(i).name() == name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void AddIfBranches(ge::onnx::NodeProto &if_node, const ge::onnx::GraphProto &then_graph,
+                   const ge::onnx::GraphProto &else_graph) {
+  ge::onnx::AttributeProto *then_attribute = if_node.add_attribute();
+  then_attribute->set_name("then_branch");
+  *then_attribute->mutable_g() = then_graph;
+  ge::onnx::AttributeProto *else_attribute = if_node.add_attribute();
+  else_attribute->set_name("else_branch");
+  *else_attribute->mutable_g() = else_graph;
+}
+
+ge::onnx::GraphProto MakeAddBranch(const std::string &input_name, const std::string &output_name) {
+  ge::onnx::GraphProto graph;
+  ge::onnx::NodeProto *add_node = graph.add_node();
+  add_node->set_op_type("Add");
+  add_node->add_input(input_name);
+  add_node->add_input(input_name);
+  add_node->add_output(output_name);
+  ge::onnx::ValueInfoProto *output = graph.add_output();
+  output->set_name(output_name);
+  return graph;
+}
+
+ge::onnx::GraphProto MakeConstantBranch(const std::string &output_name) {
+  ge::onnx::GraphProto graph;
+  ge::onnx::NodeProto *constant = graph.add_node();
+  constant->set_op_type(kOpTypeConstant);
+  constant->add_output(output_name);
+  ge::onnx::ValueInfoProto *output = graph.add_output();
+  output->set_name(output_name);
+  return graph;
+}
+
+ge::onnx::NodeProto MakeIfNode(const std::string &name, const std::string &condition,
+                               const ge::onnx::GraphProto &then_graph, const ge::onnx::GraphProto &else_graph) {
+  ge::onnx::NodeProto if_node;
+  if_node.set_name(name);
+  if_node.set_op_type("If");
+  if_node.add_input(condition);
+  AddIfBranches(if_node, then_graph, else_graph);
+  return if_node;
+}
+
+void AdaptIf(ge::onnx::NodeProto &if_node, std::vector<ge::onnx::GraphProto *> &subgraphs,
+             std::map<std::string, ge::onnx::GraphProto *> &name_to_graph) {
+  ge::IfSubgraphAdapter adapter;
+  ASSERT_EQ(adapter.AdaptAndFindAllSubgraphs(&if_node, subgraphs, name_to_graph), SUCCESS);
+}
+}  // namespace
+
+TEST_F(UtestOnnxParser, IfSubgraphAdapterCapturesDirectBranchInput) {
+  ge::onnx::NodeProto if_node =
+      MakeIfNode("outer_if", "cond", MakeAddBranch("C", "Y_then"), MakeAddBranch("C", "Y_else"));
+  std::vector<ge::onnx::GraphProto *> subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  AdaptIf(if_node, subgraphs, name_to_graph);
+
+  EXPECT_TRUE(HasInput(if_node, "C"));
+  ASSERT_EQ(subgraphs.size(), 2U);
+  EXPECT_TRUE(HasGraphInput(*subgraphs[0], "C"));
+  EXPECT_TRUE(HasGraphInput(*subgraphs[1], "C"));
+}
+
+TEST_F(UtestOnnxParser, IfSubgraphAdapterCapturesNestedBranchInput) {
+  ge::onnx::NodeProto inner_if =
+      MakeIfNode("inner_if", "inner_cond", MakeAddBranch("C", "Z_then"), MakeAddBranch("C", "Z_else"));
+  ge::onnx::GraphProto outer_then;
+  *outer_then.add_node() = inner_if;
+  ge::onnx::GraphProto outer_else = MakeConstantBranch("Y_else");
+  ge::onnx::NodeProto outer_if = MakeIfNode("outer_if", "cond", outer_then, outer_else);
+
+  std::vector<ge::onnx::GraphProto *> subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  AdaptIf(outer_if, subgraphs, name_to_graph);
+
+  EXPECT_TRUE(HasInput(outer_if, "C"));
+  ASSERT_EQ(subgraphs.size(), 2U);
+  EXPECT_TRUE(HasGraphInput(*subgraphs[0], "C"));
+  EXPECT_TRUE(HasGraphInput(*subgraphs[1], "C"));
+
+  ge::onnx::NodeProto *adapted_inner_if = subgraphs[0]->mutable_node(0);
+  std::vector<ge::onnx::GraphProto *> inner_subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> inner_name_to_graph;
+  AdaptIf(*adapted_inner_if, inner_subgraphs, inner_name_to_graph);
+  EXPECT_TRUE(HasInput(*adapted_inner_if, "C"));
+  ASSERT_EQ(inner_subgraphs.size(), 2U);
+  EXPECT_TRUE(HasGraphInput(*inner_subgraphs[0], "C"));
+  EXPECT_TRUE(HasGraphInput(*inner_subgraphs[1], "C"));
+}
+
+TEST_F(UtestOnnxParser, IfSubgraphAdapterCapturesTwoLevelNestedInput) {
+  ge::onnx::NodeProto leaf_if =
+      MakeIfNode("leaf_if", "leaf_cond", MakeAddBranch("C", "leaf_then_value"), MakeAddBranch("C", "leaf_else_value"));
+  ge::onnx::GraphProto middle_then;
+  ge::onnx::NodeProto *leaf_condition = middle_then.add_node();
+  leaf_condition->set_op_type(kOpTypeConstant);
+  leaf_condition->add_output("leaf_cond");
+  *middle_then.add_node() = leaf_if;
+  ge::onnx::NodeProto middle_if =
+      MakeIfNode("middle_if", "middle_cond", middle_then, MakeConstantBranch("middle_else_value"));
+  ge::onnx::GraphProto outer_then;
+  ge::onnx::NodeProto *middle_condition = outer_then.add_node();
+  middle_condition->set_op_type(kOpTypeConstant);
+  middle_condition->add_output("middle_cond");
+  *outer_then.add_node() = middle_if;
+  ge::onnx::NodeProto outer_if = MakeIfNode("outer_if", "cond", outer_then, MakeConstantBranch("outer_else_value"));
+
+  std::vector<ge::onnx::GraphProto *> outer_subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> outer_name_to_graph;
+  AdaptIf(outer_if, outer_subgraphs, outer_name_to_graph);
+  EXPECT_TRUE(HasInput(outer_if, "C"));
+  ASSERT_EQ(outer_subgraphs.size(), 2U);
+  EXPECT_TRUE(HasGraphInput(*outer_subgraphs[0], "C"));
+
+  ge::onnx::NodeProto *adapted_middle_if = outer_subgraphs[0]->mutable_node(1);
+  std::vector<ge::onnx::GraphProto *> middle_subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> middle_name_to_graph;
+  AdaptIf(*adapted_middle_if, middle_subgraphs, middle_name_to_graph);
+  EXPECT_TRUE(HasInput(*adapted_middle_if, "C"));
+  ASSERT_EQ(middle_subgraphs.size(), 2U);
+  EXPECT_TRUE(HasGraphInput(*middle_subgraphs[0], "C"));
+
+  ge::onnx::NodeProto *adapted_leaf_if = middle_subgraphs[0]->mutable_node(1);
+  std::vector<ge::onnx::GraphProto *> leaf_subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> leaf_name_to_graph;
+  AdaptIf(*adapted_leaf_if, leaf_subgraphs, leaf_name_to_graph);
+  EXPECT_TRUE(HasInput(*adapted_leaf_if, "C"));
+  ASSERT_EQ(leaf_subgraphs.size(), 2U);
+  EXPECT_TRUE(HasGraphInput(*leaf_subgraphs[0], "C"));
+  EXPECT_TRUE(HasGraphInput(*leaf_subgraphs[1], "C"));
+}
+
+TEST_F(UtestOnnxParser, IfSubgraphAdapterPropagatesBranchInputUnion) {
+  ge::onnx::NodeProto if_node =
+      MakeIfNode("outer_if", "cond", MakeAddBranch("A", "Y_then"), MakeAddBranch("B", "Y_else"));
+  std::vector<ge::onnx::GraphProto *> subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  AdaptIf(if_node, subgraphs, name_to_graph);
+
+  EXPECT_TRUE(HasInput(if_node, "A"));
+  EXPECT_TRUE(HasInput(if_node, "B"));
+  ASSERT_EQ(subgraphs.size(), 2U);
+  for (ge::onnx::GraphProto *subgraph : subgraphs) {
+    EXPECT_TRUE(HasGraphInput(*subgraph, "A"));
+    EXPECT_TRUE(HasGraphInput(*subgraph, "B"));
+  }
+}
+
+TEST_F(UtestOnnxParser, IfSubgraphAdapterDoesNotCaptureLocallyProducedValue) {
+  ge::onnx::GraphProto then_graph;
+  ge::onnx::NodeProto *constant = then_graph.add_node();
+  constant->set_op_type(kOpTypeConstant);
+  constant->add_output("C");
+  ge::onnx::NodeProto *inner_condition = then_graph.add_node();
+  inner_condition->set_op_type(kOpTypeConstant);
+  inner_condition->add_output("inner_cond");
+  ge::onnx::NodeProto inner_if =
+      MakeIfNode("inner_if", "inner_cond", MakeAddBranch("C", "Z_then"), MakeAddBranch("C", "Z_else"));
+  *then_graph.add_node() = inner_if;
+  ge::onnx::GraphProto else_graph = MakeAddBranch("D", "Y_else");
+  ge::onnx::NodeProto outer_if = MakeIfNode("outer_if", "cond", then_graph, else_graph);
+
+  std::vector<ge::onnx::GraphProto *> subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  AdaptIf(outer_if, subgraphs, name_to_graph);
+
+  EXPECT_FALSE(HasInput(outer_if, "C"));
+  ASSERT_EQ(subgraphs.size(), 2U);
+  EXPECT_FALSE(HasGraphInput(*subgraphs[0], "C"));
+  EXPECT_FALSE(HasGraphInput(*subgraphs[1], "C"));
+}
+
+TEST_F(UtestOnnxParser, IfSubgraphAdapterIsIdempotent) {
+  ge::onnx::NodeProto if_node =
+      MakeIfNode("outer_if", "cond", MakeAddBranch("C", "Y_then"), MakeAddBranch("C", "Y_else"));
+  if_node.add_input("C");
+  std::vector<ge::onnx::GraphProto *> subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  AdaptIf(if_node, subgraphs, name_to_graph);
+  const int parent_input_size = if_node.input_size();
+  const int then_input_size = subgraphs[0]->input_size();
+  const int else_input_size = subgraphs[1]->input_size();
+
+  std::vector<ge::onnx::GraphProto *> second_subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> second_name_to_graph;
+  AdaptIf(if_node, second_subgraphs, second_name_to_graph);
+  EXPECT_EQ(if_node.input_size(), parent_input_size);
+  EXPECT_EQ(second_subgraphs[0]->input_size(), then_input_size);
+  EXPECT_EQ(second_subgraphs[1]->input_size(), else_input_size);
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_if_node) {

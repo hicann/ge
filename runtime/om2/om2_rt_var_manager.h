@@ -37,24 +37,26 @@ class Om2RTVarManager {
   Om2RTVarManager() = default;
   ~Om2RTVarManager();
 
-  ge::Status Init(const RTVarResource &resource, void *external_var_addr = nullptr, uint64_t external_var_size = 0);
-  ge::Status GetVarDevAddr(const std::string &var_name, uint32_t device_id, void *&dev_addr);
-  ge::Status GetVarDevAddr(const RTVarEntry &entry, uint32_t device_id, void *&dev_addr);
-  ge::Status TransAllVarData(const std::vector<std::string> &var_names, uint32_t device_id, uint32_t graph_id);
-  ge::Status CopyVarData(const std::vector<std::string> &var_names, uint32_t device_id);
-  ge::Status GetOrCreateVarAddr(const std::string &key, uint32_t device_id, size_t size, void *&addr);
-  bool TryGetVarAddr(const std::string &key, uint32_t device_id, void *&addr) const;
+  ge::Status Init(const RTVarResource &resource, void *const external_var_addr = nullptr,
+                  const uint64_t external_var_size = 0);
+  ge::Status GetVarDevAddr(const std::string &var_name, const uint32_t device_id, void *&dev_addr);
+  ge::Status GetVarDevAddr(const RTVarEntry &entry, const uint32_t device_id, void *&dev_addr);
+  ge::Status TransAllVarData(const std::vector<std::string> &var_names, const uint32_t device_id,
+                             const uint32_t graph_id);
+  ge::Status CopyVarData(const std::vector<std::string> &var_names, const uint32_t device_id);
+  ge::Status GetOrCreateVarAddr(const std::string &key, const uint32_t device_id, const size_t size, void *&addr);
+  bool TryGetVarAddr(const std::string &key, const uint32_t device_id, void *&addr) const;
   const RTVarResource *GetVarResource() const;
   void Finalize() noexcept;
 
  private:
   ge::Status AllocDevAddr(const RTVarEntry &entry, void *&dev_addr);
-  ge::Status CopyVarFromDevice(const RTVarEntry &entry, const RTVarRuntimeState &state, uint32_t device_id,
+  ge::Status CopyVarFromDevice(const RTVarEntry &entry, const RTVarRuntimeState &state, const uint32_t device_id,
                                std::vector<uint8_t> &host_buf);
-  ge::Status CopyVarToDevice(const RTVarEntry &entry, const RTVarRuntimeState &state, uint32_t device_id,
+  ge::Status CopyVarToDevice(const RTVarEntry &entry, const RTVarRuntimeState &state, const uint32_t device_id,
                              const std::vector<uint8_t> &host_buf);
   ge::Status TransVarOnHost(const RTVarTransRoad &trans_road, std::vector<uint8_t> &data);
-  ge::Status TransSingleVarData(const std::string &var_name, uint32_t device_id);
+  ge::Status TransSingleVarData(const std::string &var_name, const uint32_t device_id);
 
   RTVarRuntimeState &GetOrCreateRuntimeState(const std::string &var_key);
   const RTVarRuntimeState *GetRuntimeState(const std::string &var_key) const;
@@ -79,8 +81,8 @@ class __attribute__((visibility("default"))) Om2RTVarManagerPool {
  public:
   static Om2RTVarManagerPool &Instance();
   ~Om2RTVarManagerPool();
-  Om2RTVarManagerPtr GetManager(uint64_t session_id);
-  void RemoveManager(uint64_t session_id);
+  Om2RTVarManagerPtr GetManager(const uint64_t session_id);
+  void RemoveManager(const uint64_t session_id);
   void Destroy() noexcept;
 
  private:

@@ -75,7 +75,7 @@ def run():
         elapsed_ms / args.iters,
     )
     max_err = np.max(np.abs(result_npu - result_cpu) / (np.abs(result_cpu) + 1e-10))
-    logging.info("Max relative error vs CPU: %.6f", max_err)
+    logging.info("Max relative diff vs CPU: %.6f", max_err)
 
 
 if __name__ == "__main__":

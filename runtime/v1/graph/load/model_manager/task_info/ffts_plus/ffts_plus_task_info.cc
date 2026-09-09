@@ -665,8 +665,8 @@ Status FftsPlusTaskInfo::PrePareForTransfer(const domi::TaskDef &task_def) {
   }
   GE_ASSERT_SUCCESS(InitTilingInfo());
   GE_ASSERT_TRUE(!ge::MulOverflow(dsa_ctx_num, kDsaWorkspaceMaxSize, dsa_workspace_size_));
-  GELOGI("Prepare for task transfer-ing success, node: %s, ctx num: %d, dsa workspace size: %zu.",
-         op_desc_->GetNamePtr(), ctx_num, dsa_workspace_size_);
+  GELOGI("Prepare for task transfer success, node: %s, ctx num: %d, dsa workspace size: %zu.", op_desc_->GetNamePtr(),
+         ctx_num, dsa_workspace_size_);
 
   GE_ASSERT_TRUE(!ge::MulOverflow(sizeof(void *), ffts_plus_task_def.addr_size(), args_size_));
   GE_ASSERT_TRUE(!ge::AddOverflow(args_size_, dsa_workspace_size_, args_size_));

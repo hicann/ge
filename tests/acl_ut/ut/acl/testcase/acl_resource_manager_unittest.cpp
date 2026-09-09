@@ -649,10 +649,10 @@ TEST(UTEST_ACL_Resource_Manager, BuildOpModelTestSuccess) {
   AclOp aclop;
   std::map<std::string, std::string> options;
   OpCompileService service;
-  service.RegisterCreator(NATIVE_COMPILER, &LocalCompiler::CreateCompiler);
+  service.RegisterCreator(CompileStrategy::NATIVE_COMPILER, &LocalCompiler::CreateCompiler);
   std::shared_ptr<void> modelData;
   size_t modelSize;
-  OpCompileService::GetInstance().SetCompileStrategy(NATIVE_COMPILER, options);
+  OpCompileService::GetInstance().SetCompileStrategy(CompileStrategy::NATIVE_COMPILER, options);
   EXPECT_EQ(OpCompileService::GetInstance().CompileOp(aclop, modelData, modelSize), ACL_SUCCESS);
 }
 
@@ -680,8 +680,8 @@ TEST(UTEST_ACL_Resource_Manager, GetOpModelSucc) {
   AclOp aclop;
   std::map<std::string, std::string> options;
   OpCompileService service;
-  service.RegisterCreator(NATIVE_COMPILER, &LocalCompiler::CreateCompiler);
-  OpCompileService::GetInstance().SetCompileStrategy(NATIVE_COMPILER, options);
+  service.RegisterCreator(CompileStrategy::NATIVE_COMPILER, &LocalCompiler::CreateCompiler);
+  OpCompileService::GetInstance().SetCompileStrategy(CompileStrategy::NATIVE_COMPILER, options);
   EXPECT_EQ(AclOpResourceManager::GetInstance().GetOpModel(aclop), ACL_SUCCESS);
 }
 

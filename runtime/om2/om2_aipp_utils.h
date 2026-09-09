@@ -17,7 +17,6 @@
 #include "common/ge_common/ge_types.h"
 #include "common/helper/om2/json_file.h"
 #include "common/om2/om2_model_data.h"
-#include "graph/types.h"
 
 namespace gert {
 namespace om2 {

@@ -49,7 +49,7 @@ std::vector<int64_t> GetStrides(const std::vector<int64_t> &dims) {
 
 }  // namespace
 
-graphStatus CheckTransposeInputs(gert::InferSymbolComputeContext *context, std::vector<int64_t> &dims,
+graphStatus CheckTransposeInputs(const gert::InferSymbolComputeContext *context, std::vector<int64_t> &dims,
                                  std::vector<int64_t> &perm, const std::vector<Expression> *&values) {
   const auto tensor = context->GetInputSymbolTensor(kInputXIndex);
   GE_UNSUPPORTED_IF_NULL(tensor);

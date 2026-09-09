@@ -8,6 +8,7 @@
       "Skill(gitcode-pipeline)",
       "Skill(gitcode-issue)",
       "Skill(api-doc-generator)",
+      "Skill(cann-pr-log-check)",
       "Skill(ge-dt-runner)",
       "Task(subagent_type=code-analyzer)",
       "Task(subagent_type=evaluator)",

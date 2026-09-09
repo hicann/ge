@@ -152,22 +152,22 @@ python3 ge_ms_autotune.py --run-command "..." \
 
 ## 参数说明
 
-| 参数 | 默认值 | 说明 |
-|---|---|---|
-| `--mode` | `online` | `online` 本机执行；`offline` 编译 OM 后送目标机执行 |
-| `--run-command` | online 必填 | 被测命令，整体加引号；按 shell 词法切分后直接执行，不经过 shell |
-| `--compile-command` | offline 必填 | 编译 OM 的命令，用 `{om}`（含 `.om`）或 `{om_prefix}`（不含后缀）占位输出路径；ATC 编动态 Shape 时**必定**把产物改名为 `<prefix>_<os>_<cpu>.om`（如 `_linux_x86_64`，后缀取目标运行环境，无开关可关），驱动两种命名都接受，只认本轮新产出的那一份 |
-| `--target` | offline 必填 | 目标机配置 JSON 路径，字段见[离线场景](#离线场景目标机执行) |
-| `--om-dir` | `<本次运行目录>/om` | offline：OM 产物与编译日志的存放目录 |
-| `--strategies` | `LoadBalance,MainStream` | 候选策略，逗号分隔，可选 `LoadBalance`/`MainStream`/`WeightedLoadBalance`/`cv` |
-| `--streams` | `2,4,8` | 候选流数，逗号分隔，取值 `[1,64]`；`cv` 策略不带流数 |
-| `--configs` | 空 | 直接给定候选（如 `default,LoadBalance:4`），指定后忽略上面两个矩阵参数 |
-| `--repeat` | `3` | 每个候选重复轮数，正式比较建议不少于 3 |
-| `--drop-first` | `1` | 丢弃前若干个 STEP（预热） |
-| `--min-steps` | `5` | 单轮有效 STEP 数下限，低于该值判为无效 |
-| `--main-graph` | 自动 | 多执行对象时指定主对象：`session_id:graph_id` 或 `model:model_id`；默认取 STEP 数最多者 |
-| `--timeout` | `1800` | 单轮超时秒数，`0` 表示不限制 |
-| `--output-dir` | `./ge_ms_autotune_output` | 结果父目录；每次运行自动创建带时间戳的子目录 |
+| 参数 | 默认值 | 说明                                                                                                                                                                                                          |
+|---|---|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--mode` | `online` | `online` 本机执行；`offline` 编译 OM 后送目标机执行                                                                                                                                                                       |
+| `--run-command` | online 必填 | 被测命令，整体加引号；按 shell 词法切分后直接执行，不经过 shell                                                                                                                                                                      |
+| `--compile-command` | offline 必填 | 编译 OM 的命令，输出路径用 `{om_prefix}` 占位 |
+| `--target` | offline 必填 | 目标机配置 JSON 路径，字段见[离线场景](#离线场景目标机执行)                                                                                                                                                                         |
+| `--om-dir` | `<本次运行目录>/om` | offline：OM 产物与编译日志的存放目录                                                                                                                                                                                     |
+| `--strategies` | `LoadBalance,MainStream` | 候选策略，逗号分隔，可选 `LoadBalance`/`MainStream`/`WeightedLoadBalance`/`cv`                                                                                                                                          |
+| `--streams` | `2,4,8` | 候选流数，逗号分隔，取值 `[1,64]`；`cv` 策略不带流数                                                                                                                                                                           |
+| `--configs` | 空 | 直接给定候选（如 `default,LoadBalance:4`），指定后忽略上面两个矩阵参数                                                                                                                                                             |
+| `--repeat` | `3` | 每个候选重复轮数，正式比较建议不少于 3                                                                                                                                                                                        |
+| `--drop-first` | `1` | 丢弃前若干个 STEP（预热）                                                                                                                                                                                             |
+| `--min-steps` | `5` | 单轮有效 STEP 数下限，低于该值判为无效                                                                                                                                                                                      |
+| `--main-graph` | 自动 | 多执行对象时指定主对象：`session_id:graph_id` 或 `model:model_id`；默认取 STEP 数最多者                                                                                                                                          |
+| `--timeout` | `1800` | 单轮超时秒数，`0` 表示不限制                                                                                                                                                                                            |
+| `--output-dir` | `./ge_ms_autotune_output` | 结果父目录；每次运行自动创建带时间戳的子目录                                                                                                                                                                                      |
 
 `default` 基准会自动加入候选列表并排在首位。
 
@@ -343,29 +343,3 @@ python3 ge_ms_autotune.py --mode offline \
 - `--timeout` 同时约束编译、远端执行与回传，跨机传输耗时不影响排名（排名用 STEP 里的 `cost_us`）；
 - 单个候选编译失败会立即中止；某一轮远端执行失败只作废该轮，其余继续，结束仍会清理远端目录；
 - 编译机、OM 与目标机的 CANN/GE 版本和芯片型号必须匹配。
-
-## 落地到生产
-
-寻优结论应固化到业务侧配置，而不是继续依赖本样例的 Pass：
-
-- 在线：Session 初始化时传入 option `ge.autoMultistreamParallelMode=<推荐配置>`；
-- 离线：`atc` 编译时传入同名 option；
-- 卸载寻优 Pass（见步骤一），确保 `_auto_multistream_tuning_mode` 不再写入，关闭调测打点。
-
-## 常见问题
-
-| 现象 | 排查方向 |
-|---|---|
-| 所有候选都提示 `mode` 与候选不一致 | Pass 未安装、装错目录，或被 `vendors` 下其他 Pass 覆盖 |
-| 完全没有 STEP 记录 | GE 版本不含打点能力；或被测样例走了未覆盖的执行链路（`aclmdlExecuteAsyncV2`、DFlow） |
-| OM2 模型跑不出结果 | OM2 路径不支持自动多流，候选配置下发不进去，无法寻优 |
-| 提示时间区间重叠 | 被测样例并发提交多次执行，改为串行执行，或用 `--main-graph` 指定单一执行对象 |
-| 候选间耗时差异极小 | 图本身缺乏可并行分支；或算子粒度过大，多流收益被单算子耗时淹没 |
-| CV 偏大、结论不稳定 | 设备被其他业务占用、profiling 未关闭，或 `--repeat`/`--min-steps` 取值过小 |
-| 与 `ge.enableSingleStream=true` 同时配置报参数错误 | 单流与自动多流互斥，二者只能选一 |
-| offline：提示需要 `sshpass` | 编译机未装 `sshpass`；装上，或改配 `identity_file` 走密钥认证 |
-| offline：ssh 连不上或反复要密码 | 先手工 `ssh -i <key> user@host` 验证；驱动使用 `BatchMode=yes`，不会交互输密码 |
-| offline：候选编译失败 | 看本次运行目录下 `om/compile_<候选>.log`；确认 `--compile-command` 的 `{om_prefix}` 与实际产物路径一致 |
-| offline：提示"未产出 OM"但 om 目录里有文件 | 那是上一轮的残留，驱动只认本轮新写入的产物；换一个 `--output-dir` 重跑 |
-| offline：提示"本轮产出多个 OM" | 一条编译命令输出了多份产物（如同时编了两个架构）；改成每个候选只出一份 |
-| offline：STEP 全部缺失 | 目标机推理程序未走覆盖到的 ACL 接口，或 `cann_env` 没配导致 plog 落到别处 |

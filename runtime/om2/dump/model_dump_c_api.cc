@@ -118,7 +118,7 @@ int32_t ReportRunInfoPreprocess(void *instance_handle, const struct GertModelRun
   }
 
   uint64_t step_id = executor->GetStepId();
-  aclrtStream stream = info->is_async ? info->stream : executor->GetOrCreateProfStream();
+  aclrtStream stream = (info->is_async != 0U) ? info->stream : executor->GetOrCreateProfStream();
   mgr->ReportRunInfoPreprocess(info->model_id, step_id, stream);
   return 0;
 }
@@ -134,7 +134,7 @@ int32_t ReportRunInfoPostprocess(void *instance_handle, const struct GertModelRu
   }
 
   uint64_t step_id = executor->GetStepId();
-  aclrtStream stream = info->is_async ? info->stream : executor->GetOrCreateProfStream();
+  aclrtStream stream = (info->is_async != 0U) ? info->stream : executor->GetOrCreateProfStream();
   mgr->ReportRunInfoPostprocess(info->model_id, step_id, stream);
   return 0;
 }

@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "framework/common/host_cpu_fusion_attr.h"
+#include "graph/ge_local_context.h"
 #include "graph/custom_op.h"
 #include "graph/custom_op_factory.h"
 #include "graph/op_so_bin.h"
@@ -66,6 +67,67 @@ class EnvGuard final {
   std::string name_;
   std::string old_;
   bool had_old_;
+};
+
+std::string GetNativeCpu() {
+#if defined(__aarch64__)
+  return "aarch64";
+#elif defined(__x86_64__) || defined(__amd64__)
+  return "x86_64";
+#else
+  return "";
+#endif
+}
+
+std::string GetToolkitRoot(const std::string &home) {
+  constexpr char kX86Suffix[] = "/x86_64-linux";
+  constexpr char kAarch64Suffix[] = "/aarch64-linux";
+  if (home.size() > (sizeof(kX86Suffix) - 1U) &&
+      home.compare(home.size() - (sizeof(kX86Suffix) - 1U), sizeof(kX86Suffix) - 1U, kX86Suffix) == 0) {
+    return home.substr(0U, home.size() - (sizeof(kX86Suffix) - 1U));
+  }
+  if (home.size() > (sizeof(kAarch64Suffix) - 1U) &&
+      home.compare(home.size() - (sizeof(kAarch64Suffix) - 1U), sizeof(kAarch64Suffix) - 1U, kAarch64Suffix) == 0) {
+    return home.substr(0U, home.size() - (sizeof(kAarch64Suffix) - 1U));
+  }
+  return home;
+}
+
+std::string GetHostCompilerLibraryPath(const std::string &toolkit_home) {
+  const char *old = std::getenv("LIBRARY_PATH");
+  if (GetNativeCpu() != "aarch64") {
+    return old == nullptr ? "" : old;
+  }
+
+  const auto toolkit_root = GetToolkitRoot(toolkit_home);
+  std::string library_path = toolkit_root + "/tools/hcc/aarch64-target-linux-gnu/lib64:" + toolkit_root +
+                             "/tools/hcc/lib64/gcc/aarch64-target-linux-gnu/7.3.0";
+  if ((old != nullptr) && (old[0] != '\0')) {
+    library_path += ":";
+    library_path += old;
+  }
+  return library_path;
+}
+
+class ScopedNativeHostEnv final {
+ public:
+  ScopedNativeHostEnv() : old_options_(GetThreadLocalContext().GetAllGraphOptions()) {
+    auto options = old_options_;
+    options["ge.host_env_os"] = "linux";
+    const auto native_cpu = GetNativeCpu();
+    if (!native_cpu.empty()) {
+      options["ge.host_env_cpu"] = native_cpu;
+    } else {
+      options.erase("ge.host_env_cpu");
+    }
+    GetThreadLocalContext().SetGraphOption(options);
+  }
+  ~ScopedNativeHostEnv() {
+    GetThreadLocalContext().SetGraphOption(old_options_);
+  }
+
+ private:
+  std::map<std::string, std::string> old_options_;
 };
 
 NodePtr AddNode(const ComputeGraphPtr &graph, const std::string &name, const std::string &type,
@@ -262,8 +324,11 @@ TEST(HostCpuFusionPassTest, KeepsSharedAncestorBranchesInSingleRegion) {
 TEST(HostCpuFusionPassTest, CommitsGeneratedCustomOpSoAndReplacesCandidates) {
 #if defined(__linux__)
   const auto toolkit_home = GetToolkitHome();
+  ScopedNativeHostEnv native_host_env;
   EnvGuard home("ASCEND_HOME_PATH", toolkit_home.c_str());
   EnvGuard opp("ASCEND_OPP_PATH", "");
+  const auto library_path_value = GetHostCompilerLibraryPath(toolkit_home);
+  EnvGuard library_path("LIBRARY_PATH", library_path_value.c_str());
   const auto graph = BuildLinearGraph();
   NodeEngineMap atomic_map;
   NodeEngineMap composite_map;
@@ -312,8 +377,11 @@ TEST(HostCpuFusionPassTest, KeepsOriginalGraphWhenCompilerFails) {
 TEST(HostCpuFusionPassTest, KeepsOriginalGraphWhenCustomOpCreatorSymbolsAreMissing) {
 #if defined(__linux__)
   const auto toolkit_home = GetToolkitHome();
+  ScopedNativeHostEnv native_host_env;
   EnvGuard home("ASCEND_HOME_PATH", toolkit_home.c_str());
   EnvGuard opp("ASCEND_OPP_PATH", "");
+  const auto library_path_value = GetHostCompilerLibraryPath(toolkit_home);
+  EnvGuard library_path("LIBRARY_PATH", library_path_value.c_str());
   const auto graph = BuildLinearGraph();
   NodeEngineMap atomic_map;
   NodeEngineMap composite_map;

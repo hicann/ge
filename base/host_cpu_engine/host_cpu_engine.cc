@@ -271,7 +271,7 @@ void *HostCpuEngine::DlopenLib(const std::string &lib_path) const {
     const char_t *error = mmDlerror();
     error = (error == nullptr) ? "" : error;
     GELOGW(
-        "[Invoke][DlOpen] failed. path = %s, error = %s. It does not affect subsequenet processing and "
+        "[Invoke][DlOpen] failed. path = %s, error = %s. It does not affect subsequent processing and "
         "can proceed in non-foldable mode",
         lib_path.c_str(), error);
   }

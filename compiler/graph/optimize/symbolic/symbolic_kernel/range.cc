@@ -27,7 +27,7 @@ constexpr size_t kDeltaIndex = 2U;
 constexpr int64_t kMaxSymbolicValueSize = 200L;
 const std::set<DataType> kRangeSupportedTypes = {DT_INT32, DT_FLOAT, DT_DOUBLE, DT_INT64};
 
-const Expression *GetScalarValue(gert::InferSymbolComputeContext *context, size_t index) {
+const Expression *GetScalarValue(const gert::InferSymbolComputeContext *context, size_t index) {
   const auto input_tensor = context->GetInputSymbolTensor(index);
   if (input_tensor == nullptr) {
     return nullptr;
@@ -67,7 +67,7 @@ bool ResolveRangeValues(gert::InferSymbolComputeContext *context, Expression &st
   return false;
 }
 
-graphStatus CheckRangeTypes(gert::InferSymbolComputeContext *context) {
+graphStatus CheckRangeTypes(const gert::InferSymbolComputeContext *context) {
   const auto start_desc = context->GetInputDesc(kStartIndex);
   const auto limit_desc = context->GetInputDesc(kLimitIndex);
   const auto delta_desc = context->GetInputDesc(kDeltaIndex);

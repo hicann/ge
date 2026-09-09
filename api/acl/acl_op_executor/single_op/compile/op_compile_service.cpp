@@ -43,11 +43,11 @@ aclError OpCompileService::SetCompileStrategy(const CompileStrategy strategy,
   ACL_DELETE_AND_SET_NULL(compiler_);
 
   ACL_LOG_INFO("Set compile strategy to [%d]", static_cast<int32_t>(strategy));
-  if (strategy == NO_COMPILER) {
+  if (strategy == CompileStrategy::NO_COMPILER) {
     return ACL_SUCCESS;
   }
 
-  if ((strategy != NATIVE_COMPILER) && (strategy != REMOTE_COMPILER)) {
+  if ((strategy != CompileStrategy::NATIVE_COMPILER) && (strategy != CompileStrategy::REMOTE_COMPILER)) {
     ACL_LOG_INNER_ERROR("[Check][Strategy]The current compile strategy[%d] is invalid.",
                         static_cast<int32_t>(strategy));
     return ACL_ERROR_INVALID_PARAM;

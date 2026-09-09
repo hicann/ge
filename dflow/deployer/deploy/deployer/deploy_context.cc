@@ -586,17 +586,17 @@ Status DeployContext::SetDynamicSchedModelInfo(deployer::ExecutorRequest_LoadMod
   auto *const status_queues_def = model_info->mutable_status_queues();
   SetModelQueuesAttrs(submodel_desc.model_instance_name(), model_input_queues, model_output_queues, *status_queues_def);
   for (size_t i = 0U; i < model_input_queues.size(); i++) {
-    GELOGI("DynamicSched, add model info to load request, name=%s, status input indice=%d, phy input id=%d",
+    GELOGI("DynamicSched, add model info to load request, name=%s, status input index=%d, phy input id=%d",
            submodel_desc.model_name().c_str(), submodel_desc.status_input_queue_indices()[i],
            model_input_queues[i].queue_id);
   }
   for (size_t i = 0U; i < model_output_queues.size(); i++) {
-    GELOGI("DynamicSched, add model info to load request, name=%s, status output indice=%d, phy output id=%d",
+    GELOGI("DynamicSched, add model info to load request, name=%s, status output index=%d, phy output id=%d",
            submodel_desc.model_name().c_str(), submodel_desc.status_output_queue_indices()[i],
            model_output_queues[i].queue_id);
   }
   for (auto &indice : submodel_desc.input_queue_indices()) {
-    GELOGI("DynamicSched, add model info to load request, name=%s, logic input indice=%d",
+    GELOGI("DynamicSched, add model info to load request, name=%s, logic input index=%d",
            submodel_desc.model_name().c_str(), indice);
   }
   uint32_t model_id = 0U;
@@ -1257,8 +1257,8 @@ Status DeployContext::DataGwSchedInfo(const DeployState &deploy_state, const dep
                     "DynamicSched GetQueues failed.");
 
   GELOGI(
-      "DynamicSched config sched info to datagw, device_id=%d, device_type=%d, logic input indice=%d, "
-      "phy input indice=%u, phy output indice=%u, logic output indice=%d, is_proxy=%d",
+      "DynamicSched config sched info to datagw, device_id=%d, device_type=%d, logic input index=%d, "
+      "phy input index=%u, phy output index=%u, logic output index=%d, is_proxy=%d",
       dev_id, dev_type, input_queue_indice, input_queues[0], output_queues[0], output_queue_indice, is_proxy);
   return flowgw_client_manager_.ConfigSchedInfoToDataGw(dev_id, dev_type, is_proxy, input_queue_indice, input_queues[0],
                                                         output_queues[0], root_model_id);
