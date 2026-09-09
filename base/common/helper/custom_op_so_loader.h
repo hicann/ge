@@ -57,6 +57,8 @@ class CustomOpSoLoader {
   static void Finalize();
   Status LoadCustomOpSoBins(const std::vector<OpSoBinPtr> &custom_so_bins,
                             std::vector<CustomOpSoHandlePtr> &loaded_handles);
+  Status DlopenCustomOpSoBins(const std::vector<OpSoBinPtr> &custom_so_bins,
+                              std::vector<CustomOpSoHandlePtr> &loaded_handles) const;
 
  private:
   CustomOpSoLoader();

@@ -267,6 +267,24 @@ Status CustomOpSoLoader::LoadCustomOpSoBins(const std::vector<OpSoBinPtr> &custo
   return SUCCESS;
 }
 
+Status CustomOpSoLoader::DlopenCustomOpSoBins(const std::vector<OpSoBinPtr> &custom_so_bins,
+                                              std::vector<CustomOpSoHandlePtr> &loaded_handles) const {
+  std::vector<CustomOpSoHandlePtr> current_loaded_handles;
+  current_loaded_handles.reserve(custom_so_bins.size());
+  for (const auto &so_bin : custom_so_bins) {
+    GE_ASSERT_NOTNULL(so_bin);
+    std::string diagnostic_so_key;
+    GE_ASSERT_SUCCESS(GetSoKey(so_bin, diagnostic_so_key));
+    std::string fingerprint_key;
+    GE_ASSERT_SUCCESS(CalculateSoBinFingerprint(so_bin, fingerprint_key));
+    CustomOpSoHandlePtr candidate_handle;
+    GE_ASSERT_SUCCESS(LoadCustomOpSoBinCandidate(so_bin, diagnostic_so_key, fingerprint_key, candidate_handle));
+    current_loaded_handles.emplace_back(std::move(candidate_handle));
+  }
+  loaded_handles.insert(loaded_handles.end(), current_loaded_handles.cbegin(), current_loaded_handles.cend());
+  return SUCCESS;
+}
+
 Status CustomOpSoLoader::LoadSingleCustomOpSoBin(const OpSoBinPtr &so_bin,
                                                  std::vector<CustomOpSoHandlePtr> &loaded_handles) {
   GE_ASSERT_NOTNULL(so_bin);
