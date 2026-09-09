@@ -32,6 +32,8 @@ GE 的 IR 构图（`ComputeGraph`）采用**同步数据流**——图中算子�
 | host-device 交互 | 每个模型都需 host 参与 | GraphPp 完全下沉 device，相邻节点 device-device 直传 |
 | 自定义逻辑 | 开发自定义算子（原型+实现+信息库+适配，交付件多） | 开发 UDF（只需定义处理函数 + 构图，交付件少） |
 
+两者的详细对比（含 AICPU 算子形态与三方依赖能力）见 [udf.md](udf.md#udf-与自定义算子的区别)。
+
 ### 1.2 DataFlow 的核心价值
 
 DataFlow 以**数据队列**驱动方式将一个或多个计算处理点（ProcessPoint）组织成完整的计算流。其核心价值有三：
