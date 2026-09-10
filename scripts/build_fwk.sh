@@ -621,6 +621,7 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_GE_COMMON_ST" = "Xon" ]] || [[
     fi
 
     if [[ "X$ENABLE_GE_COMMON_ST" = "Xon" ]];then
+      mk_dir ${BUILD_PATH}/compiler/plugin/opskernel/
       cp ${BUILD_PATH}/compiler/plugin/nnengine/*engine*.so ${BUILD_PATH}/compiler/plugin/opskernel/
       echo "Run tests with leaks check"
       RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/ge_common_atc --gtest_output=xml:${report_dir}/st/ge_common_atc.xml" && ${RUN_TEST_CASE}

@@ -23,9 +23,10 @@ namespace ge {
 namespace {
 const int32_t kReshapeDataIndex = 0;
 const int32_t kReshapeShapeIndex = 1;
-enum OpHashValue { kReshapeType = 0, kReformatType = 1, kOpNoDelete = -1 };
+enum class OpHashValue { kReshapeType = 0, kReformatType = 1, kOpNoDelete = -1 };
 
-std::map<std::string, OpHashValue> kToBeDeleteOp = {{RESHAPE, kReshapeType}, {REFORMAT, kReformatType}};
+std::map<std::string, OpHashValue> kToBeDeleteOp = {{RESHAPE, OpHashValue::kReshapeType},
+                                                    {REFORMAT, OpHashValue::kReformatType}};
 // todo 临时方案，不应该判断节点类型，应该找到这类节点的共同点，或者最终把reshape全部删除
 const std::set<std::string> kInputShapeContinue = {GATHERSHAPES, GATHERND};
 
@@ -90,9 +91,9 @@ Status ReshapeRemovePass::Run(NodePtr &node) {
   GE_CHECK_NOTNULL(node);
   GE_CHECK_NOTNULL(node->GetOpDesc());
   const auto it = kToBeDeleteOp.find(node->GetType());
-  int32_t key = (it == kToBeDeleteOp.cend()) ? kOpNoDelete : it->second;
+  OpHashValue key = (it == kToBeDeleteOp.cend()) ? OpHashValue::kOpNoDelete : it->second;
   switch (key) {
-    case kReshapeType: {
+    case OpHashValue::kReshapeType: {
       if (!EnablePass(node)) {
         return SUCCESS;
       }
@@ -108,7 +109,7 @@ Status ReshapeRemovePass::Run(NodePtr &node) {
       }
       break;
     }
-    case kReformatType:
+    case OpHashValue::kReformatType:
       break;
     default:
       return SUCCESS;
