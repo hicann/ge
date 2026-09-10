@@ -144,7 +144,7 @@ class ModelUtils {
   static Status GetHbmFeatureMapMemInfo(const GeModelPtr &ge_model, std::vector<MemInfo> &all_mem_info,
                                         bool get_zero_copy = false);
 
-  static bool IsSuppoprtAddrRefreshable(const uint64_t mem_types);
+  static bool IsSuppoprtAddrRefreshable(const uint64_t mem_type);
 
   static void GetAddrRefreshableFlagsByMemTypes(const std::vector<uint64_t> &mem_types, std::vector<uint8_t> &flags);
 
