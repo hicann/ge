@@ -7444,7 +7444,7 @@ struct ExtendConv2DIrAttrDefBase : public Conv2D::AscConv2DIrAttrDef {
     GE_WARN_ASSERT(attr_value != nullptr);
     return attr_value->GetValue(round_mode);
   }
-  graphStatus SetRound_mode(std::string round_mode) {
+  graphStatus SetRound_mode(const std::string &round_mode) {
     auto attr_value = attr_store_.GetOrCreateAnyValue("round_mode");
     GE_ASSERT_NOTNULL(attr_value);
     return attr_value->SetValue(round_mode);
@@ -7459,7 +7459,7 @@ struct ExtendConv2DIrAttrDefBase : public Conv2D::AscConv2DIrAttrDef {
     GE_WARN_ASSERT(attr_value != nullptr);
     return attr_value->GetValue(enable_relu0);
   }
-  graphStatus SetEnable_relu0(bool enable_relu0) {
+  graphStatus SetEnable_relu0(const bool enable_relu0) {
     auto attr_value = attr_store_.GetOrCreateAnyValue("enable_relu0");
     GE_ASSERT_NOTNULL(attr_value);
     return attr_value->SetValue(enable_relu0);
@@ -7469,7 +7469,7 @@ struct ExtendConv2DIrAttrDefBase : public Conv2D::AscConv2DIrAttrDef {
     GE_WARN_ASSERT(attr_value != nullptr);
     return attr_value->GetValue(nullptr_inputs_index);
   }
-  graphStatus SetNullptr_inputs_index(std::vector<int64_t> nullptr_inputs_index) {
+  graphStatus SetNullptr_inputs_index(const std::vector<int64_t> &nullptr_inputs_index) {
     auto attr_value = attr_store_.GetOrCreateAnyValue("nullptr_inputs_index");
     GE_ASSERT_NOTNULL(attr_value);
     return attr_value->SetValue(nullptr_inputs_index);
@@ -7541,6 +7541,7 @@ struct ExtendConv2D : public Operator {
   };
 
   inline ExtendConv2D &operator=(const ExtendConv2D &) = delete;
+  inline ExtendConv2D &operator=(ExtendConv2D &&) = delete;
   inline ExtendConv2D(ExtendConv2D &&) = delete;
   inline ExtendConv2D(const ExtendConv2D &other)
       : af::Operator(other),
@@ -7638,6 +7639,7 @@ struct ExtendConv2DBias : public Operator {
   };
 
   inline ExtendConv2DBias &operator=(const ExtendConv2DBias &) = delete;
+  inline ExtendConv2DBias &operator=(ExtendConv2DBias &&) = delete;
   inline ExtendConv2DBias(ExtendConv2DBias &&) = delete;
   inline ExtendConv2DBias(const ExtendConv2DBias &other)
       : af::Operator(other),
@@ -7736,6 +7738,7 @@ struct ExtendConv2DScale : public Operator {
   };
 
   inline ExtendConv2DScale &operator=(const ExtendConv2DScale &) = delete;
+  inline ExtendConv2DScale &operator=(ExtendConv2DScale &&) = delete;
   inline ExtendConv2DScale(ExtendConv2DScale &&) = delete;
   inline ExtendConv2DScale(const ExtendConv2DScale &other)
       : af::Operator(other),
@@ -7849,6 +7852,7 @@ struct ExtendConv2DBiasScale : public Operator {
   };
 
   inline ExtendConv2DBiasScale &operator=(const ExtendConv2DBiasScale &) = delete;
+  inline ExtendConv2DBiasScale &operator=(ExtendConv2DBiasScale &&) = delete;
   inline ExtendConv2DBiasScale(ExtendConv2DBiasScale &&) = delete;
   inline ExtendConv2DBiasScale(const ExtendConv2DBiasScale &other)
       : af::Operator(other),
