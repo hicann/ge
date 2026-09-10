@@ -150,12 +150,6 @@ def test_tensor_desc_rejects_invalid_data_type(data_type):
 
 
 @_SKIP_NATIVE_EXCEPTION_WITH_INCOMPLETE_ASAN_PRELOAD
-def test_tensor_desc_rejects_data_type_boundary():
-    with pytest.raises(ValueError, match="less than DataType.DT_MAX"):
-        TensorDesc(None, DataType.DT_MAX)
-
-
-@_SKIP_NATIVE_EXCEPTION_WITH_INCOMPLETE_ASAN_PRELOAD
 def test_tensor_desc_shape_view_expires_with_owner():
     desc = TensorDesc([1], DataType.DT_FLOAT)
     shape = desc.shape

@@ -439,10 +439,8 @@ class AscGraphAttr : public AfAttrGroupsBase {
   // [HI] 图上的轴
   std::vector<AxisPtr> axis;
 
-#ifndef AUTOFUSE_ST_COMPAT_CANN
   // 图级调度信息。axis 在进入优化流程前可同步到各节点的 sched.axis。
   GraphSchedInfo sched{};
-#endif
 
   // TODO 待正式方案后删除
   TransInfoRoadOfGraph trans_info_road;

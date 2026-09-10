@@ -778,8 +778,10 @@ TEST_F(InferenceRuleUtest, InvalidDtype1) {
 
   const auto handle = ge::DtypeInferenceRule::FromJsonString(ctx_maker.Str());
   ASSERT_NE(handle, nullptr);
-  ASSERT_EQ(handle->Error(),
-            "Element 28 in 'dtype' field is out of range [0,43(DT_MAX)) and cannot be 28(DT_UNDEFINED).");
+  std::string expected = "Element 28 in 'dtype' field is out of range [0," +
+                         std::to_string(static_cast<int>(ge::DataType::DT_MAX)) +
+                         "(DT_MAX)) and cannot be 28(DT_UNDEFINED).";
+  ASSERT_EQ(handle->Error(), expected);
 }
 
 TEST_F(InferenceRuleUtest, InvalidDtype2) {
@@ -788,8 +790,11 @@ TEST_F(InferenceRuleUtest, InvalidDtype2) {
 
   const auto handle = ge::DtypeInferenceRule::FromJsonString(ctx_maker.Str());
   ASSERT_NE(handle, nullptr);
-  ASSERT_EQ(handle->Error(),
-            "Element 43 in 'dtype' field is out of range [0,43(DT_MAX)) and cannot be 28(DT_UNDEFINED).");
+  std::string expected = "Element " + std::to_string(static_cast<int>(ge::DataType::DT_MAX)) +
+                         " in 'dtype' field is out of range [0," +
+                         std::to_string(static_cast<int>(ge::DataType::DT_MAX)) + "(DT_MAX)) and cannot be " +
+                         std::to_string(static_cast<int>(ge::DataType::DT_UNDEFINED)) + "(DT_UNDEFINED).";
+  ASSERT_EQ(handle->Error(), expected);
 }
 
 TEST_F(InferenceRuleUtest, InvalidDtype3) {
@@ -798,8 +803,10 @@ TEST_F(InferenceRuleUtest, InvalidDtype3) {
 
   const auto handle = ge::DtypeInferenceRule::FromJsonString(ctx_maker.Str());
   ASSERT_NE(handle, nullptr);
-  ASSERT_EQ(handle->Error(),
-            "Element -1 in 'dtype' field is out of range [0,43(DT_MAX)) and cannot be 28(DT_UNDEFINED).");
+  std::string expected = "Element -1 in 'dtype' field is out of range [0," +
+                         std::to_string(static_cast<int>(ge::DataType::DT_MAX)) + "(DT_MAX)) and cannot be " +
+                         std::to_string(static_cast<int>(ge::DataType::DT_UNDEFINED)) + "(DT_UNDEFINED).";
+  ASSERT_EQ(handle->Error(), expected);
 }
 
 TEST_F(InferenceRuleUtest, DtypesFormatError) {
