@@ -1428,11 +1428,12 @@ ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model, bool has_
 }
 
 const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
+    {GeneratedFileIndex::kModelApiHeaderFile, "om2_model_api.h"},
     {GeneratedFileIndex::kKernelRegistryFile, "g1_kernel_reg.cpp"},
     {GeneratedFileIndex::kResourcesFile, "g1_resources.cpp"},
     {GeneratedFileIndex::kArgsManagerFile, "g1_args_manager.cpp"},
     {GeneratedFileIndex::kLoadingAndRunningFile, "g1_load_and_run.cpp"},
-    {GeneratedFileIndex::kInterfaceHeaderFile, "g1_interface.h"},
+    {GeneratedFileIndex::kInterfaceHeaderFile, "g1_internal.h"},
     {GeneratedFileIndex::kCMakeListsFile, "Makefile"},
 };
 
@@ -1457,9 +1458,10 @@ Status GenerateProgramFiles(ProgramGenerator &generator, std::map<GeneratedFileI
   Om2CodegenArtifacts artifacts;
   code_printer.GetOutputFiles(artifacts);
   outputs.clear();
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     std::string output;
     GE_ASSERT_SUCCESS(ReadGeneratedArtifact(artifacts, file_index, output));
     outputs.emplace(file_index, std::move(output));
@@ -1469,7 +1471,7 @@ Status GenerateProgramFiles(ProgramGenerator &generator, std::map<GeneratedFileI
 
 std::string GetExpectedArgsManagerSource() {
   return R"(#line 1 "g1_args_manager.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 aclError Om2ArgsTable::Init() {
@@ -1629,7 +1631,7 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
   const std::string expected = R"(#line 1 "g1_resources.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority)
@@ -1789,6 +1791,7 @@ TEST_F(ProgramGeneratorUt, GenerateInterfaceHeader_Ok) {
 #include <unistd.h>
 #include <cinttypes>
 #include "mmpa/mmpa_api.h"
+#include "om2_model_api.h"
 
 // OM2 Logging Macros
 #define OM2_MODULE_NAME static_cast<int32_t>(GE)
@@ -1940,185 +1943,6 @@ inline std::vector<uint64_t> FlattenHostArgs(Args&&... args) {
   return buf;
 }
 
-struct GertModelTaskIoEntry {
-  uint64_t struct_size = sizeof(GertModelTaskIoEntry);
-  const gert::Tensor *tensor = nullptr;
-  uint64_t offset = 0;
-};
-
-enum GertModelArgKind : uint64_t {
-  GERT_MODEL_ARG_INPUT = 0,
-  GERT_MODEL_ARG_OUTPUT = 1,
-  GERT_MODEL_ARG_WORKSPACE = 2,
-  GERT_MODEL_ARG_TILING = 3,
-  GERT_MODEL_ARG_SHAPE_INFO = 4,
-  GERT_MODEL_ARG_LEVEL1_DESC = 5,
-  GERT_MODEL_ARG_PLACEHOLDER = 6,
-  GERT_MODEL_ARG_CUSTOM_VALUE = 7,
-  GERT_MODEL_ARG_FFTS_ADDR = 8,
-  GERT_MODEL_ARG_EVENT_ADDR = 9,
-  GERT_MODEL_ARG_OVERFLOW_ADDR = 10,
-  GERT_MODEL_ARG_EMPTY_ADDR = 11,
-  GERT_MODEL_ARG_INVALID_KIND = 0xFFFFU
-};
-
-struct GertModelArgSlotInfo {
-  uint64_t struct_size = sizeof(GertModelArgSlotInfo);
-  GertModelArgKind kind = GERT_MODEL_ARG_INVALID_KIND;
-  uint64_t flags = 0;
-  uint64_t args_offset = 0;
-  uint64_t value = 0;
-  uint64_t related_index = 0;
-  uint64_t event_id = 0;
-  uint64_t level1_target_offset = 0;
-};
-
-struct GertModelTaskRawInfo {
-  uint64_t struct_size = sizeof(GertModelTaskRawInfo);
-  uint64_t need_assert_or_printf = 0;
-  uint64_t arg_num = 0;
-  const struct GertModelArgSlotInfo *args = nullptr;
-};
-
-struct GertModelTaskDesc {
-  uint64_t struct_size = sizeof(GertModelTaskDesc);
-  const char *op_name = nullptr;
-  const char *op_type = nullptr;
-  uint64_t task_id = 0;
-  uint64_t stream_id = 0;
-  uint64_t context_id = 0;
-  uint64_t thread_id = 0;
-  uint64_t block_dim = 0;
-  uint64_t op_desc_id = 0;
-  uintptr_t args_base = 0;
-  uint64_t args_size = 0;
-  uint64_t input_num = 0;
-  const struct GertModelTaskIoEntry *inputs = nullptr;
-  uint64_t output_num = 0;
-  const struct GertModelTaskIoEntry *outputs = nullptr;
-  uint64_t workspace_num = 0;
-  const uint64_t *workspace_addrs = nullptr;
-  const uint64_t *workspace_sizes = nullptr;
-  uint64_t task_type = 0;
-  uint64_t kernel_type = 10000U;
-  void *stream = nullptr;
-  uint64_t is_raw_address = 0;
-  const struct GertModelTaskRawInfo *task_raw_info = nullptr;
-  uint64_t launch_begin = 0;
-  const char *original_op_names = nullptr;
-  uint64_t input_mem_size = 0;
-  uint64_t output_mem_size = 0;
-  uint64_t workspace_mem_size = 0;
-  uint64_t weight_mem_size = 0;
-};
-
-struct GertModelBaseInfo {
-  uint64_t struct_size = sizeof(GertModelBaseInfo);
-  const void *rt_model_handle = nullptr;
-};
-
-using ReportModelBaseInfoFunc = int32_t (*)(void *instance_handle, const struct GertModelBaseInfo *info);
-
-enum GertModelTaskLaunchType : uint64_t {
-  ACL_RT_LAUNCH_KERNEL_V2 = 0,
-  RT_STARS_TASK_LAUNCH_WITH_FLAG = 1,
-};
-
-struct GertModelLaunchKernelV2Params {
-  uint64_t struct_size = sizeof(GertModelLaunchKernelV2Params);
-  aclrtFuncHandle func_handle = nullptr;
-  uint32_t block_dim = 0;
-  // 用于填充空洞，保持结构体布局与 ACL 接口一致。
-  uint32_t abi_pad_1 = 0;
-  const void *args_data = nullptr;
-  size_t args_size = 0;
-  aclrtLaunchKernelCfg *config = nullptr;
-  aclrtStream stream = nullptr;
-};
-
-struct GertModelLaunchStarsTaskWithFlagParams {
-  uint64_t struct_size = sizeof(GertModelLaunchStarsTaskWithFlagParams);
-  const void *task_sqe = nullptr;
-  uint32_t sqe_len = 0;
-  // 用于填充空洞，保持结构体布局与 ACL 接口一致。
-  uint32_t abi_pad_1 = 0;
-  aclrtStream stream = nullptr;
-  uint32_t flag = 0;
-  // 用于填充空洞，保持结构体布局与 ACL 接口一致。
-  uint32_t abi_pad_2 = 0;
-};
-
-union GertModelTaskLaunchParams {
-  GertModelLaunchKernelV2Params launch_kernel_v2_params;
-  GertModelLaunchStarsTaskWithFlagParams launch_stars_task_params;
-};
-
-struct GertModelTaskLaunchInfo {
-  uint64_t struct_size = sizeof(GertModelTaskLaunchInfo);
-  GertModelTaskLaunchType launch_type = ACL_RT_LAUNCH_KERNEL_V2;
-  GertModelTaskDesc *task_info = nullptr;
-  const GertModelTaskLaunchParams *launch_params = nullptr;
-};
-
-using GertModelLaunchFunc = int32_t (*)(void *instance_handle, GertModelTaskLaunchInfo *launch_info);
-using LockBinHandleStoreFunc = int32_t (*)();
-using UnlockBinHandleStoreFunc = int32_t (*)();
-using QueryBinHandleFromStoreFunc = int32_t (*)(const char *bin_id, aclrtBinHandle *bin_handle);
-using SaveBinHandleToStoreFunc = int32_t (*)(const char *bin_id, aclrtBinHandle bin_handle);
-using ReleaseBinHandleFromStoreFunc = int32_t (*)(const char *bin_id, uint8_t *need_unload);
-
-struct GertModelLoadCallbacks {
-  uint64_t struct_size = sizeof(GertModelLoadCallbacks);
-  ReportModelBaseInfoFunc report_model_base_info = nullptr;
-  GertModelLaunchFunc launch_func = nullptr;
-  LockBinHandleStoreFunc lock_bin_handle_store = nullptr;
-  UnlockBinHandleStoreFunc unlock_bin_handle_store = nullptr;
-  QueryBinHandleFromStoreFunc query_bin_handle_from_store = nullptr;
-  SaveBinHandleToStoreFunc save_bin_handle_to_store = nullptr;
-  ReleaseBinHandleFromStoreFunc release_bin_handle_from_store = nullptr;
-};
-
-using ReportModelRunFunc = int32_t (*)(void *instance_handle, const struct GertModelRunReportInfo *info);
-
-struct GertModelRunReportInfo {
-  uint64_t struct_size = sizeof(GertModelRunReportInfo);
-  uint64_t model_id = 0;
-  aclrtStream stream = nullptr;
-  uint64_t is_async = 0;
-};
-
-struct GertModelRunCallbacks {
-  uint64_t struct_size = sizeof(GertModelRunCallbacks);
-  ReportModelRunFunc report_run_info_preprocess = nullptr;
-  ReportModelRunFunc report_run_info_postprocess = nullptr;
-};
-
-struct GertModelLoadConfig {
-  uint64_t struct_size = sizeof(GertModelLoadConfig);
-  const char **bin_files = nullptr;
-  const void **bin_data = nullptr;
-  uint64_t *bin_size = nullptr;
-  uint64_t bin_num = 0;
-  void **constants = nullptr;
-  void **var_addrs = nullptr;
-  void *work_ptr = nullptr;
-  uint64_t *session_id = nullptr;
-  uint64_t model_id = 0; // used for logging
-  void *instance_handle = nullptr;
-  const struct GertModelLoadCallbacks *callbacks = nullptr;
-  int64_t priority = 0;
-  uint64_t reuse_zero_copy = 0;
-  aclmdlRI external_rt_model = nullptr;
-  aclrtStream *external_streams = nullptr;
-  uint64_t external_stream_num = 0;
-  aclrtEvent *external_events = nullptr;
-  uint64_t external_event_num = 0;
-  aclrtLabel *external_labels = nullptr;
-  uint64_t external_label_num = 0;
-  aclrtNotify *external_notifies = nullptr;
-  uint64_t external_notify_num = 0;
-};
-
 struct GertModelExternalResources {
   uint64_t struct_size = sizeof(GertModelExternalResources);
   aclmdlRI external_rt_model = nullptr;
@@ -2130,32 +1954,6 @@ struct GertModelExternalResources {
   uint64_t external_event_num = 0;
   aclrtLabel *external_labels = nullptr;
   uint64_t external_label_num = 0;
-};
-
-struct GertModelRunConfig {
-  uint64_t struct_size = sizeof(GertModelRunConfig);
-  uint64_t input_count = 0;
-  gert::Tensor **input_data = nullptr;
-  uint64_t output_count = 0;
-  gert::Tensor **output_data = nullptr;
-  uint64_t stream_sync_timeout_ms = 0;
-  const struct GertModelRunCallbacks *run_callbacks = nullptr;
-};
-
-struct GertModelUnloadConfig {
-  uint64_t struct_size = sizeof(GertModelUnloadConfig);
-};
-
-struct GertModelLoadOutput {
-  uint64_t struct_size = sizeof(GertModelLoadOutput);
-};
-
-struct GertModelRunOutput {
-  uint64_t struct_size = sizeof(GertModelRunOutput);
-};
-
-struct GertModelUnloadOutput {
-  uint64_t struct_size = sizeof(GertModelUnloadOutput);
 };
 
 struct rtLabelDevInfo {
@@ -2639,39 +2437,25 @@ class Om2Model {
     int32_t priority_;
 };
 } // namespace om2
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef void *GertModelHandle;
-
-int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle, struct GertModelLoadOutput *output);
-
-int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
-
-int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config, struct GertModelRunOutput *output);
-
-int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config, struct GertModelUnloadOutput *output);
-
-uint64_t GertModelGetStreamNum();
-
-int32_t GertModelGetStreamDesc(uint32_t *stream_flags, uint64_t stream_num, void *extended_attrs);
-
-uint64_t GertModelGetEventNum();
-
-int32_t GertModelGetEventDesc(uint32_t *event_flags, uint64_t event_num, void *extended_attrs);
-
-uint64_t GertModelGetLabelNum();
-
-uint64_t GertModelGetNotifyNum();
-
-int32_t GertModelGetNotifyDesc(uint64_t *notify_flags, uint64_t notify_num, void *extended_attrs);
-
-#ifdef __cplusplus
-}
-#endif
 )";
   ASSERT_EQ(outputs[GeneratedFileIndex::kInterfaceHeaderFile], expected);
+
+  const auto &model_api_header = outputs[GeneratedFileIndex::kModelApiHeaderFile];
+  EXPECT_NE(model_api_header.find("struct GertModelLoadCallbacks"), std::string::npos);
+  EXPECT_NE(model_api_header.find("GertModelLaunchFunc launch_func"), std::string::npos);
+  EXPECT_NE(model_api_header.find("void *work_ptr"), std::string::npos);
+
+  const auto &internal_header = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
+  EXPECT_NE(internal_header.find("constexpr size_t kModelWorkSize"), std::string::npos);
+  EXPECT_NE(internal_header.find("constexpr size_t kModelZeroCopySize"), std::string::npos);
+  EXPECT_NE(internal_header.find("inline aclError AclrtMalloc"), std::string::npos);
+  EXPECT_NE(internal_header.find("aclrtMallocWithCfg"), std::string::npos);
+  EXPECT_NE(internal_header.find("RT_MEMORY_HBM"), std::string::npos);
+  EXPECT_NE(internal_header.find("ACL_MEM_TYPE_HIGH_BAND_WIDTH"), std::string::npos);
+  EXPECT_NE(internal_header.find("ACL_RT_MEM_ATTR_MODULE_ID"), std::string::npos);
+  EXPECT_NE(internal_header.find("    case RT_MEMORY_HBM:\n    default:\n      return aclrtMallocWithCfg"),
+            std::string::npos);
+  EXPECT_EQ(internal_header.find("reuse_zero_copy_"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateKernelRegSource_Ok) {
@@ -2681,7 +2465,7 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegSource_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   const std::string kernel_reg_expected = R"OM2(#line 1 "g1_kernel_reg.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 namespace om2 {
 namespace {
 constexpr uint32_t kMaxJsonFileLen = 512U;
@@ -2861,9 +2645,10 @@ TEST_F(ProgramGeneratorUt, GenerateProgram_FileStorageShape_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     ASSERT_NE(outputs.find(file_index), outputs.end());
     ASSERT_FALSE(outputs[file_index].empty());
   }
@@ -2876,7 +2661,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 namespace {
@@ -3567,7 +3352,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 namespace {
@@ -4269,10 +4054,11 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_AicpuEmptyShape_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  // Verify all 6 files are generated
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  // Verify all 7 files are generated
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     EXPECT_NE(outputs.find(file_index), outputs.end());
     EXPECT_FALSE(outputs[file_index].empty());
   }
@@ -4290,7 +4076,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForAicpu_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 namespace {
@@ -5013,7 +4799,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   const std::string expected = R"(#line 1 "g1_load_and_run.cpp"
-#include "g1_interface.h"
+#include "g1_internal.h"
 
 namespace om2 {
 namespace {
@@ -7348,9 +7134,10 @@ TEST_F(ProgramGeneratorUt, GenerateProgram_AllKernel_Ok) {
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     ASSERT_NE(outputs.find(file_index), outputs.end());
     ASSERT_FALSE(outputs[file_index].empty());
   }
@@ -7514,9 +7301,10 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForSeparatelyCleanTask_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   // Verify all expected files are generated
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+  for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
+                                GeneratedFileIndex::kResourcesFile, GeneratedFileIndex::kArgsManagerFile,
+                                GeneratedFileIndex::kLoadingAndRunningFile, GeneratedFileIndex::kInterfaceHeaderFile,
+                                GeneratedFileIndex::kCMakeListsFile}) {
     ASSERT_NE(outputs.find(file_index), outputs.end());
     ASSERT_FALSE(outputs[file_index].empty());
   }
@@ -7586,34 +7374,35 @@ TEST_F(ProgramGeneratorUt, GenerateLoggingFunctionality_Ok) {
 //  OM2 Profiling — codegen 输出中包含 profiling 相关模式
 // =========================================================================
 
-TEST_F(ProgramGeneratorUt, GenerateInterfaceHeader_ContainsProfilingTypes) {
+TEST_F(ProgramGeneratorUt, GenerateHeaders_ContainsProfilingTypes) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
   auto generator = CreateProgramGenerator(ge_root_model);
   std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
-  const auto &header = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
+  const auto &model_api_header = outputs[GeneratedFileIndex::kModelApiHeaderFile];
+  const auto &internal_header = outputs[GeneratedFileIndex::kInterfaceHeaderFile];
 
-  // profiling/prof_common.h 和 mmpa/mmpa_api.h 应包含在头文件中
-  EXPECT_NE(header.find("#include \"profiling/prof_common.h\""), std::string::npos);
-  EXPECT_NE(header.find("#include \"mmpa/mmpa_api.h\""), std::string::npos);
+  // profiling/prof_common.h 和 mmpa/mmpa_api.h 属于内部实现依赖。
+  EXPECT_NE(internal_header.find("#include \"profiling/prof_common.h\""), std::string::npos);
+  EXPECT_NE(internal_header.find("#include \"mmpa/mmpa_api.h\""), std::string::npos);
   // GertModelRunCallbacks 和 GertModelRunReportInfo 结构体应该存在
-  EXPECT_NE(header.find("struct GertModelRunCallbacks"), std::string::npos);
-  EXPECT_NE(header.find("struct GertModelRunReportInfo"), std::string::npos);
-  EXPECT_NE(header.find("ReportModelRunFunc"), std::string::npos);
-  EXPECT_NE(header.find("report_run_info_preprocess"), std::string::npos);
-  EXPECT_NE(header.find("report_run_info_postprocess"), std::string::npos);
+  EXPECT_NE(model_api_header.find("struct GertModelRunCallbacks"), std::string::npos);
+  EXPECT_NE(model_api_header.find("struct GertModelRunReportInfo"), std::string::npos);
+  EXPECT_NE(model_api_header.find("ReportModelRunFunc"), std::string::npos);
+  EXPECT_NE(model_api_header.find("report_run_info_preprocess"), std::string::npos);
+  EXPECT_NE(model_api_header.find("report_run_info_postprocess"), std::string::npos);
   // GertModelTaskDesc 新增 profiling 字段
-  EXPECT_NE(header.find("uint64_t launch_begin"), std::string::npos);
-  EXPECT_NE(header.find("original_op_names"), std::string::npos);
-  EXPECT_NE(header.find("input_mem_size"), std::string::npos);
-  EXPECT_NE(header.find("output_mem_size"), std::string::npos);
-  EXPECT_NE(header.find("workspace_mem_size"), std::string::npos);
-  EXPECT_NE(header.find("weight_mem_size"), std::string::npos);
+  EXPECT_NE(model_api_header.find("uint64_t launch_begin"), std::string::npos);
+  EXPECT_NE(model_api_header.find("original_op_names"), std::string::npos);
+  EXPECT_NE(model_api_header.find("input_mem_size"), std::string::npos);
+  EXPECT_NE(model_api_header.find("output_mem_size"), std::string::npos);
+  EXPECT_NE(model_api_header.find("workspace_mem_size"), std::string::npos);
+  EXPECT_NE(model_api_header.find("weight_mem_size"), std::string::npos);
   // Om2Model 和外部 API 接收 GertModelRunCallbacks*
-  EXPECT_NE(header.find("GertModelRunCallbacks"), std::string::npos);
+  EXPECT_NE(internal_header.find("GertModelRunCallbacks"), std::string::npos);
   // AicoreDispatchInfo 中应有 fusion_op 字段
-  EXPECT_NE(header.find("fusion_op"), std::string::npos);
+  EXPECT_NE(internal_header.find("fusion_op"), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ContainsProfilingPatterns) {

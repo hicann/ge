@@ -9,6 +9,7 @@
  */
 
 #include "framework/runtime/gert_model/gert_model_executor_callbacks.h"
+#include "framework/runtime/dump/model_dump_c_api.h"
 
 #include <array>
 #include <cstddef>
@@ -35,11 +36,11 @@ const char *GetTaskOpType(const GertModelTaskDesc *task_info) {
   return (task_info != nullptr) && (task_info->op_type != nullptr) ? task_info->op_type : "";
 }
 
-uint32_t GetModelId(void *instance_handle) {
+uint32_t GetModelId(const void *instance_handle) {
   if (instance_handle == nullptr) {
     return 0U;
   }
-  return static_cast<gert::Om2ModelExecutor *>(instance_handle)->GetModelId();
+  return static_cast<const gert::Om2ModelExecutor *>(instance_handle)->GetModelId();
 }
 
 int32_t GetDataDumpEnabled(const GertModelTaskDesc &task_info, void *instance_handle, uint8_t &is_data_dump) {

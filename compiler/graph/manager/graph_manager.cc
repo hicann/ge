@@ -1273,7 +1273,7 @@ Status GraphManager::ProcessPcieThrough(ComputeGraphPtr &compute_graph) const {
     if (op_impl == nullptr) {
       continue;
     }
-    GELOGI("Node: s% IsSupportPcieThrough: %d", node->GetNamePtr(), op_impl->IsSupportPcieThrough());
+    GELOGI("Node: %s IsSupportPcieThrough: %d", node->GetNamePtr(), op_impl->IsSupportPcieThrough());
     if (op_impl->IsSupportPcieThrough()) {
       (void)ge::AttrUtils::SetBool(op_desc, ge::ATTR_NAME_PCIE_THROUGH_FLAG, true);
     }

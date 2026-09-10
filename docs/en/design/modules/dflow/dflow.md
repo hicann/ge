@@ -32,6 +32,8 @@ GE's IR graph construction (`ComputeGraph`) adopts **synchronous data flow** -- 
 | Host-device interaction | Each model requires host participation | GraphPp fully sinks to device, adjacent nodes transfer device-device |
 | Custom logic | Develop custom operators (prototype + implementation + info store + adaptation, many deliverables) | Develop UDF (only define processing function + graph construction, few deliverables) |
 
+For a detailed comparison of the two (including AICPU operator forms and third-party dependency capabilities), refer to [udf.md](udf.md#difference-between-udf-and-custom-operators).
+
 ### 1.2 Core Value of DataFlow
 
 DataFlow organizes one or more computation processing points (ProcessPoint) into a complete computation flow driven by **data queues**. Its core values are three:

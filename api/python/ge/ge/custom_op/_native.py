@@ -6,7 +6,7 @@
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
-# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
@@ -25,21 +25,11 @@ __all__ = [
     "WorkspaceAddr",
 ]
 
-from importlib import import_module
+from ge._internal.native_loader import ensure_native_module
 
-from ge.runtime import _native as _runtime_native  # noqa: F401
+from .fallback_runtime import SPEC
 
-from ._artifact_utils import find_prebuilt_artifact, load_native_module
-
-
-def _load_native_module():
-    artifact = find_prebuilt_artifact()
-    if artifact is not None:
-        return load_native_module(artifact.native_path)
-    return import_module("ge.custom_op._ge_custom_op_native")
-
-
-_native = _load_native_module()
+_native = ensure_native_module(SPEC)
 
 EagerOpExecutionContext = _native.EagerOpExecutionContext
 CompilePlatformInfo = _native.CompilePlatformInfo

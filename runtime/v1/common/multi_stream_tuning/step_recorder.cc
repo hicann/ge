@@ -19,10 +19,11 @@
 
 #include "acl/acl_rt.h"
 #include "common/ge_common/debug/ge_log.h"
+#include "common/ge_visibility.h"
 #include "graph/ge_context.h"
 
 namespace ge {
-GE_FUNC_VISIBILITY uint64_t GetCurrentTimestamp();
+VISIBILITY_EXPORT uint64_t GetCurrentTimestamp();
 
 namespace multistream_tune {
 namespace {
@@ -80,7 +81,7 @@ uint32_t AllocateExecutionId() {
   return next_id.fetch_add(1U, std::memory_order_relaxed);
 }
 
-StepScope::StepScope(const char *const site, const std::string &mode, const uint32_t execution_id, void *const stream)
+StepScope::StepScope(const char *site, const std::string &mode, uint32_t execution_id, void *stream)
     : site_(site), execution_id_(execution_id), stream_(stream) {
   if (mode.empty() || (g_step_depth > 0U)) {
     return;
@@ -100,11 +101,11 @@ StepScope::~StepScope() {
   --g_step_depth;
 }
 
-void StepScope::Stop(const uint32_t ret) {
+void StepScope::Stop(uint32_t ret) {
   Record(ret);
 }
 
-void StepScope::Record(const uint32_t ret) {
+void StepScope::Record(uint32_t ret) {
   if ((!active_) || stopped_) {
     return;
   }

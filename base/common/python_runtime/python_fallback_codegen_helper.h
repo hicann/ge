@@ -8,19 +8,19 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_COMPILER_GRAPH_FUSION_PASS_PYTHON_PASS_FALLBACK_CODEGEN_HELPER_H_
-#define GE_COMPILER_GRAPH_FUSION_PASS_PYTHON_PASS_FALLBACK_CODEGEN_HELPER_H_
+#ifndef BASE_COMMON_PYTHON_RUNTIME_PYTHON_FALLBACK_CODEGEN_HELPER_H_
+#define BASE_COMMON_PYTHON_RUNTIME_PYTHON_FALLBACK_CODEGEN_HELPER_H_
 
 #include <dlfcn.h>
 
+#include <cstdio>
 #include <string>
 
 #include "common/python_runtime/python_artifact_utils.h"
 #include "framework/common/debug/ge_log.h"
 
 namespace ge {
-namespace fusion {
-namespace python_pass_fallback_codegen {
+namespace python_fallback_codegen {
 
 using ProbePythonRuntimeFn = bool (*)(const char *python_command, ::ge::python_artifact::PythonRuntimeKey &runtime_key);
 
@@ -36,17 +36,7 @@ constexpr const char *kPyErrFetchSymbol = "PyErr_Fetch";
 constexpr const char *kPyObjectStrSymbol = "PyObject_Str";
 constexpr int kPyEvalInput = 258;
 
-constexpr const char *kSubProcessFallbackRootPrefix = "__GE_PYTHON_PASS_FALLBACK_ROOT__=";
-constexpr const char *kSubProcessFallbackScript =
-    " -c \"import sys, traceback\n"
-    "try:\n"
-    "    from ge.passes.runtime import run_fallback_codegen\n"
-    "    print('__GE_PYTHON_PASS_FALLBACK_ROOT__=' + str(run_fallback_codegen().root))\n"
-    "except Exception:\n"
-    "    traceback.print_exc(file=sys.stdout)\n"
-    "    sys.exit(1)\" 2>/dev/null";
-constexpr const char *kInProcessFallbackExpression =
-    "str(__import__('ge.passes.runtime', fromlist=['run_fallback_codegen']).run_fallback_codegen().root)";
+constexpr const char *kSubProcessFallbackRootPrefix = "__GE_PYTHON_FALLBACK_ROOT__=";
 
 struct InProcessPythonApi {
   using PyObjectPtr = void *;
@@ -138,6 +128,18 @@ struct FallbackCodegenDependencies {
   ProbePythonRuntimeFn probe_runtime{nullptr};
 };
 
+inline bool ReadCommandOutput(const std::string &command, std::string &output) {
+  FILE *fp = popen(command.c_str(), "r");
+  if (fp == nullptr) {
+    return false;
+  }
+  char buffer[256] = {0};
+  while (fgets(buffer, sizeof(buffer), fp) != nullptr) {
+    output += buffer;
+  }
+  return (pclose(fp) == 0) && (!output.empty());
+}
+
 inline std::string FetchLineByPrefix(const std::string &content, const std::string &prefix) {
   if (prefix.empty()) {
     return "";
@@ -159,6 +161,51 @@ inline std::string FetchLineByPrefix(const std::string &content, const std::stri
     line_start = line_end + 1U;
   }
   return "";
+}
+
+inline std::string FetchFirstLine(const std::string &content) {
+  const auto pos = content.find('\n');
+  return (pos == std::string::npos) ? content : content.substr(0U, pos);
+}
+
+inline std::string FetchSecondLine(const std::string &content) {
+  const auto first_end = content.find('\n');
+  if (first_end == std::string::npos) {
+    return "";
+  }
+  const auto second_end = content.find('\n', first_end + 1U);
+  if (second_end == std::string::npos) {
+    return content.substr(first_end + 1U);
+  }
+  return content.substr(first_end + 1U, second_end - first_end - 1U);
+}
+
+inline bool ProbePythonRuntimeFromCommand(const char *python_command,
+                                          ::ge::python_artifact::PythonRuntimeKey &runtime_key) {
+  constexpr const char *kPythonRuntimeProbeScript =
+      " -c \"import sys; print('cp%d%d' % sys.version_info[:2]); print(sys.version.split()[0])\" 2>/dev/null";
+  std::string output;
+  if ((python_command == nullptr) ||
+      !ReadCommandOutput(std::string(python_command) + kPythonRuntimeProbeScript, output)) {
+    return false;
+  }
+  const auto python_tag = FetchFirstLine(output);
+  if (python_tag.empty()) {
+    return false;
+  }
+  runtime_key = ::ge::python_artifact::PythonRuntimeKey{};
+  runtime_key.python_tag = python_tag;
+  runtime_key.version = FetchSecondLine(output);
+  runtime_key.python_command = python_command;
+  runtime_key.source = std::string("PATH command[") + python_command + "]";
+  return true;
+}
+
+inline FallbackCodegenDependencies BuildFallbackCodegenDependencies() {
+  return FallbackCodegenDependencies{
+      &ReadCommandOutput,
+      &ProbePythonRuntimeFromCommand,
+  };
 }
 
 inline std::string ResolveCompatiblePythonCommand(const ::ge::python_artifact::PythonRuntimeKey &expected_key,
@@ -187,7 +234,7 @@ inline bool RunEvalExpressionInProcess(const char *expression, std::string &resu
   result_utf8.clear();
   InProcessPythonApi py_api;
   if (!py_api.Resolve()) {
-    GELOGE(FAILED, "In-process python pass fallback codegen failed, required libpython symbols are not resolvable.");
+    GELOGE(FAILED, "In-process Python fallback codegen failed, required libpython symbols are not resolvable.");
     return false;
   }
 
@@ -199,15 +246,15 @@ inline bool RunEvalExpressionInProcess(const char *expression, std::string &resu
   if (result == nullptr) {
     const auto error_message = py_api.FormatActivePythonError();
     if (error_message.empty()) {
-      GELOGE(FAILED, "In-process python pass fallback codegen failed.");
+      GELOGE(FAILED, "In-process Python fallback codegen failed.");
     } else {
-      GELOGE(FAILED, "In-process python pass fallback codegen failed: %s", error_message.c_str());
+      GELOGE(FAILED, "In-process Python fallback codegen failed: %s", error_message.c_str());
     }
     return false;
   }
   const char *utf8 = py_api.unicode_as_utf8(result);
   if ((utf8 == nullptr) || (utf8[0] == '\0')) {
-    GELOGE(FAILED, "In-process python pass fallback codegen failed: result is empty.");
+    GELOGE(FAILED, "In-process Python fallback codegen failed: result is empty.");
     py_api.dec_ref(result);
     return false;
   }
@@ -217,7 +264,8 @@ inline bool RunEvalExpressionInProcess(const char *expression, std::string &resu
 }
 
 inline bool RunFallbackCodegenViaSubprocess(const ::ge::python_artifact::PythonRuntimeKey &runtime_key,
-                                            const FallbackCodegenDependencies &deps, std::string &gen_artifact_root) {
+                                            const FallbackCodegenDependencies &deps, const std::string &module_name,
+                                            const std::string &function_name, std::string &gen_artifact_root) {
   if ((deps.read_command_output == nullptr) || (deps.probe_runtime == nullptr)) {
     return false;
   }
@@ -226,51 +274,66 @@ inline bool RunFallbackCodegenViaSubprocess(const ::ge::python_artifact::PythonR
     python_command = ResolveCompatiblePythonCommand(runtime_key, deps.probe_runtime);
   }
   if (python_command.empty()) {
-    GELOGE(FAILED, "Python pass fallback codegen failed, no python command for runtime key[%s].",
+    GELOGE(FAILED, "Python fallback codegen failed, no Python command for runtime key[%s].",
            runtime_key.ToString().c_str());
     return false;
   }
 
+  const std::string script =
+      " -c \"import sys, traceback\n"
+      "try:\n"
+      "    from " +
+      module_name + " import " + function_name +
+      "\n"
+      "    print('" +
+      std::string(kSubProcessFallbackRootPrefix) + "' + str(" + function_name +
+      "().root))\n"
+      "except Exception:\n"
+      "    traceback.print_exc(file=sys.stdout)\n"
+      "    sys.exit(1)\" 2>/dev/null";
   std::string output;
-  if (!deps.read_command_output(std::string(python_command) + kSubProcessFallbackScript, output)) {
-    GELOGE(FAILED, "Subprocess python pass fallback codegen failed, command[%s], output[%s].", python_command.c_str(),
+  if (!deps.read_command_output(std::string(python_command) + script, output)) {
+    GELOGE(FAILED, "Subprocess Python fallback codegen failed, command[%s], output[%s].", python_command.c_str(),
            output.c_str());
     return false;
   }
   gen_artifact_root = FetchLineByPrefix(output, kSubProcessFallbackRootPrefix);
   if (gen_artifact_root.empty()) {
     GELOGE(FAILED,
-           "Subprocess python pass fallback codegen failed, command[%s], "
+           "Subprocess Python fallback codegen failed, command[%s], "
            "missing artifact root marker in output[%s].",
            python_command.c_str(), output.c_str());
     return false;
   }
-  GELOGI("Subprocess python pass fallback codegen success, gen artifact root[%s].", gen_artifact_root.c_str());
+  GELOGI("Subprocess Python fallback codegen success, gen artifact root[%s].", gen_artifact_root.c_str());
   return true;
 }
 
-inline bool RunFallbackCodegenInProcess(std::string &gen_artifact_root) {
-  if (!RunEvalExpressionInProcess(kInProcessFallbackExpression, gen_artifact_root)) {
+inline bool RunFallbackCodegenInProcess(const std::string &module_name, const std::string &function_name,
+                                        std::string &gen_artifact_root) {
+  const std::string expression =
+      "str(__import__('" + module_name + "', fromlist=['" + function_name + "'])." + function_name + "().root)";
+  if (!RunEvalExpressionInProcess(expression.c_str(), gen_artifact_root)) {
     return false;
   }
-  GELOGI("In-process python pass fallback codegen success, gen artifact root[%s].", gen_artifact_root.c_str());
+  GELOGI("In-process Python fallback codegen success, gen artifact root[%s].", gen_artifact_root.c_str());
   return true;
 }
 
-inline bool RunFallbackCodegen(const ::ge::python_artifact::PythonRuntimeKey &runtime_key,
-                               const FallbackCodegenDependencies &deps, std::string &gen_artifact_root) {
+inline bool RunFallbackCodegenForModule(const ::ge::python_artifact::PythonRuntimeKey &runtime_key,
+                                        const FallbackCodegenDependencies &deps, const std::string &module_name,
+                                        const std::string &function_name, std::string &gen_artifact_root) {
   gen_artifact_root.clear();
   if (runtime_key.python_tag.empty() || !IsFallbackCodegenDependenciesValid(deps)) {
     return false;
   }
   if (runtime_key.has_python_symbols && runtime_key.is_initialized) {
-    return RunFallbackCodegenInProcess(gen_artifact_root);
+    return RunFallbackCodegenInProcess(module_name, function_name, gen_artifact_root);
   }
-  return RunFallbackCodegenViaSubprocess(runtime_key, deps, gen_artifact_root);
+  return RunFallbackCodegenViaSubprocess(runtime_key, deps, module_name, function_name, gen_artifact_root);
 }
 
-}  // namespace python_pass_fallback_codegen
-}  // namespace fusion
+}  // namespace python_fallback_codegen
 }  // namespace ge
 
-#endif  // GE_COMPILER_GRAPH_FUSION_PASS_PYTHON_PASS_FALLBACK_CODEGEN_HELPER_H_
+#endif  // BASE_COMMON_PYTHON_RUNTIME_PYTHON_FALLBACK_CODEGEN_HELPER_H_

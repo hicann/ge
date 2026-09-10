@@ -868,57 +868,6 @@ TEST_F(Om2CodegenUt, AstDsl_IgnoreOutputRemoveFile_Ok) {
                             });
 }
 
-TEST_F(Om2CodegenUt, InterfaceDumpApis_EmitInCLinkageAndPtrToU64Outside_Ok) {
-  AstContext ctx;
-  AstBuildContext ast(ctx);
-
-  auto *tu = ast.File({
-      ast.StablePart(StablePartId::kInterfacePointerHelpers),
-      ast.ExternBlock("C", {ast.StablePart(StablePartId::kInterfaceDumpApis)}),
-  });
-  ASSERT_NE(tu, nullptr);
-
-  const auto output = EmitNode(*tu);
-  ExpectContainsAll(output, {
-                                "inline void *ValueToPtr(const uint64_t value) {\n",
-                                "inline uint64_t PtrToU64(const void *ptr) {\n",
-                                "extern \"C\" {\n",
-                                "enum GertModelArgKind : uint64_t {\n",
-                                "struct GertModelArgSlotInfo {\n",
-                                "struct GertModelTaskRawInfo {\n",
-                                "const struct GertModelTaskRawInfo *task_raw_info = nullptr;\n",
-                                "  uint64_t kernel_type = 10000U;\n",
-                                "enum GertModelTaskLaunchType : uint64_t",
-                                "struct GertModelLaunchKernelV2Params {\n",
-                                "  uint64_t struct_size = sizeof(GertModelLaunchKernelV2Params);\n",
-                                "  aclrtFuncHandle func_handle = nullptr;\n",
-                                "  uint32_t block_dim = 0;\n",
-                                "  uint32_t abi_pad_1 = 0;\n",
-                                "  const void *args_data = nullptr;\n",
-                                "  size_t args_size = 0;\n",
-                                "  aclrtLaunchKernelCfg *config = nullptr;\n",
-                                "  aclrtStream stream = nullptr;\n",
-                                "struct GertModelLaunchStarsTaskWithFlagParams {\n",
-                                "  uint64_t struct_size = sizeof(GertModelLaunchStarsTaskWithFlagParams);\n",
-                                "  const void *task_sqe = nullptr;\n",
-                                "  uint32_t sqe_len = 0;\n",
-                                "  uint32_t abi_pad_1 = 0;\n",
-                                "  aclrtStream stream = nullptr;\n",
-                                "  uint32_t flag = 0;\n",
-                                "  uint32_t abi_pad_2 = 0;\n",
-                                "struct GertModelTaskLaunchInfo {\n",
-                                "  uint64_t struct_size = sizeof(GertModelTaskLaunchInfo);\n",
-                                "  GertModelTaskLaunchType launch_type = ACL_RT_LAUNCH_KERNEL_V2;\n",
-                                "GertModelLaunchFunc launch_func = nullptr;",
-                            });
-  EXPECT_LT(output.find("  uint64_t task_type = 0;\n"), output.find("  uint64_t kernel_type = 10000U;\n"));
-  EXPECT_EQ(output.find("report_task_preprocess"), std::string::npos);
-  EXPECT_EQ(output.find("report_task_postprocess"), std::string::npos);
-  EXPECT_EQ(output.find("get_data_dump_enabled"), std::string::npos);
-  EXPECT_LT(output.find("inline uint64_t PtrToU64"), output.find("extern \"C\" {"));
-  EXPECT_GT(output.find("struct Om2Tensor"), output.find("extern \"C\" {"));
-}
-
 TEST_F(Om2CodegenUt, LoadAndRunDumpHelpers_EmitInAnonymousNamespace_Ok) {
   AstContext ctx;
   AstBuildContext ast(ctx);
@@ -1021,10 +970,11 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MakefileVariableContinuation_Ok) {
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   const std::string model_name = "continuation_test";
-  const std::string interface_name = model_name + "_interface.h";
+  const std::string interface_name = model_name + "_internal.h";
   const std::string include_line = "#include \"" + interface_name + "\"\n";
   Om2CodegenArtifacts artifacts = {
-      {interface_name, "#pragma once\n#define CONTINUATION_TEST_VALUE 7\n"},
+      {"om2_model_api.h", "#pragma once\n"},
+      {interface_name, "#pragma once\n#include \"om2_model_api.h\"\n#define CONTINUATION_TEST_VALUE 7\n"},
       {model_name + "_resources.cpp",
        include_line + "extern \"C\" int ContinuationTestResources() { return CONTINUATION_TEST_VALUE; }\n"},
       {model_name + "_kernel_reg.cpp",
@@ -1062,10 +1012,11 @@ $(TARGET): $(SRC_FILES)
 
 // build_config 校验 UT：通过 SetGraphOption 注入 ge.buildConfig，走 CompileGeneratedCppToSo 触发校验
 static Om2CodegenArtifacts MakeBuildConfigTestArtifacts(const std::string &model_name) {
-  const std::string interface_name = model_name + "_interface.h";
+  const std::string interface_name = model_name + "_internal.h";
   const std::string include_line = "#include \"" + interface_name + "\"\n";
   return {
-      {interface_name, "#pragma once\n#define BC_TEST_VALUE 1\n"},
+      {"om2_model_api.h", "#pragma once\n"},
+      {interface_name, "#pragma once\n#include \"om2_model_api.h\"\n#define BC_TEST_VALUE 1\n"},
       {model_name + "_load_and_run.cpp", include_line + "extern \"C\" int BcTest() { return BC_TEST_VALUE; }\n"},
       {"Makefile", R"(CXX := c++
 TARGET := ../libbc_test_om2.so
@@ -1080,6 +1031,14 @@ $(TARGET): $(SRC_FILES)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 )"},
   };
+}
+
+TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MissingModelApiArtifact_Failed) {
+  const std::string model_name = "missing_model_api";
+  auto artifacts = MakeBuildConfigTestArtifacts(model_name);
+  artifacts.erase(artifacts.begin());
+  Om2CodegenArtifact so_artifact;
+  EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(artifacts, model_name, so_artifact, false), SUCCESS);
 }
 
 std::string GetNativeMachine() {
@@ -1504,7 +1463,6 @@ TEST_F(Om2CodegenUt, StablePartProvider_AllIds_Ok) {
       {StablePartId::kScopeGuard, "class ScopeGuard"},
       {StablePartId::kReadBinaryFileToBuffer, "BinaryBuffer ReadBinaryFileToBuffer"},
       {StablePartId::kGenerateJsonFile, "aclError GenerateJsonFile"},
-      {StablePartId::kInterfaceDumpApis, "struct GertModelTaskDesc"},
       {StablePartId::kOm2LogMacros, "#define OM2_LOGD"},
   };
 
@@ -1538,7 +1496,8 @@ TEST_F(Om2CodegenUt, Om2CodePrinter_GetFileName_DefaultNames) {
   const std::string model_name = "test_model";
   Om2CodePrinter printer(model_name);
 
-  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kInterfaceHeaderFile), model_name + "_interface.h");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kModelApiHeaderFile), "om2_model_api.h");
+  EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kInterfaceHeaderFile), model_name + "_internal.h");
   EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kResourcesFile), model_name + "_resources.cpp");
   EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kArgsManagerFile), model_name + "_args_manager.cpp");
   EXPECT_EQ(printer.GetFileName(GeneratedFileIndex::kKernelRegistryFile), model_name + "_kernel_reg.cpp");

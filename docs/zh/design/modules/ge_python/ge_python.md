@@ -461,7 +461,7 @@ GeApi.ge_finalize()
 ├── replacement.py   # replacement graph 构建辅助接口
 ├── registry.py      # Pass 注册中心与装饰器
 ├── bootstrap.py     # 插件发现与加载
-├── runtime.py       # 运行时 artifact 装载与 fallback codegen
+├── fallback_runtime.py # 组件 fallback 入口(无匹配预编译 artifact 时现场编译 so)
 └── _bridge.py       # Bridge 运行时辅助（Pass 实例管理，供 C++ bridge .so 回调）
 ```
 注：下划线开头的为 Python 风格下的对内模块
@@ -736,6 +736,7 @@ custom_op/
 ├── _bridge.py               # Bridge 运行时辅助（实例管理，供 C++ bridge .so 回调）
 ├── _native.py               # native module 装载与 re-export
 ├── _artifact_utils.py       # 运行时 artifact 选择辅助
+├── fallback_runtime.py      # 组件 fallback 入口(无匹配预编译 artifact 时现场编译 so)
 ├── _ge_custom_op_native.pyi # native module 类型桩
 └── native_bindings/         # _ge_custom_op_native.so 的 pybind11 绑定实现
 ```
@@ -756,7 +757,7 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/_ge_custom_op_na
 ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_custom_op_bridge.so
 ```
 
-运行时根据当前进程中已加载的 Python 解释器版本、平台 tag 和 bridge ABI 选择匹配 artifact。当前 Python custom op native/bridge 与构建时 Python ABI 相关，要求构建和运行使用兼容的 Python minor 版本。
+运行时根据当前进程中已加载的 Python 解释器版本、平台 tag 和 bridge ABI 选择匹配 artifact。正式发布按 `cp39`、`cp310`、`cp311`、`cp312`、`cp313` 和 `cp314` 提供独立 native 子 wheel，主 `ge_py` wheel 只包含纯 Python 代码。`ge.runtime` 的 runtime native 由独立 runtime wheel 承载并单独按 `native_abi` 选择；custom-op wheel 只承载 custom-op bridge/native，二者 ABI 独立维护。三者的加载决策（预置 artifact → fallback 逐级尝试、失败原因聚合诊断）统一由 `ge/_internal/native_loader.py` 实现，C++ pass/custom-op bridge 的 Python 进程内/子进程 fallback 执行统一由 `base/common/python_runtime/python_fallback_codegen_helper.h` 提供；均只接受通过 manifest 校验（Python tag、平台 tag、ABI）的 artifact；未命中预编译产物时，runtime 先负责自身 fallback，custom-op 再按需生成自身 artifact set。
 
 #### 类详细说明
 

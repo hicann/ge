@@ -120,6 +120,16 @@ if("ge-compiler" IN_LIST BUILD_COMPONENT)
             FILES_MATCHING PATTERN "ge_py_pass_bridge-*.whl"
             PATTERN "_build_ge_py_pass_bridge_*" EXCLUDE
         )
+        install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/api/python/ge/runtime_native_wheel_matrix_dist/
+            DESTINATION ${ARCH_LINUX_PATH}/lib64 COMPONENT ge-compiler
+            FILES_MATCHING PATTERN "ge_py_runtime_native-*.whl"
+            PATTERN "_build_ge_py_runtime_native_*" EXCLUDE
+        )
+        install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/api/python/ge/custom_op_native_wheel_matrix_dist/
+            DESTINATION ${ARCH_LINUX_PATH}/lib64 COMPONENT ge-compiler
+            FILES_MATCHING PATTERN "ge_py_custom_op_bridge-*.whl"
+            PATTERN "_build_ge_py_custom_op_bridge_*" EXCLUDE
+        )
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/dflow/pydflow/dataflow-0.0.1-py3-none-any.whl
                 DESTINATION ${ARCH_LINUX_PATH}/lib64 COMPONENT ge-compiler
         )

@@ -27,12 +27,16 @@ execute_process(
 )
 string(TOLOWER "${CMAKE_SYSTEM_NAME}" GE_PYTHON_ARTIFACT_SYSTEM_NAME)
 set(GE_PYTHON_ARTIFACT_PLATFORM_TAG "${GE_PYTHON_ARTIFACT_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
-string(REPLACE "-" "_" GE_PYTHON_PASS_WHEEL_PLATFORM "${GE_PYTHON_ARTIFACT_PLATFORM_TAG}")
+string(REPLACE "-" "_" GE_PYTHON_WHEEL_PLATFORM "${GE_PYTHON_ARTIFACT_PLATFORM_TAG}")
 set(GE_PYTHON_ARTIFACT_SET_NAME "${GE_PYTHON_ARTIFACT_PYTHON_TAG}-${GE_PYTHON_ARTIFACT_PLATFORM_TAG}")
 set(GE_PYTHON_MAIN_WHEEL ${CMAKE_CURRENT_BINARY_DIR}/ge_py-0.0.1-py3-none-any.whl)
 set(GE_PYTHON_MAIN_WHEEL_DIR ${CMAKE_CURRENT_BINARY_DIR}/wheel)
 set(GE_PYTHON_PASS_ARTIFACT_DIR
         ${CMAKE_CURRENT_BINARY_DIR}/native_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME})
+set(GE_PYTHON_RUNTIME_ARTIFACT_DIR
+        ${CMAKE_CURRENT_BINARY_DIR}/runtime_native_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME})
+set(GE_PYTHON_CUSTOM_OP_ARTIFACT_DIR
+        ${CMAKE_CURRENT_BINARY_DIR}/custom_op_native_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME})
 set(GE_PYTHON_PASS_BRIDGE_ABI_VERSION 1)
 set(GE_PYTHON_RUNTIME_NATIVE_ABI_VERSION 1)
 set(GE_PYTHON_CUSTOM_OP_BRIDGE_ABI_VERSION 1)
@@ -41,10 +45,21 @@ set(GE_PYTHON_PASS_ARTIFACT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/python_pass_art
 set(GE_PYTHON_RUNTIME_ARTIFACT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/python_runtime_artifact_manifest.json)
 set(GE_PYTHON_CUSTOM_OP_ARTIFACT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/python_custom_op_artifact_manifest.json)
 set(GE_PYTHON_ONNX_PLUGIN_ARTIFACT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/python_onnx_plugin_artifact_manifest.json)
+set(GE_PYTHON_PASS_NATIVE_BUILD_CONFIG ${CMAKE_CURRENT_BINARY_DIR}/python_pass_native_build_config.json)
+set(GE_PYTHON_RUNTIME_NATIVE_BUILD_CONFIG ${CMAKE_CURRENT_BINARY_DIR}/python_runtime_native_build_config.json)
+set(GE_PYTHON_CUSTOM_OP_NATIVE_BUILD_CONFIG ${CMAKE_CURRENT_BINARY_DIR}/python_custom_op_native_build_config.json)
 set(GE_PYTHON_PASS_NATIVE_WHEEL
-        ${CMAKE_CURRENT_BINARY_DIR}/ge_py_pass_bridge-0.0.1-${GE_PYTHON_ARTIFACT_PYTHON_TAG}-${GE_PYTHON_ARTIFACT_PYTHON_TAG}-${GE_PYTHON_PASS_WHEEL_PLATFORM}.whl)
+        ${CMAKE_CURRENT_BINARY_DIR}/ge_py_pass_bridge-0.0.1-${GE_PYTHON_ARTIFACT_PYTHON_TAG}-${GE_PYTHON_ARTIFACT_PYTHON_TAG}-${GE_PYTHON_WHEEL_PLATFORM}.whl)
 set(GE_PYTHON_PASS_NATIVE_WHEEL ${GE_PYTHON_PASS_NATIVE_WHEEL} CACHE INTERNAL "GE python pass native artifact wheel")
+set(GE_PYTHON_RUNTIME_NATIVE_WHEEL
+        ${CMAKE_CURRENT_BINARY_DIR}/ge_py_runtime_native-0.0.1-${GE_PYTHON_ARTIFACT_PYTHON_TAG}-${GE_PYTHON_ARTIFACT_PYTHON_TAG}-${GE_PYTHON_WHEEL_PLATFORM}.whl)
+set(GE_PYTHON_RUNTIME_NATIVE_WHEEL ${GE_PYTHON_RUNTIME_NATIVE_WHEEL} CACHE INTERNAL "GE python runtime native artifact wheel")
+set(GE_PYTHON_CUSTOM_OP_NATIVE_WHEEL
+        ${CMAKE_CURRENT_BINARY_DIR}/ge_py_custom_op_bridge-0.0.1-${GE_PYTHON_ARTIFACT_PYTHON_TAG}-${GE_PYTHON_ARTIFACT_PYTHON_TAG}-${GE_PYTHON_WHEEL_PLATFORM}.whl)
+set(GE_PYTHON_CUSTOM_OP_NATIVE_WHEEL ${GE_PYTHON_CUSTOM_OP_NATIVE_WHEEL} CACHE INTERNAL "GE python custom-op native artifact wheel")
 set(GE_PYTHON_PASS_NATIVE_MATRIX_DIST_DIR ${CMAKE_CURRENT_BINARY_DIR}/native_wheel_matrix_dist)
+set(GE_PYTHON_RUNTIME_NATIVE_MATRIX_DIST_DIR ${CMAKE_CURRENT_BINARY_DIR}/runtime_native_wheel_matrix_dist)
+set(GE_PYTHON_CUSTOM_OP_NATIVE_MATRIX_DIST_DIR ${CMAKE_CURRENT_BINARY_DIR}/custom_op_native_wheel_matrix_dist)
 set(GE_PYTHON_PASS_BUILD_METADATA_DIR ${PROJECT_BINARY_DIR})
 set(GE_PYTHON_PASS_MATRIX_COMPILER_ARGS "--cxx-compiler" "${CMAKE_CXX_COMPILER}")
 if (CMAKE_CXX_COMPILER_LAUNCHER)
@@ -83,7 +98,7 @@ file(WRITE ${GE_PYTHON_RUNTIME_ARTIFACT_MANIFEST}
         "    \"include\": \"${HI_PYTHON_INC}\",\n"
         "    \"libpython\": \"${HI_PYTHON_EMBED_LIBRARIES}\",\n"
         "    \"pybind11_include\": \"${pybind11_INCLUDE_DIR}\",\n"
-        "    \"link_python\": true\n"
+        "    \"link_python\": false\n"
         "  },\n"
         "  \"artifacts\": {\n"
         "    \"native\": \"_ge_runtime_native.so\"\n"
@@ -129,6 +144,20 @@ set(GE_PYTHON_PASS_FALLBACK_CODEGEN_SOURCES_PY
         ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR}/_sources.py)
 set(GE_PYTHON_PASS_FALLBACK_CODEGEN_INIT_PY
         ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR}/__init__.py)
+set(GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/python_runtime_fallback_codegen)
+set(GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_CONFIG
+        ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_DIR}/build_config.json)
+set(GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_SOURCES_PY
+        ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_DIR}/_sources.py)
+set(GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_INIT_PY
+        ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_DIR}/__init__.py)
+set(GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/python_custom_op_fallback_codegen)
+set(GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_CONFIG
+        ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_DIR}/build_config.json)
+set(GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_SOURCES_PY
+        ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_DIR}/_sources.py)
+set(GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_INIT_PY
+        ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_DIR}/__init__.py)
 set(GE_PYTHON_PASS_BRIDGE_SOURCES
         ${AIR_CODE_DIR}/compiler/graph/fusion/pass/python_pass_pybind_bridge.cc)
 set(GE_PYTHON_PASS_BRIDGE_HEADERS
@@ -136,31 +165,195 @@ set(GE_PYTHON_PASS_BRIDGE_HEADERS
         ${AIR_CODE_DIR}/compiler/graph/fusion/pass/python_pass_adapter.h
         ${AIR_CODE_DIR}/compiler/graph/fusion/pass/pass_registry.h
         ${AIR_CODE_DIR}/compiler/graph/fusion/pass/python_pass_bridge_c_api.h)
+set(GE_PYTHON_CUSTOM_OP_BRIDGE_SOURCES
+        ${AIR_CODE_DIR}/runtime/custom_op/python_custom_op_bridge_descriptors.cc
+        ${AIR_CODE_DIR}/runtime/custom_op/python_custom_op_pybind_bridge.cc)
+set(GE_PYTHON_CUSTOM_OP_BRIDGE_HEADERS
+        ${AIR_CODE_DIR}/runtime/custom_op/python_custom_op_bridge_c_api.h
+        ${AIR_CODE_DIR}/runtime/custom_op/python_custom_op_bridge_descriptors.h
+        ${AIR_CODE_DIR}/runtime/custom_op/python_custom_op_bridge_types.h)
+set(GE_PYTHON_CUSTOM_OP_BRIDGE_GRAPH_HEADERS
+        ${AIR_CODE_DIR}/inc/graph_metadef/graph/custom_op/capability.h
+        ${AIR_CODE_DIR}/inc/graph_metadef/graph/custom_op/infer_meta.h)
+set(GE_PYTHON_CUSTOM_OP_BRIDGE_UTILS_HEADERS
+        ${AIR_CODE_DIR}/inc/graph_metadef/graph/utils/ir_definitions_query.h)
+set(GE_PYTHON_CUSTOM_OP_BRIDGE_FRAMEWORK_HEADERS
+        ${AIR_CODE_DIR}/inc/framework/common/ge_visibility.h)
+set(GE_PYTHON_CUSTOM_OP_RUNTIME_NATIVE_HEADERS
+        ${CMAKE_CURRENT_SOURCE_DIR}/ge/runtime/native_bindings/binding_common.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/ge/runtime/native_bindings/runtime_type_wrappers.h)
+
+function(ge_python_native_build_json_array output)
+    set(_json "")
+    foreach(_value IN LISTS ARGN)
+        if (_json)
+            string(APPEND _json ",")
+        endif()
+        string(APPEND _json "\"${_value}\"")
+    endforeach()
+    set(${output} "[${_json}]" PARENT_SCOPE)
+endfunction()
+
+function(ge_python_write_native_build_config output)
+    cmake_parse_arguments(CONFIG
+            "LINK_PYTHON"
+            "COMPONENT;PACKAGE_NAME;DIST_NAME;PACKAGE;ARTIFACT_ROOT;ABI_KEY;ABI;BRIDGE_TARGET;BRIDGE_TARGET_DIR;BRIDGE_ARTIFACT;NATIVE_TARGET;NATIVE_TARGET_DIR;NATIVE_ARTIFACT"
+            "BRIDGE_SOURCES;NATIVE_SOURCES"
+            ${ARGN})
+    ge_python_native_build_json_array(_bridge_sources ${CONFIG_BRIDGE_SOURCES})
+    ge_python_native_build_json_array(_native_sources ${CONFIG_NATIVE_SOURCES})
+    if (CONFIG_LINK_PYTHON)
+        set(_link_python true)
+    else()
+        set(_link_python false)
+    endif()
+    if (CONFIG_BRIDGE_TARGET)
+        set(_bridge_config "  \"bridge\": {\n")
+        string(APPEND _bridge_config "    \"target\": \"${CONFIG_BRIDGE_TARGET}\",\n")
+        string(APPEND _bridge_config "    \"target_dir\": \"${CONFIG_BRIDGE_TARGET_DIR}\",\n")
+        string(APPEND _bridge_config "    \"sources\": ${_bridge_sources},\n")
+        string(APPEND _bridge_config "    \"artifact\": \"${CONFIG_BRIDGE_ARTIFACT}\"\n")
+        string(APPEND _bridge_config "  },\n")
+    else()
+        set(_bridge_config "  \"bridge\": null,\n")
+    endif()
+    file(WRITE ${output}
+            "{\n"
+            "  \"component\": \"${CONFIG_COMPONENT}\",\n"
+            "  \"wheel\": {\n"
+            "    \"package_name\": \"${CONFIG_PACKAGE_NAME}\",\n"
+            "    \"dist_name\": \"${CONFIG_DIST_NAME}\",\n"
+            "    \"package\": \"${CONFIG_PACKAGE}\",\n"
+            "    \"artifact_root\": \"${CONFIG_ARTIFACT_ROOT}\"\n"
+            "  },\n"
+            "  \"abi\": {\n"
+            "    \"key\": \"${CONFIG_ABI_KEY}\",\n"
+            "    \"value\": ${CONFIG_ABI}\n"
+            "  },\n"
+            "  \"link_python\": ${_link_python},\n"
+            "${_bridge_config}"
+            "  \"native\": {\n"
+            "    \"target\": \"${CONFIG_NATIVE_TARGET}\",\n"
+            "    \"target_dir\": \"${CONFIG_NATIVE_TARGET_DIR}\",\n"
+            "    \"sources\": ${_native_sources},\n"
+            "    \"artifact\": \"${CONFIG_NATIVE_ARTIFACT}\"\n"
+            "  }\n"
+            "}\n")
+endfunction()
+
+ge_python_write_native_build_config(${GE_PYTHON_PASS_NATIVE_BUILD_CONFIG}
+        COMPONENT pass
+        PACKAGE_NAME ge-py-pass-bridge
+        DIST_NAME ge_py_pass_bridge
+        PACKAGE ge.passes
+        ARTIFACT_ROOT python_pass_artifacts
+        ABI_KEY bridge_abi
+        ABI ${GE_PYTHON_PASS_BRIDGE_ABI_VERSION}
+        LINK_PYTHON
+        BRIDGE_TARGET ge_python_pass_bridge
+        BRIDGE_TARGET_DIR compiler
+        BRIDGE_ARTIFACT libge_python_pass_bridge.so
+        BRIDGE_SOURCES ${GE_PYTHON_PASS_BRIDGE_SOURCES}
+        NATIVE_TARGET _ge_pass_native
+        NATIVE_TARGET_DIR api/python/ge/ge/passes
+        NATIVE_ARTIFACT _ge_pass_native.so
+        NATIVE_SOURCES ${GE_PYTHON_PASS_NATIVE_SOURCES})
+ge_python_write_native_build_config(${GE_PYTHON_RUNTIME_NATIVE_BUILD_CONFIG}
+        COMPONENT runtime
+        PACKAGE_NAME ge-py-runtime-native
+        DIST_NAME ge_py_runtime_native
+        PACKAGE ge.runtime
+        ARTIFACT_ROOT python_runtime_artifacts
+        ABI_KEY native_abi
+        ABI ${GE_PYTHON_RUNTIME_NATIVE_ABI_VERSION}
+        NATIVE_TARGET _ge_runtime_native
+        NATIVE_TARGET_DIR api/python/ge/ge/runtime
+        NATIVE_ARTIFACT _ge_runtime_native.so
+        NATIVE_SOURCES ${GE_PYTHON_RUNTIME_NATIVE_SOURCES})
+ge_python_write_native_build_config(${GE_PYTHON_CUSTOM_OP_NATIVE_BUILD_CONFIG}
+        COMPONENT custom_op
+        PACKAGE_NAME ge-py-custom-op-bridge
+        DIST_NAME ge_py_custom_op_bridge
+        PACKAGE ge.custom_op
+        ARTIFACT_ROOT python_custom_op_artifacts
+        ABI_KEY bridge_abi
+        ABI ${GE_PYTHON_CUSTOM_OP_BRIDGE_ABI_VERSION}
+        LINK_PYTHON
+        BRIDGE_TARGET ge_python_custom_op_bridge
+        BRIDGE_TARGET_DIR runtime/custom_op
+        BRIDGE_ARTIFACT libge_python_custom_op_bridge.so
+        BRIDGE_SOURCES ${GE_PYTHON_CUSTOM_OP_BRIDGE_SOURCES}
+        NATIVE_TARGET _ge_custom_op_native
+        NATIVE_TARGET_DIR api/python/ge/ge/custom_op
+        NATIVE_ARTIFACT _ge_custom_op_native.so
+        NATIVE_SOURCES ${GE_PYTHON_CUSTOM_OP_NATIVE_SOURCES})
 
 add_custom_target(ge_python ALL)
 add_custom_target(ge_python_main_wheel DEPENDS ${GE_PYTHON_MAIN_WHEEL})
 add_custom_target(ge_python_native_wheel DEPENDS ${GE_PYTHON_PASS_NATIVE_WHEEL})
+add_custom_target(ge_python_runtime_native_wheel DEPENDS ${GE_PYTHON_RUNTIME_NATIVE_WHEEL})
+add_custom_target(ge_python_custom_op_native_wheel DEPENDS ${GE_PYTHON_CUSTOM_OP_NATIVE_WHEEL})
 add_custom_target(ge_python_pass_native_wheel_matrix
-         COMMAND ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_pass_native_matrix.py
+         COMMAND ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_native_matrix.py
+            --component-config ${GE_PYTHON_PASS_NATIVE_BUILD_CONFIG}
             --source-dir ${AIR_CODE_DIR}
             --build-dir ${GE_PYTHON_PASS_BUILD_METADATA_DIR}
             --work-dir ${CMAKE_CURRENT_BINARY_DIR}/native_wheel_matrix_build
             --dist-dir ${GE_PYTHON_PASS_NATIVE_MATRIX_DIST_DIR}
             --platform-tag ${GE_PYTHON_ARTIFACT_PLATFORM_TAG}
-            --wheel-platform ${GE_PYTHON_PASS_WHEEL_PLATFORM}
-            --bridge-abi ${GE_PYTHON_PASS_BRIDGE_ABI_VERSION}
+            --wheel-platform ${GE_PYTHON_WHEEL_PLATFORM}
             --current-tag ${GE_PYTHON_ARTIFACT_PYTHON_TAG}
             --current-wheel ${GE_PYTHON_PASS_NATIVE_WHEEL}
             ${GE_PYTHON_PASS_MATRIX_COMPILER_ARGS}
          COMMENT "Build GE python pass native wheels for all supported Python versions found in PATH"
 )
+add_custom_target(ge_python_runtime_native_wheel_matrix
+         COMMAND ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_native_matrix.py
+            --component-config ${GE_PYTHON_RUNTIME_NATIVE_BUILD_CONFIG}
+            --source-dir ${AIR_CODE_DIR}
+            --build-dir ${GE_PYTHON_PASS_BUILD_METADATA_DIR}
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/runtime_native_wheel_matrix_build
+            --dist-dir ${GE_PYTHON_RUNTIME_NATIVE_MATRIX_DIST_DIR}
+            --platform-tag ${GE_PYTHON_ARTIFACT_PLATFORM_TAG}
+            --wheel-platform ${GE_PYTHON_WHEEL_PLATFORM}
+            --current-tag ${GE_PYTHON_ARTIFACT_PYTHON_TAG}
+            --current-wheel ${GE_PYTHON_RUNTIME_NATIVE_WHEEL}
+            ${GE_PYTHON_PASS_MATRIX_COMPILER_ARGS}
+         COMMENT "Build GE python runtime native wheels for all supported Python versions found in PATH"
+)
+add_custom_target(ge_python_custom_op_native_wheel_matrix
+         COMMAND ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_native_matrix.py
+            --component-config ${GE_PYTHON_CUSTOM_OP_NATIVE_BUILD_CONFIG}
+            --source-dir ${AIR_CODE_DIR}
+            --build-dir ${GE_PYTHON_PASS_BUILD_METADATA_DIR}
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/custom_op_native_wheel_matrix_build
+            --dist-dir ${GE_PYTHON_CUSTOM_OP_NATIVE_MATRIX_DIST_DIR}
+            --platform-tag ${GE_PYTHON_ARTIFACT_PLATFORM_TAG}
+            --wheel-platform ${GE_PYTHON_WHEEL_PLATFORM}
+            --current-tag ${GE_PYTHON_ARTIFACT_PYTHON_TAG}
+            --current-wheel ${GE_PYTHON_CUSTOM_OP_NATIVE_WHEEL}
+            ${GE_PYTHON_PASS_MATRIX_COMPILER_ARGS}
+         COMMENT "Build GE python custom-op native wheels for all supported Python versions found in PATH"
+)
 add_custom_target(ge_python_pass_fallback_codegen
         DEPENDS ${GE_PYTHON_PASS_FALLBACK_CODEGEN_CONFIG}
                 ${GE_PYTHON_PASS_FALLBACK_CODEGEN_SOURCES_PY}
                 ${GE_PYTHON_PASS_FALLBACK_CODEGEN_INIT_PY})
-add_dependencies(ge_python_main_wheel ge_python_pass_fallback_codegen)
+add_custom_target(ge_python_runtime_fallback_codegen
+        DEPENDS ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_CONFIG}
+                ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_SOURCES_PY}
+                ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_INIT_PY})
+add_custom_target(ge_python_custom_op_fallback_codegen
+        DEPENDS ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_CONFIG}
+                ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_SOURCES_PY}
+                ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_INIT_PY})
+add_dependencies(ge_python_main_wheel ge_python_pass_fallback_codegen
+        ge_python_runtime_fallback_codegen ge_python_custom_op_fallback_codegen)
 add_dependencies(ge_python_pass_native_wheel_matrix ge_python_native_wheel)
-add_dependencies(ge_python ge_python_main_wheel ge_python_pass_native_wheel_matrix)
+add_dependencies(ge_python_runtime_native_wheel_matrix ge_python_runtime_native_wheel)
+add_dependencies(ge_python_custom_op_native_wheel_matrix ge_python_custom_op_native_wheel)
+add_dependencies(ge_python ge_python_main_wheel ge_python_pass_native_wheel_matrix
+        ge_python_runtime_native_wheel_matrix ge_python_custom_op_native_wheel_matrix)
 add_custom_command(
          OUTPUT ${GE_PYTHON_PASS_FALLBACK_CODEGEN_CONFIG}
                 ${GE_PYTHON_PASS_FALLBACK_CODEGEN_SOURCES_PY}
@@ -183,6 +376,67 @@ add_custom_command(
          COMMENT "Generate GE python pass fallback codegen resources"
 )
 add_custom_command(
+         OUTPUT ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_CONFIG}
+                ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_SOURCES_PY}
+                ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_INIT_PY}
+         COMMAND ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/gen_fallback_resources.py
+            --component runtime
+            --abi-key native_abi
+            --abi ${GE_PYTHON_RUNTIME_NATIVE_ABI_VERSION}
+            --no-link-python
+            --no-bridge-target
+            --native-target _ge_runtime_native
+            --native-target-dir api/python/ge/ge/runtime
+            --native-output _ge_runtime_native.so
+            --output-dir ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_DIR}
+            --build-dir ${GE_PYTHON_PASS_BUILD_METADATA_DIR}
+            --cann-root ${ASCEND_INSTALL_PATH}
+            --native-source ${GE_PYTHON_RUNTIME_NATIVE_SOURCES}
+            --native-header ${GE_PYTHON_RUNTIME_NATIVE_HEADERS}
+         DEPENDS ${GE_PYTHON_RUNTIME_NATIVE_SOURCES}
+                 ${GE_PYTHON_RUNTIME_NATIVE_HEADERS}
+                 ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/gen_fallback_resources.py
+         COMMAND_EXPAND_LISTS
+         COMMENT "Generate GE python runtime fallback codegen resources"
+)
+add_custom_command(
+         OUTPUT ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_CONFIG}
+                ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_SOURCES_PY}
+                ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_INIT_PY}
+         COMMAND ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/gen_fallback_resources.py
+            --component custom_op
+            --abi-key bridge_abi
+            --abi ${GE_PYTHON_CUSTOM_OP_BRIDGE_ABI_VERSION}
+            --bridge-target ge_python_custom_op_bridge
+            --bridge-target-dir runtime/custom_op
+            --bridge-output libge_python_custom_op_bridge.so
+            --native-target _ge_custom_op_native
+            --native-target-dir api/python/ge/ge/custom_op
+            --native-output _ge_custom_op_native.so
+            --output-dir ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_DIR}
+            --build-dir ${GE_PYTHON_PASS_BUILD_METADATA_DIR}
+            --cann-root ${ASCEND_INSTALL_PATH}
+            --bridge-source ${GE_PYTHON_CUSTOM_OP_BRIDGE_SOURCES}
+            --bridge-tree-header ${GE_PYTHON_CUSTOM_OP_BRIDGE_HEADERS}
+            --bridge-graph-header ${GE_PYTHON_CUSTOM_OP_BRIDGE_GRAPH_HEADERS}
+            --bridge-utils-header ${GE_PYTHON_CUSTOM_OP_BRIDGE_UTILS_HEADERS}
+            --bridge-framework-header ${GE_PYTHON_CUSTOM_OP_BRIDGE_FRAMEWORK_HEADERS}
+            --native-source ${GE_PYTHON_CUSTOM_OP_NATIVE_SOURCES}
+            --native-header ${GE_PYTHON_CUSTOM_OP_NATIVE_HEADERS}
+            --native-tree-header ${GE_PYTHON_CUSTOM_OP_RUNTIME_NATIVE_HEADERS}
+         DEPENDS ${GE_PYTHON_CUSTOM_OP_BRIDGE_SOURCES}
+                 ${GE_PYTHON_CUSTOM_OP_BRIDGE_HEADERS}
+                 ${GE_PYTHON_CUSTOM_OP_BRIDGE_GRAPH_HEADERS}
+                 ${GE_PYTHON_CUSTOM_OP_BRIDGE_UTILS_HEADERS}
+                 ${GE_PYTHON_CUSTOM_OP_BRIDGE_FRAMEWORK_HEADERS}
+                 ${GE_PYTHON_CUSTOM_OP_NATIVE_SOURCES}
+                 ${GE_PYTHON_CUSTOM_OP_NATIVE_HEADERS}
+                 ${GE_PYTHON_CUSTOM_OP_RUNTIME_NATIVE_HEADERS}
+                 ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/gen_fallback_resources.py
+         COMMAND_EXPAND_LISTS
+         COMMENT "Generate GE python custom-op fallback codegen resources"
+)
+add_custom_command(
          OUTPUT ${GE_PYTHON_MAIN_WHEEL}
          COMMAND echo "Start to build ge-py wheel package"
          && rm -rf ${GE_PYTHON_MAIN_WHEEL_DIR}
@@ -202,18 +456,13 @@ add_custom_command(
          && ${CMAKE_COMMAND} -E remove ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/CMakeLists.txt
          && ${CMAKE_COMMAND} -E remove_directory ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/native_bindings
          && ${CMAKE_COMMAND} -E remove ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/_ge_onnx_plugin_native.so
-         && mkdir -p ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/runtime/python_runtime_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}
-         && cp ${GE_PYTHON_RUNTIME_ARTIFACT_MANIFEST} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/runtime/python_runtime_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/manifest.json
-         && cp $<TARGET_FILE:_ge_runtime_native> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/runtime/python_runtime_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/_ge_runtime_native.so
-         && mkdir -p ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/python_custom_op_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}
-         && cp ${GE_PYTHON_CUSTOM_OP_ARTIFACT_MANIFEST} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/python_custom_op_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/manifest.json
-         && cp $<TARGET_FILE:ge_python_custom_op_bridge> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/python_custom_op_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/libge_python_custom_op_bridge.so
-         && cp $<TARGET_FILE:_ge_custom_op_native> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/python_custom_op_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/_ge_custom_op_native.so
          && mkdir -p ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/python_onnx_plugin_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}
          && cp ${GE_PYTHON_ONNX_PLUGIN_ARTIFACT_MANIFEST} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/python_onnx_plugin_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/manifest.json
          && cp $<TARGET_FILE:ge_python_onnx_plugin_bridge> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/python_onnx_plugin_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/libge_python_onnx_plugin_bridge.so
          && cp $<TARGET_FILE:_ge_onnx_plugin_native> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/onnx_plugin/python_onnx_plugin_artifacts/${GE_PYTHON_ARTIFACT_SET_NAME}/_ge_onnx_plugin_native.so
          && ${CMAKE_COMMAND} -E copy_directory ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/passes/fallback_codegen
+         && ${CMAKE_COMMAND} -E copy_directory ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_DIR} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/runtime/fallback_codegen
+         && ${CMAKE_COMMAND} -E copy_directory ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_DIR} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/custom_op/fallback_codegen
          && find ${GE_PYTHON_MAIN_WHEEL_DIR}/ge -name __pycache__ -type d -exec rm -rf {} +
          && cp $<TARGET_FILE:graph_wrapper> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/_capi/
          && cp $<TARGET_FILE:ge_runtime_wrapper> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/_capi/
@@ -225,13 +474,15 @@ add_custom_command(
          && cp -f dist/ge_py-0.0.1-py3-none-any.whl ${GE_PYTHON_MAIN_WHEEL}
          && echo "Build ge-py wheel package end"
          DEPENDS eager_style_graph_builder_base ge_api_c_wrapper graph_wrapper
-                 _ge_runtime_native _ge_custom_op_native _ge_onnx_plugin_native ge_python_custom_op_bridge
+                 _ge_onnx_plugin_native
                  ge_python_onnx_plugin_bridge
                  ${GE_API_C_WRAPPER}
                  ${GE_PYTHON_RUNTIME_ARTIFACT_MANIFEST}
                  ${GE_PYTHON_CUSTOM_OP_ARTIFACT_MANIFEST}
                  ${GE_PYTHON_ONNX_PLUGIN_ARTIFACT_MANIFEST}
                  ${GE_PYTHON_PASS_FALLBACK_CODEGEN_CONFIG}
+                 ${GE_PYTHON_RUNTIME_FALLBACK_CODEGEN_CONFIG}
+                 ${GE_PYTHON_CUSTOM_OP_FALLBACK_CODEGEN_CONFIG}
  )
 add_custom_command(
          OUTPUT ${GE_PYTHON_PASS_NATIVE_WHEEL}
@@ -242,15 +493,56 @@ add_custom_command(
          && cp ${GE_PYTHON_PASS_ARTIFACT_MANIFEST} ${GE_PYTHON_PASS_ARTIFACT_DIR}/manifest.json
          && cp $<TARGET_FILE:ge_python_pass_bridge> ${GE_PYTHON_PASS_ARTIFACT_DIR}/libge_python_pass_bridge.so
          && cp $<TARGET_FILE:_ge_pass_native> ${GE_PYTHON_PASS_ARTIFACT_DIR}/_ge_pass_native.so
-         && ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_pass_native_wheel.py
+         && ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_native_wheel.py
+            --component-config ${GE_PYTHON_PASS_NATIVE_BUILD_CONFIG}
             --artifact-dir ${GE_PYTHON_PASS_ARTIFACT_DIR}
             --python-tag ${GE_PYTHON_ARTIFACT_PYTHON_TAG}
             --platform-tag ${GE_PYTHON_ARTIFACT_PLATFORM_TAG}
-            --wheel-platform ${GE_PYTHON_PASS_WHEEL_PLATFORM}
+            --wheel-platform ${GE_PYTHON_WHEEL_PLATFORM}
             --output-dir ${CMAKE_CURRENT_BINARY_DIR}
          && echo "Build ge-py-pass-bridge native wheel package end"
          DEPENDS _ge_pass_native ge_python_pass_bridge ${GE_PYTHON_PASS_ARTIFACT_MANIFEST}
-                 ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_pass_native_wheel.py
+                 ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_native_wheel.py
+ )
+add_custom_command(
+         OUTPUT ${GE_PYTHON_RUNTIME_NATIVE_WHEEL}
+         COMMAND echo "Start to build ge-py-runtime-native wheel package"
+         && echo "Build ${GE_PYTHON_ARTIFACT_PYTHON_TAG} runtime native artifact with python[${HI_PYTHON}], version[${GE_PYTHON_ARTIFACT_PYTHON_VERSION}], include[${HI_PYTHON_INC}], pybind11[${pybind11_INCLUDE_DIR}], link_python[no], rpath_python[no]"
+         && rm -rf ${GE_PYTHON_RUNTIME_ARTIFACT_DIR}
+         && mkdir -p ${GE_PYTHON_RUNTIME_ARTIFACT_DIR}
+         && cp ${GE_PYTHON_RUNTIME_ARTIFACT_MANIFEST} ${GE_PYTHON_RUNTIME_ARTIFACT_DIR}/manifest.json
+         && cp $<TARGET_FILE:_ge_runtime_native> ${GE_PYTHON_RUNTIME_ARTIFACT_DIR}/_ge_runtime_native.so
+         && ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_native_wheel.py
+            --component-config ${GE_PYTHON_RUNTIME_NATIVE_BUILD_CONFIG}
+            --artifact-dir ${GE_PYTHON_RUNTIME_ARTIFACT_DIR}
+            --python-tag ${GE_PYTHON_ARTIFACT_PYTHON_TAG}
+            --platform-tag ${GE_PYTHON_ARTIFACT_PLATFORM_TAG}
+            --wheel-platform ${GE_PYTHON_WHEEL_PLATFORM}
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+         && echo "Build ge-py-runtime-native wheel package end"
+         DEPENDS _ge_runtime_native ${GE_PYTHON_RUNTIME_ARTIFACT_MANIFEST}
+                 ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_native_wheel.py
+ )
+add_custom_command(
+         OUTPUT ${GE_PYTHON_CUSTOM_OP_NATIVE_WHEEL}
+         COMMAND echo "Start to build ge-py-custom-op-bridge wheel package"
+         && echo "Build ${GE_PYTHON_ARTIFACT_PYTHON_TAG} native artifacts with python[${HI_PYTHON}], version[${GE_PYTHON_ARTIFACT_PYTHON_VERSION}], include[${HI_PYTHON_INC}], libpython[${HI_PYTHON_EMBED_LIBRARIES}], pybind11[${pybind11_INCLUDE_DIR}], link_python[yes], rpath_python[no]"
+         && rm -rf ${GE_PYTHON_CUSTOM_OP_ARTIFACT_DIR}
+         && mkdir -p ${GE_PYTHON_CUSTOM_OP_ARTIFACT_DIR}
+         && cp ${GE_PYTHON_CUSTOM_OP_ARTIFACT_MANIFEST} ${GE_PYTHON_CUSTOM_OP_ARTIFACT_DIR}/manifest.json
+         && cp $<TARGET_FILE:ge_python_custom_op_bridge> ${GE_PYTHON_CUSTOM_OP_ARTIFACT_DIR}/libge_python_custom_op_bridge.so
+         && cp $<TARGET_FILE:_ge_custom_op_native> ${GE_PYTHON_CUSTOM_OP_ARTIFACT_DIR}/_ge_custom_op_native.so
+         && ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_native_wheel.py
+            --component-config ${GE_PYTHON_CUSTOM_OP_NATIVE_BUILD_CONFIG}
+            --artifact-dir ${GE_PYTHON_CUSTOM_OP_ARTIFACT_DIR}
+            --python-tag ${GE_PYTHON_ARTIFACT_PYTHON_TAG}
+            --platform-tag ${GE_PYTHON_ARTIFACT_PLATFORM_TAG}
+            --wheel-platform ${GE_PYTHON_WHEEL_PLATFORM}
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+         && echo "Build ge-py-custom-op-bridge wheel package end"
+         DEPENDS _ge_custom_op_native ge_python_custom_op_bridge
+                 ${GE_PYTHON_CUSTOM_OP_ARTIFACT_MANIFEST}
+                 ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/build_python_native_wheel.py
  )
 install(FILES ${GE_PYTHON_MAIN_WHEEL} ${INSTALL_OPTIONAL}
         DESTINATION ${INSTALL_LIBRARY_DIR}
@@ -259,4 +551,14 @@ install(DIRECTORY ${GE_PYTHON_PASS_NATIVE_MATRIX_DIST_DIR}/ ${INSTALL_OPTIONAL}
         DESTINATION ${INSTALL_LIBRARY_DIR}
         FILES_MATCHING PATTERN "ge_py_pass_bridge-*.whl"
         PATTERN "_build_ge_py_pass_bridge_*" EXCLUDE
+)
+install(DIRECTORY ${GE_PYTHON_RUNTIME_NATIVE_MATRIX_DIST_DIR}/ ${INSTALL_OPTIONAL}
+        DESTINATION ${INSTALL_LIBRARY_DIR}
+        FILES_MATCHING PATTERN "ge_py_runtime_native-*.whl"
+        PATTERN "_build_ge_py_runtime_native_*" EXCLUDE
+)
+install(DIRECTORY ${GE_PYTHON_CUSTOM_OP_NATIVE_MATRIX_DIST_DIR}/ ${INSTALL_OPTIONAL}
+        DESTINATION ${INSTALL_LIBRARY_DIR}
+        FILES_MATCHING PATTERN "ge_py_custom_op_bridge-*.whl"
+        PATTERN "_build_ge_py_custom_op_bridge_*" EXCLUDE
 )

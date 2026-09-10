@@ -33,9 +33,11 @@ __all__ = [
     "release_graph",
 ]
 
-from .runtime import ensure_native_module
+from ge._internal.native_loader import ensure_native_module
 
-_native = ensure_native_module()
+from .fallback_runtime import SPEC
+
+_native = ensure_native_module(SPEC)
 
 MatchResult = _native.MatchResult
 PassContext = _native.PassContext

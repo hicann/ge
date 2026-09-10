@@ -452,7 +452,8 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
       "fake_test/data/model_0/runtime/csrc/g1_resources.cpp",
       "fake_test/data/model_0/runtime/csrc/g1_args_manager.cpp",
       "fake_test/data/model_0/runtime/csrc/g1_load_and_run.cpp",
-      "fake_test/data/model_0/runtime/csrc/g1_interface.h",
+      "fake_test/data/model_0/runtime/csrc/om2_model_api.h",
+      "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
@@ -478,7 +479,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
     const auto cpp_buf = archive.ExtractToMem(cpp_entry, cpp_size);
     ASSERT_NE(cpp_buf, nullptr);
     const std::string cpp_content(reinterpret_cast<const char *>(cpp_buf.get()), cpp_size);
-    EXPECT_NE(cpp_content.find("#include \"g1_interface.h\""), std::string::npos) << cpp_entry;
+    EXPECT_NE(cpp_content.find("#include \"g1_internal.h\""), std::string::npos) << cpp_entry;
     EXPECT_EQ(cpp_content.find("/proc/self/fd/"), std::string::npos) << cpp_entry;
   }
   size_t makefile_size = 0;
@@ -633,7 +634,8 @@ TEST_F(Om2PackageHelperUt, SaveToOmModel_SaveModeFalse_ReturnsModelBuffer) {
       "g1/data/model_0/runtime/csrc/g1_resources.cpp",
       "g1/data/model_0/runtime/csrc/g1_args_manager.cpp",
       "g1/data/model_0/runtime/csrc/g1_load_and_run.cpp",
-      "g1/data/model_0/runtime/csrc/g1_interface.h",
+      "g1/data/model_0/runtime/csrc/om2_model_api.h",
+      "g1/data/model_0/runtime/csrc/g1_internal.h",
       "g1/data/model_0/runtime/csrc/Makefile",
       "g1/data/model_0/runtime/libg1_om2.so",
       "g1/data/constants/constant_0",
@@ -710,8 +712,8 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Fail_GenFailedAndRemoveOm2File) {
 
 TEST_F(Om2PackageHelperUt, Om2CodegenAndCompile_Fail_DoesNotDumpGeneratedFiles) {
   const std::vector<std::string> dump_files = {
-      "g1_kernel_reg.cpp",   "g1_resources.cpp", "g1_args_manager.cpp",
-      "g1_load_and_run.cpp", "g1_interface.h",   "Makefile",
+      "g1_kernel_reg.cpp", "g1_resources.cpp", "g1_args_manager.cpp", "g1_load_and_run.cpp", "om2_model_api.h",
+      "g1_internal.h",     "Makefile",
   };
   for (const auto &file_name : dump_files) {
     RemoveOm2DumpFile(file_name);

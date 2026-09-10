@@ -18,6 +18,21 @@ In DataFlow data flow graphs, nodes transfer data through queues. In most scenar
 
 UDF serves as a processing node in the data flow graph, receiving upstream data, executing custom logic, and outputting results downstream. Its core value is **enabling users to insert custom processing logic into data flow graphs with minimal effort** -- the C++ side only requires defining a processing function class and compiling it into an SO, while the Python side uses the `@df.pyflow` decorator and does not even require writing C++ code.
 
+### Difference between UDF and Custom Operators
+
+Custom operators and UDF both extend framework capabilities, but with different positioning: custom operators extend **intra-model computing capability** -- they are nodes of the GE compute graph, providing new computing primitives for a single model and participating in graph optimization and fusion; UDF extends **inter-model orchestration capability** -- it is a node of the DataFlow graph, inserting custom processing logic into multi-model chaining scenarios.
+
+| Dimension | Custom operator (AICore / AICPU types) | UDF |
+|-----------|----------------------------------------|-----|
+| Development form and dependencies | Developed within the framework operator system: AICore type uses Ascend C/TBE (framework-managed compilation), AICPU type uses C/C++ compiled into an SO (hosted and loaded by the AICPU operator runtime); constrained by prototype registration and operator framework interfaces | Processing functions developed freely, with third-party library support: linked libraries are packed together with the UDF SO into a self-contained release package and moved as a whole to the execution environment at deployment (same-named SOs of multiple versions isolated via md5 renaming for symbol conflicts); more flexible for complex logic |
+| Deliverables | Prototype + implementation + info library + adaptation, four-piece set | Processing function + graph construction: one class and a registration macro for C++, one decorator for Python (zero C++) |
+| Data model | Tensor/Desc system, shape/dtype/format strongly constrained at compilation time | FlowMsg (mbuf): tensor messages or arbitrary serialized data, interpreted at runtime |
+| Compilation pipeline | Prototype registration -> shape/format derivation -> tiling -> memory planning -> task generation, output compiled into the model OM | UDF engine compiles SO (C++) or auto-generates projects (Python), loaded independently at deployment |
+| Execution model | Compiled into the model OM: AICore type executes via task sink, AICPU type executes under the AICPU operator runtime | Independent udf_executor process (one process per UDF, process-level isolation), host/device location configurable |
+| Orchestration semantics | Synchronous data flow: one input to one output, executing synchronously with the graph | Asynchronous pipeline: queue-driven, supporting one-to-many/many-to-one, multi-instance load balancing, streaming input/output |
+
+Selection advice: use custom operators (choosing AICore or AICPU type by computing characteristics) when a new computing primitive is needed inside a single model (participating in graph optimization and fusion); use UDF for inter-model orchestration logic or complex processing with third-party dependencies. The two are complementary rather than alternative -- GraphPp subgraphs inside the DataFlow graph can still contain custom operators.
+
 **UDF execution location**: UDF can execute on either the host or the device, depending on the UDF type, compilation output, and deployment configuration (refer to Section [4.6](dflow.md#46-udf-execution-location-and-multi-instance-deployment) in dflow.md).
 
 Users can specify which devices each node deploys to through the deployment configuration JSON (option `ge.experiment.data_flow_deploy_info_path`), supporting range syntax for multi-instance deployment. Refer to the "4.6 UDF Execution Location and Multi-instance Deployment" section in dflow.md.

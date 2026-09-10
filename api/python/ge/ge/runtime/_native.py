@@ -24,19 +24,11 @@ __all__ = [
     "TensorPlacement",
 ]
 
-from importlib import import_module
+from ge._internal.native_loader import ensure_native_module
 
-from ._artifact_utils import find_prebuilt_artifact, load_native_module
+from .fallback_runtime import SPEC
 
-
-def _load_native_module():
-    artifact = find_prebuilt_artifact()
-    if artifact is not None:
-        return load_native_module(artifact.native_path)
-    return import_module("ge.runtime._ge_runtime_native")
-
-
-_native = _load_native_module()
+_native = ensure_native_module(SPEC)
 
 ExpandDimsType = _native.ExpandDimsType
 Shape = _native.Shape
