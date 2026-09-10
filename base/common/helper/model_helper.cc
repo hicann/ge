@@ -604,13 +604,18 @@ Status ModelHelper::SaveAutofuseSoBin(const GeRootModelPtr &ge_root_model) {
 
   auto bin_file_buffer = root_graph->GetExtAttr<std::map<std::string, ge::OpSoBinPtr>>("bin_file_buffer");
   if (bin_file_buffer != nullptr) {
-    GELOGD("bin_file_buffer already exists, sync autofuse so to op_so_store_.");
+    bool has_autofuse_so = false;
     for (const auto &bin_entry : *bin_file_buffer) {
       if ((bin_entry.second != nullptr) && (bin_entry.second->GetSoBinType() == SoBinType::kAutofuse)) {
         op_so_store_.AddKernel(bin_entry.second);
+        has_autofuse_so = true;
       }
     }
-    return SUCCESS;
+    if (has_autofuse_so) {
+      GELOGD("bin_file_buffer already exists, sync autofuse so to op_so_store_.");
+      return SUCCESS;
+    }
+    GELOGD("bin_file_buffer has no autofuse so, fallback to load from file.");
   }
   if (!OpSoStoreUtils::IsSoBinType(ge_root_model->GetSoInOmFlag(), SoBinType::kAutofuse)) {
     return SUCCESS;
