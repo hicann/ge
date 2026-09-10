@@ -396,7 +396,7 @@ static Status ParseAippDimInfo(const std::string &info_str, ge::InputOutputDims 
     if (dim_str.empty()) {
       continue;
     }
-    dims_info.dims.emplace_back(std::strtol(dim_str.c_str(), nullptr, kAippDecimalRadix));
+    (void)dims_info.dims.emplace_back(std::strtol(dim_str.c_str(), nullptr, kAippDecimalRadix));
   }
   return SUCCESS;
 }
@@ -582,7 +582,7 @@ Status Om2PackageHelper::ExtractVisualJson(const void *model_data, size_t model_
     return FAILED;
   }
 
-  json_out.assign(reinterpret_cast<const char *>(json_buf.get()), json_size);
+  (void)json_out.assign(reinterpret_cast<const char *>(json_buf.get()), json_size);
   GELOGI("[OM2] Extracted visual JSON, entry:%s, size:%zu", entry_path.c_str(), json_out.size());
   return SUCCESS;
 }
@@ -634,7 +634,7 @@ Status Om2PackageHelper::ReadCustomOpSoToBuffer(const std::unordered_set<std::st
     kb.name = std::to_string(bin_len) + "_" + std::to_string(hash_id) + "_" + so_name;
     kb.data = ge::ReadonlyByteBuffer(reinterpret_cast<uint8_t *>(op_so_bin.release()), ge::ConditionalDeleter{true});
     kb.data_size = bin_len;
-    shared_lib_binaries.emplace_back(std::move(kb));
+    (void)shared_lib_binaries.emplace_back(std::move(kb));
 
     GELOGD("[OM2] Serialized custom op so '%s', bin size:%zu", so_name.c_str(), bin_len);
   }
@@ -648,7 +648,7 @@ Status Om2PackageHelper::CollectUsedCustomOpTypes(const GeRootModelPtr &ge_root_
     for (const auto &node : root_graph->GetAllNodes()) {
       const std::string op_type = node->GetType();
       if (CustomOpFactory::IsExistOp(AscendString(op_type.c_str()))) {
-        used_custom_op_types.insert(op_type);
+        (void)used_custom_op_types.insert(op_type);
       }
     }
   }
@@ -700,7 +700,7 @@ Status Om2PackageHelper::BuildCustomKernelBinaries(const GeRootModelPtr &ge_root
       has_non_serializable_custom_op = true;
     } else {
       has_serializable_custom_op = true;
-      serializable_ops.emplace_back(op_type_str, serializable_op);
+      (void)serializable_ops.emplace_back(op_type_str, serializable_op);
     }
     if (has_serializable_custom_op && has_non_serializable_custom_op) {
       GELOGE(FAILED, "[OM2] graph contains both serializable and non-serializable custom ops.");

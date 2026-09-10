@@ -22,7 +22,7 @@ class vecStrValue : public BaseTlvBlock {
   size_t Size() override;
   bool Serilize(uint8_t **const addr, size_t &left_size) override;
   bool NeedSave() override;
-  virtual ~vecStrValue() = default;
+  ~vecStrValue() override = default;
 
  private:
   uint32_t vec_size = 0U;

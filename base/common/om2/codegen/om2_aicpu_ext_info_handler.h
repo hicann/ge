@@ -11,6 +11,12 @@
 #ifndef AIR_CXX_BASE_COMMON_OM2_AICPU_EXT_INFO_HANDLER_H_
 #define AIR_CXX_BASE_COMMON_OM2_AICPU_EXT_INFO_HANDLER_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "fwk_adpt_struct.h"
 #include "ge/ge_api_error_codes.h"
 #include "aicpu_engine_struct.h"

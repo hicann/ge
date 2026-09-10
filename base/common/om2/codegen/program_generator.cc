@@ -202,8 +202,8 @@ Status ProgramGenerator::GenerateLoadAndRunSource(Om2CodePrinter &code_printer) 
   load_and_run_handler.SetHasCustomKernel(has_custom_kernel_);
   auto anonymous_items = load_and_run_handler.BuildAnonymousNamespaceItems(codegen_model_, task_code_builder_list_);
   if (has_custom_kernel_) {
-    anonymous_items.insert(anonymous_items.begin(),
-                           ast_.StablePart(StablePartId::kCustomTaskHelpers, StablePartPlacement::kNamespace));
+    (void)anonymous_items.insert(anonymous_items.begin(),
+                                 ast_.StablePart(StablePartId::kCustomTaskHelpers, StablePartPlacement::kNamespace));
   }
   (void)anonymous_items.insert(anonymous_items.begin(),
                                ast_.StablePart(StablePartId::kLoadAndRunDumpHelpers, StablePartPlacement::kNamespace));
@@ -213,13 +213,13 @@ Status ProgramGenerator::GenerateLoadAndRunSource(Om2CodePrinter &code_printer) 
     body_items.emplace_back(ast_.Include("graph/custom_op.h"));
     body_items.emplace_back(ast_.Include("exe_graph/runtime/gert_mem_allocator.h"));
   }
-  body_items.emplace_back(ast_.Space());
+  (void)body_items.emplace_back(ast_.Space());
   if (has_custom_kernel_) {
-    body_items.emplace_back(ast_.Namespace(
+    (void)body_items.emplace_back(ast_.Namespace(
         "ge", {ast_.StablePart(StablePartId::kCreateClassCustomOpFactory, StablePartPlacement::kNamespace)}));
     body_items.emplace_back(ast_.Space());
   }
-  body_items.emplace_back(
+  (void)body_items.emplace_back(
       ast_.Namespace("om2", {
                                 ast_.Namespace("", anonymous_items),
                                 load_and_run_handler.BuildGetRtModelHandleMethod(),
@@ -227,8 +227,8 @@ Status ProgramGenerator::GenerateLoadAndRunSource(Om2CodePrinter &code_printer) 
                                 load_and_run_handler.BuildRunAsyncMethod(codegen_model_),
                                 load_and_run_handler.BuildRunMethod(codegen_model_),
                             }));
-  body_items.emplace_back(ast_.StablePart(StablePartId::kLoadAndRunExternalApis));
-  body_items.emplace_back(ast_.ExternBlock("C", load_and_run_handler.BuildQueryResourceApis(codegen_model_)));
+  (void)body_items.emplace_back(ast_.StablePart(StablePartId::kLoadAndRunExternalApis));
+  (void)body_items.emplace_back(ast_.ExternBlock("C", load_and_run_handler.BuildQueryResourceApis(codegen_model_)));
   auto *translation_unit = ast_.File(body_items);
   GE_ASSERT_SUCCESS(EmitFile(GeneratedFileIndex::kLoadingAndRunningFile, translation_unit, code_printer));
   GELOGD("[OM2] Load and run source file code is generated.");

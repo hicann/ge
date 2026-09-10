@@ -50,7 +50,7 @@ class DfxExtendInfo {
   const uint32_t *GetWbackCmoCtxSizeAddr();
   const uint32_t *GetWbackCmoCtxTypeAddr();
   const uint32_t *GetWbackCmoCtxIdAddr(size_t index);
-  size_t GetCtxIdsNum();
+  size_t GetCtxIdsNum() const;
   size_t GetPreCmoCtxNum();
   size_t GetInvalCmoCtxNum();
   size_t GetWbackCmoCtxNum();

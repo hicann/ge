@@ -180,7 +180,7 @@ Status ModelAdapter::GenInputOutputInfo(const std::map<uint32_t, OpDescPtr> &ind
   for (auto &item : index_to_data) {
     const auto output_addrs = ModelUtils::GetOutputAddrsValue(runtime_param_, item.second);
     GELOGD("[OM2] Data node is: %s, output addr size: %zu", item.second->GetName().c_str(), output_addrs.size());
-    input_addrs_list_.emplace_back(output_addrs);
+    (void)input_addrs_list_.emplace_back(output_addrs);
     GE_CHK_STATUS_RET(InitInputDescInfo(item.second), "[OM2] InitInputDescInfo failed, node: %s",
                       item.second->GetName().c_str());
   }
@@ -191,7 +191,7 @@ Status ModelAdapter::GenInputOutputInfo(const std::map<uint32_t, OpDescPtr> &ind
   for (const auto &op_desc : output_op_list) {
     const auto input_addrs = ModelUtils::GetInputAddrsValue(runtime_param_, op_desc);
     GELOGD("[OM2] NetOutput node is: %s, input addr size: %zu", op_desc->GetName().c_str(), input_addrs.size());
-    output_addrs_list_.emplace_back(input_addrs);
+    (void)output_addrs_list_.emplace_back(input_addrs);
 
     bool getnext_sink_dynamic = false;
     if (AttrUtils::GetBool(op_desc, ATTR_GETNEXT_SINK_DYNMAIC, getnext_sink_dynamic) && getnext_sink_dynamic) {
@@ -237,7 +237,7 @@ Status ModelAdapter::GenMemAllocations(const std::map<uint32_t, OpDescPtr> &inde
                                        0UL,
                                        0UL};
   GELOGI("[OM2][mem allocation][absolute] model name %s, %s.", name_.c_str(), not_change_mem_item.ToString().c_str());
-  logical_mem_allocations_.emplace_back(not_change_mem_item);
+  (void)logical_mem_allocations_.emplace_back(not_change_mem_item);
   return SUCCESS;
 }
 
@@ -284,7 +284,7 @@ Status ModelAdapter::GenSliceOutputMemAllocations(const std::vector<OpDescPtr> &
         continue;
       }
 
-      refreshable_output_index_and_allocation_ids_.emplace_back(
+      (void)refreshable_output_index_and_allocation_ids_.emplace_back(
           std::make_pair(output_index, static_cast<uint32_t>(logical_mem_allocations_.size())));
       MemAllocation mem_allocation = {static_cast<uint32_t>(logical_mem_allocations_.size()),
                                       logical_addr,
@@ -296,7 +296,7 @@ Status ModelAdapter::GenSliceOutputMemAllocations(const std::vector<OpDescPtr> &
                                       0UL};
       GELOGI("[OM2][mem allocation][output][slice] model name %s, %s.", name_.c_str(),
              mem_allocation.ToString().c_str());
-      logical_mem_allocations_.emplace_back(mem_allocation);
+      (void)logical_mem_allocations_.emplace_back(mem_allocation);
       output_index_to_allocation_ids_[output_index] = mem_allocation.id;
       zero_copy_output_indexes_.push_back(output_index);
       output_index++;
@@ -310,7 +310,7 @@ Status ModelAdapter::GenFmMemAllocations() {
   fm_mem_allocations_start_id_ = logical_mem_allocations_.size();
 
   for (const auto &mem_info : runtime_param_.fm_memory_infos) {
-    refreshable_fm_index_and_allocation_ids_.emplace_back(
+    (void)refreshable_fm_index_and_allocation_ids_.emplace_back(
         std::make_pair(static_cast<uint32_t>(logical_fm_mem_allocations_size_),
                        static_cast<uint32_t>(logical_mem_allocations_.size())));
 
@@ -324,7 +324,7 @@ Status ModelAdapter::GenFmMemAllocations() {
                                        0UL};
     GELOGI("[OM2][mem allocation][feature map] model name %s, %s.", name_.c_str(),
            fm_mem_allocation.ToString().c_str());
-    logical_mem_allocations_.emplace_back(fm_mem_allocation);
+    (void)logical_mem_allocations_.emplace_back(fm_mem_allocation);
     ++logical_fm_mem_allocations_size_;
   }
   return SUCCESS;
@@ -333,7 +333,7 @@ Status ModelAdapter::GenFmMemAllocations() {
 Status ModelAdapter::GenFixedFmMemAllocations() {
   fixed_fm_mem_allocations_start_id_ = logical_mem_allocations_.size();
   for (const auto &mem_info : runtime_param_.fixed_fm_memory_infos) {
-    fixed_fm_index_and_allocation_ids_.emplace_back(
+    (void)fixed_fm_index_and_allocation_ids_.emplace_back(
         std::make_pair(static_cast<uint32_t>(logical_fixed_fm_mem_allocations_size_),
                        static_cast<uint32_t>(logical_mem_allocations_.size())));
     MemAllocation fm_mem_allocation = {static_cast<uint32_t>(logical_mem_allocations_.size()),
@@ -346,7 +346,7 @@ Status ModelAdapter::GenFixedFmMemAllocations() {
                                        0UL};
     GELOGI("[OM2][mem allocation][fixed feature map] model name %s, %s.", name_.c_str(),
            fm_mem_allocation.ToString().c_str());
-    logical_mem_allocations_.emplace_back(fm_mem_allocation);
+    (void)logical_mem_allocations_.emplace_back(fm_mem_allocation);
     ++logical_fixed_fm_mem_allocations_size_;
   }
   return SUCCESS;
@@ -423,7 +423,7 @@ Status ModelAdapter::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> 
         continue;
       }
 
-      refreshable_input_index_and_allocation_ids_.emplace_back(
+      (void)refreshable_input_index_and_allocation_ids_.emplace_back(
           std::make_pair(input_index, static_cast<uint32_t>(logical_mem_allocations_.size())));
 
       uint64_t tensor_size = data_size;
@@ -447,7 +447,7 @@ Status ModelAdapter::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> 
           "[OM2][mem allocation][input] model_name %s, input_index %u, op_name %s op_type %s, %s, tensor_size %" PRIu64,
           name_.c_str(), input_index, item.second->GetName().c_str(), item.second->GetType().c_str(),
           mem_allocation.ToString().c_str(), tensor_size);
-      logical_mem_allocations_.emplace_back(mem_allocation);
+      (void)logical_mem_allocations_.emplace_back(mem_allocation);
       input_index_to_allocation_ids_[input_index] = mem_allocation.id;
       zero_copy_input_indexes_.push_back(input_index);
       if (copy_host_input_indexes_.count(input_index) > 0U) {
@@ -536,7 +536,7 @@ Status ModelAdapter::GenOutputMemAllocations(const std::vector<OpDescPtr> &outpu
         continue;
       }
 
-      refreshable_output_index_and_allocation_ids_.emplace_back(
+      (void)refreshable_output_index_and_allocation_ids_.emplace_back(
           std::make_pair(output_index, static_cast<uint32_t>(logical_mem_allocations_.size())));
       MemAllocation mem_allocation = {static_cast<uint32_t>(logical_mem_allocations_.size()),
                                       virtual_addr_list[i],
@@ -547,7 +547,7 @@ Status ModelAdapter::GenOutputMemAllocations(const std::vector<OpDescPtr> &outpu
                                       0UL,
                                       0UL};
       GELOGI("[OM2] [mem allocation][output] model_name=%s, %s.", name_.c_str(), mem_allocation.ToString().c_str());
-      logical_mem_allocations_.emplace_back(mem_allocation);
+      (void)logical_mem_allocations_.emplace_back(mem_allocation);
       output_index_to_allocation_ids_[output_index] = mem_allocation.id;
       zero_copy_output_indexes_.push_back(output_index);
       output_index++;
@@ -755,8 +755,8 @@ Status ModelAdapter::InitOutputTensorInfo(const OpDescPtr &op_desc) {
     (void)AttrUtils::GetBool(input_desc, ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, is_no_tiling);
     GELOGI("[OM2] Output size is %" PRId64 ", output shape is %s, no tiling is %d.", size,
            ToString(shape.GetDims()).c_str(), static_cast<int32_t>(is_no_tiling));
-    output_buffer_size_.emplace_back(size);
-    output_shape_info_.emplace_back(shape);
+    (void)output_buffer_size_.emplace_back(size);
+    (void)output_shape_info_.emplace_back(shape);
     output_no_tiling_flag_.push_back(is_no_tiling);
     if (is_no_tiling) {
       has_no_tiling_output_ = true;

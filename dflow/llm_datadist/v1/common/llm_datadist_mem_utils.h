@@ -16,9 +16,9 @@
 
 namespace llm {
 template <typename _Tp, typename... _Args>
-static inline std::shared_ptr<_Tp> MakeShared(_Args &&...__args) {
+static inline std::shared_ptr<_Tp> MakeShared(_Args &&...args) {
   using _Tp_nc = typename std::remove_const<_Tp>::type;
-  const std::shared_ptr<_Tp> ret(new (std::nothrow) _Tp_nc(std::forward<_Args>(__args)...));
+  const std::shared_ptr<_Tp> ret(new (std::nothrow) _Tp_nc(std::forward<_Args>(args)...));
   return ret;
 }
 

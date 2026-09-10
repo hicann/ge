@@ -55,7 +55,7 @@ Status ArgsIoAddrsUpdater::Init(std::vector<MemAllocation> &logical_mem_allocati
 
     MemAllocationAndOffset id_and_offset = {id, (addr - logical_mem_allocations[id].logical_addr),
                                             logical_mem_allocations[id_addr_matched].type};
-    v_mem_allocation_id_and_offset_.emplace_back(id_and_offset);
+    (void)v_mem_allocation_id_and_offset_.emplace_back(id_and_offset);
     GELOGI("[OM2][Args][Init] op_name:%s, op_type:%s, logical_addr[%zu]:0x%" PRIx64
            ", id:%zu, "
            "offset:0x%" PRIx64 ", refreshable:%hhu.",
@@ -96,7 +96,7 @@ void ArgsIoAddrsUpdater::GenArgsRefreshInfos(std::vector<TaskArgsRefreshInfo> &i
     info.args_offset = host_args_bas_offset + static_cast<uint64_t>(i * sizeof(uint64_t));
     info.placement = pls;
     info.args_format_policy = ArgsFormatPolicy::kAddrAll;
-    infos.emplace_back(info);
+    (void)infos.emplace_back(info);
   }
 }
 }  // namespace om2

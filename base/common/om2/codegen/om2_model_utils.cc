@@ -221,8 +221,7 @@ Status Om2ModelUtils::ConstructAddrSemanticForCommon(const TaskSemanticContribut
   return SUCCESS;
 }
 
-bool Om2ModelUtils::FindVarAddress(const VarAddrRangeMap &var_addr_ranges, const uint64_t effective,
-                                   VarAddressMatch &match) {
+bool Om2ModelUtils::FindVarAddress(const VarAddrRangeMap &var_addr_ranges, uint64_t effective, VarAddressMatch &match) {
   const auto iter = var_addr_ranges.upper_bound(effective);
   if (iter == var_addr_ranges.begin()) {
     return false;

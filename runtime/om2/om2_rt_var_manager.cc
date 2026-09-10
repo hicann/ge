@@ -62,7 +62,7 @@ ge::Status Om2RTVarManager::Init(const RTVarResource &resource, void *const exte
   return ge::SUCCESS;
 }
 
-ge::Status Om2RTVarManager::AllocDevAddr(const RTVarEntry &entry, void *&dev_addr) {
+ge::Status Om2RTVarManager::AllocDevAddr(const RTVarEntry &entry, void *&dev_addr) const {
   void *new_addr = nullptr;
   const auto malloc_ret = Om2Malloc(&new_addr, entry.size, entry.memory_type, 0);
   if (malloc_ret != ACL_SUCCESS) {

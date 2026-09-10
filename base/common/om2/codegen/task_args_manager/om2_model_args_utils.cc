@@ -742,7 +742,7 @@ Status ModelUtils::GetHbmFeatureMapMemInfo(const GeModelPtr &ge_model, std::vect
     default_mem_info.memory_size -= zero_copy_size;
     default_mem_info.memory_type = RT_MEMORY_HBM;
     GELOGD("[OM2] Get feature map memory info with details: [%s]", default_mem_info.ToString().c_str());
-    all_mem_info.emplace_back(std::move(default_mem_info));
+    (void)all_mem_info.emplace_back(std::move(default_mem_info));
     return SUCCESS;
   }
 
@@ -761,7 +761,7 @@ Status ModelUtils::GetHbmFeatureMapMemInfo(const GeModelPtr &ge_model, std::vect
     one_fm_mem_info.memory_base = reinterpret_cast<uint8_t *>(one_fm_mem_info.logic_memory_base);
     one_fm_mem_info.is_fixed_addr_prior = ((sub_memory_info.size() > 3U) ? sub_memory_info[3U] : false);
     GELOGD("[OM2] Get one sub feature map memory info with details: [%s]", one_fm_mem_info.ToString().c_str());
-    all_mem_info.emplace_back(std::move(one_fm_mem_info));
+    (void)all_mem_info.emplace_back(std::move(one_fm_mem_info));
   }
   std::sort(all_mem_info.begin(), all_mem_info.end());
   return SUCCESS;
@@ -775,32 +775,32 @@ std::vector<MemInfo> ModelUtils::GetAllMemoryTypeSize(const GeModelPtr &ge_model
   (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_P2P_MEMORY_SIZE, p2p_mem_info.memory_size);
   p2p_mem_info.memory_type = RT_MEMORY_P2P_DDR;
   p2p_mem_info.memory_key = "_p";
-  all_mem_info.emplace_back(std::move(p2p_mem_info));
+  (void)all_mem_info.emplace_back(std::move(p2p_mem_info));
 
   MemInfo session_scope_mem_info{};
   (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_SESSION_SCOPE_MEMORY_SIZE, session_scope_mem_info.memory_size);
   session_scope_mem_info.memory_type = (kSessionScopeMemoryMask | RT_MEMORY_HBM);
-  all_mem_info.emplace_back(std::move(session_scope_mem_info));
+  (void)all_mem_info.emplace_back(std::move(session_scope_mem_info));
 
   MemInfo host_mem_info{};
   (void)AttrUtils::GetInt(ge_model, MODEL_ATTR_HOST_MEMORY_SIZE, host_mem_info.memory_size);
   (void)AttrUtils::GetInt(ge_model, MODEL_ATTR_TASK_GEN_HOST_BASE_ADDR, host_mem_info.logic_memory_base);
   host_mem_info.memory_type = RT_MEMORY_HOST;
   host_mem_info.memory_key = "_h";
-  all_mem_info.emplace_back(std::move(host_mem_info));
+  (void)all_mem_info.emplace_back(std::move(host_mem_info));
 
   MemInfo host_svm_mem_info{};
   (void)AttrUtils::GetInt(ge_model, MODEL_ATTR_HOST_SVM_SIZE, host_svm_mem_info.memory_size);
   (void)AttrUtils::GetInt(ge_model, MODEL_ATTR_TASK_GEN_HOST_SVM_BASE_ADDR, host_svm_mem_info.logic_memory_base);
   host_svm_mem_info.memory_type = RT_MEMORY_HOST_SVM;
   host_svm_mem_info.memory_key = "_svm";
-  all_mem_info.emplace_back(std::move(host_svm_mem_info));
+  (void)all_mem_info.emplace_back(std::move(host_svm_mem_info));
   return all_mem_info;
 }
 
-bool ModelUtils::IsSuppoprtAddrRefreshable(const uint64_t mem_type) {
-  return (mem_type == static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)) ||
-         (mem_type == static_cast<uint64_t>(MemoryAppType::kMemoryTypeModelIo));
+bool ModelUtils::IsSuppoprtAddrRefreshable(const uint64_t mem_types) {
+  return (mem_types == static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)) ||
+         (mem_types == static_cast<uint64_t>(MemoryAppType::kMemoryTypeModelIo));
 }
 
 void ModelUtils::GetAddrRefreshableFlagsByMemTypes(const std::vector<uint64_t> &mem_types,

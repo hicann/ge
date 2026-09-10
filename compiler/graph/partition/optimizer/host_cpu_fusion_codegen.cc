@@ -103,7 +103,7 @@ Status GetTensorSize(const GeTensorDesc &desc, size_t &size) {
   return SUCCESS;
 }
 
-std::string IntExpression(const int64_t value) {
+std::string IntExpression(int64_t value) {
   if (value == std::numeric_limits<int64_t>::min()) {
     return "(-9223372036854775807LL - 1LL)";
   }
