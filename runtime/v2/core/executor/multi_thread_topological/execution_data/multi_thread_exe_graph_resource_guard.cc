@@ -18,8 +18,8 @@ TaskScheduler *MultiThreadResourceGuard::ResetTaskScheduler(std::unique_ptr<Task
 
 const FreeLaunchRelationCsr &MultiThreadResourceGuard::ResetFreeLaunchRelationCsr(std::unique_ptr<uint8_t[]> offsets,
                                                                                   std::unique_ptr<uint8_t[]> launch_ids,
-                                                                                  const size_t node_num,
-                                                                                  const size_t relation_num) {
+                                                                                  size_t node_num,
+                                                                                  size_t relation_num) {
   free_launch_offsets_guarder_ = std::move(offsets);
   free_launch_ids_guarder_ = std::move(launch_ids);
   free_launch_relation_csr_ = {reinterpret_cast<const NodeIdentity *>(free_launch_offsets_guarder_.get()),
