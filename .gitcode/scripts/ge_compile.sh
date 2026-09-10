@@ -25,10 +25,12 @@ ccache --show-config | grep cache_dir
 echo "========================================================"
 
 if [[ "${task_name}" == *ubuntu24* ]]; then
-    if [ "${GIT_TARGET_BRANCH}" == "master" ] || [ "${GIT_TARGET_BRANCH}" == "develop" ]; then
-        sudo update-alternatives --set gcc /usr/bin/gcc-15
-    else
-        sudo update-alternatives --set gcc /usr/bin/gcc-14
+    if sudo update-alternatives --set gcc /usr/bin/gcc-16 2>/dev/null; then
+        echo "Switched to gcc-16"
+    elif sudo update-alternatives --set gcc /usr/bin/gcc-15 2>/dev/null; then
+        echo "Switched to gcc-15"
+    elif sudo update-alternatives --set gcc /usr/bin/gcc-14 2>/dev/null; then
+        echo "gcc-16/15 not available, fell back to gcc-14"
     fi
 else
     if [[ -f "/opt/rh/devtoolset-7/enable" ]]; then
