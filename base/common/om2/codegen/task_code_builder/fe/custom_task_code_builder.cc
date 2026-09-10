@@ -165,7 +165,7 @@ std::vector<BodyItem> CustomTaskCodeBuilder::RenderDispatchSetup(const VarRef &o
   };
 }
 
-BodyItem CustomTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRef &ctx) {
+BodyItem CustomTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRef &ctx) const {
   auto a = ast_.Var("const auto &", "a");
   return ast_.For(ast_.VarDecl("uint32_t", "j", ast_.UInt(0)),
                   ast_.Var("", "j") < op.Arrow("dispatch_info").Attr("custom").Attr("args_info_num"),
