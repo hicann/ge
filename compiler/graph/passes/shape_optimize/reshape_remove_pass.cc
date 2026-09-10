@@ -25,10 +25,16 @@ const int32_t kReshapeDataIndex = 0;
 const int32_t kReshapeShapeIndex = 1;
 enum class OpHashValue { kReshapeType = 0, kReformatType = 1, kOpNoDelete = -1 };
 
-std::map<std::string, OpHashValue> kToBeDeleteOp = {{RESHAPE, OpHashValue::kReshapeType},
-                                                    {REFORMAT, OpHashValue::kReformatType}};
-// todo 临时方案，不应该判断节点类型，应该找到这类节点的共同点，或者最终把reshape全部删除
-const std::set<std::string> kInputShapeContinue = {GATHERSHAPES, GATHERND};
+const std::map<std::string, OpHashValue> &GetToBeDeleteOp() {
+  static const std::map<std::string, OpHashValue> kToBeDeleteOp = {{RESHAPE, OpHashValue::kReshapeType},
+                                                                   {REFORMAT, OpHashValue::kReformatType}};
+  return kToBeDeleteOp;
+}
+
+const std::set<std::string> &GetInputShapeContinue() {
+  static const std::set<std::string> kInputShapeContinue = {GATHERSHAPES, GATHERND};
+  return kInputShapeContinue;
+}
 
 bool EnablePass(const ge::NodePtr &node) {
   // todo 临时方案，编译时不应该感知单算子
@@ -57,7 +63,7 @@ bool EnablePass(const ge::NodePtr &node) {
 
 bool IsOutDataNodeRequireInputShapeContinuous(const ge::NodePtr &node) {
   for (const auto &out_data_node : node->GetOutDataNodes()) {
-    if (kInputShapeContinue.count(out_data_node->GetType()) != 0U) {
+    if (GetInputShapeContinue().count(out_data_node->GetType()) != 0U) {
       GELOGD("Node: %s, out data node: %s, type: %s, require input shape to be continuous.", node->GetName().c_str(),
              out_data_node->GetName().c_str(), out_data_node->GetType().c_str());
       return true;
@@ -90,8 +96,9 @@ bool IsOutputOfSubGraph(const ge::NodePtr &node) {
 Status ReshapeRemovePass::Run(NodePtr &node) {
   GE_CHECK_NOTNULL(node);
   GE_CHECK_NOTNULL(node->GetOpDesc());
-  const auto it = kToBeDeleteOp.find(node->GetType());
-  OpHashValue key = (it == kToBeDeleteOp.cend()) ? OpHashValue::kOpNoDelete : it->second;
+  const auto &to_be_delete_op = GetToBeDeleteOp();
+  const auto it = to_be_delete_op.find(node->GetType());
+  OpHashValue key = (it == to_be_delete_op.cend()) ? OpHashValue::kOpNoDelete : it->second;
   switch (key) {
     case OpHashValue::kReshapeType: {
       if (!EnablePass(node)) {

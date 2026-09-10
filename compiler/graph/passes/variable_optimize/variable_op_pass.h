@@ -34,9 +34,9 @@ class VariableOpPass : public GraphPass {
   Status Run(ge::ComputeGraphPtr graph) override;
 
  private:
-  Status DealFusion(const SameVarPtr &same_vars);
+  Status DealFusion(const SameVarPtr &same_vars) const;
 
-  Status CheckVariableRefLegally(const SameVarPtr &same_vars, bool &is_var_ref_legally);
+  Status CheckVariableRefLegally(const SameVarPtr &same_vars, bool &is_var_ref_legally) const;
 
   Status UpdateVarAndRefOutputFormatInfo(const GeTensorDesc &final_output, const ge::NodePtr &node,
                                          const SameVarPtr &same_vars);
