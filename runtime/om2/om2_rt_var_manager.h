@@ -52,10 +52,10 @@ class Om2RTVarManager {
  private:
   ge::Status AllocDevAddr(const RTVarEntry &entry, void *&dev_addr) const;
   ge::Status CopyVarFromDevice(const RTVarEntry &entry, const RTVarRuntimeState &state, const uint32_t device_id,
-                               std::vector<uint8_t> &host_buf);
+                               std::vector<uint8_t> &host_buf) const;
   ge::Status CopyVarToDevice(const RTVarEntry &entry, const RTVarRuntimeState &state, const uint32_t device_id,
-                             const std::vector<uint8_t> &host_buf);
-  ge::Status TransVarOnHost(const RTVarTransRoad &trans_road, std::vector<uint8_t> &data);
+                             const std::vector<uint8_t> &host_buf) const;
+  ge::Status TransVarOnHost(const RTVarTransRoad &trans_road, std::vector<uint8_t> &data) const;
   ge::Status TransSingleVarData(const std::string &var_name, const uint32_t device_id);
 
   RTVarRuntimeState &GetOrCreateRuntimeState(const std::string &var_key);
