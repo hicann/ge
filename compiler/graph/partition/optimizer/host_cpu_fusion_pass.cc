@@ -795,8 +795,8 @@ Status PrepareFusionCustomOpArtifacts(const ComputeGraphPtr &root_graph,
 
   if (!bins_to_load.empty()) {
     std::vector<CustomOpSoHandlePtr> handles;
-    GE_CHK_STATUS_RET(CustomOpSoLoader::GetInstance().LoadCustomOpSoBins(bins_to_load, handles),
-                      "Failed to load generated HostCPU custom-op SOs.");
+    GE_CHK_STATUS_RET(CustomOpSoLoader::GetInstance().DlopenCustomOpSoBins(bins_to_load, handles),
+                      "Failed to dlopen generated HostCPU custom-op SOs.");
     const auto status = CustomOpRegistryBuilder::AddCreatorsFromSoHandles(handles, registry);
     if (status != SUCCESS) {
       GELOGE(status, "Failed to register generated HostCPU custom-op creators.");
