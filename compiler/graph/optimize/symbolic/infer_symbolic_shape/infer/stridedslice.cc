@@ -530,10 +530,9 @@ Status GetStridedSliceDIndexInput(const gert::InferSymbolShapeContext *context, 
   return SUCCESS;
 }
 
-graphStatus GetValueFromInputData(const gert::InferSymbolShapeContext *context, const size_t index,
-                                  std::vector<Expression> &dims) {
+graphStatus GetValueFromSymbolValue(const gert::InferSymbolShapeContext *context,
+                                    const gert::SymbolTensor *input_tensor, std::vector<Expression> &dims) {
   GE_ASSERT_NOTNULL(context);
-  const auto input_tensor = context->GetInputSymbolTensor(index);
   GE_UNSUPPORTED_IF_NULL(input_tensor);
   const auto symbols = input_tensor->GetSymbolicValue();
   if (symbols == nullptr) {
@@ -545,10 +544,15 @@ graphStatus GetValueFromInputData(const gert::InferSymbolShapeContext *context, 
     int64_t dim = 0L;
     bool is_const = symbol.GetConstValue(dim);
     dims.emplace_back(is_const ? Symbol(dim) : symbol);
-    GELOGD("GetValueFromInputData: idx=%zu is_const=%d val=%s node=%s[%s]", index, is_const,
-           dims.back().Serialize().get(), context->GetNodeName(), context->GetNodeType());
+    GELOGD("GetValueFromSymbolValue: is_const=%d val=%s node=%s[%s]", is_const, dims.back().Serialize().get(),
+           context->GetNodeName(), context->GetNodeType());
   }
   return SUCCESS;
+}
+
+graphStatus GetValueFromInputData(const gert::InferSymbolShapeContext *context, const size_t index,
+                                  std::vector<Expression> &dims) {
+  return GetValueFromSymbolValue(context, context->GetInputSymbolTensor(index), dims);
 }
 
 Status GetStridedSliceIndexInput(const gert::InferSymbolShapeContext *context, StrdedSliceIndexInputs &index_input,
@@ -561,13 +565,16 @@ Status GetStridedSliceIndexInput(const gert::InferSymbolShapeContext *context, S
   if (ret != SUCCESS) {
     return ret;
   }
-  return (is_stride_optional && context->GetInputSymbolTensor(stride_index) == nullptr)
-             ? SUCCESS
-             : GetValueFromInputData(context, stride_index, index_input.strides_indexes);
+  const auto strides_tensor = is_stride_optional ? context->GetOptionalInputSymbolTensor(stride_index)
+                                                 : context->GetInputSymbolTensor(stride_index);
+  if (strides_tensor == nullptr && is_stride_optional) {
+    return SUCCESS;
+  }
+  return GetValueFromSymbolValue(context, strides_tensor, index_input.strides_indexes);
 }
 
 Status ConstructAxis(const gert::InferSymbolShapeContext *context, int64_t input_dim_num, std::vector<int64_t> &axes) {
-  const auto axes_tensor = context->GetInputSymbolTensor(kAxesV2InputIndex);
+  const auto axes_tensor = context->GetOptionalInputSymbolTensor(kAxesV2InputIndex);
   if (axes_tensor == nullptr) {
     GELOGI("Set axes to default for node %s.", context->GetNodeName());
     return SUCCESS;
@@ -600,12 +607,12 @@ Status ConstructAxis(const gert::InferSymbolShapeContext *context, int64_t input
 Status GetV2StrideValues(const gert::InferSymbolShapeContext *context, const size_t begin_size,
                          std::vector<Expression> &stride_values, bool &strides_default) {
   stride_values.assign(begin_size, Symbol(1));
-  const auto strides_tensor = context->GetInputSymbolTensor(kStridesV2InputIndex);
+  const auto strides_tensor = context->GetOptionalInputSymbolTensor(kStridesV2InputIndex);
   if (strides_tensor == nullptr) {
     return SUCCESS;
   }
   std::vector<Expression> stride_input;
-  const auto ret = GetValueFromInputData(context, kStridesV2InputIndex, stride_input);
+  const auto ret = GetValueFromSymbolValue(context, strides_tensor, stride_input);
   if (ret != SUCCESS) {
     return ret;
   }

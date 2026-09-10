@@ -1345,7 +1345,8 @@ static void BuildStridedSliceV3InferContext(InferSymbolShapeContextTestBuilder &
                                             const std::vector<Expression> &begin_values,
                                             const std::vector<Expression> &end_values,
                                             const std::vector<Expression> &axes_values,
-                                            const std::vector<Expression> &strides_values);
+                                            const std::vector<Expression> &strides_values, bool with_axes = true,
+                                            bool with_strides = true);
 
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceInvalidSpecifications) {
   const auto run_v1 = [](const std::vector<Expression> &begin, const std::vector<Expression> &end,
@@ -1370,11 +1371,16 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceInvalidSpecifi
       op_desc->AppendIrAttrName(name);
       AttrUtils::SetInt(op_desc, name, 0);
     }
-    op_desc->AddInputDesc(GeTensorDesc());
-    op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
-    op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
-    op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
-    op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+    op_desc->AppendIrInput("x", kIrInputRequired);
+    op_desc->AppendIrInput("begin", kIrInputRequired);
+    op_desc->AppendIrInput("end", kIrInputRequired);
+    op_desc->AppendIrInput("axes", kIrInputOptional);
+    op_desc->AppendIrInput("strides", kIrInputOptional);
+    op_desc->AddInputDesc("x", GeTensorDesc());
+    op_desc->AddInputDesc("begin", GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+    op_desc->AddInputDesc("end", GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+    op_desc->AddInputDesc("axes", GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+    op_desc->AddInputDesc("strides", GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
     builder.AppendInputSymbolTensor(gert::SymbolShape({Symbol(4), Symbol(5)}))
         .AppendInputSymbolTensor(gert::SymbolShape({Symbol(begin.size())}), true, &begin)
         .AppendInputSymbolTensor(gert::SymbolShape({Symbol(end.size())}), true, &end)
@@ -3387,20 +3393,34 @@ static void BuildStridedSliceV3InferContext(InferSymbolShapeContextTestBuilder &
                                             const std::vector<Expression> &begin_values,
                                             const std::vector<Expression> &end_values,
                                             const std::vector<Expression> &axes_values,
-                                            const std::vector<Expression> &strides_values) {
+                                            const std::vector<Expression> &strides_values, bool with_axes,
+                                            bool with_strides) {
   auto op_desc = builder.GetOrCreateOpDescPtr();
-  op_desc->AddInputDesc(GeTensorDesc());
-  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
-  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
-  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
-  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+  op_desc->AppendIrInput("x", kIrInputRequired);
+  op_desc->AppendIrInput("begin", kIrInputRequired);
+  op_desc->AppendIrInput("end", kIrInputRequired);
+  op_desc->AppendIrInput("axes", kIrInputOptional);
+  op_desc->AppendIrInput("strides", kIrInputOptional);
+  op_desc->AddInputDesc("x", GeTensorDesc());
+  op_desc->AddInputDesc("begin", GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+  op_desc->AddInputDesc("end", GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+  if (with_axes) {
+    op_desc->AddInputDesc("axes", GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+  }
+  if (with_strides) {
+    op_desc->AddInputDesc("strides", GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+  }
 
   builder.AppendInputSymbolTensor(gert::SymbolShape(x_values))
       .AppendInputSymbolTensor(gert::SymbolShape({Symbol(begin_values.size())}), true, &begin_values)
-      .AppendInputSymbolTensor(gert::SymbolShape({Symbol(end_values.size())}), true, &end_values)
-      .AppendInputSymbolTensor(gert::SymbolShape({Symbol(axes_values.size())}), true, &axes_values)
-      .AppendInputSymbolTensor(gert::SymbolShape({Symbol(strides_values.size())}), true, &strides_values)
-      .OutputNum(1);
+      .AppendInputSymbolTensor(gert::SymbolShape({Symbol(end_values.size())}), true, &end_values);
+  if (with_axes) {
+    builder.AppendInputSymbolTensor(gert::SymbolShape({Symbol(axes_values.size())}), true, &axes_values);
+  }
+  if (with_strides) {
+    builder.AppendInputSymbolTensor(gert::SymbolShape({Symbol(strides_values.size())}), true, &strides_values);
+  }
+  builder.OutputNum(1);
 }
 
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSlice_1) {
@@ -3833,6 +3853,33 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceV3RejectsZeroS
 
   auto infer_context = builder.Build();
   ASSERT_EQ(func.first(infer_context), PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceV3OnlyStrides) {
+  auto func = GetInferFunc("StridedSliceV3");
+  ASSERT_NE(func.first, nullptr);
+  // axes 缺省（不传），只传 strides：axes 应回退为 [0, 1, ..., rank-1]，
+  // 且 strides 应被正确读取（而不是被误当成 axes）。
+  InferSymbolShapeContextTestBuilder builder("StridedSliceV3", "stridedslice_v3_only_strides");
+  BuildStridedSliceV3InferContext(builder, {Symbol(6), Symbol(8)}, {Symbol(0), Symbol(0)}, {Symbol(6), Symbol(8)}, {},
+                                  {Symbol(2), Symbol(2)}, false, true);
+
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{Symbol(3), Symbol(4)}));
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceV3OnlyAxes) {
+  auto func = GetInferFunc("StridedSliceV3");
+  ASSERT_NE(func.first, nullptr);
+  // strides 缺省（不传），只传 axes：strides 应回退为全 1，axes 应被正确读取。
+  InferSymbolShapeContextTestBuilder builder("StridedSliceV3", "stridedslice_v3_only_axes");
+  BuildStridedSliceV3InferContext(builder, {Symbol(6), Symbol(8)}, {Symbol(2)}, {Symbol(6)}, {Symbol(0)}, {}, true,
+                                  false);
+
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{Symbol(4), Symbol(8)}));
 }
 
 void EXPECT_BatchMatMulV2TestCommon(const gert::SymbolShape &x1, const gert::SymbolShape &x2, bool adj_x1, bool adj_x2,
