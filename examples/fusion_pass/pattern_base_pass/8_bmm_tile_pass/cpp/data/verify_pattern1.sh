@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e
-
 # ----------------------------------------------------------------------------
 # Copyright (c) 2026 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of
@@ -16,6 +14,8 @@ set -e
 # 路径 B: ONNX 4D 模型, 尝试绕过 GE 的 Reshape/Transpose 插入
 #
 # 用法: ./verify_pattern1.sh [batch] [m] [k] [n] [heads]
+
+set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PASS_DIR=$(dirname "$SCRIPT_DIR")

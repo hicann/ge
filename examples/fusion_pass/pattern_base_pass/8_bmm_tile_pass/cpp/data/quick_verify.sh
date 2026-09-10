@@ -1,6 +1,4 @@
 #!/bin/bash
-set -e
-
 # ----------------------------------------------------------------------------
 # Copyright (c) 2026 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of
@@ -14,6 +12,8 @@ set -e
 # BmmTile Pass 一键式验证脚本
 # 验证 Tile → BatchMatMulV2 融合 pass：删除冗余 Tile，利用 BMM 广播
 # 用法: ./quick_verify.sh [batch] [m] [k] [n] [test_rounds]
+
+set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PASS_DIR=$(dirname "$SCRIPT_DIR")
