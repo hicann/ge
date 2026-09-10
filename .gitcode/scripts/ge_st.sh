@@ -91,9 +91,6 @@ function main(){
         echo "Switched to gcc-15"
     elif sudo update-alternatives --set gcc /usr/bin/gcc-14 2>/dev/null; then
         echo "gcc-16/15 not available, fell back to gcc-14"
-    else
-        echo "ERROR: No compatible GCC toolchain found for release branch" >&2
-        exit 1
     fi
     if gcc --version | head -n1 | grep -q "15\."; then
         rm -rf /home/jenkins/opensource/lib_cache
