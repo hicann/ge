@@ -1,6 +1,6 @@
 # UDF User Defined Function -- Programmable Processing Nodes in Data Flow Graphs
 
-> This document describes how the UDF framework allows users to insert custom processing logic into DataFlow data flow graphs, and the complete mechanism from compiling user functions into SO, to discovery, loading, initialization, and repeated invocation by the event-driven state machine at runtime.
+> This document describes how the UDF framework allows users to insert custom processing logic into DataFlow data flow graphs, and the complete mechanism from compiling and packaging user functions (C++ compiled into SO, Python auto-generated projects), to discovery, loading, initialization, and repeated invocation by the event-driven state machine at runtime.
 
 ---
 
@@ -62,6 +62,8 @@ Python provides three approaches with decreasing entry barriers:
 | High-level API | `@df.pyflow` | Decorator mode, automatic serialization, most concise code |
 | NPU model | `@df.npu_model` | PyTorch model NPU zero-copy execution |
 
+Here `df` and `ff` are the conventional aliases of `import dataflow as df` and `import dataflow.flow_func as ff` respectively; the same applies to the other `df.xxx` interfaces (such as `df.alloc_tensor`) in this document.
+
 The `@df.pyflow` decorator automatically generates the UDF project (C++ wrapper + CMakeLists + configuration JSON), serializes the user function with cloudpickle, and compiles it into a loadable SO. User function parameters are automatically deserialized from FlowMsg to numpy array / torch tensor, and return values are automatically serialized back to FlowMsg.
 
 For the implementation mechanisms and comparison of the `@df.pyflow` and `@df.npu_model` decorators, refer to [Section 4.5](dflow.md#45-python-interface-layer) of dflow.md.
@@ -71,9 +73,25 @@ The Python side provides the following supporting capabilities for UDF developme
 | Capability | Entry | Description |
 |------------|-------|-------------|
 | Zero-copy output | `df.alloc_tensor` | Allocates an mbuf-shared Tensor inside the UDF; on output it is converted to FlowMsg zero-copy through a shared mbuf reference; ordinary df.Tensor output requires data copying, so using this interface is recommended |
-| Streaming queue | `FlowMsgQueue` | The queue object received by the UDF in streaming input mode, implementing a subset of the `queue.Queue` interface (`get`/`get_nowait`/`qsize`/`empty`/`full`); tensor messages are automatically converted to df.Tensor |
+| Streaming queue | `FlowMsgQueue` | The queue object received by the UDF in streaming input mode (Python wrapper, corresponding to the C++ abstraction `flow_msg_queue.h`), implementing a subset of the `queue.Queue` interface (`get`/`get_nowait`/`qsize`/`empty`/`full`); tensor messages are automatically converted to df.Tensor |
 | Deployment parameters | `PyMetaParams` | Reads deployment information inside the UDF: work_path, running device_id, instance index/count, and initialization parameters set via `set_init_param` during graph construction |
 | Cooperative abort | `DfAbortException` | Thrown at streaming dequeue points during redeployment or process exit; the execution wrapper layer catches it to safely end the current call, cooperating with the framework for graceful exit; users do not need to handle it themselves |
+
+### 2.3 Choosing between C++ UDF and Python UDF
+
+C++ UDFs and Python UDFs share the same scheduling and execution mechanism (UdfModel -> FlowFuncProcessor state machine); the differences lie in development form, execution location, and data interaction:
+
+| Dimension | C++ UDF | Python UDF |
+|-----------|---------|------------|
+| Development form | Inherit `MetaFlowFunc`/`MetaMultiFunc` + registration macros, manually compile the SO | `@df.pyflow` decorator, framework auto-generates the project (cloudpickle + C++ wrapper + CMake), zero C++ |
+| Execution location | Device by default (when compilation output includes Ascend); `heavy_load` can force host | Host only; `@df.npu_model` is the exception (data never leaves the device, see Section 4.5.2 of dflow.md) |
+| Data interaction | Operates FlowMsg directly, no serialization overhead | Inputs are deserialized into Python objects and outputs are serialized back to FlowMsg; `df.alloc_tensor` enables zero-copy output |
+| Streaming input | Multi-Func queue mode (`RegProcFuncWithQ`) | `stream_input="Queue"` option (`FlowMsgQueue`) |
+| State reset (online update) | Base class does not support it by default, falling back to releasing and rebuilding the wrapper | Wrapper override, restoring the pickle object and replaying `__init__` |
+| Third-party dependencies | Linked libraries are packed with the SO into a self-contained release package, moved as a whole at deployment | Depends on the Python environment and related libraries in the runtime environment |
+| Performance characteristics | Native execution, suitable for compute-intensive and low-latency scenarios | Interpreted execution + serialization overhead, suitable for orchestration logic and rapid iteration |
+
+Selection advice: use C++ UDF for compute-intensive, low-latency, or device-side execution; use Python UDF for orchestration logic, rapid prototyping, or frequent iteration; use `@df.npu_model` for PyTorch computation where inputs and outputs are both NPU tensors.
 
 ---
 
@@ -234,7 +252,7 @@ In the executor thread pool, the main thread processes queue events (E2NE/F2NF) 
 
 ### 5.1 DataAligner Multi-input Alignment
 
-When a UDF has multiple inputs with inconsistent arrival rates, `DataAligner` (`reader_writer/data_aligner.h`) aligns inputs by **(trans_id, data_label)**:
+When a UDF has input alignment attributes configured (the `InputAlignAttrs` of the deployment descriptor; enabled when `align_max_cache_num > 0`; the typical scenario is multiple inputs with inconsistent arrival rates), `DataAligner` (`reader_writer/data_aligner.h`) aligns inputs by **(trans_id, data_label)**:
 
 - **Alignment key**: `pair<trans_id, data_label>`, read from the mbuf head `MbufHeadMsg`
 - **Cache structure**: `map<(trans_id,data_label), CachedData>`, each CachedData holds one FIFO cache per queue
@@ -302,7 +320,7 @@ graph LR
 
 ### 7.2 MbufFlowMsg (Internal Implementation)
 
-`MbufFlowMsg` (`flow_func/mbuf_flow_msg.h`) wraps `shared_ptr<Mbuf>`. **mbuf memory layout**: the last 64 bytes of the head area (256B by default) is the `MbufHeadMsg` control information (trans_id/data_label/route_label/step_id/ret_code/flags/start_time/end_time, etc.); the data area is `[RuntimeTensorDesc(1024B)][actual data]`, where `RuntimeTensorDesc` contains dataAddr/dtype/shape[33] (shape[0] stores the dim count)/originalShape[33]/format/data_size.
+`MbufFlowMsg` (`flow_func/mbuf_flow_msg.h`) wraps `shared_ptr<Mbuf>`. **mbuf memory layout**: the last 64 bytes of the head area (256B by default) is the `MbufHeadMsg` control information (trans_id/version/msg_type/ret_code/start_time/end_time/flags/data_flag/worked_id/step_id/data_label/route_label); the data area is `[RuntimeTensorDesc(1024B)][actual data]`, where `RuntimeTensorDesc` contains dataAddr/dtype/shape[33] (shape[0] stores the dim count)/originalShape[33]/format/data_size.
 
 - Output mbuf inherits input `MbufHead` (`AllocTensorMsg` passes `input_mbuf_head_`), ensuring trans_id pass-through
 - Custom trans_id flag bit `kCustomTransIdFlagBit`: set only when the user explicitly calls `SetTransactionId(non-zero)`; otherwise the framework automatically assigns based on `current_trans_id_` (`FlowFuncProcessor::SetInputData`)
@@ -318,7 +336,7 @@ Used for data splitting and routing in Scatter/Gather nodes (`inc/external/flow_
 - `BalanceWeight`: rowNum/colNum/matrix (null = all ones)
 - `data_pos`: Position of each output message in the weight matrix
 
-`BalanceOptionFilter` (`flow_func/flow_func_run_context.cpp`) computes `route_label` (determining downstream routing to which instance) and `data_label` (determining downstream alignment grouping) for each output message, and writes them to the mbuf head.
+`BalanceOptionFilter` (`flow_func/flow_func_run_context.cpp`) computes `route_label` (determining downstream routing to which instance) and `data_label` (determining downstream alignment grouping) for each output message, and writes them to the mbuf head. After being written to the mbuf head, `route_label` is consumed by the flowGW destination group: by default round-robin on trans_id, and when an affinity policy is configured, distribution follows trans_id plus route_label, ensuring data with the same key reaches the same instance (refer to [Section 4.3.7](dflow.md#437-deployment-planning-and-edge-optimization) of dflow.md).
 
 **Constraint**: Scatter nodes only allow NO_AFFINITY; Gather nodes do not allow NO_AFFINITY. Node types are marked by `FlowFuncParams::IsBalanceScatter()`/`IsBalanceGather()`.
 
@@ -419,6 +437,8 @@ Profiling is currently a reserved capability; data reporting is not yet implemen
 ## 12. Executor Process
 
 `FlowFuncExecutor` (`execute/flow_func_executor.h`) is the event-driven driver for the udf_executor process, running as an independent process (`execute/main.cpp` entry). Host and device deployments reuse the same executor implementation; behavior differences within the process (such as queue forms, and the security sandbox which is only enabled on the device) are distinguished by the running location (`IsOnDevice` flag).
+
+**Driver environment initialization** (`FlowFuncDrvManager`, `execute/flow_func_drv_manager.h`): at process startup, three initialization steps are completed -- initializing the memory group (an mbuf allocation dependency; the group ID is recorded in GlobalConfig); initializing the mbuf buffer according to the `_user_buf_cfg` configuration; creating 4 scheduling groups: `udf_main` (main thread event processing), `udf_worker` (worker thread execution scheduling; created only on the host side, with the device side reusing the main group), `udf_invoke` (RunFlowModel calls to NN models), and `udf_dequeue` (the group-switching target for cooperative dequeue of streaming queues). In the host-side direct device queue (proxy queue) scenario, the process must also wait for the driver to complete binding the process to the host pid (up to 60s) before queue initialization.
 
 **Thread model** (`ThreadLoop` in `execute/flow_func_executor.cpp`): `FlowFuncThreadPool` (AICPU core-bound) creates cpu_num threads. The **main thread** subscribes to all events (queue/initialization/timer/state/suspend-resume/exception, and so on), using the main scheduling group; **worker threads** only subscribe to `kEventIdFlowFuncExecute` + `NotifyThreadExit`, using the worker scheduling group. Loops `halEschedWaitEvent` (2s timeout) and `ProcessEvent` dispatches by event ID. On timeout, the main thread calls `CheckReplenishSchedule` for supplementary scheduling.
 

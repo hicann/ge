@@ -1,6 +1,6 @@
 # UDF 用户自定义函数——数据流图中的可编程处理节点
 
-> 介绍 UDF 框架如何让用户在 DataFlow 数据流图中插入自定义处理逻辑，以及用户函数从编译为 SO 到被发现、加载、初始化并在运行时被事件驱动状态机反复调用的完整机制。
+> 介绍 UDF 框架如何让用户在 DataFlow 数据流图中插入自定义处理逻辑，以及用户函数从编译打包（C++ 编译为 SO，Python 自动生成工程）到被发现、加载、初始化并在运行时被事件驱动状态机反复调用的完整机制。
 
 ---
 
@@ -62,6 +62,8 @@ Python 提供三种方式，门槛递降：
 | 高级 API | `@df.pyflow` | 装饰器模式，自动处理序列化，代码最简洁 |
 | NPU 模型 | `@df.npu_model` | PyTorch 模型 NPU 零拷贝执行 |
 
+表中 `df` 与 `ff` 分别为 `import dataflow as df`、`import dataflow.flow_func as ff` 的惯用别名，本文其余 `df.xxx` 接口（如 `df.alloc_tensor`）同此。
+
 `@df.pyflow` 装饰器自动生成 UDF 工程（C++ wrapper + CMakeLists + 配置 JSON），用 cloudpickle 序列化用户函数，编译为可加载 SO。用户函数的参数自动从 FlowMsg 反序列化为 numpy array / torch tensor，返回值自动序列化回 FlowMsg。
 
 `@df.pyflow` 与 `@df.npu_model` 两个装饰器的实现机制与对比详见 dflow.md 的 [4.5 节](dflow.md#45-python-接口层)。
@@ -71,9 +73,25 @@ Python 侧为 UDF 开发提供以下配套能力：
 | 能力 | 入口 | 说明 |
 |------|------|------|
 | 零拷贝输出 | `df.alloc_tensor` | 在 UDF 内分配与 mbuf 共享的 Tensor，输出时以共享 mbuf 引用零拷贝转 FlowMsg；普通 df.Tensor 输出需拷贝数据，推荐使用该接口 |
-| 流式队列 | `FlowMsgQueue` | 流式输入模式下 UDF 收到的队列对象，实现 `queue.Queue` 接口子集（`get`/`get_nowait`/`qsize`/`empty`/`full`），取到 tensor 消息时自动转为 df.Tensor |
+| 流式队列 | `FlowMsgQueue` | 流式输入模式下 UDF 收到的队列对象（Python 包装，对应 C++ 抽象 `flow_msg_queue.h`），实现 `queue.Queue` 接口子集（`get`/`get_nowait`/`qsize`/`empty`/`full`），取到 tensor 消息时自动转为 df.Tensor |
 | 部署参数 | `PyMetaParams` | UDF 内读取部署信息：work_path、运行 device_id、实例编号/总数，以及构图时经 `set_init_param` 设置的初始化参数 |
 | 协作式中止 | `DfAbortException` | 重部署或进程退出时由流式取数处抛出，执行包装层捕获后令本轮调用安全结束，配合框架完成优雅退出，用户无需自行处理 |
+
+### 2.3 C++ UDF 与 Python UDF 的选择
+
+C++ UDF 与 Python UDF 共用同一套调度执行机制（UdfModel → FlowFuncProcessor 状态机），差异在开发方式、执行位置与数据交互：
+
+| 维度 | C++ UDF | Python UDF |
+|------|---------|------------|
+| 开发方式 | 继承 `MetaFlowFunc`/`MetaMultiFunc` + 注册宏，手动编译 SO | `@df.pyflow` 装饰器，框架自动生成工程（cloudpickle + C++ wrapper + CMake），零 C++ |
+| 执行位置 | 默认 device（编译产出含 Ascend 时），`heavy_load` 可强制 host | 仅 host；`@df.npu_model` 例外（数据不离开 device，见 dflow.md 的 4.5.2 节） |
+| 数据交互 | 直接操作 FlowMsg，无序列化开销 | 输入反序列化为 Python 对象、输出序列化回 FlowMsg；`df.alloc_tensor` 可零拷贝输出 |
+| 流式输入 | 多 Func 队列模式（`RegProcFuncWithQ`） | `stream_input="Queue"` 选项（`FlowMsgQueue`） |
+| 状态重置（在线更新） | 基类默认不支持，回退释放 wrapper 重建 | wrapper 重写，恢复 pickle 对象并重放 `__init__` |
+| 三方依赖 | 链接库与 SO 打入自包含 release 包，部署时整体搬运 | 依赖运行环境中的 Python 及相关库 |
+| 性能特征 | 原生执行，适合计算密集与低时延 | 解释执行 + 序列化开销，适合编排逻辑与快速迭代 |
+
+选型建议：计算密集、低时延或需 device 侧执行用 C++ UDF；编排逻辑、快速原型或频繁迭代用 Python UDF；PyTorch 计算且输入输出均为 NPU tensor 用 `@df.npu_model`。
 
 ---
 
@@ -234,7 +252,7 @@ executor 线程池中，main 线程处理队列事件（E2NE/F2NF）→ 提交 `
 
 ### 5.1 DataAligner 多输入对齐
 
-当 UDF 有多输入且各输入到达速率不一致时，`DataAligner`（`reader_writer/data_aligner.h`）按 **(trans_id, data_label)** 对齐各输入：
+当 UDF 配置了输入对齐属性（部署描述符的 `InputAlignAttrs`，`align_max_cache_num > 0` 时启用，典型场景为多输入且各输入到达速率不一致）时，`DataAligner`（`reader_writer/data_aligner.h`）按 **(trans_id, data_label)** 对齐各输入：
 
 - **对齐键**：`pair<trans_id, data_label>`，从 mbuf head 的 `MbufHeadMsg` 读取
 - **缓存结构**：`map<(trans_id,data_label), CachedData>`，每个 CachedData 持有每队列一个 FIFO 缓存
@@ -302,7 +320,7 @@ graph LR
 
 ### 7.2 MbufFlowMsg（内部实现）
 
-`MbufFlowMsg`（`flow_func/mbuf_flow_msg.h`）包装 `shared_ptr<Mbuf>`。**mbuf 内存布局**：head 区（默认 256B）尾部的 64B 为 `MbufHeadMsg` 控制信息（trans_id/data_label/route_label/step_id/ret_code/flags/start_time/end_time 等）；数据区为 `[RuntimeTensorDesc(1024B)][实际数据]`，其中 `RuntimeTensorDesc` 含 dataAddr/dtype/shape[33]（shape[0] 存维数）/originalShape[33]/format/data_size。
+`MbufFlowMsg`（`flow_func/mbuf_flow_msg.h`）包装 `shared_ptr<Mbuf>`。**mbuf 内存布局**：head 区（默认 256B）尾部的 64B 为 `MbufHeadMsg` 控制信息（trans_id/version/msg_type/ret_code/start_time/end_time/flags/data_flag/worked_id/step_id/data_label/route_label）；数据区为 `[RuntimeTensorDesc(1024B)][实际数据]`，其中 `RuntimeTensorDesc` 含 dataAddr/dtype/shape[33]（shape[0] 存维数）/originalShape[33]/format/data_size。
 
 - 输出 mbuf 继承输入 `MbufHead`（`AllocTensorMsg` 传 `input_mbuf_head_`），保证 trans_id 透传
 - 自定义 trans_id 标记位 `kCustomTransIdFlagBit`：用户显式 `SetTransactionId(非0)` 才置位，否则框架按 `current_trans_id_` 自动赋值（`FlowFuncProcessor::SetInputData`）
@@ -318,7 +336,7 @@ graph LR
 - `BalanceWeight`：rowNum/colNum/matrix（null=全1）
 - `data_pos`：每条输出消息在权重矩阵中的位置
 
-`BalanceOptionFilter`（`flow_func/flow_func_run_context.cpp`）对每条输出消息计算 `route_label`（决定下游路由到哪个实例）和 `data_label`（决定下游对齐分组），写入 mbuf 头。
+`BalanceOptionFilter`（`flow_func/flow_func_run_context.cpp`）对每条输出消息计算 `route_label`（决定下游路由到哪个实例）和 `data_label`（决定下游对齐分组），写入 mbuf 头。`route_label` 写入 mbuf 头后由 flowGW 的目的 group 消费：默认按 trans_id 轮询，配置亲和策略时按 trans_id 与 route_label 分发，保证相同键值的数据到达同一实例（见 dflow.md 的 [4.3.7 节](dflow.md#437-部署规划与连边优化)）。
 
 **约束**：Scatter 节点只允许 NO_AFFINITY；Gather 节点不允许 NO_AFFINITY。节点类型由 `FlowFuncParams::IsBalanceScatter()`/`IsBalanceGather()` 标记。
 
@@ -419,6 +437,8 @@ UDF 的输入输出数据支持落盘，用于数据问题定位，经以下 GE 
 ## 12. 执行器进程
 
 `FlowFuncExecutor`（`execute/flow_func_executor.h`）是 udf_executor 进程的事件驱动驱动器，作为独立进程运行（`execute/main.cpp` 入口）。host 与 device 部署复用同一套执行器实现，进程内按运行位置（`IsOnDevice` 标志）区分行为差异（如队列形态、安全沙箱仅在 device 启用）。
+
+**驱动环境初始化**（`FlowFuncDrvManager`，`execute/flow_func_drv_manager.h`）：进程启动时完成三步初始化——初始化内存组（mbuf 分配依赖，组 ID 记录于 GlobalConfig）；按 `_user_buf_cfg` 配置初始化 mbuf buffer；创建 4 个调度组：`udf_main`（main 线程事件处理）、`udf_worker`（worker 线程执行调度，仅 host 侧创建，device 侧复用 main 组）、`udf_invoke`（RunFlowModel 调用 NN 模型）、`udf_dequeue`（流式队列协作式 dequeue 的组切换目标）。host 侧直连 device 队列（proxy queue）场景下，队列初始化前还需等待驱动完成进程与 host pid 的绑定（最长 60s）。
 
 **线程模型**（`execute/flow_func_executor.cpp` 的 `ThreadLoop`）：`FlowFuncThreadPool`（AICPU 绑核）创建 cpu_num 个线程。**main 线程**订阅全部事件（队列/初始化/计时/状态/挂起恢复/异常等），用 main 调度组；**worker 线程**只订阅 `kEventIdFlowFuncExecute` + `NotifyThreadExit`，用 worker 调度组。循环 `halEschedWaitEvent`（2s 超时）→ `ProcessEvent` 按事件 ID 分发。超时则 main 线程 `CheckReplenishSchedule` 补调度。
 
