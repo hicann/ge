@@ -8,25 +8,18 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "onnx_plugin_bridge.h"
-
 #include "onnx_plugin_bridge_c_api.h"
 
 #include "Python.h"
 #include "pybind11/embed.h"
 #include "pybind11/stl.h"
 
-#include "common/python_runtime/ge_python_runtime_manager.h"
-#include "framework/common/debug/ge_log.h"
+#include "common/ge_common/debug/ge_log.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/def_types.h"
 #include "graph/graph.h"
 #include "graph/operator.h"
-#include "parser/common/op_registration_tbe.h"
-#include "parser/common/op_parser_factory.h"
 #include "proto/onnx/ge_onnx.pb.h"
-#include "register/op_registry.h"
-#include "register/register_fmk_types.h"
 
 #include <cstdlib>
 #include <stdexcept>
@@ -37,6 +30,7 @@
 namespace ge {
 namespace {
 namespace py = pybind11;
+namespace onnx_bridge = ::ge::onnx_plugin_bridge;
 
 constexpr const char *kBridgeModuleName = "ge.onnx_plugin._bridge";
 constexpr const char *kNativeModuleName = "ge.onnx_plugin._ge_onnx_plugin_native";
@@ -64,41 +58,25 @@ class OnnxPluginBridge {
     return SUCCESS;
   }
 
-  Status Initialize() {
+  Status RegisterPlugins(const onnx_bridge::PythonOnnxPluginRegistrar *registrar) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (initialized_) {
       return SUCCESS;
+    }
+    if ((registrar == nullptr) || (registrar->register_onnx_plugin == nullptr)) {
+      GELOGE(PARAM_INVALID, "Invalid Python ONNX plugin registrar.");
+      return PARAM_INVALID;
     }
     py::gil_scoped_acquire gil;
     try {
       SyncPluginPathUnlocked();
       LoadNativeModuleUnlocked();
-      bridge_module_ = py::module_::import(kBridgeModuleName);
-      invalid_return_exception_ = bridge_module_.attr("_InvalidParseNodeReturn");
-      invalid_decompose_return_exception_ = bridge_module_.attr("_InvalidDecomposeReturn");
-      const py::object descriptors = bridge_module_.attr("load_and_get_onnx_plugin_descriptors")();
-      for (const py::handle item : descriptors) {
-        const py::dict descriptor = py::reinterpret_borrow<py::dict>(item);
-        const auto target = py::cast<std::string>(descriptor["target"]);
-        const auto origins = py::cast<std::vector<std::string>>(descriptor["origin_types"]);
-        std::vector<std::string> callback_kinds;
-        if (descriptor.contains("callback_kinds")) {
-          callback_kinds = py::cast<std::vector<std::string>>(descriptor["callback_kinds"]);
-        } else if (descriptor.contains("callback_kind")) {
-          callback_kinds.emplace_back(py::cast<std::string>(descriptor["callback_kind"]));
-        } else {
-          callback_kinds.emplace_back(kParseNodeCallbackKind);
-        }
-        for (const auto &origin : origins) {
-          if (!RegisterDescriptor(target, origin, callback_kinds)) {
-            // LCOV_EXCL_START
-            GELOGE(FAILED, "Register Python ONNX plugin failed, target[%s], origin[%s].", target.c_str(),
-                   origin.c_str());
-            ResetBridgeStateUnlocked();
-            return FAILED;
-            // LCOV_EXCL_STOP
-          }
-        }
+      ImportBridgeModuleUnlocked();
+      if (!RegisterDescriptorsUnlocked(*registrar)) {
+        // LCOV_EXCL_START
+        ResetBridgeStateUnlocked();
+        return FAILED;
+        // LCOV_EXCL_STOP
       }
       // LCOV_EXCL_START
     } catch (const py::error_already_set &error) {
@@ -264,81 +242,79 @@ class OnnxPluginBridge {
     initialized_ = false;
   }
 
-  bool RegisterCallback(const std::string &origin, const std::string &callback_kind, OpRegistrationData &registration,
-                        bool &has_parse_params_callback, bool &has_graph_callback) const {
-    if (callback_kind == kParseNodeCallbackKind) {
-      has_parse_params_callback = true;
-      const domi::ParseParamFunc parse_params = [](const google::protobuf::Message *message,
-                                                   Operator &operator_dest) -> Status {
-        return OnnxPluginBridge::Instance().ParseParams(message, operator_dest);
-      };
-      registration.ParseParamsFn(parse_params);
-    } else if (callback_kind == kParseOperatorCallbackKind) {
-      has_parse_params_callback = true;
-      const domi::ParseParamByOpFunc parse_params = [origin](const Operator &operator_src,
-                                                             Operator &operator_dest) -> Status {
-        return OnnxPluginBridge::Instance().ParseParamsByOperator(origin, operator_src, operator_dest);
-      };
-      registration.ParseParamsByOperatorFn(parse_params);
-    } else if (callback_kind == kDecomposeCallbackKind) {
-      has_graph_callback = true;
-      const domi::ParseOpToGraphFunc parse_op_to_graph = [origin](const Operator &operator_src,
-                                                                  Graph &subgraph) -> Status {
-        return OnnxPluginBridge::Instance().ParseOpToGraph(origin, operator_src, subgraph);
-      };
-      registration.ParseOpToGraphFn(parse_op_to_graph);
-    } else {
-      // LCOV_EXCL_START
-      GELOGE(PARAM_INVALID, "Unknown Python ONNX plugin callback kind[%s].", callback_kind.c_str());
-      return false;
-      // LCOV_EXCL_STOP
+  void ImportBridgeModuleUnlocked() {
+    bridge_module_ = py::module_::import(kBridgeModuleName);
+    invalid_return_exception_ = bridge_module_.attr("_InvalidParseNodeReturn");
+    invalid_decompose_return_exception_ = bridge_module_.attr("_InvalidDecomposeReturn");
+  }
+
+  bool RegisterDescriptorsUnlocked(const onnx_bridge::PythonOnnxPluginRegistrar &registrar) {
+    const py::object descriptors = bridge_module_.attr("load_and_get_onnx_plugin_descriptors")();
+    for (const py::handle item : descriptors) {
+      const py::dict descriptor = py::reinterpret_borrow<py::dict>(item);
+      if (!RegisterDescriptorUnlocked(registrar, descriptor)) {
+        return false;
+      }
     }
     return true;
   }
 
-  bool RegisterDescriptor(const std::string &target, const std::string &origin,
-                          const std::vector<std::string> &callback_kinds) const {
-    std::string registered_target;
-    if (domi::OpRegistry::Instance()->GetOmTypeByOriOpType(origin, registered_target)) {
-      if (registered_target != target) {
-        GELOGW("Skip Python ONNX plugin for origin[%s], existing registration maps it to target[%s].", origin.c_str(),
-               registered_target.c_str());
-      } else {
-        GELOGI("Skip duplicate Python ONNX plugin registration for target[%s], origin[%s].", target.c_str(),
-               origin.c_str());
-      }
-      return true;
-    }
-    OpRegistrationData registration(target.c_str());
-    registration.FrameworkType(domi::ONNX).OriginOpType(origin.c_str());
-    bool has_parse_params_callback = false;
-    bool has_graph_callback = false;
+  bool RegisterDescriptorUnlocked(const onnx_bridge::PythonOnnxPluginRegistrar &registrar, const py::dict &descriptor) {
+    const auto target = py::cast<std::string>(descriptor["target"]);
+    const auto origins = py::cast<std::vector<std::string>>(descriptor["origin_types"]);
+    const auto callback_kinds = ParseCallbackKinds(descriptor);
+    std::vector<const char *> callback_kind_ptrs;
+    callback_kind_ptrs.reserve(callback_kinds.size());
     for (const auto &callback_kind : callback_kinds) {
-      if (!RegisterCallback(origin, callback_kind, registration, has_parse_params_callback, has_graph_callback)) {
+      callback_kind_ptrs.emplace_back(callback_kind.c_str());
+    }
+    for (const auto &origin : origins) {
+      const onnx_bridge::PythonOnnxPluginDescriptorView view = {target.c_str(), origin.c_str(),
+                                                                callback_kind_ptrs.data(), callback_kind_ptrs.size()};
+      if (!registrar.register_onnx_plugin(&view, &ParseCallbacksFromBridge())) {
+        // LCOV_EXCL_START
+        GELOGE(FAILED, "Register Python ONNX plugin failed, target[%s], origin[%s].", target.c_str(), origin.c_str());
         return false;
+        // LCOV_EXCL_STOP
       }
-    }
-    if (!has_parse_params_callback && has_graph_callback) {
-      registration.ParseParamsFn([origin](const google::protobuf::Message *, Operator &operator_dest) -> Status {
-        operator_dest.SetAttr(ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, origin);
-        return SUCCESS;
-      });
-    }
-    const auto parser_factory = OpParserFactory::Instance(domi::ONNX);
-    if (parser_factory == nullptr) {
-      GELOGE(FAILED, "Get ONNX parser factory failed, target[%s], origin[%s].", target.c_str(), origin.c_str());
-      return false;
-    }
-    if (!parser_factory->OpParserIsRegistered(target) && !OpRegistrationTbe::Instance()->Finalize(registration)) {
-      GELOGE(FAILED, "Finalize Python ONNX plugin registration failed, target[%s], origin[%s].", target.c_str(),
-             origin.c_str());
-      return false;
-    }
-    if (!domi::OpRegistry::Instance()->Register(registration)) {
-      GELOGE(FAILED, "Register Python ONNX plugin failed, target[%s], origin[%s].", target.c_str(), origin.c_str());
-      return false;
     }
     return true;
+  }
+
+  static std::vector<std::string> ParseCallbackKinds(const py::dict &descriptor) {
+    std::vector<std::string> callback_kinds;
+    if (descriptor.contains("callback_kinds")) {
+      callback_kinds = py::cast<std::vector<std::string>>(descriptor["callback_kinds"]);
+    } else if (descriptor.contains("callback_kind")) {
+      callback_kinds.emplace_back(py::cast<std::string>(descriptor["callback_kind"]));
+    } else {
+      callback_kinds.emplace_back(kParseNodeCallbackKind);
+    }
+    return callback_kinds;
+  }
+
+  static Status ParseParamsFromCApi(const void *message, void *operator_dest) {
+    return Instance().ParseParams(static_cast<const google::protobuf::Message *>(message),
+                                  *static_cast<Operator *>(operator_dest));
+  }
+
+  static Status ParseParamsByOperatorFromCApi(const char *origin, const void *operator_src, void *operator_dest) {
+    return Instance().ParseParamsByOperator(std::string(origin), *static_cast<const Operator *>(operator_src),
+                                            *static_cast<Operator *>(operator_dest));
+  }
+
+  static Status ParseOpToGraphFromCApi(const char *origin, const void *operator_src, void *subgraph) {
+    return Instance().ParseOpToGraph(std::string(origin), *static_cast<const Operator *>(operator_src),
+                                     *static_cast<Graph *>(subgraph));
+  }
+
+  static const onnx_bridge::PythonOnnxPluginParseCallbacks &ParseCallbacksFromBridge() {
+    static const onnx_bridge::PythonOnnxPluginParseCallbacks callbacks = {
+        &OnnxPluginBridge::ParseParamsFromCApi,
+        &OnnxPluginBridge::ParseParamsByOperatorFromCApi,
+        &OnnxPluginBridge::ParseOpToGraphFromCApi,
+    };
+    return callbacks;
   }
 
   std::mutex mutex_;
@@ -356,19 +332,12 @@ extern "C" Status SetOnnxPluginBridgeArtifactConfig(
   return OnnxPluginBridge::Instance().SetArtifactConfig(config);
 }
 
-extern "C" Status RegisterOnnxPluginBridgePlugins() {
-  return OnnxPluginBridge::Instance().Initialize();
+extern "C" Status RegisterOnnxPluginBridgePlugins(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *registrar) {
+  return OnnxPluginBridge::Instance().RegisterPlugins(registrar);
 }
 
 extern "C" void ResetOnnxPluginBridgeState() {
   OnnxPluginBridge::Instance().ResetBridgeState();
-}
-
-extern "C" Status InitOnnxPluginBridge() {
-  if (GePythonRuntimeManager::Instance().EnsureReady() != SUCCESS) {
-    return FAILED;
-  }
-  return OnnxPluginBridge::Instance().Initialize();
 }
 
 extern "C" const onnx_plugin_bridge::PythonOnnxPluginBridgeApi *GeGetPythonOnnxPluginBridgeApi() {

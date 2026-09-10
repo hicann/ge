@@ -17,6 +17,7 @@ set(SRC_LIST
     "onnx_file_constant_parser.cc"
     "subgraph_adapter/if_subgraph_adapter.cc"
     "subgraph_adapter/subgraph_adapter_factory.cc"
+    "python_onnx_plugin_bridge/onnx_plugin_bridge_registrar.cc"
 )
 
 ############ libfmk_onnx_parser.so ############
@@ -55,8 +56,6 @@ target_link_libraries(ge_python_onnx_plugin_bridge PRIVATE
     c_sec_headers
     c_sec
     ge_intf_pub
-    parser_common
-    register
     graph
     ge_common
     ascend_protobuf

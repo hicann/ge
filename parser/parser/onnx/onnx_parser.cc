@@ -34,6 +34,7 @@
 #include "parser/common/prototype_pass_manager.h"
 #include "parser/onnx/onnx_custom_parser_adapter.h"
 #include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
+#include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_registrar.h"
 #include "parser/onnx/onnx_util.h"
 #include "register/op_registry.h"
 #include "register/register_fmk_types.h"
@@ -73,7 +74,7 @@ graphStatus PrepareBeforeParse(AclGraphParserUtil &acl_graph_parse_util,
     GELOGE(ge::FAILED, "[Init][AclParser] failed.");
     return ge::FAILED;
   }
-  if (LoadOnnxPythonPluginBridge() != ge::SUCCESS) {
+  if (LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()) != ge::SUCCESS) {
     REPORT_INNER_ERR_MSG("E19999", "LoadOnnxPythonPluginBridge failed.");
     GELOGE(ge::FAILED, "[Init][OnnxPythonPluginBridge] failed.");
     return ge::FAILED;
@@ -937,7 +938,7 @@ Status OnnxModelParser::AdaptAndFindAllOnnxGraph(
 Status OnnxModelParser::ModelParseToGraph(const ge::onnx::ModelProto &onnx_model, ge::Graph &root_graph) {
   // atc and other ModelParserFactory entries do not pass PrepareBeforeParse of aclgrphParseONNX,
   // load the ONNX Python plugin bridge on demand; no behavior change without ASCEND_CUSTOM_OPP_PATH.
-  if (LoadOnnxPythonPluginBridge() != ge::SUCCESS) {
+  if (LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()) != ge::SUCCESS) {
     REPORT_INNER_ERR_MSG("E19999", "LoadOnnxPythonPluginBridge failed.");
     GELOGE(ge::FAILED, "[Init][OnnxPythonPluginBridge] failed.");
     return ge::FAILED;
