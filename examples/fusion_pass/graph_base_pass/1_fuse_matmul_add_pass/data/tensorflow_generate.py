@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2026 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
@@ -14,9 +18,11 @@ def generate_tf_model():
     b = tf.compat.v1.placeholder(tf.float32, shape=[3, 2], name="b")
     matmul = tf.linalg.matmul(a, b, name="matmul")
     c = tf.compat.v1.placeholder(tf.float32, shape=[2, 2], name="c")
-    add = tf.add(matmul, c, name="add")
-    with tf.compat.v1.Session() as sess:
-        tf.io.write_graph(tf.compat.v1.get_default_graph(), ".", "./matmul_add.pb", as_text=False)
+    tf.add(matmul, c, name="add")
+    with tf.compat.v1.Session():
+        tf.io.write_graph(
+            tf.compat.v1.get_default_graph(), ".", "./matmul_add.pb", as_text=False
+        )
         print("Create Model Successful.")
 
 
