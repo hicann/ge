@@ -6792,7 +6792,14 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForKernelExTask_Ok) {
             std::string::npos);
   EXPECT_NE(load_run_code.find("aclrtLaunchKernelV2(func_handle, block_dim, kernel_buf"), std::string::npos);
   EXPECT_NE(load_run_code.find("ctx.launch_func, ctx.instance_handle, &task_info"), std::string::npos);
-  EXPECT_NE(load_run_code.find("nullptr, nullptr, nullptr"), std::string::npos);
+  EXPECT_NE(load_run_code.find("aclError AssembleTfAicpuExSessionIdInfo(const DispatchOpContext &ctx"),
+            std::string::npos);
+  EXPECT_NE(load_run_code.find("AssembleOm2TaskInfo(&task_info, \"TfSessionTask\", \"TfSessionTask\""),
+            std::string::npos);
+  EXPECT_NE(load_run_code.find(
+                "TfAicpuKernelTaskDistribute(iow_addrs, nullptr, device_base, op_kernel_size, func_handle, block_dim, "
+                "stream, config, ctx.launch_func, ctx.instance_handle, &task_info)"),
+            std::string::npos);
   EXPECT_EQ(load_run_code.find("GetIsDataDump("), std::string::npos);
   const auto helper_pos = load_run_code.find("aclError TfAicpuKernelTaskDistribute");
   const auto helper_end = load_run_code.find("aclError AssembleTfAicpuExSessionIdInfo", helper_pos);

@@ -62,6 +62,7 @@ class KernelExTaskCodeBuilder : public TaskCodeBuilder {
   Status InitArgsTableInfo(const TaskSemanticContributeContext &context);
   FunctionDef *RenderAssembleTfAicpuArgs() const;
   FunctionDef *RenderTfAicpuKernelTaskDistribute() const;
+  BodyItem RenderAssembleTfAicpuExTaskInfo(const VarRef &task_info) const;
   FunctionDef *RenderAssembleTfAicpuExSessionIdInfo() const;
   FunctionDef *RenderAssembleTfAicpuExKernelIdInfo() const;
   FunctionDef *RenderAssembleTfAicpuExWorkSpaceAddrInfo() const;
