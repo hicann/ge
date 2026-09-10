@@ -9,6 +9,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
+# ruff: noqa: F403, F405
 import numpy as np
 from ge.es import GraphBuilder
 from ge.es.all import *
@@ -58,7 +59,9 @@ def build_transformer_nz_graph():
         transpose_x2=False,
     )
     sigmoid_result1 = Sigmoid(matmul_result1)
-    add_result1 = Reshape(sigmoid_result1, [-1, 256]) + Cast(input3, dst_type=DataType.DT_FLOAT)
+    add_result1 = Reshape(sigmoid_result1, [-1, 256]) + Cast(
+        input3, dst_type=DataType.DT_FLOAT
+    )
 
     topkv2_result1 = TopKV2(add_result1, 2)
     reducesum_result1 = ReduceSum(topkv2_result1.values, [-1])
@@ -73,7 +76,9 @@ def build_transformer_nz_graph():
             Cast(builder.create_scalar_float(1.0), dst_type=DataType.DT_FLOAT),
         ),
     )
-    identity_result1 = Identity(BroadcastTo(Unsqueeze(scatterelements_result1, axes=[-1]), [256, 256]))
+    identity_result1 = Identity(
+        BroadcastTo(Unsqueeze(scatterelements_result1, axes=[-1]), [256, 256])
+    )
     maskedfill_result1 = MaskedFill(
         add_result1,
         LogicalNot(
@@ -84,11 +89,15 @@ def build_transformer_nz_graph():
         ),
         builder.create_scalar_float(0.0),
     )
-    cast_result3 = Cast(TopKV2(maskedfill_result1, 4, sorted=False).indices, dst_type=DataType.DT_INT64)
+    cast_result3 = Cast(
+        TopKV2(maskedfill_result1, 4, sorted=False).indices, dst_type=DataType.DT_INT64
+    )
     # 3、设置图输出节点
     gatherelements_result1 = GatherElements(sigmoid_result1, cast_result3, dim=1)
     realdiv_result1 = RealDiv(gatherelements_result1, 1e-20)
-    output = Cast(realdiv_result1 * builder.create_scalar_float(2.5), dst_type=DataType.DT_FLOAT)
+    output = Cast(
+        realdiv_result1 * builder.create_scalar_float(2.5), dst_type=DataType.DT_FLOAT
+    )
     # 4、构建图
     return builder.build_and_reset([cast_result3, output])
 
@@ -115,9 +124,9 @@ def run_graph(graph) -> int:
     ge_api = GeApi()
     ret = ge_api.ge_initialize(config)
     if ret != 0:
-        print(f"GE初始化失败，返回码: {ret}")
+        print(f"GE initialization failed, return code: {ret}")
         return ret
-    print("GE环境初始化成功 (Device ID: 0)")
+    print("GE environment initialized successfully (Device ID: 0)")
 
     try:
         # 2. 创建Session
@@ -127,9 +136,9 @@ def run_graph(graph) -> int:
         graph_id = 1
         ret = session.add_graph(graph_id, graph)
         if ret != 0:
-            print(f"添加图失败，返回码: {ret}")
+            print(f"Failed to add graph, return code: {ret}")
             return ret
-        print(f"图已添加到Session (Graph ID: {graph_id})")
+        print(f"Graph added to Session (Graph ID: {graph_id})")
 
         # 4. 准备输入数据
         input1_data = np.random.randn(256, 7168).astype(np.float32)
@@ -144,13 +153,13 @@ def run_graph(graph) -> int:
         inputs = [tensor1, tensor2, tensor3]
         # 5. 运行图
         ret = session.run_graph(graph_id, inputs)
-        print("[Info] 图运行成功！")
+        print("[Info] Graph executed successfully!")
         for idx, tensor in enumerate(ret, start=1):
-            print(f"Tensor{idx}详情：{tensor}")
+            print(f"Tensor{idx} details: {tensor}")
         return 0
 
     except Exception as e:
-        print(f"[Error] 执行过程中出错: {e}")
+        print(f"[Error] Error during execution: {e}")
         import traceback
 
         traceback.print_exc()
@@ -158,9 +167,9 @@ def run_graph(graph) -> int:
 
     finally:
         # 6. 清理GE环境
-        print("[Info] 清理GE环境...")
+        print("[Info] Cleaning up GE environment...")
         ge_api.ge_finalize()
-        print("[Success] GE环境已清理")
+        print("[Success] GE environment cleaned up")
 
 
 graph = build_transformer_nz_graph()

@@ -30,7 +30,7 @@ class AclBundleModelRunner:
 
     @staticmethod
     def run_model(model_id: int, inputs):
-        print(f"[Info] 执行子模型推理，model_id: {model_id}")
+        print(f"[Info] Executing sub-model inference, model_id: {model_id}")
         model_desc = acl.mdl.create_desc()
         input_dataset = None
         output_dataset = None
@@ -52,7 +52,7 @@ class AclBundleModelRunner:
             check_ret("acl.mdl.destroy_desc", acl.mdl.destroy_desc(model_desc))
 
     def init(self) -> None:
-        print("[Info] 初始化运行环境及数据")
+        print("[Info] Initializing runtime environment and data")
         # 初始化 acl
         check_ret("acl.init", acl.init())
         # 指定运行的 Device
@@ -68,10 +68,12 @@ class AclBundleModelRunner:
             model_id, ret = acl.mdl.bundle_get_model_id(self.bundle_id, index)
             check_ret("acl.mdl.bundle_get_model_id", ret)
             self.model_ids.append(model_id)
-        print(f"[Info] Bundle 模型加载成功，子模型个数: {len(self.model_ids)}")
+        print(
+            f"[Info] Bundle model loaded successfully, number of sub-models: {len(self.model_ids)}"
+        )
 
     def release(self) -> None:
-        print("[Info] 释放所有资源")
+        print("[Info] Releasing all resources")
         if self.bundle_id is not None:
             check_ret("acl.mdl.bundle_unload", acl.mdl.bundle_unload(self.bundle_id))
         acl.rt.reset_device(self.device_id)
@@ -83,12 +85,12 @@ def main():
     try:
         runner.init()
         add_outputs = runner.run_model(runner.model_ids[0], create_sample_inputs())
-        print("[Info] Add 子模型推理结果:")
+        print("[Info] Add sub-model inference result:")
         for i, output in enumerate(add_outputs, start=1):
             print(f"Output[{i}]: \n{output}")
 
         mul_outputs = runner.run_model(runner.model_ids[1], create_sample_inputs())
-        print("[Info] Mul 子模型推理结果:")
+        print("[Info] Mul sub-model inference result:")
         for i, output in enumerate(mul_outputs, start=1):
             print(f"Output[{i}]: \n{output}")
     finally:

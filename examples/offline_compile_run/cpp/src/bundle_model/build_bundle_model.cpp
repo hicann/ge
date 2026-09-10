@@ -37,10 +37,10 @@ int BuildBundleModel(const std::string &soc_version) {
   auto global_options = GlobalOptionsWithSoc(soc_version);
   auto ret = ge::aclgrphBuildInitialize(global_options);
   if (ret != ge::GRAPH_SUCCESS) {
-    std::cerr << "[Error] aclgrphBuildInitialize 失败" << static_cast<int>(ret) << std::endl;
+    std::cerr << "[Error] aclgrphBuildInitialize failed" << static_cast<int>(ret) << std::endl;
     return -1;
   }
-  std::cout << "[Info] 系统初始化成功\n";
+  std::cout << "[Info] System initialized successfully\n";
 
   auto add_graph = MakeOfflineAddGraph();
   auto mul_graph = MakeOfflineMulGraph();
@@ -51,22 +51,23 @@ int BuildBundleModel(const std::string &soc_version) {
   ge::ModelBufferData model;
   ret = ge::aclgrphBundleBuildModel(bundle, model);
   if (ret != ge::GRAPH_SUCCESS) {
-    std::cerr << "[Error] aclgrphBundleBuildModel 失败, graphStatus=" << static_cast<int>(ret) << std::endl;
+    std::cerr << "[Error] aclgrphBundleBuildModel failed, graphStatus=" << static_cast<int>(ret) << std::endl;
     ge::aclgrphBuildFinalize();
     return -1;
   }
-  std::cout << "[Info] Bundle 构建成功，模型大小: " << model.length << " bytes\n";
+  std::cout << "[Info] Bundle built successfully, model size: " << model.length << " bytes\n";
 
   const char *const output_file = "bundle_sample";
   ret = ge::aclgrphBundleSaveModel(output_file, model);
   if (ret != ge::GRAPH_SUCCESS) {
-    std::cerr << "[Error] aclgrphBundleSaveModel 失败, graphStatus=" << static_cast<int>(ret) << std::endl;
+    std::cerr << "[Error] aclgrphBundleSaveModel failed, graphStatus=" << static_cast<int>(ret) << std::endl;
     ge::aclgrphBuildFinalize();
     return -1;
   }
-  std::cout << "[Info] 模型保存成功，" << output_file << ".om 已生成在当前目录。\n";
+  std::cout << "[Info] Model saved successfully, " << output_file
+            << ".om has been generated in the current directory.\n";
 
   ge::aclgrphBuildFinalize();
-  std::cout << "[Info] 系统释放成功\n";
+  std::cout << "[Info] System resources released successfully\n";
   return 0;
 }

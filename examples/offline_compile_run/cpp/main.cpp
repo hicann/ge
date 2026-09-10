@@ -22,7 +22,7 @@ bool ParseSocVersion(int argc, char **argv, int start_index, std::string *soc_ve
   for (int i = start_index; i < argc; ++i) {
     if (std::strcmp(argv[i], "--soc-version") == 0) {
       if (i + 1 >= argc) {
-        std::cerr << "[Error] --soc-version 参数为空\n";
+        std::cerr << "[Error] --soc-version argument is empty\n";
         return false;
       }
       *soc_version = argv[i + 1];
@@ -36,7 +36,7 @@ bool ParseSocVersion(int argc, char **argv, int start_index, std::string *soc_ve
 
 int main(int argc, char **argv) {
   if (argc < 2) {
-    std::cerr << "[Error] 用法: offline_compile_sample <命令> [--soc-version <版本>]\n"
+    std::cerr << "[Error] Usage: offline_compile_sample <command> [--soc-version <version>]\n"
               << "  命令: build-model | build-bundle | run-infer | run-bundle-infer\n";
     return -1;
   }
@@ -57,6 +57,6 @@ int main(int argc, char **argv) {
   if (cmd == "run-bundle-infer") {
     return RunBundleModelInfer();
   }
-  std::cerr << "[Error] 未知命令: " << cmd << std::endl;
+  std::cerr << "[Error] Unknown command: " << cmd << std::endl;
   return -1;
 }

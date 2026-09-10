@@ -21,14 +21,14 @@ ge::Status LoadBundleModelIds(uint32_t bundle_id, std::vector<uint32_t> *model_i
   size_t model_num = 0;
   aclError err = aclmdlBundleGetModelNum(bundle_id, &model_num);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclmdlBundleGetModelNum 失败, aclError=" << err << std::endl;
+    std::cerr << "[Error] aclmdlBundleGetModelNum failed, aclError=" << err << std::endl;
     return ge::FAILED;
   }
   model_ids->resize(model_num);
   for (size_t i = 0; i < model_num; ++i) {
     err = aclmdlBundleGetModelId(bundle_id, i, &(*model_ids)[i]);
     if (err != ACL_SUCCESS) {
-      std::cerr << "[Error] aclmdlBundleGetModelId 失败, aclError=" << err << std::endl;
+      std::cerr << "[Error] aclmdlBundleGetModelId failed, aclError=" << err << std::endl;
       return ge::FAILED;
     }
   }
@@ -37,15 +37,15 @@ ge::Status LoadBundleModelIds(uint32_t bundle_id, std::vector<uint32_t> *model_i
 
 ge::Status RunBundleSubmodelInfer(const uint32_t model_id, const char *label,
                                   const std::vector<std::vector<float>> &host_inputs) {
-  std::cout << "[Info] 执行子模型推理，model_id: " << model_id << "\n";
+  std::cout << "[Info] Executing sub-model inference, model_id: " << model_id << "\n";
   aclmdlDesc *model_desc = aclmdlCreateDesc();
   if (model_desc == nullptr) {
-    std::cerr << "[Error] aclmdlCreateDesc 失败\n";
+    std::cerr << "[Error] aclmdlCreateDesc failed\n";
     return ge::FAILED;
   }
   aclError e = aclmdlGetDesc(model_desc, model_id);
   if (e != ACL_SUCCESS) {
-    std::cerr << "[Error] aclmdlGetDesc 失败, aclError=" << e << std::endl;
+    std::cerr << "[Error] aclmdlGetDesc failed, aclError=" << e << std::endl;
     TeardownBundleSubmodelSession(model_desc, nullptr, nullptr);
     return ge::FAILED;
   }
@@ -65,11 +65,11 @@ ge::Status RunBundleSubmodelInfer(const uint32_t model_id, const char *label,
   }
   e = aclmdlExecute(model_id, input_io.dataset, output_io.dataset);
   if (e != ACL_SUCCESS) {
-    std::cerr << "[Error] aclmdlExecute 失败, aclError=" << e << std::endl;
+    std::cerr << "[Error] aclmdlExecute failed, aclError=" << e << std::endl;
     TeardownBundleSubmodelSession(model_desc, &input_io, &output_io);
     return ge::FAILED;
   }
-  std::cout << "[Info] " << label << " 推理结果:\n";
+  std::cout << "[Info] " << label << " inference result:\n";
   if (PrintModelOutputs(model_desc, output_io) != ge::SUCCESS) {
     TeardownBundleSubmodelSession(model_desc, &input_io, &output_io);
     return ge::FAILED;
@@ -80,15 +80,15 @@ ge::Status RunBundleSubmodelInfer(const uint32_t model_id, const char *label,
 }  // namespace
 
 int RunBundleModelInfer() {
-  std::cout << "[Info] 初始化运行环境及数据\n";
+  std::cout << "[Info] Initializing runtime environment and data\n";
   aclError err = aclInit(nullptr);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclInit 失败, aclError=" << err << std::endl;
+    std::cerr << "[Error] aclInit failed, aclError=" << err << std::endl;
     return -1;
   }
   err = aclrtSetDevice(kDeviceId);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclrtSetDevice 失败, aclError=" << err << std::endl;
+    std::cerr << "[Error] aclrtSetDevice failed, aclError=" << err << std::endl;
     (void)aclFinalize();
     return -1;
   }
@@ -96,7 +96,7 @@ int RunBundleModelInfer() {
   uint32_t bundle_id = 0;
   err = aclmdlBundleLoadFromFile("bundle_sample.om", &bundle_id);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclmdlBundleLoadFromFile 失败, aclError=" << err << std::endl;
+    std::cerr << "[Error] aclmdlBundleLoadFromFile failed, aclError=" << err << std::endl;
     (void)aclrtResetDevice(kDeviceId);
     (void)aclFinalize();
     return -1;
@@ -107,7 +107,7 @@ int RunBundleModelInfer() {
     TeardownAclBundleInfer(bundle_id);
     return -1;
   }
-  std::cout << "[Info] Bundle 模型加载成功，子模型个数: " << model_ids.size() << "\n";
+  std::cout << "[Info] Bundle model loaded successfully, number of sub-models: " << model_ids.size() << "\n";
 
   const auto inputs = SampleInputs();
   if (RunBundleSubmodelInfer(model_ids[0], "Add 子模型", inputs) != ge::SUCCESS) {
@@ -120,6 +120,6 @@ int RunBundleModelInfer() {
   }
 
   TeardownAclBundleInfer(bundle_id);
-  std::cout << "[Info] 所有资源释放成功\n";
+  std::cout << "[Info] All resources released successfully\n";
   return 0;
 }

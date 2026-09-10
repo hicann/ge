@@ -23,7 +23,9 @@ def build_input_graph():
     # 1、创建图构建器
     builder = GraphBuilder("MakeMatMulGraph")
     # 2、创建图输入节点
-    input_tensor_holder1 = builder.create_input(index=0, name="input", data_type=DataType.DT_FLOAT, shape=[2, 3])
+    input_tensor_holder1 = builder.create_input(
+        index=0, name="input", data_type=DataType.DT_FLOAT, shape=[2, 3]
+    )
     relu1 = Relu(input_tensor_holder1)
     relu2 = Relu(relu1)
     add_tensor_holder = Add(input_tensor_holder1, relu2)
@@ -44,10 +46,10 @@ def run_graph(graph, device_id="0") -> int:
     ge_api = GeApi()
     ret = ge_api.ge_initialize(config)
     if ret != 0:
-        print(f"[Error] GE初始化失败，返回码: {ret}")
+        print(f"[Error] GE initialization failed, return code: {ret}")
         return ret
 
-    print(f"[Info] GE环境初始化成功 (Device ID: {device_id})")
+    print(f"[Info] GE environment initialized successfully (Device ID: {device_id})")
 
     try:
         # 2. 创建Session
@@ -57,9 +59,9 @@ def run_graph(graph, device_id="0") -> int:
         graph_id = 1
         ret = session.add_graph(graph_id, graph)
         if ret != 0:
-            print(f"[Error] 添加图失败，返回码: {ret}")
+            print(f"[Error] Failed to add graph, return code: {ret}")
             return ret
-        print(f"[Info] 图已添加到Session (Graph ID: {graph_id})")
+        print(f"[Info] Graph added to Session (Graph ID: {graph_id})")
 
         # 4. 准备输入数据
         input_data = np.full([2, 3], 1.0, dtype=np.float32)
@@ -72,17 +74,17 @@ def run_graph(graph, device_id="0") -> int:
         )
 
         inputs = [input_tensor]
-        print(f"[Info] 输入数据已准备，共{len(inputs)}个输入tensor")
+        print(f"[Info] Prepared {len(inputs)} input tensor(s)")
 
         # 5. 运行图
         ret = session.run_graph(graph_id, inputs)
-        print("[Info] 图运行成功！")
+        print("[Info] Graph executed successfully!")
         for idx, tensor in enumerate(ret, start=1):
-            print(f"Tensor{idx}详情：{tensor}")
+            print(f"Tensor{idx} details: {tensor}")
         return 0
 
     except Exception as e:
-        print(f"[Error] 执行过程中出错: {e}")
+        print(f"[Error] Error during execution: {e}")
         import traceback
 
         traceback.print_exc()
@@ -90,9 +92,9 @@ def run_graph(graph, device_id="0") -> int:
 
     finally:
         # 6. 清理GE环境
-        print("[Info] 清理GE环境...")
+        print("[Info] Cleaning up GE environment...")
         ge_api.ge_finalize()
-        print("[Success] GE环境已清理")
+        print("[Success] GE environment cleaned up")
 
 
 if __name__ == "__main__":

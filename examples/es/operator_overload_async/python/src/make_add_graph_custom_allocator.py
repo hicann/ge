@@ -78,7 +78,7 @@ def run_with_sample_allocator(sample_graph: Graph, session: Session) -> int:
         allocator = SamplePoolAllocator()
         session.register_external_allocator(stream, allocator)
         allocator_registered = True
-        print("[Info] SamplePoolAllocator 已注册到 stream")
+        print("[Info] SamplePoolAllocator registered to stream")
 
         # 3. 创建 Device 输入
         inputs = create_input_tensors()
@@ -86,21 +86,23 @@ def run_with_sample_allocator(sample_graph: Graph, session: Session) -> int:
         # 4. 添加并异步执行 Graph
         session.add_graph(GRAPH_ID, sample_graph)
         graph_added = True
-        device_outputs = session.run_graph_with_stream_async(GRAPH_ID, stream, list(inputs))
+        device_outputs = session.run_graph_with_stream_async(
+            GRAPH_ID, stream, list(inputs)
+        )
 
         # 5. 等待 Stream 上的任务完成
         check_ret("acl.rt.synchronize_stream", acl.rt.synchronize_stream(stream))
-        print("[Info] 异步执行 Graph 成功！")
+        print("[Info] Asynchronous execution of the graph succeeded.")
 
         # 6. 将 Device 数据传回 Host 并打印
         host_outputs = [out.to_host() for out in device_outputs]
         for idx, tensor in enumerate(host_outputs, start=1):
-            print(f"Tensor{idx} 详情：{tensor}")
+            print(f"Tensor{idx} details: {tensor}")
         return 0
     finally:
         if allocator_registered:
             session.unregister_external_allocator(stream)
-            print("[Info] SamplePoolAllocator 已注销")
+            print("[Info] SamplePoolAllocator unregistered")
         if stream is not None:
             check_ret("acl.rt.destroy_stream", acl.rt.destroy_stream(stream))
         if graph_added and session is not None:

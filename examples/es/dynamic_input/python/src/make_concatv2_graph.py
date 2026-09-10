@@ -23,9 +23,15 @@ def build_concat_graph():
     # 1、创建图构建器
     builder = GraphBuilder("MakeConcatV2Graph")
     # 2、创建图输入节点
-    tensor_holder1 = builder.create_input(index=0, name="tensor1", data_type=DataType.DT_FLOAT, shape=[8, 64, 128])
-    tensor_holder2 = builder.create_input(index=1, name="tensor2", data_type=DataType.DT_FLOAT, shape=[2, 64, 128])
-    tensor_holder3 = builder.create_input(index=2, name="tensor3", data_type=DataType.DT_FLOAT, shape=[6, 64, 128])
+    tensor_holder1 = builder.create_input(
+        index=0, name="tensor1", data_type=DataType.DT_FLOAT, shape=[8, 64, 128]
+    )
+    tensor_holder2 = builder.create_input(
+        index=1, name="tensor2", data_type=DataType.DT_FLOAT, shape=[2, 64, 128]
+    )
+    tensor_holder3 = builder.create_input(
+        index=2, name="tensor3", data_type=DataType.DT_FLOAT, shape=[6, 64, 128]
+    )
     tensor_holder_list = [tensor_holder1, tensor_holder2, tensor_holder3]
     concat_tensor_holder = ConcatV2(tensor_holder_list, 0, N=3)
     # 3、设置图输出节点
@@ -46,9 +52,9 @@ def run_graph(graph) -> int:
     ge_api = GeApi()
     ret = ge_api.ge_initialize(config)
     if ret != 0:
-        print(f"GE初始化失败，返回码: {ret}")
+        print(f"GE initialization failed, return code: {ret}")
         return ret
-    print("GE环境初始化成功 (Device ID: 0)")
+    print("GE environment initialized successfully (Device ID: 0)")
 
     try:
         # 2. 创建Session
@@ -57,9 +63,9 @@ def run_graph(graph) -> int:
         graph_id = 1
         ret = session.add_graph(graph_id, graph)
         if ret != 0:
-            print(f"添加图失败，返回码: {ret}")
+            print(f"Failed to add graph, return code: {ret}")
             return ret
-        print(f"图已添加到Session (Graph ID: {graph_id})")
+        print(f"Graph added to Session (Graph ID: {graph_id})")
 
         # 4. 准备输入数据
         tensor1_data = np.full(8 * 64 * 128, 1.0, dtype=np.float32)
@@ -89,22 +95,22 @@ def run_graph(graph) -> int:
         input_tensor = [tensor1, tensor2, tensor3]
         # 5. 运行图
         ret = session.run_graph(graph_id, input_tensor)
-        print("[Info] 图运行成功！")
+        print("[Info] Graph executed successfully!")
         for idx, tensor in enumerate(ret, start=1):
-            print(f"Tensor{idx}详情： {tensor}")
+            print(f"Tensor{idx} details: {tensor}")
         return 0
 
     except Exception as e:
-        print(f"[Error] 执行过程中出错: {e}")
+        print(f"[Error] Error during execution: {e}")
         import traceback
 
         traceback.print_exc()
         return -1
     finally:
         # 6. 清理GE环境
-        print("[Info] 清理GE环境...")
+        print("[Info] Cleaning up GE environment...")
         ge_api.ge_finalize()
-        print("[Success] GE环境已清理")
+        print("[Success] GE environment cleaned up")
 
 
 graph = build_concat_graph()

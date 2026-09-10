@@ -53,9 +53,10 @@ def _require_es_apis() -> None:
     missing = [name for name, obj in pairs if obj is None]
     if missing:
         raise RuntimeError(
-            "未找到 ES API: "
+            "ES API not found: "
             + ", ".join(missing)
-            + "。请先 source CANN 环境；如仍缺失，请参考 README 的“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
+            + ". Please source the CANN environment first; if still missing, refer to the README "
+            + "section 'Handling Missing ES APIs (Optional)' to generate and load es_all, then run again."
         )
 
 
@@ -82,7 +83,9 @@ class PythonFuseMatMulAndAddCaptureTensorPass(PatternFusionPass):
         return [pat0, pat1]
 
     def meet_requirements(self, match_result):
-        print("Define MeetRequirements for FuseMatMulAndAddPass in capture tensor sample")
+        print(
+            "Define MeetRequirements for FuseMatMulAndAddPass in capture tensor sample"
+        )
         add_io = match_result.get_captured_tensor(_K_ADD_CAPTURE_IDX)
         add_node = add_io.node
         add_input0_dt = add_node.get_input_desc(0).get_data_type()
@@ -127,6 +130,6 @@ class PythonFuseMatMulAndAddCaptureTensorPass(PatternFusionPass):
 
 
 if __name__ == "__main__":
-    print("PythonFuseMatMulAndAddCaptureTensorPass 已注册。")
-    print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
+    print("PythonFuseMatMulAndAddCaptureTensorPass registered.")
+    print("Please add this file to ASCEND_GE_PY_PASS_PATH, for example:")
     print("  export ASCEND_GE_PY_PASS_PATH=$(pwd)/src/python_fuse_matmul_add_pass.py")

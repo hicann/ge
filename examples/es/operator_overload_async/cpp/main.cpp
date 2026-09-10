@@ -26,28 +26,28 @@ int main(int argc, char **argv) {
   std::string command = argv[1];
   if (command == "run") {
     if (argc >= 3) {
-      std::cerr << "错误: run 命令不需要 mode 参数，当前固定为 copy 模式\n";
+      std::cerr << "Error: run command does not accept a mode argument, currently fixed to copy mode\n";
       return -1;
     }
-    std::cout << "运行模式: copy" << std::endl;
+    std::cout << "Run mode: copy" << std::endl;
     constexpr int32_t kDeviceId = 0;
     const std::string device_id = std::to_string(kDeviceId);
     std::map<ge::AscendString, ge::AscendString> config = {{"ge.exec.deviceId", ge::AscendString(device_id.c_str())},
                                                            {"ge.graphRunMode", "0"}};
     auto ret = ge::GEInitialize(config);
     if (ret != ge::SUCCESS) {
-      std::cerr << "GE 初始化失败\n";
+      std::cerr << "GE initialization failed\n";
       return -1;
     }
     const aclError acl_init_ret = aclInit(nullptr);
     if (acl_init_ret != ACL_SUCCESS) {
-      std::cerr << "ACL 初始化失败, error=" << acl_init_ret << std::endl;
+      std::cerr << "ACL initialization failed, error=" << acl_init_ret << std::endl;
       (void)ge::GEFinalize();
       return -1;
     }
     const aclError set_device_ret = aclrtSetDevice(kDeviceId);
     if (set_device_ret != ACL_SUCCESS) {
-      std::cerr << "aclrtSetDevice 失败, error=" << set_device_ret << std::endl;
+      std::cerr << "aclrtSetDevice failed, error=" << set_device_ret << std::endl;
       (void)aclFinalize();
       (void)ge::GEFinalize();
       return -1;
@@ -57,18 +57,18 @@ int main(int argc, char **argv) {
       result = 0;
     }
     if (ge::GEFinalize() != ge::SUCCESS) {
-      std::cerr << "GE 反初始化失败\n";
+      std::cerr << "GE finalization failed\n";
       result = -1;
     }
     (void)aclrtResetDevice(kDeviceId);
     (void)aclFinalize();
-    std::cout << "执行结束" << std::endl;
+    std::cout << "Execution completed" << std::endl;
     return result;
   } else if (command == "dump") {
     es_showcase::MakeAddGraphByEsAndDump();
     return 0;
   } else {
-    std::cout << "错误: 未知命令 '" << command << "'" << std::endl;
+    std::cout << "Error: unknown command '" << command << "'" << std::endl;
     return -1;
   }
 }

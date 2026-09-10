@@ -42,8 +42,8 @@ except ImportError:
 def _require_es_custom_apis() -> None:
     if AddCustom is None:
         raise RuntimeError(
-            "未找到 ge.es.custom.AddCustom。请先参考 README 的使用方式生成 es_custom Python ES 包，"
-            "设置 PYTHONPATH 与 LD_LIBRARY_PATH 后重新执行。"
+            "ge.es.custom.AddCustom not found. Please generate the es_custom Python ES package "
+            "as described in the README, set PYTHONPATH and LD_LIBRARY_PATH, then run again."
         )
 
 
@@ -51,11 +51,13 @@ def _require_es_apis() -> None:
     _require_es_custom_apis()
     if Identity is None:
         raise RuntimeError(
-            "未找到 ge.es.math.Identity。请先 source CANN 环境；如仍缺失，请参考 README 的“ES API 说明”后重新执行。"
+            "ge.es.math.Identity not found. Please source the CANN environment first; "
+            "if still missing, refer to the README section 'ES API Description' and run again."
         )
     if TensorMove is None:
         raise RuntimeError(
-            "未找到 ge.es.math.TensorMove。请先 source CANN 环境；如仍缺失，请参考 README 的“ES API 说明”后重新执行。"
+            "ge.es.math.TensorMove not found. Please source the CANN environment first; "
+            "if still missing, refer to the README section 'ES API Description' and run again."
         )
 
 
@@ -83,7 +85,9 @@ def _is_tensor_value_equal_to_zero(tensor: Tensor):
     return False
 
 
-@register_fusion_pass(name="PythonAddCustomZeroPass", stage=PassStage.BEFORE_INFER_SHAPE)
+@register_fusion_pass(
+    name="PythonAddCustomZeroPass", stage=PassStage.BEFORE_INFER_SHAPE
+)
 class PythonAddCustomZeroPass(PatternFusionPass):
     """Recognize AddCustom(AddCustom(x, zero), y) and replace it with AddCustom(x, y)."""
 
@@ -132,7 +136,7 @@ class PythonAddCustomZeroPass(PatternFusionPass):
 
 
 if __name__ == "__main__":
-    print("PythonAddCustomZeroPass 已注册。")
-    print("运行前请先生成 es_custom，并设置 PYTHONPATH 与 LD_LIBRARY_PATH。")
-    print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
+    print("PythonAddCustomZeroPass registered.")
+    print("Generate es_custom and set PYTHONPATH and LD_LIBRARY_PATH before running.")
+    print("Please add this file to ASCEND_GE_PY_PASS_PATH, for example:")
     print("  export ASCEND_GE_PY_PASS_PATH=$PWD/src/python_addcustom_zero_pass.py")

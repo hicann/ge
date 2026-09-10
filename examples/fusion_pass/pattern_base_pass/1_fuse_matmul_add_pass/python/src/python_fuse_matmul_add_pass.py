@@ -50,13 +50,16 @@ def _require_es_apis() -> None:
     missing = [name for name, obj in pairs if obj is None]
     if missing:
         raise RuntimeError(
-            "未找到 ES API: "
+            "ES API not found: "
             + ", ".join(missing)
-            + "。请先 source CANN 环境；如仍缺失，请参考 README 的“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
+            + ". Please source the CANN environment first; if still missing, refer to the README "
+            + "section 'Handling Missing ES APIs (Optional)' to generate and load es_all, then run again."
         )
 
 
-@register_fusion_pass(name="PythonFuseMatMulAndAddPass", stage=PassStage.BEFORE_INFER_SHAPE)
+@register_fusion_pass(
+    name="PythonFuseMatMulAndAddPass", stage=PassStage.BEFORE_INFER_SHAPE
+)
 class PythonFuseMatMulAndAddPass(PatternFusionPass):
     @pattern
     def matmul_add(self, inputs):
@@ -83,6 +86,6 @@ class PythonFuseMatMulAndAddPass(PatternFusionPass):
 
 
 if __name__ == "__main__":
-    print("PythonFuseMatMulAndAddPass 已注册。")
-    print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
+    print("PythonFuseMatMulAndAddPass registered.")
+    print("Please add this file to ASCEND_GE_PY_PASS_PATH, for example:")
     print("  export ASCEND_GE_PY_PASS_PATH=$(pwd)/src/python_fuse_matmul_add_pass.py")

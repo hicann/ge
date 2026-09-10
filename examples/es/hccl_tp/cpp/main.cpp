@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
                                                            {"ge.exec.rankId", rank_id}};
     auto ret = ge::GEInitialize(config);
     if (ret != ge::SUCCESS) {
-      std::cerr << "GE 初始化失败\n";
+      std::cerr << "GE initialization failed\n";
       return -1;
     }
     int result = -1;
@@ -59,10 +59,10 @@ int main(int argc, char **argv) {
       result = 0;
     }
     ge::GEFinalize();
-    std::cout << "执行结束" << std::endl;
+    std::cout << "Execution completed" << std::endl;
     return result;
   } else {
-    std::cout << "错误: 未知命令 '" << command << "'" << std::endl;
+    std::cout << "Error: unknown command '" << command << "'" << std::endl;
     return -1;
   }
 }

@@ -93,17 +93,17 @@ def execute(args: argparse.Namespace) -> int:
         session = Session()
         session.add_graph(graph_id, build_graph(args.dim))
         inputs = create_inputs(args.dim)
-        outputs = session.run_graph(graph_id, inputs)  # STEP 0：预热
+        outputs = session.run_graph(graph_id, inputs)  # STEP 0: warmup
         for _ in range(args.steps):
             outputs = session.run_graph(graph_id, inputs)
         print(
-            "[Info] 样例执行完成：device={}, steps={}, outputs={}".format(
+            "[Info] sample execution completed: device={}, steps={}, outputs={}".format(
                 args.device, args.steps, [output.get_shape() for output in outputs]
             )
         )
         return 0
-    except Exception as error:  # noqa: BLE001 - 样例进程以退出码反馈失败即可
-        print("[Error] 样例执行失败：{}".format(error), file=sys.stderr)
+    except Exception as error:  # noqa: BLE001 - the sample reports failure via its exit code
+        print("[Error] sample execution failed: {}".format(error), file=sys.stderr)
         return 1
     finally:
         # Session 必须先于 GE 去初始化释放。

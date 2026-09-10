@@ -33,7 +33,7 @@ class AclModelRunner:
         self.output_data = []
 
     def init(self) -> None:
-        print("[Info] 初始化运行环境及数据")
+        print("[Info] Initializing runtime environment and data")
         # 初始化 acl
         check_ret("acl.init", acl.init())
         # 指定运行的 Device
@@ -45,11 +45,15 @@ class AclModelRunner:
         self.model_desc = acl.mdl.create_desc()
         check_ret("acl.mdl.get_desc", acl.mdl.get_desc(self.model_desc, self.model_id))
 
-        self.input_dataset, self.input_data = prepare_acl_mdl_dataset(self.model_desc, "input")
-        self.output_dataset, self.output_data = prepare_acl_mdl_dataset(self.model_desc, "output")
+        self.input_dataset, self.input_data = prepare_acl_mdl_dataset(
+            self.model_desc, "input"
+        )
+        self.output_dataset, self.output_data = prepare_acl_mdl_dataset(
+            self.model_desc, "output"
+        )
 
     def forward(self, inputs):
-        print("[Info] 执行模型推理")
+        print("[Info] Executing model inference")
         copy_inputs_to_acl_dataset(self.input_data, inputs)
         check_ret(
             "acl.mdl.execute",
@@ -58,7 +62,7 @@ class AclModelRunner:
         return collect_acl_model_outputs(self.model_desc, self.output_data)
 
     def release(self) -> None:
-        print("[Info] 释放所有资源")
+        print("[Info] Releasing all resources")
         # 释放模型推理的输入、输出资源
         release_acl_mdl_dataset(self.input_dataset)
         release_acl_mdl_dataset(self.output_dataset)
@@ -77,7 +81,7 @@ def main():
     try:
         runner.init()
         outputs = runner.forward(create_sample_inputs())
-        print("[Info] 模型推理结果:")
+        print("[Info] Model inference result:")
         for i, output in enumerate(outputs, start=1):
             print(f"Output[{i}]: \n{output}")
     finally:

@@ -10,6 +10,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
+# ruff: noqa: F403, F405
 import os
 import sys
 
@@ -47,7 +48,9 @@ def build_pfa_hcom_graph():
     inputs_fp32 = []
     inputs_fp16 = []
     for idx, (name, shape) in enumerate(input_configs):
-        input_fp32 = builder.create_input(index=idx, name=name, data_type=DataType.DT_FLOAT, shape=shape)
+        input_fp32 = builder.create_input(
+            index=idx, name=name, data_type=DataType.DT_FLOAT, shape=shape
+        )
         inputs_fp32.append(input_fp32)
         inputs_fp16.append(Cast(input_fp32, dst_type=DataType.DT_FLOAT16))
 
@@ -134,17 +137,23 @@ def run_graph(graph, device_id="0") -> int:
     if rank_id is not None and rank_table_file is not None:
         config["ge.exec.rankTableFile"] = rank_table_file
         config["ge.exec.rankId"] = rank_id
-        print(f"[Info] 多卡模式 - RANK_ID: {rank_id}, RANK_TABLE_FILE: {rank_table_file}")
+        print(
+            f"[Info] Multi-card mode - RANK_ID: {rank_id}, RANK_TABLE_FILE: {rank_table_file}"
+        )
     else:
-        print("[Info] 单卡模式 - 未检测到RANK_ID和RANK_TABLE_FILE环境变量")
+        print(
+            "[Info] Single-card mode - RANK_ID and RANK_TABLE_FILE environment variables not detected"
+        )
 
     ge_api = GeApi()
     ret = ge_api.ge_initialize(config)
     if ret != 0:
-        print(f"[Error] GE初始化失败，返回码: {ret}")
+        print(f"[Error] GE initialization failed, return code: {ret}")
         return ret
 
-    print(f"[Info] GE环境初始化成功 (Device ID: {device_id}, RANK_ID: {rank_id if rank_id else 'N/A'})")
+    print(
+        f"[Info] GE environment initialized successfully (Device ID: {device_id}, RANK_ID: {rank_id if rank_id else 'N/A'})"
+    )
 
     try:
         # 2. 创建Session
@@ -154,9 +163,9 @@ def run_graph(graph, device_id="0") -> int:
         graph_id = 1
         ret = session.add_graph(graph_id, graph)
         if ret != 0:
-            print(f"[Error] 添加图失败，返回码: {ret}")
+            print(f"[Error] Failed to add graph, return code: {ret}")
             return ret
-        print(f"[Info] 图已添加到Session (Graph ID: {graph_id})")
+        print(f"[Info] Graph added to Session (Graph ID: {graph_id})")
 
         # 4. 准备输入数据
         input_data_configs = [
@@ -184,17 +193,17 @@ def run_graph(graph, device_id="0") -> int:
             )
             inputs.append(tensor)
 
-        print(f"[Info] 输入数据已准备，共{len(inputs)}个输入tensor")
+        print(f"[Info] Prepared {len(inputs)} input tensor(s)")
 
         # 5. 运行图
         ret = session.run_graph(graph_id, inputs)
-        print("[Info] 图运行成功！")
+        print("[Info] Graph executed successfully!")
         for idx, tensor in enumerate(ret, start=1):
-            print(f"Tensor{idx}详情：{tensor}")
+            print(f"Tensor{idx} details: {tensor}")
         return 0
 
     except Exception as e:
-        print(f"[Error] 执行过程中出错: {e}")
+        print(f"[Error] Error during execution: {e}")
         import traceback
 
         traceback.print_exc()
@@ -202,9 +211,9 @@ def run_graph(graph, device_id="0") -> int:
 
     finally:
         # 6. 清理GE环境
-        print("[Info] 清理GE环境...")
+        print("[Info] Cleaning up GE environment...")
         ge_api.ge_finalize()
-        print("[Success] GE环境已清理")
+        print("[Success] GE environment cleaned up")
 
 
 if __name__ == "__main__":

@@ -199,8 +199,8 @@ class PythonConvTransFormatPass(FusionBasePass):
 
 
 if __name__ == "__main__":
-    print("PythonConvTransFormatPass 已注册。")
-    print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
+    print("PythonConvTransFormatPass registered.")
+    print("Please add this file to ASCEND_GE_PY_PASS_PATH, for example:")
     print(
         "  export ASCEND_GE_PY_PASS_PATH=$PWD/python/src/python_modify_conv_data_format_pass.py"
     )

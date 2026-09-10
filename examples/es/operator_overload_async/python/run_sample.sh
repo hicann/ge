@@ -41,7 +41,7 @@ while [[ $# -gt 0 ]]; do
             usage
             ;;
         *)
-            echo "未知选项: $1" >&2
+            echo "Unknown option: $1" >&2
             usage
             exit 1
             ;;
@@ -51,17 +51,17 @@ done
 # 验证目标有效性
 VALID_TARGETS=("sample_and_run_python" "sample_and_run_python_custom_allocator")
 if [[ ! " ${VALID_TARGETS[@]} " =~ " ${TARGET} " ]]; then
-    echo "错误: 无效目标 '${TARGET}'。有效目标: ${VALID_TARGETS[*]}" >&2
+    echo "Error: invalid target '${TARGET}'. Valid targets: ${VALID_TARGETS[*]}" >&2
     exit 1
 fi
 
-echo "[Info] 目标设置为: ${TARGET}"
-echo "[Info] 测试用例设置为: add"
+echo "[Info] Target set to: ${TARGET}"
+echo "[Info] Test case set to: add"
 
 set +u
 if [[ -z "${ASCEND_HOME_PATH}" ]]; then
-  echo -e "ERROR 环境变量ASCEND_HOME_PATH 未配置" >&2
-  echo -e "ERROR 请先执行: source /usr/local/Ascend/cann/set_env.sh  " >&2
+  echo -e "ERROR Environment variable ASCEND_HOME_PATH is not set" >&2
+  echo -e "ERROR Please source the environment first: source /usr/local/Ascend/cann/set_env.sh  " >&2
   exit 1
 fi
 
@@ -76,33 +76,33 @@ case "${ARCH}" in
     ASCEND_ARCH="aarch64-linux"
     ;;
   *)
-    echo "WARNING: 未识别的架构 ${ARCH}，使用默认值 x86_64-linux" >&2
+    echo "WARNING: Unrecognized architecture ${ARCH}, using default x86_64-linux" >&2
     ASCEND_ARCH="x86_64-linux"
     ;;
 esac
 
-echo "[Info] 检测到系统架构: ${ARCH}"
-echo "[Info] 使用 ASCEND 架构: ${ASCEND_ARCH}"
+echo "[Info] Detected architecture: ${ARCH}"
+echo "[Info] Using ASCEND architecture: ${ASCEND_ARCH}"
 
 ASCEND_LIB_DIR="${ASCEND_HOME_PATH}/lib64"
 echo "[Info] ASCEND_LIB_DIR = ${ASCEND_LIB_DIR}"
 
 export LD_LIBRARY_PATH="${ASCEND_LIB_DIR}:${LD_LIBRARY_PATH:-}"
-echo "[Info] LD_LIBRARY_PATH 已设置为: ${LD_LIBRARY_PATH}"
+echo "[Info] LD_LIBRARY_PATH set to: ${LD_LIBRARY_PATH}"
 
 # ---------- 运行单个 Python 文件 ----------
 run_python_file() {
   local py_file="$1"
   if [[ ! -f "${py_file}" ]]; then
-    echo "[Error] 未找到 Python 用例 ${py_file}" >&2
+    echo "[Error] Python test file not found: ${py_file}" >&2
     return 1
   fi
-  echo "[Info] 运行：${py_file}"
+  echo "[Info] Running: ${py_file}"
   if python3 "${py_file}"; then
-    echo "[Success] ${py_file} 执行成功"
+    echo "[Success] ${py_file} execution succeeded"
     return 0
   else
-    echo "[Error] ${py_file} 执行失败" >&2
+    echo "[Error] ${py_file} execution failed" >&2
     return 1
   fi
 }
@@ -110,22 +110,22 @@ run_python_file() {
 case "${TARGET}" in
   sample_and_run_python)
     if run_python_file "src/make_add_graph.py"; then
-      echo "[Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示"
+      echo "[Success] sample execution succeeded, pbtxt dump generated in current directory. The file starts with ge_onnx_ and can be viewed in netron."
     else
-      echo "[Error] sample 执行失败，请检查上述错误信息" >&2
+      echo "[Error] sample execution failed, check the error messages above" >&2
       exit 1
     fi
     ;;
   sample_and_run_python_custom_allocator)
     if run_python_file "src/make_add_graph_custom_allocator.py"; then
-      echo "[Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示"
+      echo "[Success] sample execution succeeded, pbtxt dump generated in current directory. The file starts with ge_onnx_ and can be viewed in netron."
     else
-      echo "[Error] sample 执行失败，请检查上述错误信息" >&2
+      echo "[Error] sample execution failed, check the error messages above" >&2
       exit 1
     fi
     ;;
   *)
-    echo "错误: 未知目标 ${TARGET}" >&2
+    echo "Error: unknown target ${TARGET}" >&2
     exit 1
     ;;
 esac

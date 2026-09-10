@@ -22,12 +22,18 @@ def build_control_edge_graph():
     # 1. 创建图构建器
     builder = GraphBuilder("control_dep_scope_example")
     # 2. 创建依赖源节点
-    input_tensor_holder0 = builder.create_input(index=0, name="input", data_type=DataType.DT_FLOAT, shape=[2, 2])
-    input_tensor_holder1 = builder.create_input(index=1, name="input1", data_type=DataType.DT_FLOAT, shape=[2, 2])
+    input_tensor_holder0 = builder.create_input(
+        index=0, name="input", data_type=DataType.DT_FLOAT, shape=[2, 2]
+    )
+    input_tensor_holder1 = builder.create_input(
+        index=1, name="input1", data_type=DataType.DT_FLOAT, shape=[2, 2]
+    )
     # 3. 使用 scope：在 scope 内创建的所有节点自动依赖 input_tensor_holder0 和 input_tensor_holder1
     with control_dependency_scope([input_tensor_holder0, input_tensor_holder1]):
         # 在此 scope 内创建的节点会自动添加控制依赖
-        input_tensor_holder2 = builder.create_input(index=2, name="input2", data_type=DataType.DT_FLOAT, shape=[2, 2])
+        input_tensor_holder2 = builder.create_input(
+            index=2, name="input2", data_type=DataType.DT_FLOAT, shape=[2, 2]
+        )
         input_tensor_holder3 = input_tensor_holder0 + input_tensor_holder2
     # 4. 设置输出并构建
     builder.set_graph_output(input_tensor_holder3, 0)
@@ -46,34 +52,40 @@ def run_graph(graph) -> None:
     ge_api = GeApi()
     ret = ge_api.ge_initialize(config)
     if ret != 0:
-        print(f"GE初始化失败，返回码: {ret}")
+        print(f"GE initialization failed, return code: {ret}")
         return ret
-    print("GE环境初始化成功 (Device ID: 0)")
+    print("GE environment initialized successfully (Device ID: 0)")
 
     try:
         session = Session()
         graph_id = 1
         ret = session.add_graph(graph_id, graph)
         if ret != 0:
-            print(f"添加图失败，返回码: {ret}")
+            print(f"Failed to add graph, return code: {ret}")
             return ret
-        print(f"图已添加到Session (Graph ID: {graph_id})")
+        print(f"Graph added to Session (Graph ID: {graph_id})")
 
         # 4. 准备输入数据
-        tensor1 = Tensor([2.0, 2.0, 2.0, 2.0], None, DataType.DT_FLOAT, Format.FORMAT_ND, [2, 2])
-        tensor2 = Tensor([1.0, 1.0, 1.0, 1.0], None, DataType.DT_FLOAT, Format.FORMAT_ND, [2, 2])
-        tensor3 = Tensor([1.0, 1.0, 1.0, 1.0], None, DataType.DT_FLOAT, Format.FORMAT_ND, [2, 2])
+        tensor1 = Tensor(
+            [2.0, 2.0, 2.0, 2.0], None, DataType.DT_FLOAT, Format.FORMAT_ND, [2, 2]
+        )
+        tensor2 = Tensor(
+            [1.0, 1.0, 1.0, 1.0], None, DataType.DT_FLOAT, Format.FORMAT_ND, [2, 2]
+        )
+        tensor3 = Tensor(
+            [1.0, 1.0, 1.0, 1.0], None, DataType.DT_FLOAT, Format.FORMAT_ND, [2, 2]
+        )
         # 创建Tensor对象
         inputs = [tensor1, tensor2, tensor3]
         # 5. 运行图
         ret = session.run_graph(graph_id, inputs)
-        print("[Info] 图运行成功！")
+        print("[Info] Graph executed successfully!")
         for idx, tensor in enumerate(ret, start=1):
-            print(f"Tensor{idx}详情：{tensor}")
+            print(f"Tensor{idx} details: {tensor}")
         return 0
 
     except Exception as e:
-        print(f"[Error] 执行过程中出错: {e}")
+        print(f"[Error] Error during execution: {e}")
         import traceback
 
         traceback.print_exc()
@@ -81,9 +93,9 @@ def run_graph(graph) -> None:
 
     finally:
         # 6. 清理GE环境
-        print("[Info] 清理GE环境...")
+        print("[Info] Cleaning up GE environment...")
         ge_api.ge_finalize()
-        print("[Success] GE环境已清理")
+        print("[Success] GE environment cleaned up")
 
 
 graph = build_control_edge_graph()

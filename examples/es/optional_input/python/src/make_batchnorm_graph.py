@@ -30,8 +30,12 @@ def build_batch_norm_graph():
         format=Format.FORMAT_NCHW,
         shape=[1, 3, 1, 2],
     )
-    mean = builder.create_input(index=1, name="mean", data_type=DataType.DT_FLOAT, shape=[3])
-    variance = builder.create_input(index=2, name="variance", data_type=DataType.DT_FLOAT, shape=[3])
+    mean = builder.create_input(
+        index=1, name="mean", data_type=DataType.DT_FLOAT, shape=[3]
+    )
+    variance = builder.create_input(
+        index=2, name="variance", data_type=DataType.DT_FLOAT, shape=[3]
+    )
     scale = builder.create_const_float([1.0, 1.0, 1.0], shape=[3])
     offset = builder.create_const_float([0.0, 0.0, 0.0], shape=[3])
     batchNorm_tensor_holder = BatchNorm(
@@ -61,10 +65,10 @@ def run_graph(graph, device_id="0") -> int:
     ge_api = GeApi()
     ret = ge_api.ge_initialize(config)
     if ret != 0:
-        print(f"[Error] GE初始化失败，返回码: {ret}")
+        print(f"[Error] GE initialization failed, return code: {ret}")
         return ret
 
-    print(f"[Info] GE环境初始化成功 (Device ID: {device_id})")
+    print(f"[Info] GE environment initialized successfully (Device ID: {device_id})")
 
     try:
         # 2. 创建Session
@@ -74,9 +78,9 @@ def run_graph(graph, device_id="0") -> int:
         graph_id = 1
         ret = session.add_graph(graph_id, graph)
         if ret != 0:
-            print(f"[Error] 添加图失败，返回码: {ret}")
+            print(f"[Error] Failed to add graph, return code: {ret}")
             return ret
-        print(f"[Info] 图已添加到Session (Graph ID: {graph_id})")
+        print(f"[Info] Graph added to Session (Graph ID: {graph_id})")
 
         # 4. 准备输入数据
         input_data = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], dtype=np.float32)
@@ -90,21 +94,25 @@ def run_graph(graph, device_id="0") -> int:
             Format.FORMAT_NCHW,
             [1, 3, 1, 2],
         )
-        mean_tensor = Tensor(mean_data.tolist(), None, DataType.DT_FLOAT, Format.FORMAT_ND, [3])
-        variance_tensor = Tensor(variance_data.tolist(), None, DataType.DT_FLOAT, Format.FORMAT_ND, [3])
+        mean_tensor = Tensor(
+            mean_data.tolist(), None, DataType.DT_FLOAT, Format.FORMAT_ND, [3]
+        )
+        variance_tensor = Tensor(
+            variance_data.tolist(), None, DataType.DT_FLOAT, Format.FORMAT_ND, [3]
+        )
 
         inputs = [input_tensor, mean_tensor, variance_tensor]
-        print(f"[Info] 输入数据已准备，共{len(inputs)}个输入tensor (input, mean, variance)")
+        print(f"[Info] Prepared {len(inputs)} input tensor(s) (input, mean, variance)")
 
         # 5. 运行图
         ret = session.run_graph(graph_id, inputs)
-        print("[Info] 图运行成功！")
+        print("[Info] Graph executed successfully!")
         for idx, tensor in enumerate(ret, start=1):
-            print(f"Tensor{idx}详情：{tensor}")
+            print(f"Tensor{idx} details: {tensor}")
         return 0
 
     except Exception as e:
-        print(f"[Error] 执行过程中出错: {e}")
+        print(f"[Error] Error during execution: {e}")
         import traceback
 
         traceback.print_exc()
@@ -112,9 +120,9 @@ def run_graph(graph, device_id="0") -> int:
 
     finally:
         # 6. 清理GE环境
-        print("[Info] 清理GE环境...")
+        print("[Info] Cleaning up GE environment...")
         ge_api.ge_finalize()
-        print("[Success] GE环境已清理")
+        print("[Success] GE environment cleaned up")
 
 
 if __name__ == "__main__":

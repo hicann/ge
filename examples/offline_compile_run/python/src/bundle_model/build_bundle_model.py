@@ -22,7 +22,9 @@ from ge.offline_compile import (
 
 
 def parse_bundle_args():
-    parser = argparse.ArgumentParser(description="Build an offline bundle_model OM model from GE Python Graphs.")
+    parser = argparse.ArgumentParser(
+        description="Build an offline bundle_model OM model from GE Python Graphs."
+    )
     parser.add_argument(
         "--soc-version",
         type=str,
@@ -38,7 +40,7 @@ def main():
     if args.soc_version:
         global_options["ge.socVersion"] = args.soc_version
     build_initialize(global_options)
-    print("[Info] 系统初始化成功")
+    print("[Info] System initialized successfully")
 
     graph_with_options = [
         GraphWithOptions(build_add_graph(), {"input_format": "ND"}),
@@ -46,14 +48,16 @@ def main():
     ]
     try:
         model = bundle_build_model(graph_with_options)
-        print(f"[Info] 模型构建成功，模型大小: {model.length} bytes")
+        print(f"[Info] Model built successfully, model size: {model.length} bytes")
 
         file_name = "bundle_sample"
         bundle_save_model(file_name, model)
-        print(f"[Info] 模型保存成功，{file_name}.om 模型文件已生成在当前目录。")
+        print(
+            f"[Info] Model saved successfully, {file_name}.om model file has been generated in the current directory."
+        )
     finally:
         build_finalize()
-        print("[Info] 系统释放成功")
+        print("[Info] System resources released successfully")
 
 
 if __name__ == "__main__":

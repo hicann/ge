@@ -127,20 +127,20 @@ python3 ge_ms_autotune.py \
 → 执行命令 → 从 stdout 与该轮 plog 中收集 STEP → 校验后统计。控制台输出形如：
 
 ```
-候选配置（7 个 × 3 轮）：default, LoadBalance:2, LoadBalance:4, ...
+candidate configs (7 x 3 rounds, online mode): default, LoadBalance:2, LoadBalance:4, ...
 
-[000] 配置=default 第 1 轮：python3 sample_run.py --steps 12
-      退出码=0 STEP=13 有效=是 耗时=21.4s
+[000] config=default round 1: python3 sample_run.py --steps 12
+      exit_code=0 STEP=13 valid=yes wall=21.4s
 ...
 
-寻优结果（按中位耗时升序）：
-配置                      有效轮次  步数    平均(ms)    中位(ms)    P90(ms)     CV        加速比      结论
-LoadBalance:4             3/3       36      12.104      12.088      12.301      0.014     1.243     提升
-MainStream:4              3/3       36      13.552      13.489      13.702      0.011     1.114     提升
-default                   3/3       36      15.037      15.028      15.311      0.009     1.000     持平
+Tuning results (sorted by median cost):
+config                     valid_runs  steps   mean(ms)    median(ms)  P90(ms)     CV         speedup     verdict
+LoadBalance:4             3/3         36      12.104      12.088      12.301      0.014     1.243       improvement
+MainStream:4              3/3         36      13.552      13.489      13.702      0.011     1.114       improvement
+default                   3/3         36      15.037      15.028      15.311      0.009     1.000       neutral
 
-[结论] 推荐配置：LoadBalance:4，相对 default 加速比 1.243，中位耗时 12.088 ms。
-[复现] GE_AUTO_MULTISTREAM_PARALLEL_MODE=LoadBalance:4 python3 sample_run.py --steps 12
+[result] recommended config: LoadBalance:4, speedup over default: 1.243, median cost: 12.088 ms.
+[reproduce] GE_AUTO_MULTISTREAM_PARALLEL_MODE=LoadBalance:4 python3 sample_run.py --steps 12
 ```
 
 一阶段扫完后若想细化流数，指定相邻取值再跑一次即可：
