@@ -36,7 +36,7 @@ output values: 3
 export DUMP_GE_GRAPH=2
 ```
 
-打开 `ge_proto_*_AfterInfershape.pbtxt`，图中应不再包含 `AddCustom` 节点（已被折叠为 `Const`）。
+打开 `ge_onnx_*_AfterInfershape.pbtxt`，图中应不再包含 `AddCustom` 节点（已被折叠为 `Const`）。
 
 ### 日志验证
 

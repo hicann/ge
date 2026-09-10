@@ -32,4 +32,4 @@ output\_index对应的输出Tensor指针。
 
 ## 约束说明
 
-无
+output_index对应的输出参数和input_index对应的输入参数，在算子IR原型定义中的名称必须一致，否则接口调用失败。

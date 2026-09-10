@@ -28,29 +28,21 @@ output shape: [1]
 output values: 3
 ```
 
-If constant folding does not hit, this HostCPU-only operator does not enter the device Eager execution path.
-
 ### Dump Graph Verification
 
 Enable graph dumping to visually verify constant folding:
 
 ```bash
 export DUMP_GE_GRAPH=2
-cd build
-./host_cpu_add_custom_constant_folding_session_run
-cd ..
 ```
 
-Open `ge_proto_*_AfterInfershape.pbtxt` — the graph should no longer contain the `AddCustom` node (folded into `Const`).
+Open `ge_onnx_*_AfterInfershape.pbtxt` — the graph should no longer contain the `AddCustom` node (folded into `Const`).
 
 ### Log Verification
 
 ```bash
 export ASCEND_SLOG_PRINT_TO_STDOUT=1
 export ASCEND_GLOBAL_LOG_LEVEL=0
-cd build
-./host_cpu_add_custom_constant_folding_session_run
-cd ..
 ```
 
 Search for `Constant folding computation for node` in the logs — `return code: 0` indicates success.
