@@ -48,7 +48,7 @@ constexpr int kExecDupFailureExitCode = 126;
 constexpr int kExecFailureExitCode = 127;
 #endif
 
-std::string IntExpression(int64_t value);
+std::string IntExpression(const int64_t value);
 
 bool IsAsciiAlphaNumeric(const unsigned char ch) {
   return ((ch >= '0') && (ch <= '9')) || ((ch >= 'A') && (ch <= 'Z')) || ((ch >= 'a') && (ch <= 'z'));
@@ -136,7 +136,7 @@ int CreateMemFd(const char *name) {
   return static_cast<int>(syscall(__NR_memfd_create, name, 0U));
 }
 
-bool WriteAll(const int fd, const uint8_t *data, const size_t size) {
+bool WriteAll(const int fd, const char *data, const size_t size) {
   size_t offset = 0U;
   while (offset < size) {
     const ssize_t written = write(fd, data + offset, size - offset);
@@ -379,7 +379,7 @@ Status HostCpuFusionCodegen::Generate(const HostCpuFusionRegion &region, HostCpu
   std::unordered_map<const OutDataAnchor *, size_t> input_indexes;
   for (size_t i = 0U; i < region.external_inputs.size(); ++i) {
     const auto &anchor = region.external_inputs[i];
-    if ((anchor == nullptr) || (node_indexes.count(anchor->GetOwnerNode().get()) > 0U) ||
+    if ((anchor == nullptr) || (node_indexes.count(anchor->GetOwnerNodeBarePtr()) > 0U) ||
         !input_indexes.emplace(anchor.get(), i).second) {
       GELOGE(PARAM_INVALID, "Invalid HostCPU fusion external input: chain[%s], input_index[%zu].",
              region.chain_id.c_str(), i);
@@ -390,7 +390,7 @@ Status HostCpuFusionCodegen::Generate(const HostCpuFusionRegion &region, HostCpu
   std::unordered_map<const OutDataAnchor *, size_t> output_indexes;
   for (size_t i = 0U; i < region.external_outputs.size(); ++i) {
     const auto &anchor = region.external_outputs[i].source;
-    if ((anchor == nullptr) || (node_indexes.count(anchor->GetOwnerNode().get()) == 0U) ||
+    if ((anchor == nullptr) || (node_indexes.count(anchor->GetOwnerNodeBarePtr()) == 0U) ||
         !output_indexes.emplace(anchor.get(), i).second) {
       GELOGE(PARAM_INVALID, "Invalid HostCPU fusion external output: chain[%s], output_index[%zu].",
              region.chain_id.c_str(), i);
@@ -668,7 +668,7 @@ Status HostCpuFusionCodegen::Generate(const HostCpuFusionRegion &region, HostCpu
        << "    auto *internal_storage_data = reinterpret_cast<uint8_t *>(internal_storage.data());\n";
   for (size_t internal_index = 0U; internal_index < internal_buffers.size(); ++internal_index) {
     const auto &buffer = internal_buffers[internal_index];
-    const auto owner = buffer.anchor->GetOwnerNode();
+    const auto *owner = buffer.anchor->GetOwnerNodeBarePtr();
     const auto &desc = owner->GetOpDesc()->GetOutputDesc(static_cast<uint32_t>(buffer.anchor->GetIdx()));
     code << "    gert::Tensor internal_tensor_" << internal_index << "(" << shape_expression(desc.GetShape()) << ", "
          << format_expression(desc) << ", gert::kOnHost, static_cast<ge::DataType>("
@@ -717,10 +717,10 @@ Status HostCpuFusionCodegen::Generate(const HostCpuFusionRegion &region, HostCpu
       kernel_type_seen[kernel_type_iter->second] = true;
     }
     code << "HostKernelFunc kernel_" << node_index << " = cached_kernel_" << kernel_type_iter->second << ";\n"
-         << "      const std::array<const gert::Tensor *, " << node->GetAllInDataAnchors().size() << "U> node_inputs_"
+         << "      const std::array<const gert::Tensor *, " << node->GetAllInDataAnchorsSize() << "U> node_inputs_"
          << node_index << "{{";
 
-    const auto in_anchors = node->GetAllInDataAnchors();
+    const auto in_anchors = node->GetAllInDataAnchorsPtr();
     for (size_t input_index = 0U; input_index < in_anchors.size(); ++input_index) {
       const auto peer =
           (in_anchors.at(input_index) == nullptr) ? nullptr : in_anchors.at(input_index)->GetPeerOutAnchor();
@@ -883,7 +883,7 @@ Status HostCpuFusionCompiler::Compile(const std::string &source, std::vector<uin
   Status status = FAILED;
   do {
     // 把源码写入source_fd
-    if (!WriteAll(source_fd, reinterpret_cast<const uint8_t *>(source.data()), source.size())) {
+    if (!WriteAll(source_fd, source.data(), source.size())) {
       GELOGE(FAILED, "Failed to write HostCPU fusion source memfd: errno[%d], source_size[%zu].", errno, source.size());
       break;
     }
@@ -948,8 +948,11 @@ Status HostCpuFusionCompiler::Compile(const std::string &source, std::vector<uin
     int child_status = 0;
     // 父进程等待编译结束
     const bool wait_success = WaitChild(child, child_status);
-    if (!wait_success || !WIFEXITED(child_status) || (WEXITSTATUS(child_status) != 0)) {
-      const int exit_code = (wait_success && WIFEXITED(child_status)) ? WEXITSTATUS(child_status) : -1;
+    int exit_code = -1;
+    if (wait_success && WIFEXITED(child_status)) {
+      exit_code = WEXITSTATUS(child_status);
+    }
+    if (exit_code != 0) {
       const std::string diagnostics = ReadCompilerDiagnostics(diagnostics_fd);
       GELOGW("HostCPU fusion compiler %s failed, exit_code=%d, diagnostics=%s.", compiler_name.c_str(), exit_code,
              diagnostics.c_str());
