@@ -52,7 +52,7 @@
 
 ## 快速运行
 
-在 `examples/custom_op/triton_add_custom` 目录下执行以下最短路径：
+在 `examples/custom_op/triton_add_custom` 目录下执行以下最短路径
 
 ### 推荐方式
 

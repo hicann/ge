@@ -45,7 +45,7 @@
 
 ## 快速运行
 
-在 `examples/custom_op/compilable_add_custom` 目录下执行：
+在 `examples/custom_op/compilable_add_custom` 目录下执行
 
 ### 推荐方式
 
