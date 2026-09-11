@@ -47,7 +47,7 @@ DvppErrorCode DvppBuilder::CalcTotalSizeByDimsAndType(const std::vector<int64_t>
 
 DvppErrorCode DvppBuilder::CalcOutputMemorySize(ge::GeTensorDesc &output_desc, int64_t &output_memory_size) const {
   auto dims = output_desc.GetShape().GetDims();
-  DVPP_CHECK_IF_THEN_DO(dims.empty(), DVPP_REPORT_INNER_ERR_MSG("dims is empty");
+  DVPP_CHECK_IF_THEN_DO(dims.empty(), DVPP_REPORT_INNER_ERR_MSG("dims are empty");
                         return DvppErrorCode::kInputParamNull);
 
   // 后续YUV格式需要根据format额外计算 GE需要同步新增格式
