@@ -185,12 +185,12 @@ Status GeLocalOpsKernelBuilder::CalcOpRunningParam(Node &node) {
 
     if (output_mem_size < 0) {
       REPORT_INNER_ERR_MSG("E19999",
-                           "Calc op[%s:%s] out[%zu] mem size is negative(not support),"
+                           "Calc op[%s:%s] out[%zu] mem size is negative(not supported),"
                            " format=%s, data_type=%s, mem_size=%ld.",
                            node_name.c_str(), node_type.c_str(), i, TypeUtils::FormatToSerialString(format).c_str(),
                            TypeUtils::DataTypeToSerialString(data_type).c_str(), output_mem_size);
       GELOGE(FAILED,
-             "[Calc][MemSize] op[%s:%s] out[%zu] mem size is negative(not support),"
+             "[Calc][MemSize] op[%s:%s] out[%zu] mem size is negative(not supported),"
              " format=%s, data_type=%s, mem_size=%ld.",
              node_name.c_str(), node_type.c_str(), i, TypeUtils::FormatToSerialString(format).c_str(),
              TypeUtils::DataTypeToSerialString(data_type).c_str(), output_mem_size);

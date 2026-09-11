@@ -90,7 +90,7 @@ Status OpsKernelManager::Initialize(const std::map<std::string, std::string> &in
   op_tiling_manager_.LoadSo();
   GE_TRACE_START(LoadPluginManagerSo);
   Status ret = plugin_manager_.LoadSo(extern_engine_path, func_check_list);
-  GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "OpsKernelManager::Initialize failed for not find any valid so file.");
+  GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "OpsKernelManager::Initialize failed for not finding any valid so file.");
   GE_INIT_TRACE_TIMESTAMP_END(LoadPluginManagerSo, "OpsKernelManager::LoadPluginManagerSo");
   initialize_ = options;
   GE_CHK_BOOL_RET_STATUS(
