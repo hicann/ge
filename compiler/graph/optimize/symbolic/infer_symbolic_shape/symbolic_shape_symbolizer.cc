@@ -80,10 +80,6 @@ std::map<ge::DataType, std::string> kGeDType2CppDtype = {
     {ge::DT_UINT64, "uint64_t"},
 };
 
-// 值符号化仅针对shape/索引类小tensor，元素个数超过该阈值时不进行值符号化，
-// 与 symbolic_shape_inference.cc 中的 kMaxSymbolicValueSize 保持一致
-constexpr int64_t kMaxSymbolizeValueElemNum = 200;
-
 // 泛化value的类型，可扩展为：只泛化value、泛化value并且求和，泛化value并且求平均
 const char_t *const kSymbolizeValueType = "_symbolize_value_type";
 enum SymbolizeValueType {
@@ -202,16 +198,16 @@ std::vector<Expression> CreateSymbolValueElement(const GeTensor &tensor, int32_t
 
 Status SymbolizeInputValue(const GeTensor &tensor, int32_t data_index, const NodePtr &data_node,
                            const std::map<int64_t, std::vector<int64_t>> &hint_value_map,
-                           const std::set<size_t> &value_dependent_idxs, ShapeEnvAttr *shape_env_attr,
+                           const std::set<size_t> &need_symbolize_value_idxs, ShapeEnvAttr *shape_env_attr,
                            SymbolicDescAttr *symbolic_desc_attr) {
   if (symbolic_desc_attr->symbolic_tensor.GetSymbolicValue() != nullptr) {
     return SUCCESS;
   }
 
   std::vector<Expression> sym_value;
-  if (SupportSymbolizeValue(tensor) && value_dependent_idxs.count(static_cast<size_t>(data_index)) > 0U) {
+  if (SupportSymbolizeValue(tensor) && need_symbolize_value_idxs.count(static_cast<size_t>(data_index)) > 0U) {
     const int64_t shape_size = tensor.GetTensorDesc().GetShape().GetShapeSize();
-    if (shape_size >= 0 && shape_size <= kMaxSymbolizeValueElemNum) {
+    if (shape_size >= 0 && shape_size <= SymbolicInferUtil::kMaxSymbolicValueSize) {
       GELOGI("symbolize input[%d] value of node %s from real host data, data size %zu.", data_index,
              data_node->GetNamePtr(), tensor.GetData().size());
       const auto dtype = tensor.GetTensorDesc().GetDataType();
@@ -235,7 +231,7 @@ Status SymbolizeInputValue(const GeTensor &tensor, int32_t data_index, const Nod
       }
     } else {
       GELOGW("input[%d] shape size %lld is invalid or exceeds value symbolize limit %lld, skip.", data_index,
-             shape_size, kMaxSymbolizeValueElemNum);
+             shape_size, SymbolicInferUtil::kMaxSymbolicValueSize);
     }
   } else {
     auto it = hint_value_map.find(data_index);
@@ -407,10 +403,10 @@ Status SymbolizeRootGraph(const ComputeGraphPtr &graph, const std::vector<GeTens
   GE_ASSERT_NOTNULL(shape_env_attr);
   std::map<int64_t, std::vector<int64_t>> hint_value_map;
   GE_ASSERT_SUCCESS(ParseHintInputValue(hint_value_map));
-  std::set<size_t> value_dependent_idxs;
-  GE_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(graph, value_dependent_idxs));
-  GELOGI("symbolize root graph %s, hint value map size %zu, value dependent idx count %zu.", graph->GetName().c_str(),
-         hint_value_map.size(), value_dependent_idxs.size());
+  std::set<size_t> need_symbolize_value_idxs;
+  GE_ASSERT_SUCCESS(SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(graph, need_symbolize_value_idxs));
+  GELOGI("symbolize root graph %s, hint value map size %zu, need symbolize value idx count %zu.",
+         graph->GetName().c_str(), hint_value_map.size(), need_symbolize_value_idxs.size());
   for (auto &data_node : data_nodes) {
     auto op_desc = data_node->GetOpDescBarePtr();
     DataSymbolizeInfo info;
@@ -433,7 +429,7 @@ Status SymbolizeRootGraph(const ComputeGraphPtr &graph, const std::vector<GeTens
     GE_ASSERT_SUCCESS(SymbolizeShape(info, op_desc, shape_env_attr, symbolic_desc_attr, ge_shape));
 
     const auto &tensor = graph_inputs.at(data_index);
-    GE_ASSERT_SUCCESS(SymbolizeInputValue(tensor, data_index, data_node, hint_value_map, value_dependent_idxs,
+    GE_ASSERT_SUCCESS(SymbolizeInputValue(tensor, data_index, data_node, hint_value_map, need_symbolize_value_idxs,
                                           shape_env_attr, symbolic_desc_attr));
 
     int64_t symbolize_value_type = SYMBOLIZE_VALUE_TYPE_NONE;
