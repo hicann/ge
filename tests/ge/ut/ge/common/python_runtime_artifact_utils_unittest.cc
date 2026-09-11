@@ -20,6 +20,7 @@
 
 #include "common/python_runtime/python_artifact_utils.h"
 #include "common/python_runtime/python_bridge_loader_utils.h"
+#include "base/common/python_runtime/python_fallback_codegen_helper.h"
 #include "compiler/graph/fusion/pass/python_pass_bridge_loader_helper.h"
 
 namespace ge {
@@ -27,6 +28,7 @@ namespace fusion {
 namespace {
 namespace artifact = ::ge::python_artifact;
 namespace bridge_loader = ::ge::python_bridge_loader;
+namespace fallback_codegen = ::ge::python_fallback_codegen;
 namespace loader_helper = python_pass_bridge_loader;
 constexpr const char *kPythonPassArtifactsRelativePath = "passes/python_pass_artifacts";
 
@@ -444,12 +446,12 @@ TEST(PythonPassArtifactSelectorTest, AppendMatchedArtifactCandidateRejectsPlatfo
   EXPECT_TRUE(candidates.empty());
 }
 
-TEST(PythonPassBridgeLoaderHelperTest, LineHelpersParseProbeOutput) {
-  EXPECT_EQ(loader_helper::FirstLine("cp313\n3.13.2\n"), "cp313");
-  EXPECT_EQ(loader_helper::FirstLine("cp313"), "cp313");
-  EXPECT_EQ(loader_helper::SecondLine("cp313\n3.13.2\n"), "3.13.2");
-  EXPECT_EQ(loader_helper::SecondLine("cp313\n3.13.2"), "3.13.2");
-  EXPECT_EQ(loader_helper::SecondLine("cp313"), "");
+TEST(PythonFallbackCodegenHelperTest, FetchLineHelpersParseProbeOutput) {
+  EXPECT_EQ(fallback_codegen::FetchFirstLine("cp313\n3.13.2\n"), "cp313");
+  EXPECT_EQ(fallback_codegen::FetchFirstLine("cp313"), "cp313");
+  EXPECT_EQ(fallback_codegen::FetchSecondLine("cp313\n3.13.2\n"), "3.13.2");
+  EXPECT_EQ(fallback_codegen::FetchSecondLine("cp313\n3.13.2"), "3.13.2");
+  EXPECT_EQ(fallback_codegen::FetchSecondLine("cp313"), "");
 }
 
 TEST(PythonPassBridgeLoaderHelperTest, BridgeLoadStatusToStringCoversAllStatuses) {

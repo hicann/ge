@@ -10,11 +10,12 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Build the Python pass native artifact wheel."""
+"""Build a Python native artifact wheel."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -22,8 +23,22 @@ import sys
 import textwrap
 from pathlib import Path
 
-PACKAGE_NAME = "ge-py-pass-bridge"
-DIST_NAME = "ge_py_pass_bridge"
+
+def _load_component_config(config_path: Path) -> dict:
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        wheel_config = config["wheel"]
+        required_keys = ("component",)
+        required_wheel_keys = ("package_name", "dist_name", "package", "artifact_root")
+        if not all(key in config for key in required_keys) or not all(
+            key in wheel_config for key in required_wheel_keys
+        ):
+            raise KeyError("missing required fields")
+    except (json.JSONDecodeError, KeyError, OSError) as err:
+        raise RuntimeError(
+            f"Cannot load native wheel component config {config_path}: {err}"
+        ) from err
+    return config
 
 
 def _copy_artifact_files(artifact_dir: Path, artifact_root: Path) -> None:
@@ -34,7 +49,11 @@ def _copy_artifact_files(artifact_dir: Path, artifact_root: Path) -> None:
             shutil.copy2(file_path, target_path)
 
 
-def _write_setup_py(project_dir: Path, version: str) -> None:
+def _write_setup_py(project_dir: Path, version: str, config: dict) -> None:
+    wheel_config = config["wheel"]
+    component = config["component"]
+    package = wheel_config["package"]
+    artifact_root = wheel_config["artifact_root"]
     setup_content = f"""
 import os
 
@@ -51,39 +70,43 @@ class BinaryDistribution(Distribution):
 
 class NativeBdistWheel(bdist_wheel):
     def get_tag(self):
-        python_tag, abi_tag, platform_tag = super().get_tag()
-        forced_tag = os.environ.get("GE_PY_PASS_WHEEL_PYTHON_TAG")
+        python_tag, abi_tag, wheel_platform = super().get_tag()
+        forced_tag = os.environ.get("GE_PY_NATIVE_WHEEL_PYTHON_TAG")
         if forced_tag:
-            return forced_tag, forced_tag, platform_tag
-        return python_tag, abi_tag, platform_tag
+            return forced_tag, forced_tag, wheel_platform
+        return python_tag, abi_tag, wheel_platform
 
 
 setup(
-    name="{PACKAGE_NAME}",
+    name="{wheel_config["package_name"]}",
     version="{version}",
-    description="GraphEngine Python pass native artifacts",
+    description="GraphEngine Python {component} native artifacts",
     packages=find_namespace_packages(include=["ge", "ge.*"]),
     include_package_data=True,
-    package_data={{"ge.passes": ["python_pass_artifacts/*/*"]}},
+    package_data={{"{package}": ["{artifact_root}/*/*"]}},
     distclass=BinaryDistribution,
     cmdclass={{"bdist_wheel": NativeBdistWheel}},
     zip_safe=False,
 )
 """
-    (project_dir / "setup.py").write_text(textwrap.dedent(setup_content).lstrip(), encoding="utf-8")
+    (project_dir / "setup.py").write_text(
+        textwrap.dedent(setup_content).lstrip(), encoding="utf-8"
+    )
 
 
-def _run_bdist_wheel(project_dir: Path, output_dir: Path, python_tag: str, wheel_platform: str) -> None:
+def _run_bdist_wheel(
+    project_dir: Path, output_dir: Path, python_tag: str, wheel_platform: str
+) -> None:
     env = os.environ.copy()
-    env["GE_PY_PASS_WHEEL_PYTHON_TAG"] = python_tag
+    env["GE_PY_NATIVE_WHEEL_PYTHON_TAG"] = python_tag
     command = [
         sys.executable,
         "setup.py",
         "bdist_wheel",
-        "--python-tag",
-        python_tag,
         "--plat-name",
         wheel_platform,
+        "--python-tag",
+        python_tag,
         "--dist-dir",
         os.fspath(output_dir),
     ]
@@ -91,24 +114,36 @@ def _run_bdist_wheel(project_dir: Path, output_dir: Path, python_tag: str, wheel
 
 
 def build_wheel(args: argparse.Namespace) -> Path:
+    config = args.component_config
+    wheel_config = config["wheel"]
     artifact_dir = Path(args.artifact_dir).resolve()
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     artifact_set_name = f"{args.python_tag}-{args.platform_tag}"
-    project_dir = output_dir.parent / f"_build_{DIST_NAME}_{artifact_set_name}"
+    project_dir = (
+        output_dir.parent / f"_build_{wheel_config['dist_name']}_{artifact_set_name}"
+    )
     if project_dir.exists():
         shutil.rmtree(project_dir)
-    artifact_root = project_dir / "ge" / "passes" / "python_pass_artifacts" / artifact_set_name
+    artifact_root = (
+        project_dir
+        / wheel_config["package"].replace(".", "/")
+        / wheel_config["artifact_root"]
+        / artifact_set_name
+    )
     artifact_root.mkdir(parents=True, exist_ok=True)
     _copy_artifact_files(artifact_dir, artifact_root)
-    _write_setup_py(project_dir, args.version)
+    _write_setup_py(project_dir, args.version, config)
     try:
         _run_bdist_wheel(project_dir, output_dir, args.python_tag, args.wheel_platform)
     finally:
         shutil.rmtree(project_dir, ignore_errors=True)
 
-    wheel_name = f"{DIST_NAME}-{args.version}-{args.python_tag}-{args.python_tag}-{args.wheel_platform}.whl"
+    wheel_name = (
+        f"{wheel_config['dist_name']}-{args.version}-{args.python_tag}-"
+        f"{args.python_tag}-{args.wheel_platform}.whl"
+    )
     wheel_path = output_dir / wheel_name
     if not wheel_path.is_file():
         raise RuntimeError(f"Cannot find generated native wheel: {wheel_path}")
@@ -117,13 +152,16 @@ def build_wheel(args: argparse.Namespace) -> Path:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--component-config", type=Path, required=True)
     parser.add_argument("--artifact-dir", required=True)
     parser.add_argument("--python-tag", required=True)
     parser.add_argument("--platform-tag", required=True)
     parser.add_argument("--wheel-platform", required=True)
     parser.add_argument("--version", default="0.0.1")
     parser.add_argument("--output-dir", required=True)
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.component_config = _load_component_config(args.component_config.resolve())
+    return args
 
 
 def main() -> None:

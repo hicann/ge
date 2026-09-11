@@ -646,6 +646,92 @@ PythonCustomOpAdapter::DeclareLaunchArgs(ctx)
 - Python custom op 依赖运行环境中匹配版本的 `ge_py`、bridge/native SO 和 Python ABI。
 - `ASCEND_CUSTOM_OPP_PATH` 已是既有环境变量，新增 Python 文件/包识别不会影响没有 Python 入口的 C++ OPP 路径。
 
+### 8.1 Python 版本发布与 fallback 兼容策略
+
+Python custom-op 的版本发布目标与 Python pass 保持一致，采用“主 wheel + Python 版本 native 子 wheel + runtime fallback + pip 自动选择 + 多版本构建流水线”的模式。
+
+当前仓内已完成 runtime/custom-op fallback 的代码接入：主 wheel 会携带两类 fallback 资源，Python 侧 native loader 和 C++ custom-op bridge loader 均按“匹配的预编译 artifact 优先、未命中后按当前 Python runtime 生成并加载”的顺序执行。多版本 native wheel 的实际生成数量仍取决于构建环境中可用的 Python 解释器，需由 CI 矩阵产物进一步确认，不能仅凭单一环境的配置完成度判定全部版本已构建。
+
+#### 8.1.1 Python 版本矩阵
+
+正式支持的 Python tag 为：
+
+- `cp39`
+- `cp310`
+- `cp311`
+- `cp312`
+- `cp313`
+- `cp314`
+
+主 wheel 只包含纯 Python 代码，不能内置某个构建环境的默认 native artifact。每个 Python minor version 单独生成 native wheel，wheel tag 由标准 `bdist_wheel` 产生。构建矩阵沿用 Python pass 的实现策略：构建工具自动探测可用解释器，当前环境缺少某个版本时允许该版本跳过，其它可用版本继续生成；构建结果必须记录实际生成和跳过的 Python tag。
+
+构建工具统一使用 `python_pass_native_build/build_python_native_matrix.py` 和 `build_python_native_wheel.py`。CMake 为 pass/runtime/custom-op 分别生成 `--component-config`，将 target、源码、artifact、wheel 元数据、manifest ABI 字段和是否链接 Python 传入通用构建工具；Python 脚本不再维护三类组件的静态配置。三类 native wheel 共用构建流程，但仍独立构建和发布。
+
+#### 8.1.2 wheel 拆分和 runtime 归属
+
+建议的发布产物如下：
+
+```text
+ge_py-<version>-py3-none-any.whl
+ge_py_runtime_native-<version>-cpXY-<platform>.whl
+ge_py_pass_bridge-<version>-cpXY-<platform>.whl
+ge_py_custom_op_bridge-<version>-cpXY-<platform>.whl
+```
+
+其中：
+
+- `ge_py` 主 wheel 仅承载 Python API、registry、bootstrap、loader 和 fallback 资源。
+- `ge_py_runtime_native` 只承载 `_ge_runtime_native.so`，由 runtime 模块负责构建、版本选择、ABI 校验、缓存和 fallback codegen。
+- `ge_py_custom_op_bridge` 承载 `libge_python_custom_op_bridge.so` 和 `_ge_custom_op_native.so`，由 custom-op 模块负责构建和选择。
+- `ge_py_pass_bridge` 的内容和职责保持现有 Python pass 设计不变，但安装时与 runtime native wheel 共用同一个 Python 环境。
+
+runtime ABI 与 custom-op bridge ABI 独立维护，manifest 分别校验；二者不要求 ABI 数值一致，也不要求同批升级。custom-op bridge 与 `_ge_custom_op_native.so` 仍属于同一 custom-op artifact set，必须使用同一 Python tag、平台和兼容协议。
+
+run 包可以携带多个 Python tag 的 native wheel。安装脚本通过 `--find-links` 和包名交给 pip 选择当前解释器匹配的 wheel，不应把所有不兼容 wheel 的路径同时作为安装参数传入。卸载、升级和回滚需要同时覆盖 runtime、pass 和 custom-op 的 native wheel，但不能删除仍被其它模块使用的 runtime wheel。
+
+#### 8.1.3 artifact 目录
+
+预编译和 fallback 编译完成后的最终 artifact 目录继续按模块分开：
+
+```text
+ge/runtime/python_runtime_artifacts/<python_tag>-<platform>/
+ge/passes/python_pass_artifacts/<python_tag>-<platform>/
+ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/
+```
+
+目录下的 manifest 只描述本模块的 artifact set 和 ABI。runtime 与 custom-op 不共用最终 `.so` 目录，避免 selector、loader 和独立 ABI 之间产生隐式耦合。
+
+#### 8.1.4 fallback 责任和调用顺序
+
+fallback 仍遵循“预编译 artifact set 优先，未命中时运行时生成”的策略。模块职责如下：
+
+1. `ge.runtime._native` 负责查找或生成 `_ge_runtime_native.so`，并将产物写入 `ge/runtime/python_runtime_artifacts/<python_tag>-<platform>/`。
+2. `ge.custom_op._native` 或 custom-op bridge loader 在加载自身 native/bridge 前，调用 runtime 的内部 ensure 机制，确保 runtime native 已经可用。
+3. custom-op fallback 只生成 `libge_python_custom_op_bridge.so` 和 `_ge_custom_op_native.so`，写入 `ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/`，不复制 runtime 的源码和构建逻辑。
+4. runtime fallback 资源和 custom-op fallback 资源分别放在 `ge/runtime/fallback_codegen/` 与 `ge/custom_op/fallback_codegen/`；构建中间文件可以共用临时工作目录，但最终产物和 manifest 必须分别发布。
+
+Python 侧代码入口：custom-op 与 pass 的 C++ bridge loader 分别通过模块名 `ge.custom_op.fallback_runtime` 和 `ge.passes.fallback_runtime` 调用 `run_fallback_codegen()`；`ge.runtime.fallback_runtime` 为对称保留的模块级入口，供未来潜在的 C++ 调用方按名解析。公共的 fallback 编译引擎位于 `ge/_internal/fallback_runtime.py`，公共的加载决策（预置 artifact → fallback 逐级尝试、失败诊断）位于 `ge/_internal/native_loader.py`；均只接受通过 manifest 校验（Python tag、平台 tag、ABI）的 artifact。custom-op fallback 生成前显式确保 runtime native 已加载，避免重复维护 runtime 的构建逻辑。
+
+custom-op 对 runtime 的要求是依赖关系，不是所有权关系。若 runtime fallback 成功而 custom-op fallback 失败，runtime artifact 可以保留；custom-op loader 必须清理自身未完成的临时产物，并返回清晰错误。
+
+#### 8.1.5 运行时选择和兼容校验
+
+- Python 侧和 C++ 侧均以当前进程实际 Python runtime key 为版本选择依据，不使用外层 launcher Python 版本替代当前进程版本。
+- runtime、pass、custom-op 各自按 Python tag、平台和自身 ABI 选择 artifact。
+- bridge 加载后再次校验当前进程 Python 版本，发现不一致时直接失败，不能在同一进程中拉起另一套 CPython minor version。
+- 缺少匹配 native wheel 时，优先尝试对应模块自己的 fallback；fallback 不可用时，custom-op 只在确实存在 Python custom-op 入口时报告失败，不影响没有 Python custom-op 的 C++ 路径。
+
+#### 8.1.6 版本兼容测试要求
+
+至少需要在每个可用 Python tag 下验证：
+
+- 主 wheel、runtime native wheel、custom-op native wheel 的离线安装和 pip 自动选择；
+- `import ge.runtime`、`import ge.custom_op` 以及 native 类型加载；
+- Python custom-op 的 `execute`、`compile`、`infer_meta`、`declare_launch_args` 回调；
+- runtime 预编译/custom-op fallback、runtime fallback/custom-op 预编译的组合场景；
+- Python tag、平台、runtime ABI、custom-op ABI 不匹配时的错误和回滚；
+- 在线执行、离线 atc 编译、AnnotatedArgs 地址刷新和 RT2 动态 Shape 场景。
+
 ## 9. DT 设计
 
 ### 9.1 测试边界

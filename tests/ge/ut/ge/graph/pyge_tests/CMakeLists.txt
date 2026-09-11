@@ -62,6 +62,8 @@ add_custom_command(
         COMMAND ${HI_PYTHON} -m pip install --target ${PYGE_TEST_INSTALL_DIR}
                 ${CMAKE_BINARY_DIR}/api/python/ge/ge_py-0.0.1-py3-none-any.whl
                 ${GE_PYTHON_PASS_NATIVE_WHEEL}
+                ${GE_PYTHON_RUNTIME_NATIVE_WHEEL}
+                ${GE_PYTHON_CUSTOM_OP_NATIVE_WHEEL}
                 --force-reinstall
         COMMAND ${CMAKE_COMMAND}
                 -DINSTALL_DIR=${PYGE_TEST_INSTALL_DIR}
@@ -72,7 +74,8 @@ add_custom_command(
         COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:eager_style_graph_builder_base> ${PYGE_TEST_INSTALL_DIR}/ge/_capi/
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/tests/ge/ut/ge/graph/eager_style_graph_builder/graph_construction_test/output/lib64/libes_ut_test.so ${PYGE_TEST_INSTALL_DIR}/ge/_capi/
         COMMAND ${CMAKE_COMMAND} -E touch ${PYGE_TEST_INSTALL_DIR}/.installed
-        DEPENDS ge_python_main_wheel ge_python_native_wheel es_ut_test
+        DEPENDS ge_python_main_wheel ge_python_native_wheel
+                ge_python_runtime_native_wheel ge_python_custom_op_native_wheel es_ut_test
         COMMENT "Installing ge-py and es_ut_test packages for pyge_tests"
 )
 

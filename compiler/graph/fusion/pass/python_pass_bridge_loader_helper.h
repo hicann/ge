@@ -12,30 +12,12 @@
 #define GE_COMPILER_GRAPH_FUSION_PASS_PYTHON_PASS_BRIDGE_LOADER_HELPER_H_
 
 #include <cstdint>
-#include <string>
 
 #include "python_pass_bridge_c_api.h"
 
 namespace ge {
 namespace fusion {
 namespace python_pass_bridge_loader {
-
-inline std::string FirstLine(const std::string &content) {
-  const auto pos = content.find('\n');
-  return (pos == std::string::npos) ? content : content.substr(0U, pos);
-}
-
-inline std::string SecondLine(const std::string &content) {
-  const auto first_end = content.find('\n');
-  if (first_end == std::string::npos) {
-    return "";
-  }
-  const auto second_end = content.find('\n', first_end + 1U);
-  if (second_end == std::string::npos) {
-    return content.substr(first_end + 1U);
-  }
-  return content.substr(first_end + 1U, second_end - first_end - 1U);
-}
 
 inline bool IsBridgeApiValid(const PythonFusionPassBridgeApi *api, const uint32_t expected_abi) {
   return (api != nullptr) && (api->abi_version == expected_abi) && (api->set_artifact_config != nullptr) &&

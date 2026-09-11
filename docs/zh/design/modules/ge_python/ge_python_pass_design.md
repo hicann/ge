@@ -112,7 +112,7 @@ GE 在运行时自动发现已安装的 pass 插件包。
 - Python 与 C++ bridge 的协议层
 - 负责把 Python 注册表对象规范化为 C++ 可消费的数据结构
 
-- `ge.passes.runtime`
+- `ge.passes.fallback_runtime`
 - Python 侧 native artifact 运行时管理入口
 - 负责预制 artifact 选择、fallback codegen 触发和 `_ge_pass_native.so` 装载
 
@@ -1187,10 +1187,10 @@ V1 的设计原则是“把生命周期和并发复杂度收敛在 bridge 内部
 
 当前实现状态：
 
-- `build_python_pass_native_matrix.py` 内置支持版本集合 `cp39/cp310/cp311/cp312/cp313/cp314`；CMake 不再单独维护一份版本列表，`--tag` 仅用于手工调用指定构建版本
+- `build_python_native_matrix.py` 内置支持版本集合 `cp39/cp310/cp311/cp312/cp313/cp314`；CMake 为 pass/runtime/custom-op 分别生成组件配置并通过 `--component-config` 传入 target、源码、artifact、wheel 元数据、ABI 和 Python 链接策略，`--tag` 仅用于手工调用指定构建版本
 - `ge_python` 正式 target 产出主 wheel，并触发 `ge_python_pass_native_wheel_matrix` 尽力构建可用 Python minor 版本的 native 子 wheel
 - `ge_python_native_wheel` 是单版本开发 target，只输出当前 `HI_PYTHON` 对应的 artifact set 和 `ge_py_pass_bridge` native 子 wheel
-- 仓内在 `python_pass_native_build` 构建工具目录下提供 `build_python_pass_native_matrix.py` 与 `ge_python_pass_native_wheel_matrix` 目标，用于在 CI/本地环境中自动嗅探可用的 `python3.9` 到 `python3.14`；matrix 不重新配置整仓 CMake，而是复用父构建已生成的 compile/link 元数据，仅替换 Python include/lib 后重编 `libge_python_pass_bridge.so` 与 `_ge_pass_native.so`
+- 仓内在 `python_pass_native_build` 构建工具目录下提供通用的 `build_python_native_matrix.py`、`build_python_native_wheel.py` 与 `ge_python_pass_native_wheel_matrix` 目标；构建工具只读取 CMake 生成的 `--component-config`，用于在 CI/本地环境中自动嗅探可用的 `python3.9` 到 `python3.14`。matrix 不重新配置整仓 CMake，而是复用父构建已生成的 compile/link 元数据，仅替换 Python include/lib 后重编 `libge_python_pass_bridge.so` 与 `_ge_pass_native.so`
 - 解释器发现顺序为：显式传入的 `--python`、`PATH` 中的 `python3.9` 到 `python3.14`/`python3`/`python`、Conda 环境中的 `bin/python`；Conda 环境优先通过 `conda env list --json` 获取，失败时再扫描 `CONDA_PREFIX`/`CONDA_EXE` 推导出的 `envs` 目录以及常见 `~/miniconda3/envs`、`~/anaconda3/envs`、`~/.conda/envs`
 - matrix 构建依赖父构建先完成当前 `HI_PYTHON` 的 `ge_python_native_wheel`，并复用父构建的编译器、编译选项、include/link 元数据、已构建 GE 依赖库和 `CMAKE_CXX_COMPILER_LAUNCHER`；该流程不再重新进入 `cmake/package.cmake` 或重新计算 `BUILD_COMPONENT`
 - 主 wheel 只装配纯 Python 代码，不再内置当前构建 Python 的默认 native artifact set
@@ -1255,7 +1255,7 @@ ge/passes/python_pass_artifacts/<python_tag>-<platform>/_ge_pass_native.so
 2. loader 根据自身 `.so` 路径推导 `ge` 包目录，并扫描 `ge/passes/python_pass_artifacts` 下的 manifest。
 3. manifest 先做 JSON 结构和 artifact 文件存在性校验，再按 `python_tag`、`platform`、`bridge_abi` 过滤。
 4. 命中的 artifact set 优先进入候选列表。
-5. 若没有命中或候选加载失败，触发 runtime fallback codegen，调用 `ge.passes.runtime.run_fallback_codegen()`；若 fallback 产物仍不可用，loader 直接返回失败。
+5. 若没有命中或候选加载失败，触发 runtime fallback codegen，调用 `ge.passes.fallback_runtime.run_fallback_codegen()`；若 fallback 产物仍不可用，loader 直接返回失败。
 6. bridge `dlopen` 成功后，loader 再读取当前进程实际 Python runtime key，与加载前的目标 key 做一致性校验，避免同一进程中误拉起另一套 CPython minor version。
 
 `kPythonFusionPassBridgeAbiVersion` 只描述 loader 与 bridge C API 的协议版本，例如函数表字段、函数语义或调用时序出现不兼容变化时才需要滚动。项目未正式发布 Python pass bridge 前，完整功能开发期间该值保持 `1`，不因内部字段补齐或阶段性开发提交频繁变更。
@@ -1311,7 +1311,7 @@ V1 建议把 pybind 侧内容控制在“pass bridge 必需能力”范围，不
 - `ge.passes.base`
 - `ge.passes.registry`
 - `ge.passes.bootstrap`
-- `ge.passes.runtime`
+- `ge.passes.fallback_runtime`
 - `ge.passes._bridge`
 
 - `ge_compiler.so` 内部稳定核心
@@ -1357,7 +1357,7 @@ V1 建议把 pybind 侧内容控制在“pass bridge 必需能力”范围，不
 - wheel tag 对应 `cp39-cp314`
 - 采用标准 `bdist_wheel` 生成，避免手工拼装 wheel metadata / RECORD / tag
 
-主 wheel 中的 `ge.passes.runtime` 负责：
+主 wheel 中的 `ge.passes.fallback_runtime` 负责：
 
 1. 识别当前 Python 版本
 2. 解析并装载匹配的 bridge 产物元数据
@@ -1645,7 +1645,7 @@ GELib::Finalize()
 
 - 与 native companion 模块相关的选择逻辑
 - 不建议让用户直接指定某个 pybind bridge 源码或生成脚本
-- 更适合由 `ge.passes.runtime` 统一决定“预编译 / fallback”产物选择
+- 更适合由 `ge.passes.fallback_runtime` 统一决定“预编译 / fallback”产物选择
 
 后续 Python ATC 入口不应再设计第二套发现机制，而是直接复用：
 

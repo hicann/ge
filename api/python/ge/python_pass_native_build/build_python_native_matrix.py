@@ -10,7 +10,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-"""Build Python pass native wheels for all supported Python versions found in PATH or Conda envs."""
+"""Build native wheels for all supported Python versions found in PATH or Conda envs."""
 
 from __future__ import annotations
 
@@ -27,18 +27,31 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 SUPPORTED_TAGS = ("cp39", "cp310", "cp311", "cp312", "cp313", "cp314")
-BRIDGE_SOURCE = "compiler/graph/fusion/pass/python_pass_pybind_bridge.cc"
-NATIVE_SOURCES = (
-    "api/python/ge/ge/passes/native_bindings/module.cc",
-    "api/python/ge/ge/passes/native_bindings/pass_context_binding.cc",
-    "api/python/ge/ge/passes/native_bindings/pattern_binding.cc",
-    "api/python/ge/ge/passes/native_bindings/match_result_binding.cc",
-    "api/python/ge/ge/passes/native_bindings/infer_shape_binding.cc",
-    "api/python/ge/ge/passes/native_bindings/pattern_matcher_config_binding.cc",
-    "api/python/ge/ge/passes/native_bindings/graph_handle_binding.cc",
-    "api/python/ge/ge/passes/native_bindings/graph_rewriter_binding.cc",
-    "api/python/ge/ge/passes/native_bindings/graph_fuse_inspector_binding.cc",
-)
+
+
+_REQUIRED_NATIVE_KEYS = ("target", "target_dir", "sources", "artifact")
+
+
+def _check_section_keys(section: object, keys: Tuple[str, ...], label: str) -> None:
+    if not isinstance(section, dict) or not all(key in section for key in keys):
+        raise KeyError(f"missing required {label} fields")
+
+
+def _load_component_config(config_path: Path) -> Dict[str, object]:
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        if not isinstance(config.get("component"), str) or not isinstance(
+            config.get("link_python"), bool
+        ):
+            raise KeyError("missing component fields")
+        _check_section_keys(config["native"], _REQUIRED_NATIVE_KEYS, "native")
+        if config.get("bridge") is not None:
+            _check_section_keys(config["bridge"], _REQUIRED_NATIVE_KEYS, "bridge")
+    except (json.JSONDecodeError, KeyError, OSError, TypeError) as err:
+        raise RuntimeError(
+            f"Cannot load native wheel component config {config_path}: {err}"
+        ) from err
+    return config
 
 
 @dataclass
@@ -218,8 +231,7 @@ def _discover_pythons(
     return discovered
 
 
-def _query_python_build_info(tag: str, python: str) -> Optional[PythonBuildInfo]:
-    query = r"""
+_PYTHON_BUILD_INFO_QUERY = r"""
 import json
 import os
 import sys
@@ -268,11 +280,13 @@ print(json.dumps({
     "executable": sys.executable,
 }))
 """
-    completed = _run([python, "-c", textwrap.dedent(query)])
-    if completed.returncode != 0:
-        return None
+
+
+def _python_build_info_from_output(
+    tag: str, python: str, output: str
+) -> Optional[PythonBuildInfo]:
     try:
-        info = json.loads(completed.stdout)
+        info = json.loads(output)
     except json.JSONDecodeError:
         return None
     include_dir = Path(info.get("include", ""))
@@ -295,6 +309,13 @@ print(json.dumps({
         library=library,
         pybind_include=pybind_include,
     )
+
+
+def _query_python_build_info(tag: str, python: str) -> Optional[PythonBuildInfo]:
+    completed = _run([python, "-c", textwrap.dedent(_PYTHON_BUILD_INFO_QUERY)])
+    if completed.returncode != 0:
+        return None
+    return _python_build_info_from_output(tag, python, completed.stdout)
 
 
 def _read_make_variable(path: Path, name: str) -> List[str]:
@@ -641,124 +662,178 @@ def _link_shared(
     )
 
 
+def _component(args: argparse.Namespace) -> Dict[str, object]:
+    return args.component_config
+
+
+def _source_paths(source_dir: Path, sources: Sequence[str]) -> List[Path]:
+    return [
+        Path(source) if Path(source).is_absolute() else source_dir / source
+        for source in sources
+    ]
+
+
 def _write_manifest(
-    artifact_dir: Path, python_info: PythonBuildInfo, platform_tag: str, bridge_abi: int
+    artifact_dir: Path,
+    python_info: PythonBuildInfo,
+    platform_tag: str,
+    config: Dict[str, object],
 ) -> None:
+    abi_config = config["abi"]
+    native_config = config["native"]
+    bridge_config = config.get("bridge")
     manifest = {
         "python_tag": python_info.tag,
         "python_version": python_info.version,
         "platform": platform_tag,
-        "bridge_abi": bridge_abi,
+        abi_config["key"]: abi_config["value"],
         "build_python": {
             "executable": python_info.executable,
             "version": python_info.version,
             "include": os.fspath(python_info.include_dir),
             "libpython": _format_optional_path(python_info.library),
             "pybind11_include": _format_optional_path(python_info.pybind_include),
-            "link_python": True,
+            "link_python": config["link_python"],
         },
-        "artifacts": {
-            "bridge": "libge_python_pass_bridge.so",
-            "native": "_ge_pass_native.so",
-        },
+        "artifacts": {"native": native_config["artifact"]},
     }
+    if bridge_config is not None:
+        manifest["artifacts"]["bridge"] = bridge_config["artifact"]
     (artifact_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )
 
 
-def _log_python_build_info(python_info: PythonBuildInfo) -> None:
+def _log_python_build_info(
+    component: str, config: Dict[str, object], python_info: PythonBuildInfo
+) -> None:
+    link_python = "yes" if config["link_python"] else "no"
+    libpython = (
+        _format_optional_path(python_info.library)
+        if config["link_python"]
+        else "not-used"
+    )
     print(
-        f"Build {python_info.tag} native artifacts with python[{python_info.executable}], "
+        f"Build {component} {python_info.tag} native artifacts with python[{python_info.executable}], "
         f"version[{python_info.version}], include[{python_info.include_dir}], "
-        f"libpython[{_format_optional_path(python_info.library)}], "
-        f"pybind11[{_format_optional_path(python_info.pybind_include)}], link_python[yes], rpath_python[no]"
+        f"libpython[{libpython}], "
+        f"pybind11[{_format_optional_path(python_info.pybind_include)}], "
+        f"link_python[{link_python}], rpath_python[no]"
     )
 
 
-def _strip_optional_werror(
-    tag: str, bridge_target: TargetBuildInfo, native_target: TargetBuildInfo
-) -> Tuple[TargetBuildInfo, TargetBuildInfo]:
-    bridge_target, removed_bridge_flags = _without_werror(bridge_target)
-    native_target, removed_native_flags = _without_werror(native_target)
-    removed_flags = removed_bridge_flags + removed_native_flags
-    print(
-        f"Build optional {tag} native artifacts without Werror: stripped_flags[{_format_list(removed_flags)}]"
+def _load_component_targets(
+    args: argparse.Namespace,
+    config: Dict[str, object],
+    python_info: PythonBuildInfo,
+    is_current_tag: bool,
+) -> Optional[Tuple[Optional[TargetBuildInfo], TargetBuildInfo]]:
+    native_config = config["native"]
+    bridge_config = config.get("bridge")
+    native_target = _load_target_build_info(
+        args.build_dir, native_config["target_dir"], native_config["target"]
     )
+    bridge_target = None
+    if bridge_config is not None:
+        bridge_target = _load_target_build_info(
+            args.build_dir, bridge_config["target_dir"], bridge_config["target"]
+        )
+    if not is_current_tag:
+        native_target, removed_native_flags = _without_werror(native_target)
+        removed_flags = removed_native_flags
+        if bridge_target is not None:
+            bridge_target, removed_bridge_flags = _without_werror(bridge_target)
+            removed_flags = removed_bridge_flags + removed_flags
+        print(
+            f"Build optional {args.component} {python_info.tag} native artifacts without Werror: "
+            f"stripped_flags[{_format_list(removed_flags)}]"
+        )
     return bridge_target, native_target
+
+
+@dataclass(frozen=True)
+class _TargetBuildRequest:
+    target: TargetBuildInfo
+    sources: Sequence[str]
+    obj_dir: Path
+    output: Path
+
+
+def _compile_and_link_target(
+    args: argparse.Namespace,
+    request: _TargetBuildRequest,
+    python_info: PythonBuildInfo,
+) -> None:
+    objects = _compile_sources(
+        args,
+        request.target,
+        _source_paths(args.source_dir, request.sources),
+        request.obj_dir,
+        python_info,
+    )
+    _link_shared(args, request.target, request.output, objects, python_info)
 
 
 def _build_native_artifacts(
     args: argparse.Namespace, python_info: PythonBuildInfo, is_current_tag: bool
 ) -> Optional[Path]:
+    config = _component(args)
     tag_work_dir = args.work_dir / python_info.tag
     if args.fresh and tag_work_dir.exists():
         shutil.rmtree(tag_work_dir)
     artifact_dir = tag_work_dir / "artifact"
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    bridge_target = _load_target_build_info(
-        args.build_dir, "compiler", "ge_python_pass_bridge"
+    native_config = config["native"]
+    bridge_config = config.get("bridge")
+    bridge_target, native_target = _load_component_targets(
+        args, config, python_info, is_current_tag
     )
-    native_target = _load_target_build_info(
-        args.build_dir, "api/python/ge/ge/passes", "_ge_pass_native"
-    )
-    if not is_current_tag:
-        bridge_target, native_target = _strip_optional_werror(
-            python_info.tag, bridge_target, native_target
-        )
     header_ok, header_error = _can_compile_python_header(
-        args, bridge_target, tag_work_dir / "header_probe", python_info
+        args, bridge_target or native_target, tag_work_dir / "header_probe", python_info
     )
     if not header_ok:
         print(
-            f"Skip {python_info.tag}: Python development headers are not usable for {python_info.executable}:\n"
+            f"Skip {args.component} {python_info.tag}: Python development headers are not usable for "
+            f"{python_info.executable}:\n"
             f"{header_error}",
             file=sys.stderr,
         )
         return None
 
-    def _compile_and_link() -> None:
-        bridge_objects = _compile_sources(
+    if bridge_target is not None:
+        _compile_and_link_target(
             args,
-            bridge_target,
-            [args.source_dir / BRIDGE_SOURCE],
-            tag_work_dir / "bridge_obj",
-            python_info,
-        )
-        native_sources = [args.source_dir / source for source in NATIVE_SOURCES]
-        native_objects = _compile_sources(
-            args,
-            native_target,
-            native_sources,
-            tag_work_dir / "native_obj",
-            python_info,
-        )
-        _link_shared(
-            args,
-            bridge_target,
-            artifact_dir / "libge_python_pass_bridge.so",
-            bridge_objects,
-            python_info,
-        )
-        _link_shared(
-            args,
-            native_target,
-            artifact_dir / "_ge_pass_native.so",
-            native_objects,
+            _TargetBuildRequest(
+                target=bridge_target,
+                sources=bridge_config["sources"],
+                obj_dir=tag_work_dir / "bridge_obj",
+                output=artifact_dir / bridge_config["artifact"],
+            ),
             python_info,
         )
 
-    _compile_and_link()
-    _write_manifest(artifact_dir, python_info, args.platform_tag, args.bridge_abi)
+    _compile_and_link_target(
+        args,
+        _TargetBuildRequest(
+            target=native_target,
+            sources=native_config["sources"],
+            obj_dir=tag_work_dir / "native_obj",
+            output=artifact_dir / native_config["artifact"],
+        ),
+        python_info,
+    )
+    _write_manifest(artifact_dir, python_info, args.platform_tag, config)
     return artifact_dir
 
 
 def _build_wheel(args: argparse.Namespace, tag: str, artifact_dir: Path) -> Path:
-    script = Path(__file__).resolve().with_name("build_python_pass_native_wheel.py")
+    script = Path(__file__).resolve().with_name("build_python_native_wheel.py")
     command = [
         sys.executable,
         os.fspath(script),
+        "--component-config",
+        os.fspath(args.component_config_path),
         "--artifact-dir",
         os.fspath(artifact_dir),
         "--python-tag",
@@ -773,7 +848,11 @@ def _build_wheel(args: argparse.Namespace, tag: str, artifact_dir: Path) -> Path
     completed = _run(command)
     if completed.returncode != 0:
         raise RuntimeError(f"Build native wheel failed for {tag}:\n{completed.stdout}")
-    wheels = sorted(args.dist_dir.glob(f"ge_py_pass_bridge-*-{tag}-{tag}-*.whl"))
+    wheels = sorted(
+        args.dist_dir.glob(
+            f"{_component(args)['wheel']['dist_name']}-*-{tag}-{tag}-*.whl"
+        )
+    )
     if not wheels:
         raise RuntimeError(f"No native wheel generated for {tag} under {args.dist_dir}")
     return wheels[-1]
@@ -796,35 +875,33 @@ def _build_one(
     args: argparse.Namespace, tag: str, python: str, is_current_tag: bool
 ) -> List[Path]:
     if args.dry_run:
-        print(f"{tag}: {python} -> {args.work_dir / tag}")
+        print(f"{args.component} {tag}: {python} -> {args.work_dir / tag}")
         return []
+    copied = _copy_current_wheel(args, tag)
+    if copied is not None:
+        print(f"Reuse current {args.component} native wheel for {tag}: wheel[{copied}]")
+        return [copied]
     python_info = _query_python_build_info(tag, python)
     if python_info is None:
         print(
-            f"Skip {tag}: cannot resolve Python development include for {python}",
+            f"Skip {args.component} {tag}: cannot resolve Python development include for {python}",
             file=sys.stderr,
         )
         return []
-    if python_info.library is None:
+    if _component(args)["link_python"] and python_info.library is None:
         print(
-            f"Skip {tag}: cannot resolve libpython for {python_info.executable}",
+            f"Skip {args.component} {tag}: cannot resolve libpython for {python_info.executable}",
             file=sys.stderr,
         )
         return []
     if python_info.pybind_include is None:
         print(
-            f"Skip {tag}: cannot resolve pybind11 include for {python_info.executable}. "
+            f"Skip {args.component} {tag}: cannot resolve pybind11 include for {python_info.executable}. "
             f"Please install pybind11 for this Python.",
             file=sys.stderr,
         )
         return []
-    _log_python_build_info(python_info)
-    copied = _copy_current_wheel(args, tag)
-    if copied is not None:
-        print(
-            f"Reuse current native wheel for {tag}: wheel[{copied}], link_result[parent ge_python_native_wheel]"
-        )
-        return [copied]
+    _log_python_build_info(args.component, _component(args), python_info)
     artifact_dir = _build_native_artifacts(args, python_info, is_current_tag)
     if artifact_dir is None:
         return []
@@ -833,6 +910,7 @@ def _build_one(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--component-config", type=Path, required=True)
     parser.add_argument("--source-dir", type=Path, default=_repo_root())
     parser.add_argument(
         "--build-dir",
@@ -857,7 +935,6 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--platform-tag", required=True)
     parser.add_argument("--wheel-platform", required=True)
-    parser.add_argument("--bridge-abi", type=int, required=True)
     parser.add_argument("--current-tag", default="")
     parser.add_argument("--current-wheel", type=Path, default=None)
     parser.add_argument("--cxx-compiler", default=os.environ.get("CXX", "c++"))
@@ -865,10 +942,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fresh", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    args.component_config_path = args.component_config.resolve()
+    args.component_config = _load_component_config(args.component_config_path)
+    args.component = args.component_config["component"]
     args.source_dir = args.source_dir.resolve()
     args.build_dir = args.build_dir.resolve()
     args.work_dir = (
-        args.work_dir or (args.build_dir / "python_pass_native_matrix_build")
+        args.work_dir
+        or (args.build_dir / f"python_{args.component}_native_matrix_build")
     ).resolve()
     args.dist_dir = (args.dist_dir or (args.work_dir / "dist")).resolve()
     args.current_wheel = (
@@ -882,13 +963,14 @@ def main() -> None:
     pythons = _discover_pythons(args.python, args.tag)
     if not pythons:
         raise RuntimeError(
-            "No supported Python interpreter found for native wheel matrix"
+            f"No supported Python interpreter found for {args.component} native wheel matrix"
         )
     if not args.dry_run:
         args.dist_dir.mkdir(parents=True, exist_ok=True)
-        for wheel in args.dist_dir.glob("ge_py_pass_bridge-*.whl"):
+        dist_name = _component(args)["wheel"]["dist_name"]
+        for wheel in args.dist_dir.glob(f"{dist_name}-*.whl"):
             wheel.unlink()
-        for build_dir in args.dist_dir.glob("_build_ge_py_pass_bridge_*"):
+        for build_dir in args.dist_dir.parent.glob(f"_build_{dist_name}_*"):
             if build_dir.is_dir():
                 shutil.rmtree(build_dir)
     built_wheels: List[Path] = []
@@ -904,7 +986,7 @@ def main() -> None:
             if is_current_tag:
                 raise
             print(
-                f"Skip optional {tag}: native wheel build failed for {python}:\n{err}",
+                f"Skip optional {args.component} {tag}: native wheel build failed for {python}:\n{err}",
                 file=sys.stderr,
             )
             continue
@@ -914,7 +996,7 @@ def main() -> None:
     for wheel in built_wheels:
         print(os.fspath(wheel))
     print(
-        f"GE python pass native wheel matrix built {len(built_tags)} tag(s): {', '.join(built_tags)}"
+        f"GE python {args.component} native wheel matrix built {len(built_tags)} tag(s): {', '.join(built_tags)}"
     )
 
 

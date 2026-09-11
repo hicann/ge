@@ -509,7 +509,7 @@ GeApi.ge_finalize()
 ├── replacement.py   # replacement graph build helper interface
 ├── registry.py      # Pass registry and decorator
 ├── bootstrap.py     # Plugin discovery and loading
-├── runtime.py       # Runtime artifact loading and fallback codegen
+├── fallback_runtime.py # Component fallback entry: compiles so on site when no matching prebuilt artifact exists
 └── _bridge.py       # Bridge runtime helper (Pass instance management, for C++ bridge .so callback)
 ```
 
@@ -811,6 +811,7 @@ custom_op/
 ├── _bridge.py               # Bridge runtime helper (instance management, for C++ bridge .so callbacks)
 ├── _native.py               # Native module loading and re-export
 ├── _artifact_utils.py       # Runtime artifact selection helper
+├── fallback_runtime.py      # Component fallback entry: compiles so on site when no matching prebuilt artifact exists
 ├── _ge_custom_op_native.pyi # Native module type stub
 └── native_bindings/         # pybind11 binding implementation for _ge_custom_op_native.so
 ```
@@ -832,7 +833,7 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/_ge_custom_op_na
 ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_custom_op_bridge.so
 ```
 
-At runtime, the matching artifact is selected based on the loaded Python interpreter version, platform tag, and bridge ABI in the current process. The current Python custom op native/bridge is related to the Python ABI at build time. The build and runtime must use compatible Python minor versions.
+At runtime, the matching artifact is selected based on the loaded Python interpreter version, platform tag, and bridge ABI in the current process. The official release provides independent native sub-wheels for `cp39`, `cp310`, `cp311`, `cp312`, `cp313`, and `cp314`; the main `ge_py` wheel contains only pure Python code. The `ge.runtime` runtime native is carried by the independent runtime wheel and selected by `native_abi`; the custom-op wheel carries only the custom-op bridge/native, and the two ABIs are maintained independently. The loading decisions of the three components (prebuilt artifact -> fallback attempts in order, aggregated failure diagnostics) are unified in `ge/_internal/native_loader.py`, and the in-process/subprocess Python fallback execution of the C++ pass/custom-op bridges is provided by `base/common/python_runtime/python_fallback_codegen_helper.h`; all of them accept only artifacts validated by the manifest (Python tag, platform tag, ABI). When no prebuilt artifact matches, the runtime first performs its own fallback, and the custom op then generates its own artifact set on demand.
 
 #### Detailed Class Descriptions
 

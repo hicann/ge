@@ -156,16 +156,17 @@ ge_compiler_get_python_info() {
     fi
 }
 
-ge_compiler_list_bridge_python_tags() {
+ge_compiler_list_native_python_tags() {
     local _wheel_dir="$1"
+    local _prefix="$2"
     local _tags=""
     local _wheel
     local _base
     local _tag
-    for _wheel in "${_wheel_dir}"/ge_py_pass_bridge-*.whl; do
+    for _wheel in "${_wheel_dir}"/${_prefix}-*.whl; do
         [ -f "${_wheel}" ] || continue
         _base=$(basename "${_wheel}")
-        _tag=$(echo "${_base}" | sed -n 's/^ge_py_pass_bridge-[^-]*-\(cp[0-9][0-9]*\)-\1-.*/\1/p')
+        _tag=$(echo "${_base}" | sed -n "s/^${_prefix}-[^-]*-\\(cp[0-9][0-9]*\\)-\\1-.*/\\1/p")
         if [ -n "${_tag}" ]; then
             case " ${_tags} " in
                 *" ${_tag} "*) ;;
@@ -180,12 +181,13 @@ ge_compiler_list_bridge_python_tags() {
     fi
 }
 
-ge_compiler_find_bridge_wheel() {
+ge_compiler_find_native_wheel() {
     local _wheel_dir="$1"
-    local _python_tag="$2"
+    local _prefix="$2"
+    local _python_tag="$3"
     local _wheel
     [ -n "${_python_tag}" ] || return 1
-    for _wheel in "${_wheel_dir}"/ge_py_pass_bridge-*-"${_python_tag}"-"${_python_tag}"-*.whl; do
+    for _wheel in "${_wheel_dir}"/${_prefix}-*-"${_python_tag}"-"${_python_tag}"-*.whl; do
         if [ -f "${_wheel}" ]; then
             echo "${_wheel}"
             return 0
@@ -194,66 +196,82 @@ ge_compiler_find_bridge_wheel() {
     return 1
 }
 
-ge_compiler_clean_python_pass_artifacts() {
+ge_compiler_clean_python_artifacts() {
     local _pythonlocalpath="$1"
+    local _artifact_root
     if [ "$pylocal" != "y" ] || [ -z "${_pythonlocalpath}" ]; then
         return 0
     fi
-    chmod u+w "${_pythonlocalpath}/ge/passes" 2> /dev/null
-    chmod u+w -R "${_pythonlocalpath}/ge/passes/python_pass_artifacts" 2> /dev/null
-    rm -fr "${_pythonlocalpath}/ge/passes/python_pass_artifacts" 2> /dev/null
+    for _artifact_root in \
+        "${_pythonlocalpath}/ge/passes/python_pass_artifacts" \
+        "${_pythonlocalpath}/ge/runtime/python_runtime_artifacts" \
+        "${_pythonlocalpath}/ge/custom_op/python_custom_op_artifacts"; do
+        chmod u+w "$(dirname "${_artifact_root}")" 2> /dev/null
+        chmod u+w -R "${_artifact_root}" 2> /dev/null
+        rm -fr "${_artifact_root}" 2> /dev/null
+    done
 }
 
-ge_compiler_python_pass_artifacts_complete() {
-    local _pythonlocalpath="$1"
-    local _artifact_root="${_pythonlocalpath}/ge/passes/python_pass_artifacts"
+ge_compiler_python_native_artifacts_complete() {
+    local _artifact_root="$1"
     local _artifact_dir
+    local _artifact_file
+    local _artifacts_complete
     [ -d "${_artifact_root}" ] || return 1
+    shift
     for _artifact_dir in "${_artifact_root}"/*; do
-        if [ -d "${_artifact_dir}" ] &&
-            [ -f "${_artifact_dir}/manifest.json" ] &&
-            [ -f "${_artifact_dir}/libge_python_pass_bridge.so" ] &&
-            [ -f "${_artifact_dir}/_ge_pass_native.so" ]; then
+        [ -d "${_artifact_dir}" ] && [ -f "${_artifact_dir}/manifest.json" ] || continue
+        _artifacts_complete="y"
+        for _artifact_file in "$@"; do
+            if [ ! -f "${_artifact_dir}/${_artifact_file}" ]; then
+                _artifacts_complete="n"
+                break
+            fi
+        done
+        if [ "${_artifacts_complete}" = "y" ]; then
             return 0
         fi
     done
     return 1
 }
 
-ge_compiler_extract_bridge_wheel() {
-    local _bridge_wheel="$1"
+ge_compiler_extract_native_wheel() {
+    local _native_wheel="$1"
     local _target_dir="$2"
     if command -v python3 >/dev/null 2>&1; then
-        python3 -m zipfile -e "${_bridge_wheel}" "${_target_dir}" 2> /dev/null && return 0
+        python3 -m zipfile -e "${_native_wheel}" "${_target_dir}" 2> /dev/null && return 0
     fi
     if command -v unzip >/dev/null 2>&1; then
-        unzip -oq "${_bridge_wheel}" -d "${_target_dir}" 2> /dev/null
+        unzip -oq "${_native_wheel}" -d "${_target_dir}" 2> /dev/null
         return $?
     fi
     return 1
 }
 
-ge_compiler_fix_python_pass_artifacts() {
+ge_compiler_fix_python_native_artifacts() {
     local _pythonlocalpath="$1"
-    local _bridge_wheel="$2"
+    local _native_wheel="$2"
+    local _component="$3"
+    local _artifact_root="$4"
+    shift 4
     if [ "$pylocal" != "y" ] || [ -z "${_pythonlocalpath}" ] || [ ! -d "${_pythonlocalpath}" ] ||
-        [ -z "${_bridge_wheel}" ] || [ ! -f "${_bridge_wheel}" ]; then
+        [ -z "${_native_wheel}" ] || [ ! -f "${_native_wheel}" ]; then
         return 0
     fi
-    if ge_compiler_python_pass_artifacts_complete "${_pythonlocalpath}"; then
+    if ge_compiler_python_native_artifacts_complete "${_pythonlocalpath}/${_artifact_root}" "$@"; then
         return 0
     fi
 
-    log "INFO" "python pass native artifacts are incomplete, extract ${_bridge_wheel} to fix."
-    if ! ge_compiler_extract_bridge_wheel "${_bridge_wheel}" "${_pythonlocalpath}"; then
-        log "WARNING" "extract ${_bridge_wheel} failed."
+    log "INFO" "python ${_component} native artifacts are incomplete, extract ${_native_wheel} to fix."
+    if ! ge_compiler_extract_native_wheel "${_native_wheel}" "${_pythonlocalpath}"; then
+        log "WARNING" "extract ${_native_wheel} failed."
         return 1
     fi
-    if ! ge_compiler_python_pass_artifacts_complete "${_pythonlocalpath}"; then
-        log "WARNING" "fix python pass native artifacts failed."
+    if ! ge_compiler_python_native_artifacts_complete "${_pythonlocalpath}/${_artifact_root}" "$@"; then
+        log "WARNING" "fix python ${_component} native artifacts failed."
         return 1
     fi
-    log "INFO" "python pass native artifacts fixed successfully."
+    log "INFO" "python ${_component} native artifacts fixed successfully."
     return 0
 }
 
@@ -261,11 +279,15 @@ ge_compiler_install_ge_package() {
     local _ge_package="$1"
     local _wheel_dir="$2"
     local _pythonlocalpath="$3"
-    local _bridge_requirement="ge-py-pass-bridge==0.0.1"
     local _python_tag
-    local _available_bridge_tags
+    local _available_pass_tags
+    local _available_runtime_tags
+    local _available_custom_op_tags
     local _bridge_wheel
-    log "INFO" "install python module packages in ${_ge_package} and ${_bridge_requirement}"
+    local _runtime_wheel
+    local _custom_op_wheel
+    local _native_wheels=()
+    log "INFO" "install Python main wheel and matching native wheels in ${_ge_package}"
     if ! ge_compiler_has_python_installer; then
         log "ERROR" "install ${_ge_package} failed, python3 -m pip or pip3 is not installed."
         exit 1
@@ -274,48 +296,69 @@ ge_compiler_install_ge_package() {
         log "ERROR" "ERR_NO:0x0080;ERR_DES:install ${_ge_package} failed, can not find the matched package for this platform."
         exit 1
     fi
-    ge_compiler_clean_python_pass_artifacts "${_pythonlocalpath}"
+    ge_compiler_clean_python_artifacts "${_pythonlocalpath}"
     _python_tag=$(ge_compiler_get_python_tag)
-    _available_bridge_tags=$(ge_compiler_list_bridge_python_tags "${_wheel_dir}")
-    log "INFO" "python package installer: $(ge_compiler_get_python_info); expected native tag: ${_python_tag:-unknown}; available native wheel tags: ${_available_bridge_tags}."
-    if ! ls "${_wheel_dir}"/ge_py_pass_bridge-*.whl >/dev/null 2>&1; then
-        log "WARNING" "can not find native wheel packages in ${_wheel_dir}, install ${_ge_package} only."
-        ge_compiler_install_package "${_ge_package}" "${_pythonlocalpath}"
-        return 0
-    fi
+    _available_pass_tags=$(ge_compiler_list_native_python_tags "${_wheel_dir}" "ge_py_pass_bridge")
+    _available_runtime_tags=$(ge_compiler_list_native_python_tags "${_wheel_dir}" "ge_py_runtime_native")
+    _available_custom_op_tags=$(ge_compiler_list_native_python_tags "${_wheel_dir}" "ge_py_custom_op_bridge")
+    log "INFO" "python package installer: $(ge_compiler_get_python_info); expected native tag: ${_python_tag:-unknown}; available native wheel tags: pass[${_available_pass_tags}], runtime[${_available_runtime_tags}], custom_op[${_available_custom_op_tags}]."
     if [ -z "${_python_tag}" ]; then
-        log "WARNING" "can not detect python tag, install ${_ge_package} only. Available native wheel tags: ${_available_bridge_tags}."
+        log "WARNING" "can not detect python tag, install ${_ge_package} only."
         ge_compiler_install_package "${_ge_package}" "${_pythonlocalpath}"
         return 0
     fi
-    _bridge_wheel=$(ge_compiler_find_bridge_wheel "${_wheel_dir}" "${_python_tag}")
-    if [ -z "${_bridge_wheel}" ]; then
-        log "WARNING" "can not find native wheel package for ${_python_tag} in ${_wheel_dir}. Available native wheel tags: ${_available_bridge_tags}. Install ${_ge_package} only."
+    _bridge_wheel=$(ge_compiler_find_native_wheel "${_wheel_dir}" "ge_py_pass_bridge" "${_python_tag}" || true)
+    _runtime_wheel=$(ge_compiler_find_native_wheel "${_wheel_dir}" "ge_py_runtime_native" "${_python_tag}" || true)
+    _custom_op_wheel=$(ge_compiler_find_native_wheel "${_wheel_dir}" "ge_py_custom_op_bridge" "${_python_tag}" || true)
+    if [ -n "${_bridge_wheel}" ]; then
+        _native_wheels+=("${_bridge_wheel}")
+    else
+        log "WARNING" "can not find matching pass native wheel for ${_python_tag}; use Python fallback."
+    fi
+    if [ -n "${_runtime_wheel}" ]; then
+        _native_wheels+=("${_runtime_wheel}")
+    else
+        log "WARNING" "can not find matching runtime native wheel for ${_python_tag}; use Python fallback."
+    fi
+    if [ -n "${_custom_op_wheel}" ]; then
+        _native_wheels+=("${_custom_op_wheel}")
+    else
+        log "WARNING" "can not find matching custom-op native wheel for ${_python_tag}; use Python fallback."
+    fi
+    if [ ${#_native_wheels[@]} -eq 0 ]; then
+        log "WARNING" "can not find any matching native wheel for ${_python_tag} in ${_wheel_dir}. Install ${_ge_package} only."
         ge_compiler_install_package "${_ge_package}" "${_pythonlocalpath}"
         return 0
     fi
 
+    log "INFO" "selected native wheels: pass[${_bridge_wheel:-none}], runtime[${_runtime_wheel:-none}], custom_op[${_custom_op_wheel:-none}]"
+
     if [ "$pylocal" = "y" ]; then
         ge_compiler_run_pip install --disable-pip-version-check --upgrade --no-index --no-deps \
-            --force-reinstall "${_ge_package}" "${_bridge_wheel}" -t "${_pythonlocalpath}" 1> /dev/null
+            --force-reinstall "${_ge_package}" "${_native_wheels[@]}" -t "${_pythonlocalpath}" 1> /dev/null
     else
         if [ $(id -u) -ne 0 ]; then
             ge_compiler_run_pip install --disable-pip-version-check --upgrade --no-index --no-deps \
-                --force-reinstall "${_ge_package}" "${_bridge_wheel}" --user 1> /dev/null
+                --force-reinstall "${_ge_package}" "${_native_wheels[@]}" --user 1> /dev/null
         else
             ge_compiler_run_pip install --disable-pip-version-check --upgrade --no-index --no-deps \
-                --force-reinstall "${_ge_package}" "${_bridge_wheel}" 1> /dev/null
+                --force-reinstall "${_ge_package}" "${_native_wheels[@]}" 1> /dev/null
         fi
     fi
     local ret=$?
     if [ $ret -ne 0 ]; then
-        log "WARNING" "install ${_bridge_requirement} failed, error code: $ret. Install ${_ge_package} only."
+        log "WARNING" "install native Python wheels failed, error code: $ret. Install ${_ge_package} only."
         ge_compiler_install_package "${_ge_package}" "${_pythonlocalpath}"
         return 0
     else
-        log "INFO" "install ${_ge_package} and ${_bridge_requirement} successfully!"
+        log "INFO" "install ${_ge_package} and selected native Python wheels successfully!"
     fi
-    ge_compiler_fix_python_pass_artifacts "${_pythonlocalpath}" "${_bridge_wheel}"
+    ge_compiler_fix_python_native_artifacts "${_pythonlocalpath}" "${_bridge_wheel}" "pass" \
+        "ge/passes/python_pass_artifacts" "libge_python_pass_bridge.so" "_ge_pass_native.so"
+    ge_compiler_fix_python_native_artifacts "${_pythonlocalpath}" "${_runtime_wheel}" "runtime" \
+        "ge/runtime/python_runtime_artifacts" "_ge_runtime_native.so"
+    ge_compiler_fix_python_native_artifacts "${_pythonlocalpath}" "${_custom_op_wheel}" "custom-op" \
+        "ge/custom_op/python_custom_op_artifacts" "libge_python_custom_op_bridge.so" "_ge_custom_op_native.so"
 }
 
 WHL_INSTALL_DIR_PATH="${common_parse_dir}/python/site-packages"
