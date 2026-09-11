@@ -247,7 +247,36 @@ FunctionDef *KernelExTaskCodeBuilder::RenderAssembleTfAicpuArgs() const {
        ast_.Return("ACL_SUCCESS")});
 }
 
+BodyItem KernelExTaskCodeBuilder::RenderAssembleTfAicpuExTaskInfo(const VarRef &task_info) const {
+  return ChkStatus(ast_.Call("AssembleOm2TaskInfo", {task_info.Addr(),
+                                                     ast_.Str("TfSessionTask"),
+                                                     ast_.Str("TfSessionTask"),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     Arg(nullptr),
+                                                     ast_.UInt(0U),
+                                                     Arg(nullptr),
+                                                     ast_.UInt(0U),
+                                                     Arg(nullptr),
+                                                     Arg(nullptr),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     Arg(nullptr),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     Arg(nullptr),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U)}));
+}
+
 FunctionDef *KernelExTaskCodeBuilder::RenderAssembleTfAicpuExSessionIdInfo() const {
+  auto ctx = ast_.Var("const DispatchOpContext &", "ctx");
   auto session_id = ast_.Var("uint64_t *", "session_id");
   auto op_kernel_size = ast_.Var("size_t", "op_kernel_size");
   auto func_handle = ast_.Var("aclrtFuncHandle", "func_handle");
@@ -265,7 +294,8 @@ FunctionDef *KernelExTaskCodeBuilder::RenderAssembleTfAicpuExSessionIdInfo() con
   auto iow_addrs = ast_.Var("std::vector<uint64_t>", "iow_addrs");
   return ast_.DefineFunction(
       "AssembleTfAicpuExSessionIdInfo",
-      {session_id, op_kernel_size, func_handle, block_dim, stream, config, tf_ai_cpu_ex_info, mem_ptrs}, "aclError",
+      {ctx, session_id, op_kernel_size, func_handle, block_dim, stream, config, tf_ai_cpu_ex_info, mem_ptrs},
+      "aclError",
       {ast_.Assign(tf_ai_cpu_ex_info.Arrow("sessionID"), ast_.Deref(session_id)), ast_.VarDecl(tmp_args),
        tmp_args.Resize(op_kernel_size), ast_.VarDecl(iow_addrs),
        ChkStatus(MemcpyS(tmp_args.Data() + ast_.Sizeof("uint32_t") * 1, ast_.Sizeof("uint64_t"), session_id,
@@ -276,8 +306,11 @@ FunctionDef *KernelExTaskCodeBuilder::RenderAssembleTfAicpuExSessionIdInfo() con
        mem_ptrs.PushBack(device_base),
        ChkStatus(
            AclrtMemcpy(device_base, op_kernel_size, tmp_args.Data(), op_kernel_size, "ACL_MEMCPY_HOST_TO_DEVICE")),
-       ChkStatus(ast_.Call("TfAicpuKernelTaskDistribute", {iow_addrs, nullptr, device_base, op_kernel_size, func_handle,
-                                                           block_dim, stream, config, nullptr, nullptr, nullptr})),
+       ast_.VarDecl(ast_.Var("GertModelTaskDesc", "task_info")),
+       RenderAssembleTfAicpuExTaskInfo(ast_.Var("", "task_info")),
+       ChkStatus(ast_.Call("TfAicpuKernelTaskDistribute",
+                           {iow_addrs, nullptr, device_base, op_kernel_size, func_handle, block_dim, stream, config,
+                            ctx.Attr("launch_func"), ctx.Attr("instance_handle"), ast_.Var("", "task_info").Addr()})),
        ChkStatus(ast_.Call("aclrtSynchronizeStream", {stream})), ast_.Return("ACL_SUCCESS")});
 }
 
@@ -467,7 +500,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncAssembleExInfo(std::vector<Bod
   (void)body.emplace_back(ast_.VarDecl(local_session_id, ast_.Deref(ctx.Attr("session_id"))));
   (void)body.emplace_back(ChkStatus(
       ast_.Call("AssembleTfAicpuExSessionIdInfo",
-                {local_session_id.Addr(), static_cast<int64_t>(sizeof(STR_FWK_OP_KERNEL)),
+                {ctx, local_session_id.Addr(), static_cast<int64_t>(sizeof(STR_FWK_OP_KERNEL)),
                  ctx.Attr("func_handles")[op.Arrow("dispatch_info").Attr("kernel_ex").Attr("tf_session_func_idx")],
                  op.Arrow("dispatch_info").Attr("kernel_ex").Attr("block_dim"),
                  ctx.Attr("stream_list")[op.Arrow("dispatch_info").Attr("kernel_ex").Attr("stream_id")],
@@ -530,7 +563,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &
 }
 
 Status KernelExTaskCodeBuilder::RenderDispatchFuncTaskInfo(std::vector<BodyItem> &body, const VarRef &op,
-                                                           const VarRef &ctx) {
+                                                           const VarRef &ctx) const {
   auto io_tensors = ast_.Var("std::vector<gert::Tensor>", "io_tensors");
   (void)body.emplace_back(ast_.VarDecl(io_tensors));
   (void)body.emplace_back(io_tensors.Attr("reserve")(ast_.Var("", "num_io")));

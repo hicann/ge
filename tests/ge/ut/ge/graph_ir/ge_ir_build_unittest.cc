@@ -1842,7 +1842,7 @@ TEST(UtestIrBuild, aclgrphSaveModelOm2ExternalWeightRelocateTest) {
     JsonFile constants_config;
     constants_config.Set("internal_weight_size", 0U).Set("consts", consts);
     const std::string constants_config_str = constants_config.Dump();
-    ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config_str.data(),
+    ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config_str.data(),
                                       constants_config_str.size(), false));
     const std::string manifest = R"({"archive_version":"1.0","model_num":1})";
     ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
@@ -1859,7 +1859,7 @@ TEST(UtestIrBuild, aclgrphSaveModelOm2ExternalWeightRelocateTest) {
   SimpleZipArchiveReader archive(saved_model.data(), saved_model.size());
   ASSERT_TRUE(archive.IsGood());
   size_t config_size = 0U;
-  const auto config_buf = archive.ExtractToMem("saved_model/data/constants/model_0_constants_config.json", config_size);
+  const auto config_buf = archive.ExtractToMem("saved_model/data/model_0/model_0_constants_config.json", config_size);
   ASSERT_NE(config_buf, nullptr);
   const JsonFile saved_config(reinterpret_cast<const uint8_t *>(config_buf.get()), config_size);
   ASSERT_TRUE(saved_config.IsValid());

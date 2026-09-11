@@ -41,13 +41,15 @@ except ImportError:
 def _require_es_apis() -> None:
     if ConcatV2 is None:
         raise RuntimeError(
-            "未找到 ge.es.math.ConcatV2。请先 source CANN 环境；如仍缺失，请参考 README 的"
-            "“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
+            "ge.es.math.ConcatV2 not found. Please source the CANN environment first; "
+            "if still missing, refer to the README section 'Handling Missing ES APIs (Optional)' "
+            "to generate and load es_all, then run again."
         )
     if Relu is None:
         raise RuntimeError(
-            "未找到 ge.es.nn.Relu。请先 source CANN 环境；如仍缺失，请参考 README 的"
-            "“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
+            "ge.es.nn.Relu not found. Please source the CANN environment first; "
+            "if still missing, refer to the README section 'Handling Missing ES APIs (Optional)' "
+            "to generate and load es_all, then run again."
         )
 
 
@@ -128,8 +130,8 @@ class PythonMoveReluBeforeConcatPass(FusionBasePass):
 
 
 if __name__ == "__main__":
-    print("PythonMoveReluBeforeConcatPass 已注册。")
-    print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
+    print("PythonMoveReluBeforeConcatPass registered.")
+    print("Please add this file to ASCEND_GE_PY_PASS_PATH, for example:")
     print(
         "  export ASCEND_GE_PY_PASS_PATH=$PWD/python/src/python_move_relu_before_concat_pass.py"
     )

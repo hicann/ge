@@ -62,11 +62,11 @@ After successful execution, terminal will show output in following format (speci
 ```text
 [Info] SamplePoolAllocator registered to stream
 [SamplePool] new   : addr=0x<device memory address>  size=<byte count> B
-[Info] Asynchronous Graph execution successful!
+[Info] Asynchronous execution of the graph succeeded.
 [SamplePool] cache : addr=0x<device memory address>  size=<byte count> B
 [Info] SamplePoolAllocator unregistered
 [SamplePool] destroy: freed <N> cached blocks
-[Info] Running environment cleaned
+[Info] Runtime environment cleaned up
 [Success] sample execution successful, pbtxt dump generated in current directory. The file starts with ge_onnx_ and can be opened in netron for display
 ```
 

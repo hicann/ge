@@ -103,7 +103,7 @@ Status GetTensorSize(const GeTensorDesc &desc, size_t &size) {
   return SUCCESS;
 }
 
-std::string IntExpression(const int64_t value) {
+std::string IntExpression(int64_t value) {
   if (value == std::numeric_limits<int64_t>::min()) {
     return "(-9223372036854775807LL - 1LL)";
   }
@@ -949,8 +949,9 @@ Status HostCpuFusionCompiler::Compile(const std::string &source, std::vector<uin
     // 父进程等待编译结束
     const bool wait_success = WaitChild(child, child_status);
     int exit_code = -1;
-    if (wait_success && WIFEXITED(child_status)) {
-      exit_code = WEXITSTATUS(child_status);
+    const uint32_t wait_status = static_cast<uint32_t>(child_status);
+    if (wait_success && WIFEXITED(wait_status)) {
+      exit_code = WEXITSTATUS(wait_status);
     }
     if (exit_code != 0) {
       const std::string diagnostics = ReadCompilerDiagnostics(diagnostics_fd);

@@ -139,16 +139,22 @@ def validate_config(config: str) -> None:
         return
     if config.count(":") != 1:
         raise AutotuneError(
-            "非法配置 {!r}：格式应为“策略名:流数”，例如 LoadBalance:2。".format(config)
+            "Invalid config {!r}: format must be 'strategy:streams', e.g. LoadBalance:2.".format(
+                config
+            )
         )
     strategy, streams = config.split(":", 1)
     if strategy not in STRATEGIES or strategy == "cv":
         raise AutotuneError(
-            "未知策略 {!r}，可选：{}。".format(strategy, "/".join(STRATEGIES))
+            "Unknown strategy {!r}, available: {}.".format(
+                strategy, "/".join(STRATEGIES)
+            )
         )
     if not streams.isdigit() or not 1 <= int(streams) <= MAX_STREAMS:
         raise AutotuneError(
-            "配置 {!r} 的流数必须是 [1,{}] 的十进制整数。".format(config, MAX_STREAMS)
+            "Stream count in config {!r} must be a decimal integer in [1,{}].".format(
+                config, MAX_STREAMS
+            )
         )
 
 
@@ -168,7 +174,7 @@ def build_configs(
     if configs_arg:
         configs = split_csv(configs_arg)
         if not configs:
-            raise AutotuneError("--configs 不能为空。")
+            raise AutotuneError("--configs is empty.")
     else:
         configs = expand_matrix(split_csv(strategies_arg), split_csv(streams_arg))
     for config in configs:
@@ -180,12 +186,12 @@ def build_configs(
 
 def expand_matrix(strategies: Sequence[str], streams: Sequence[str]) -> List[str]:
     if not strategies:
-        raise AutotuneError("--strategies 不能为空。")
+        raise AutotuneError("--strategies is empty.")
     unknown = [item for item in strategies if item not in STRATEGIES]
     if unknown:
-        raise AutotuneError("未知策略：{}。".format(",".join(unknown)))
+        raise AutotuneError("Unknown strategies: {}.".format(",".join(unknown)))
     if not streams:
-        raise AutotuneError("--streams 不能为空。")
+        raise AutotuneError("--streams is empty.")
     configs: List[str] = []
     for strategy in strategies:
         if strategy == "cv":
@@ -212,7 +218,7 @@ def parse_step_line(line: str) -> Tuple[Optional[StepRecord], Optional[str]]:
             fields[name] = value
     missing = [name for name in REQUIRED_FIELDS if name not in fields]
     if missing:
-        return (None, "缺少字段 {}".format(",".join(missing)))
+        return (None, "missing field(s) {}".format(",".join(missing)))
     key, error = execution_key(fields)
     if error is not None:
         return (None, error)
@@ -225,13 +231,16 @@ def execution_key(
     has_graph = all(name in fields for name in ("session_id", "graph_id"))
     has_model = "model_id" in fields
     if has_graph == has_model:
-        return (None, "必须且只能包含 session_id+graph_id 或 model_id 一种执行身份")
+        return (
+            None,
+            "must include exactly one execution identity: session_id+graph_id or model_id",
+        )
     try:
         if has_graph:
             return (("graph", int(fields["session_id"]), int(fields["graph_id"])), None)
         return (("model", int(fields["model_id"]), 0), None)
     except ValueError:
-        return (None, "执行身份字段不是整数")
+        return (None, "execution identity fields are not integers")
 
 
 def build_step_record(
@@ -241,12 +250,12 @@ def build_step_record(
     for name in NUMERIC_FIELDS:
         value = fields[name]
         if re.fullmatch(r"-?[0-9]+", value) is None:
-            return (None, "字段 {} 不是整数".format(name))
+            return (None, "field {} is not an integer".format(name))
         numbers[name] = int(value)
     if numbers["end_us"] < numbers["start_us"]:
-        return (None, "end_us 小于 start_us")
+        return (None, "end_us is less than start_us")
     if numbers["cost_us"] != numbers["end_us"] - numbers["start_us"]:
-        return (None, "cost_us 与时间区间不一致")
+        return (None, "cost_us is inconsistent with the time interval")
     record = StepRecord(api=fields["api"], mode=fields["mode"], key=key, **numbers)
     return (record, None)
 
@@ -265,7 +274,7 @@ def collect_records(paths: Sequence[Path]) -> Tuple[List[StepRecord], List[str]]
                     elif error is not None:
                         errors.append("{}:{} {}".format(path.name, line_no, error))
         except OSError as error:
-            errors.append("无法读取 {}：{}".format(path, error))
+            errors.append("failed to read {}: {}".format(path, error))
     records = sorted(unique.values(), key=lambda item: (item.key, item.step))
     return (records, errors)
 
@@ -308,9 +317,9 @@ def run_command(
             )
             exit_code = process.wait(timeout=timeout if timeout > 0 else None)
         except subprocess.TimeoutExpired:
-            launch_error = "执行超时（{} 秒）".format(timeout)
+            launch_error = "execution timed out ({}s)".format(timeout)
         except OSError as error:
-            launch_error = "子进程启动失败：{}".format(error)
+            launch_error = "subprocess failed to start: {}".format(error)
         finally:
             if process is not None and process.poll() is None:
                 terminate(process)
@@ -336,7 +345,7 @@ def prepare_trial(
     )
     plog_dir = directory / "plog"
     plog_dir.mkdir(parents=True)
-    print("[{:03d}] 配置={} 第 {} 轮：{}".format(index, config, repeat, detail))
+    print("[{:03d}] config={} round {}: {}".format(index, config, repeat, detail))
     return (directory, plog_dir, directory / "stdout.log")
 
 
@@ -357,12 +366,12 @@ def finish_trial(
     )
     write_steps_csv(directory / "steps.csv", records)
     print(
-        "      退出码={} STEP={} 有效={} 耗时={:.1f}s{}".format(
+        "      exit_code={} STEP={} valid={} wall={:.1f}s{}".format(
             exit_code,
             len(records),
-            "是" if result.valid else "否",
+            "yes" if result.valid else "no",
             wall_seconds,
-            "" if result.valid else "，原因：" + "；".join(result.reasons),
+            "" if result.valid else ", reason: " + "; ".join(result.reasons),
         )
     )
     return result
@@ -392,31 +401,40 @@ def evaluate_trial(
     """对一次执行做数据有效性检查，只有全部通过的数据才参与排名。"""
     reasons: List[str] = []
     if exit_code != 0:
-        reasons.append("退出码非 0（{}）".format(exit_code))
+        reasons.append("non-zero exit code ({})".format(exit_code))
     if errors:
-        reasons.append("{} 条日志异常，首条：{}".format(len(errors), errors[0]))
+        reasons.append("{} log error(s), first: {}".format(len(errors), errors[0]))
     retained = [record for record in records if record.step >= args.drop_first]
     mismatched = sorted({record.mode for record in retained if record.mode != config})
     if mismatched:
         reasons.append(
-            "STEP mode 与候选 {} 不一致：{}（确认寻优 Pass 已安装）".format(
+            "STEP mode does not match candidate {}: {} (confirm that the tuning pass is installed)".format(
                 config, ",".join(mismatched)
             )
         )
     if any(record.ret != 0 or record.sync_ret != 0 for record in retained):
-        reasons.append("存在 ret/sync_ret 非 0 的 STEP")
+        reasons.append("STEP record(s) with non-zero ret/sync_ret")
     main_key = choose_main_key(retained, args.main_graph)
     costs = [record.cost_us for record in retained if record.key == main_key]
     if main_key is None and args.main_graph is not None and retained:
-        reasons.append("指定的主执行对象 {} 不存在".format(key_text(args.main_graph)))
+        reasons.append(
+            "specified main execution object {} does not exist".format(
+                key_text(args.main_graph)
+            )
+        )
     elif main_key is None:
-        reasons.append("没有可统计的 STEP 记录")
+        reasons.append("no STEP records available for statistics")
     elif len(costs) < args.min_steps:
         reasons.append(
-            "主执行对象仅 {} 个有效步骤，少于 {}".format(len(costs), args.min_steps)
+            "main execution object has only {} valid step(s), fewer than {}".format(
+                len(costs), args.min_steps
+            )
         )
     elif overlapped(retained, main_key):
-        reasons.append("主执行对象的 STEP 时间区间重叠，无法作为串行耗时统计")
+        reasons.append(
+            "STEP time intervals of the main execution object overlap and "
+            "cannot be treated as serial costs"
+        )
     return TrialResult(
         config, repeat, exit_code, wall_seconds, len(records), main_key, costs, reasons
     )
@@ -458,7 +476,9 @@ def parse_main_graph(value: Optional[str]) -> Optional[ExecutionKey]:
     graph = re.fullmatch(r"([0-9]+):([0-9]+)", value.strip())
     if graph is not None:
         return ("graph", int(graph.group(1)), int(graph.group(2)))
-    raise AutotuneError("--main-graph 需形如 session_id:graph_id 或 model:model_id。")
+    raise AutotuneError(
+        "--main-graph must be in format session_id:graph_id or model:model_id."
+    )
 
 
 # ---------------------------------------------------------------- 离线目标机
@@ -470,11 +490,15 @@ def load_target(path_value: str) -> Target:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except OSError as error:
-        raise AutotuneError("无法读取目标机配置 {}：{}".format(path, error)) from error
+        raise AutotuneError(
+            "Failed to read target config {}: {}".format(path, error)
+        ) from error
     except ValueError as error:
-        raise AutotuneError("目标机配置不是合法 JSON：{}".format(error)) from error
+        raise AutotuneError(
+            "Target config is not valid JSON: {}".format(error)
+        ) from error
     if not isinstance(raw, dict):
-        raise AutotuneError("目标机配置需为 JSON 对象。")
+        raise AutotuneError("Target config must be a JSON object.")
     target = Target(
         host=target_text(raw, "host"),
         user=target_text(raw, "user"),
@@ -492,7 +516,7 @@ def load_target(path_value: str) -> Target:
 def target_text(raw: Dict[str, object], name: str) -> str:
     value = raw.get(name)
     if not isinstance(value, str) or not value.strip():
-        raise AutotuneError("目标机配置缺少字符串字段 {}。".format(name))
+        raise AutotuneError("Target config is missing string field {}.".format(name))
     return value.strip()
 
 
@@ -502,29 +526,34 @@ def target_identity(raw: Dict[str, object]) -> Optional[Path]:
         return None
     identity = Path(str(value)).expanduser()
     if not identity.is_file():
-        raise AutotuneError("配置的私钥不存在：{}。".format(identity))
+        raise AutotuneError(
+            "Configured identity file does not exist: {}.".format(identity)
+        )
     return identity
 
 
 def validate_target(target: Target) -> None:
     if not 1 <= target.port <= 65535:
-        raise AutotuneError("目标机端口非法：{}。".format(target.port))
+        raise AutotuneError("Target port is invalid: {}.".format(target.port))
     parts = [item for item in target.remote_workdir.split("/") if item]
     if not target.remote_workdir.startswith("/") or len(parts) < 2:
         raise AutotuneError(
-            "remote_workdir 需为层级不少于两级的绝对路径（寻优结束会整目录删除）。"
+            "remote_workdir must be an absolute path with at least two levels "
+            "(the entire directory is deleted when tuning ends)."
         )
     if "{om}" not in target.run_command:
-        raise AutotuneError("目标机 run_command 必须包含 {om} 占位符。")
+        raise AutotuneError("The target run_command must contain the {om} placeholder.")
     if target.identity_file is None and target.password is None:
         print(
-            "[提示] 未配置 identity_file，也未设置 {}，将使用 ssh 默认密钥。".format(
+            "[hint] No identity_file configured and {} not set; ssh default keys will be used.".format(
                 PASSWORD_ENV
             )
         )
     if target.identity_file is None and target.password is not None:
         if shutil.which("sshpass") is None:
-            raise AutotuneError("密码认证需要 sshpass，请安装后重试，或改用密钥认证。")
+            raise AutotuneError(
+                "Password authentication requires sshpass; please install it or use key authentication."
+            )
 
 
 def ssh_options(target: Target) -> Tuple[List[str], List[str]]:
@@ -569,10 +598,10 @@ def run_stage(
     exit_code, launch_error, _ = run_command(argv, log_path, env, timeout)
     if launch_error is not None or exit_code != 0:
         raise AutotuneError(
-            "{}失败（退出码={}）：{}".format(
+            "{} failed (exit_code={}): {}".format(
                 action,
-                "未启动" if exit_code is None else exit_code,
-                launch_error or "详见 {}".format(log_path),
+                "not started" if exit_code is None else exit_code,
+                launch_error or "see {}".format(log_path),
             )
         )
 
@@ -590,18 +619,22 @@ def compile_candidates(
         argv = [item.format(om_prefix=str(prefix)) for item in args.compile_argv]
         environment = os.environ.copy()
         environment[MODE_ENV] = config
-        print("[编译] 候选={} → {}".format(config, om_path.name))
+        print("[build] candidate={} -> {}".format(config, om_path.name))
         started_at = time.time()
         run_stage(
             argv,
             args.om_dir / "compile_{}.log".format(slug),
             environment,
             args.timeout,
-            "候选 {} 编译".format(config),
+            "build for candidate {}".format(config),
         )
         actual_om_path = find_compiled_om(prefix, config, started_at)
         if actual_om_path != om_path:
-            print("      ATC 生成带平台后缀的 OM：{}".format(actual_om_path.name))
+            print(
+                "      ATC produced an OM with platform suffix: {}".format(
+                    actual_om_path.name
+                )
+            )
         oms[config] = actual_om_path
     return oms
 
@@ -629,17 +662,20 @@ def find_compiled_om(prefix: Path, config: str, since: float) -> Path:
     if not fresh:
         detail = ""
         if produced:
-            detail = "，同目录下只有上一轮的 {}".format(
+            detail = ", only leftovers from the previous run were found in this directory: {}".format(
                 ", ".join(path.name for path in sorted(produced))
             )
         raise AutotuneError(
-            "候选 {} 未产出 OM，期望 {} 或带 `_<os>_<cpu>` 后缀的同名文件{}。"
-            "检查 --compile-command 的输出路径。".format(config, om_path, detail)
+            "Candidate {} produced no OM; expected {} or a file with the same name but "
+            "with a `_<os>_<cpu>` suffix{}. "
+            "Check the output path of --compile-command.".format(
+                config, om_path, detail
+            )
         )
     if len(fresh) > 1:
         raise AutotuneError(
-            "候选 {} 本轮产出多个 OM（{}），无法判定用哪一个，"
-            "请让 --compile-command 每个候选只输出一份产物。".format(
+            "Candidate {} produced multiple OMs this round ({}), so it is unclear which one to use; "
+            "make sure --compile-command outputs exactly one artifact per candidate.".format(
                 config, ", ".join(path.name for path in fresh)
             )
         )
@@ -651,13 +687,17 @@ def upload_candidates(oms: Dict[str, Path], args: argparse.Namespace) -> Dict[st
     target = args.target
     remote_om_dir = "{}/om".format(target.remote_workdir)
     environment = target_environment(target)
-    print("[部署] 上传 {} 个 OM 到 {}:{}".format(len(oms), target.host, remote_om_dir))
+    print(
+        "[deploy] uploading {} OM(s) to {}:{}".format(
+            len(oms), target.host, remote_om_dir
+        )
+    )
     run_stage(
         ssh_argv(target, "mkdir -p {}".format(remote_om_dir)),
         args.output_dir / "target_prepare.log",
         environment,
         args.timeout,
-        "创建远端目录",
+        "create remote directory",
     )
     run_stage(
         scp_argv(
@@ -668,7 +708,7 @@ def upload_candidates(oms: Dict[str, Path], args: argparse.Namespace) -> Dict[st
         args.output_dir / "target_upload.log",
         environment,
         args.timeout,
-        "上传 OM",
+        "upload OMs",
     )
     return {
         config: "{}/{}".format(remote_om_dir, path.name) for config, path in oms.items()
@@ -730,8 +770,8 @@ def fetch_remote_plog(
     log_path = directory / "fetch_plog.log"
     exit_code, launch_error, _ = run_command(argv, log_path, env, args.timeout)
     if launch_error is not None or exit_code != 0:
-        return "回传远端 plog 失败（退出码={}）：{}".format(
-            exit_code, launch_error or "详见 {}".format(log_path.name)
+        return "failed to fetch remote plog (exit_code={}): {}".format(
+            exit_code, launch_error or "see {}".format(log_path.name)
         )
     return None
 
@@ -744,11 +784,15 @@ def cleanup_remote(args: argparse.Namespace) -> None:
             args.output_dir / "target_cleanup.log",
             target_environment(target),
             args.timeout,
-            "清理远端目录",
+            "clean up remote directory",
         )
-        print("[部署] 已清理远端目录 {}:{}".format(target.host, target.remote_workdir))
+        print(
+            "[deploy] remote directory cleaned up {}:{}".format(
+                target.host, target.remote_workdir
+            )
+        )
     except AutotuneError as error:
-        print("[警告] {}".format(error))
+        print("[warning] {}".format(error))
 
 
 # ---------------------------------------------------------------- 汇总与推荐
@@ -792,14 +836,14 @@ def apply_speedup(summaries: Sequence[ConfigSummary]) -> Optional[ConfigSummary]
 
 def verdict(summary: ConfigSummary) -> str:
     if summary.median_us is None:
-        return "数据无效"
+        return "invalid data"
     if summary.speedup is None:
-        return "无基准"
+        return "no baseline"
     if summary.speedup >= POSITIVE_SPEEDUP:
-        return "提升"
+        return "improvement"
     if summary.speedup >= NEUTRAL_SPEEDUP:
-        return "持平"
-    return "劣化"
+        return "neutral"
+    return "regression"
 
 
 def rank(summaries: List[ConfigSummary]) -> List[ConfigSummary]:
@@ -854,7 +898,7 @@ def summary_row(summary: ConfigSummary) -> Dict[str, object]:
         "cv": round(summary.cv, 4) if summary.cv else None,
         "speedup": round(summary.speedup, 4) if summary.speedup else None,
         "verdict": verdict(summary),
-        "reasons": "；".join(summary.reasons),
+        "reasons": "; ".join(summary.reasons),
     }
 
 
@@ -902,18 +946,18 @@ def write_summaries(
 
 def print_report(summaries: Sequence[ConfigSummary], args: argparse.Namespace) -> None:
     header = (
-        "配置",
-        "有效轮次",
-        "步数",
-        "平均(ms)",
-        "中位(ms)",
+        "config",
+        "valid_runs",
+        "steps",
+        "mean(ms)",
+        "median(ms)",
         "P90(ms)",
         "CV",
-        "加速比",
-        "结论",
+        "speedup",
+        "verdict",
     )
     widths = (24, 10, 6, 10, 10, 10, 8, 8, 8)
-    print("\n寻优结果（按中位耗时升序）：")
+    print("\nTuning results (sorted by median cost):")
     print("  ".join(pad(name, width) for name, width in zip(header, widths)))
     for summary in summaries:
         cells = (
@@ -947,40 +991,46 @@ def print_recommendation(
     invalid = [item for item in summaries if item.median_us is None]
     for item in invalid:
         print(
-            "[警告] 候选 {} 无有效数据：{}".format(item.config, "；".join(item.reasons))
+            "[warning] candidate {} has no valid data: {}".format(
+                item.config, "; ".join(item.reasons)
+            )
         )
     best = recommend(summaries)
     if best is None:
         print(
-            "\n[结论] 没有候选相对 default 取得 {:.0%} 以上收益，建议保持默认配置。".format(
-                POSITIVE_SPEEDUP - 1
-            )
+            "\n[result] no candidate achieved >{:.0%} speedup over default; "
+            "keeping the default is recommended.".format(POSITIVE_SPEEDUP - 1)
         )
         return
     print(
-        "\n[结论] 推荐配置：{}，相对 default 加速比 {:.3f}，中位耗时 {} ms。".format(
+        "\n[result] recommended config: {}, speedup over default: {:.3f}, median cost: {} ms.".format(
             best.config, best.speedup, millis(best.median_us)
         )
     )
     if best.cv is not None and best.cv > 0.05:
         print(
-            "[提醒] 该候选耗时波动较大（CV={:.3f}），建议增大 --repeat 复测。".format(
+            "[note] candidate cost has high variance (CV={:.3f}), consider increasing --repeat.".format(
                 best.cv
             )
         )
     if args.mode == "offline":
         print(
-            "[复现] 编译端 {}={} {}".format(MODE_ENV, best.config, args.compile_command)
+            "[reproduce] build-side {}={} {}".format(
+                MODE_ENV, best.config, args.compile_command
+            )
         )
-        print("       目标机执行 {}".format(args.command_text))
+        print("       run on target: {}".format(args.command_text))
     else:
-        print("[复现] {}={} {}".format(MODE_ENV, best.config, args.command_text))
+        print("[reproduce] {}={} {}".format(MODE_ENV, best.config, args.command_text))
     print(
-        "[落地] 生产态请直接把根图属性 ge.autoMultistreamParallelMode 置为 {}，".format(
+        "[apply] set root graph attribute ge.autoMultistreamParallelMode to {} directly in production,".format(
             best.config
         )
     )
-    print("       不要保留寻优 Pass 与调测打点（打点含同步等待，会影响性能）。")
+    print(
+        "       do not keep the tuning pass or debug instrumentation "
+        "(instrumentation includes synchronization waits and affects performance)."
+    )
 
 
 # ---------------------------------------------------------------- 入口
@@ -1035,9 +1085,11 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def create_run_output_dir(base_dir: Path) -> Path:
-    """在用户指定的父目录下创建本次运行的唯一结果目录。"""
+    """Create a unique result directory for this run under the user-specified parent."""
     if base_dir.exists() and not base_dir.is_dir():
-        raise AutotuneError("结果父目录不是目录：{}".format(base_dir))
+        raise AutotuneError(
+            "Result parent directory is not a directory: {}".format(base_dir)
+        )
     base_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     prefix = "run_{}_{}".format(timestamp, os.getpid())
@@ -1049,13 +1101,19 @@ def create_run_output_dir(base_dir: Path) -> Path:
             return run_dir
         except FileExistsError:
             continue
-    raise AutotuneError("无法在结果父目录下创建唯一运行目录：{}".format(base_dir))
+    raise AutotuneError(
+        "Failed to create a unique run directory under the result parent directory: {}".format(
+            base_dir
+        )
+    )
 
 
 def prepare_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     args = create_parser().parse_args(argv)
     if args.repeat < 1 or args.drop_first < 0 or args.min_steps < 1:
-        raise AutotuneError("--repeat/--min-steps 需大于 0，--drop-first 不能为负。")
+        raise AutotuneError(
+            "--repeat/--min-steps must be greater than 0, --drop-first cannot be negative."
+        )
     prepare_mode_args(args)
     args.main_graph = parse_main_graph(args.main_graph)
     args.output_dir = Path(args.output_dir).expanduser().resolve()
@@ -1063,31 +1121,33 @@ def prepare_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
 
 
 def prepare_mode_args(args: argparse.Namespace) -> None:
-    """在线取 --run-command，离线取目标机配置里的 run_command。"""
+    """Online mode takes --run-command; offline mode takes run_command from the target config."""
     if args.mode == "online":
         if args.compile_command or args.target or args.om_dir:
             raise AutotuneError(
-                "--compile-command/--target/--om-dir 仅在 --mode offline 下有效。"
+                "--compile-command/--target/--om-dir are only valid in --mode offline."
             )
         args.argv = shlex.split(args.run_command or "")
         if not args.argv:
-            raise AutotuneError("--mode online 需要 --run-command。")
+            raise AutotuneError("--mode online requires --run-command.")
         args.command_text = " ".join(shlex.quote(item) for item in args.argv)
         return
     if args.run_command:
         raise AutotuneError(
-            "--mode offline 的执行命令由目标机配置的 run_command 给出，不要用 --run-command。"
+            "--mode offline takes the run command from the target config's run_command; do not use --run-command."
         )
     if not args.compile_command or not args.target:
-        raise AutotuneError("--mode offline 需要 --compile-command 与 --target。")
+        raise AutotuneError("--mode offline requires --compile-command and --target.")
     args.compile_argv = shlex.split(args.compile_command)
     if any("{om}" in item for item in args.compile_argv):
         raise AutotuneError(
-            "--compile-command 不支持 {om} 占位符，请改用 {om_prefix}："
-            "ATC 的 --output 会自动补 .om 后缀。"
+            "--compile-command does not support the {om} placeholder, use {om_prefix} instead: "
+            "ATC's --output appends the .om suffix automatically."
         )
     if not any("{om_prefix}" in item for item in args.compile_argv):
-        raise AutotuneError("--compile-command 必须包含 {om_prefix} 占位符。")
+        raise AutotuneError(
+            "--compile-command must contain the {om_prefix} placeholder."
+        )
     args.argv = []
     args.target = load_target(args.target)
     args.command_text = args.target.run_command
@@ -1130,11 +1190,11 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     if args.mode == "offline" and args.om_dir is None:
         args.om_dir = args.output_dir / "om"
     print(
-        "候选配置（{} 个 × {} 轮，{} 模式）：{}".format(
+        "candidate configs ({} x {} rounds, {} mode): {}".format(
             len(configs), args.repeat, args.mode, ", ".join(configs)
         )
     )
-    print("结果目录：{}\n".format(args.output_dir))
+    print("result directory: {}\n".format(args.output_dir))
     results = execute_trials(configs, args)
     summaries = [
         summarize(config, [item for item in results if item.config == config])
@@ -1144,7 +1204,7 @@ def run(argv: Optional[Sequence[str]] = None) -> int:
     summaries = rank(summaries)
     write_summaries(args.output_dir, summaries, results, args)
     print_report(summaries, args)
-    print("\n明细：{}/summary.csv、summary.json".format(args.output_dir))
+    print("\ndetails: {}/summary.csv, summary.json".format(args.output_dir))
     return 0 if any(item.median_us is not None for item in summaries) else 1
 
 
@@ -1152,12 +1212,12 @@ def main() -> None:
     try:
         sys.exit(run())
     except AutotuneError as error:
-        sys.stdout.flush()  # 管道下 stdout 带缓冲，先冲掉再打错误，避免顺序错乱
-        print("[错误] {}".format(error), file=sys.stderr)
+        sys.stdout.flush()  # stdout is buffered when piped; flush before printing errors to preserve output order
+        print("[error] {}".format(error), file=sys.stderr)
         sys.exit(2)
     except KeyboardInterrupt:
         sys.stdout.flush()
-        print("\n[中断] 寻优已终止。", file=sys.stderr)
+        print("\n[interrupted] tuning aborted.", file=sys.stderr)
         sys.exit(130)
 
 

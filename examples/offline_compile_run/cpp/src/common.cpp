@@ -19,20 +19,20 @@ ge::Status PrintOneInferOutputBuffer(aclmdlDesc *model_desc, size_t buffer_index
   void *data = aclGetDataBufferAddr(data_buffer);
   const size_t len = aclGetDataBufferSizeV2(data_buffer);
   if (data == nullptr || len == 0U) {
-    std::cerr << "[Error] 输出 DataBuffer 无效, index=" << buffer_index << "\n";
+    std::cerr << "[Error] Output DataBuffer is invalid, index=" << buffer_index << "\n";
     return ge::FAILED;
   }
   aclmdlIODims dims{};
   aclError err = aclmdlGetOutputDims(model_desc, buffer_index, &dims);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclmdlGetOutputDims 失败, aclError=" << err << "\n";
+    std::cerr << "[Error] aclmdlGetOutputDims failed, aclError=" << err << "\n";
     return ge::FAILED;
   }
   const size_t elem_count = len >= sizeof(float) ? len / sizeof(float) : 0U;
   std::vector<float> host(elem_count);
   err = aclrtMemcpy(host.data(), len, data, len, ACL_MEMCPY_DEVICE_TO_HOST);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclrtMemcpy(output D2H) 失败, aclError=" << err << "\n";
+    std::cerr << "[Error] aclrtMemcpy(output D2H) failed, aclError=" << err << "\n";
     return ge::FAILED;
   }
   const float *out_data = host.data();
@@ -57,7 +57,7 @@ ge::Status CreateIoDataset(aclmdlDesc *model_desc, bool is_input, IoBuffers *out
   const size_t io_num = is_input ? aclmdlGetNumInputs(model_desc) : aclmdlGetNumOutputs(model_desc);
   out->dataset = aclmdlCreateDataset();
   if (out->dataset == nullptr) {
-    std::cerr << "[Error] aclmdlCreateDataset 失败\n";
+    std::cerr << "[Error] aclmdlCreateDataset failed\n";
     return ge::FAILED;
   }
   for (size_t i = 0; i < io_num; ++i) {
@@ -66,14 +66,14 @@ ge::Status CreateIoDataset(aclmdlDesc *model_desc, bool is_input, IoBuffers *out
     void *dev = nullptr;
     aclError err = aclrtMalloc(&dev, buf_size, ACL_MEM_MALLOC_NORMAL_ONLY);
     if (err != ACL_SUCCESS) {
-      std::cerr << "[Error] aclrtMalloc 失败, aclError=" << err << "\n";
+      std::cerr << "[Error] aclrtMalloc failed, aclError=" << err << "\n";
       ReleaseDataset(out->dataset);
       *out = IoBuffers{};
       return ge::FAILED;
     }
     aclDataBuffer *data_buffer = aclCreateDataBuffer(dev, buf_size);
     if (data_buffer == nullptr) {
-      std::cerr << "[Error] aclCreateDataBuffer 失败\n";
+      std::cerr << "[Error] aclCreateDataBuffer failed\n";
       (void)aclrtFree(dev);
       ReleaseDataset(out->dataset);
       *out = IoBuffers{};
@@ -81,7 +81,7 @@ ge::Status CreateIoDataset(aclmdlDesc *model_desc, bool is_input, IoBuffers *out
     }
     err = aclmdlAddDatasetBuffer(out->dataset, data_buffer);
     if (err != ACL_SUCCESS) {
-      std::cerr << "[Error] aclmdlAddDatasetBuffer 失败, aclError=" << err << "\n";
+      std::cerr << "[Error] aclmdlAddDatasetBuffer failed, aclError=" << err << "\n";
       (void)aclDestroyDataBuffer(data_buffer);
       (void)aclrtFree(dev);
       ReleaseDataset(out->dataset);
@@ -96,19 +96,19 @@ ge::Status CreateIoDataset(aclmdlDesc *model_desc, bool is_input, IoBuffers *out
 
 ge::Status CopyFloatInputs(const std::vector<std::vector<float>> &host_inputs, const IoBuffers &inputs) {
   if (host_inputs.size() > inputs.device_ptrs.size()) {
-    std::cerr << "[Error] CopyFloatInputs: host 输入个数超过 device buffer 数\n";
+    std::cerr << "[Error] CopyFloatInputs: number of host inputs exceeds device buffer count\n";
     return ge::FAILED;
   }
   for (size_t i = 0; i < host_inputs.size(); ++i) {
     const auto &data = host_inputs[i];
     const size_t bytes = data.size() * sizeof(float);
     if (bytes > inputs.sizes[i]) {
-      std::cerr << "[Error] CopyFloatInputs: 输入 " << i << " 超过 buffer 大小\n";
+      std::cerr << "[Error] CopyFloatInputs: input " << i << " exceeds buffer size\n";
       return ge::FAILED;
     }
     aclError err = aclrtMemcpy(inputs.device_ptrs[i], inputs.sizes[i], data.data(), bytes, ACL_MEMCPY_HOST_TO_DEVICE);
     if (err != ACL_SUCCESS) {
-      std::cerr << "[Error] aclrtMemcpy(input) 失败, aclError=" << err << "\n";
+      std::cerr << "[Error] aclrtMemcpy(input) failed, aclError=" << err << "\n";
       return ge::FAILED;
     }
   }
@@ -117,14 +117,14 @@ ge::Status CopyFloatInputs(const std::vector<std::vector<float>> &host_inputs, c
 
 ge::Status PrintInferOutputDataset(aclmdlDesc *model_desc, aclmdlDataset *output_dataset) {
   if (output_dataset == nullptr) {
-    std::cerr << "[Error] output dataset 为空\n";
+    std::cerr << "[Error] output dataset is empty\n";
     return ge::FAILED;
   }
   const size_t num_buffers = aclmdlGetDatasetNumBuffers(output_dataset);
   for (size_t i = 0; i < num_buffers; ++i) {
     aclDataBuffer *data_buffer = aclmdlGetDatasetBuffer(output_dataset, i);
     if (data_buffer == nullptr) {
-      std::cerr << "[Error] aclmdlGetDatasetBuffer 失败, index=" << i << "\n";
+      std::cerr << "[Error] aclmdlGetDatasetBuffer failed, index=" << i << "\n";
       return ge::FAILED;
     }
     const ge::Status st = PrintOneInferOutputBuffer(model_desc, i, data_buffer);

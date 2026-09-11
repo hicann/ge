@@ -10,6 +10,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
+# ruff: noqa: F403, F405
 import numpy as np
 from ge.es import GraphBuilder
 from ge.es.all import *
@@ -67,9 +68,9 @@ def run_matmul_add_graph(graph) -> int:
     ge_api = GeApi()
     ret = ge_api.ge_initialize(config)
     if ret != 0:
-        print(f"GE初始化失败，返回码: {ret}")
+        print(f"GE initialization failed, return code: {ret}")
         return ret
-    print("GE环境初始化成功 (Device ID: 0)")
+    print("GE environment initialized successfully (Device ID: 0)")
 
     try:
         # 2. 创建Session
@@ -79,9 +80,9 @@ def run_matmul_add_graph(graph) -> int:
         graph_id = 1
         ret = session.add_graph(graph_id, graph)
         if ret != 0:
-            print(f"添加图失败，返回码: {ret}")
+            print(f"Failed to add graph, return code: {ret}")
             return ret
-        print(f"图已添加到Session (Graph ID: {graph_id})")
+        print(f"Graph added to Session (Graph ID: {graph_id})")
 
         # 4. 准备输入数据
         input1_data = np.random.randn(3, 2).astype(np.float32)
@@ -107,13 +108,13 @@ def run_matmul_add_graph(graph) -> int:
         # 5. 运行图
         ret = session.run_graph(graph_id, inputs)
         if not isinstance(ret, list):
-            print(f"运行图失败，返回码: {ret}")
+            print(f"Failed to run graph, return code: {ret}")
             return ret
-        print("图运行成功！")
+        print("Graph ran successfully!")
         return 0
 
     except Exception as e:
-        print(f"[Error] 执行过程中出错: {e}")
+        print(f"[Error] Error during execution: {e}")
         import traceback
 
         traceback.print_exc()
@@ -121,9 +122,9 @@ def run_matmul_add_graph(graph) -> int:
 
     finally:
         # 6. 清理GE环境
-        print("[Info] 清理GE环境...")
+        print("[Info] Cleaning up GE environment...")
         ge_api.ge_finalize()
-        print("[Success] GE环境已清理")
+        print("[Success] GE environment cleaned up")
 
 
 origin_graph = build_matmul_add_graph()

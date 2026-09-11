@@ -47,18 +47,21 @@ except ImportError:
 def _require_es_apis() -> None:
     if Split is None:
         raise RuntimeError(
-            "未找到 ge.es.math.Split。请先 source CANN 环境；如仍缺失，请参考 README 的"
-            "“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
+            "ge.es.math.Split not found. Please source the CANN environment first; "
+            "if still missing, refer to the README section 'Handling Missing ES APIs (Optional)' "
+            "to generate and load es_all, then run again."
         )
     if Conv2D is None:
         raise RuntimeError(
-            "未找到 ge.es.nn.Conv2D / ge.es.all.Conv2D。请先 source CANN 环境；如仍缺失，"
-            "请参考 README 的“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
+            "ge.es.nn.Conv2D / ge.es.all.Conv2D not found. Please source the CANN environment first; "
+            "if still missing, refer to the README section 'Handling Missing ES APIs (Optional)' "
+            "to generate and load es_all, then run again."
         )
     if Concat is None and ConcatV2 is None:
         raise RuntimeError(
-            "未找到 ge.es.math.Concat / ConcatV2。请先 source CANN 环境；如仍缺失，请参考 README 的"
-            "“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
+            "ge.es.math.Concat / ConcatV2 not found. Please source the CANN environment first; "
+            "if still missing, refer to the README section 'Handling Missing ES APIs (Optional)' "
+            "to generate and load es_all, then run again."
         )
 
 
@@ -133,6 +136,6 @@ class PythonDecomposeGroupedConvToSplitedPass(DecomposePass):
 
 
 if __name__ == "__main__":
-    print("PythonDecomposeGroupedConvToSplitedPass 已注册。")
-    print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
+    print("PythonDecomposeGroupedConvToSplitedPass registered.")
+    print("Please add this file to ASCEND_GE_PY_PASS_PATH, for example:")
     print("  export ASCEND_GE_PY_PASS_PATH=$PWD/src/python_decompose_pass.py")

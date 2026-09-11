@@ -73,6 +73,6 @@ class PythonAddZeroPass(PatternFusionPass):
 
 
 if __name__ == "__main__":
-    print("PythonAddZeroPass 已注册。")
-    print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
+    print("PythonAddZeroPass registered.")
+    print("Please add this file to ASCEND_GE_PY_PASS_PATH, for example:")
     print("  export ASCEND_GE_PY_PASS_PATH=$PWD/src/python_add_zero_pass.py")

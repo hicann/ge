@@ -11,10 +11,10 @@
 #ifndef PARSER_COMMON_PARSER_MODEL_SAVER_H_
 #define PARSER_COMMON_PARSER_MODEL_SAVER_H_
 
+#include <cstdint>
 #include <string>
 
-#include "ge/ge_api_error_codes.h"
-#include "ge/ge_api_types.h"
+#include "external/ge_common/ge_common_api_types.h"
 #include "nlohmann/json.hpp"
 
 namespace ge {

@@ -24,7 +24,7 @@ The core concept of `ArgsUpdater`: During model loading, `MallocReadOnlyDevArgs`
 
 - The CANN environment is properly installed and configured, for example, by executing `source ${ASCEND_HOME_PATH}/set_env.sh`.
 - The current environment has `ACL`, `GE`, and `Graph` related header files and libraries.
-- Refer to the [Installation Guide](../../../../docs/zh/quick_install.md) to complete toolkit and ops package installation.
+- Refer to the [Installation Guide](../../../../docs/en/quick_install.md) to complete toolkit and ops package installation.
 
 ### Framework and Plugins
 
@@ -104,9 +104,7 @@ args_refresh_add_custom
 │   │       ├── rtc_kernel_loader.h   // RTC kernel loader interface
 │   │       └── rtc_kernel_loader.cpp // RTC compilation and loading implementation
 │   └── session_run
-│       └── main.cc                   // In-process graph construction, online performance comparison
-└── python
-    └── README.md
+│       └── main.cc                   // In-process graph construction, online performance  comparison
 ```
 
 Key files:

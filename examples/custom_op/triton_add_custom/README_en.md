@@ -33,8 +33,8 @@ This sample demonstrates how to integrate Triton Add kernel into TensorFlow and 
 
 References:
 
-- [Triton-Ascend Installation Guide](https://gitcode.com/Ascend/triton-ascend/blob/main/docs/zh/installation_guide.md)
-- [Triton-Ascend Quick Start](https://gitcode.com/Ascend/triton-ascend/blob/main/docs/zh/quick_start.md)
+- [Triton-Ascend Installation Guide](https://gitcode.com/Ascend/triton-ascend/blob/main/docs/en/installation_guide.md)
+- [Triton-Ascend Quick Start](https://gitcode.com/Ascend/triton-ascend/blob/main/docs/en/quick_start.md)
 - [TensorFlow 1.15 Migration Guide](https://www.hiascend.com/document/detail/zh/TensorFlowCommunity/850/migration/tfmigr1/tfmigr1_000008.html)
 - [TensorFlow 2.6.5 Migration Guide](https://www.hiascend.com/document/detail/zh/TensorFlowCommunity/850/migration/tfmigr2/tfmigr2_000007.html)
 

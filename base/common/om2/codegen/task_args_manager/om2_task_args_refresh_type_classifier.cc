@@ -210,9 +210,9 @@ class FixedAddrInferrer {
                        "%s, but get %s(%s)",
                        node->GetName().c_str(), addr_desc.iow_index, IDENTITY, peer_node->GetType().c_str(),
                        peer_node->GetName().c_str());
-        peers.emplace_back(FixedAddrPeerNodeDesc{peer_node->GetOpDesc()->GetId(), peer_node,
-                                                 static_cast<size_t>(peer_anchor->GetIdx()),
-                                                 TaskArgsRefreshTypeClassifier::kOutput});
+        (void)peers.emplace_back(FixedAddrPeerNodeDesc{peer_node->GetOpDesc()->GetId(), peer_node,
+                                                       static_cast<size_t>(peer_anchor->GetIdx()),
+                                                       TaskArgsRefreshTypeClassifier::kOutput});
         break;
       }
       case TaskArgsRefreshTypeClassifier::kOutput: {

@@ -53,7 +53,7 @@ class KernelExTaskCodeBuilder : public TaskCodeBuilder {
   Status RenderDispatchFuncLaunchConfig(std::vector<BodyItem> &body, const VarRef &op) const;
   Status RenderDispatchFuncAssembleExInfo(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
   Status RenderDispatchFuncLaunchTask(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
-  Status RenderDispatchFuncTaskInfo(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx);
+  Status RenderDispatchFuncTaskInfo(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx) const;
   static std::string SerializeBytesToOctalString(const std::vector<uint8_t> &buffer);
   Status InitIowAddrRefreshInfo(uint64_t current_offset);
   Status InitLaunchInfo(const TaskSemanticContributeContext &context);
@@ -62,6 +62,7 @@ class KernelExTaskCodeBuilder : public TaskCodeBuilder {
   Status InitArgsTableInfo(const TaskSemanticContributeContext &context);
   FunctionDef *RenderAssembleTfAicpuArgs() const;
   FunctionDef *RenderTfAicpuKernelTaskDistribute() const;
+  BodyItem RenderAssembleTfAicpuExTaskInfo(const VarRef &task_info) const;
   FunctionDef *RenderAssembleTfAicpuExSessionIdInfo() const;
   FunctionDef *RenderAssembleTfAicpuExKernelIdInfo() const;
   FunctionDef *RenderAssembleTfAicpuExWorkSpaceAddrInfo() const;

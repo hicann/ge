@@ -21,12 +21,16 @@ from ge.passes import (
 )
 
 
-@register_fusion_pass(name="PythonAddZeroConstValueMatchPass", stage=PassStage.BEFORE_INFER_SHAPE)
+@register_fusion_pass(
+    name="PythonAddZeroConstValueMatchPass", stage=PassStage.BEFORE_INFER_SHAPE
+)
 class PythonAddZeroConstValueMatchPass(PatternFusionPass):
     """Recognize Add(x, 0.0f) with strict const-value-match and replace it with x."""
 
     def __init__(self):
-        super().__init__(PatternMatcherConfigBuilder().enable_const_value_match().build())
+        super().__init__(
+            PatternMatcherConfigBuilder().enable_const_value_match().build()
+        )
 
     @pattern
     def add_zero(self, inputs):
@@ -45,6 +49,8 @@ class PythonAddZeroConstValueMatchPass(PatternFusionPass):
 
 
 if __name__ == "__main__":
-    print("PythonAddZeroConstValueMatchPass 已注册。")
-    print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
-    print("  export ASCEND_GE_PY_PASS_PATH=$PWD/src/python_add_zero_pass_const_value_match.py")
+    print("PythonAddZeroConstValueMatchPass registered.")
+    print("Please add this file to ASCEND_GE_PY_PASS_PATH, for example:")
+    print(
+        "  export ASCEND_GE_PY_PASS_PATH=$PWD/src/python_add_zero_pass_const_value_match.py"
+    )

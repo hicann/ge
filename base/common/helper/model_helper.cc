@@ -104,6 +104,23 @@ NodePtr TryGetVarNodeByOffset(const std::map<int64_t, NodePtr> &var_offsets, con
   return (find_ret == var_offsets.cend() ? nullptr : find_ret->second);
 }
 
+bool HasEmbeddedCustomOpSo(const ComputeGraphPtr &root_graph) {
+  if (root_graph == nullptr) {
+    return false;
+  }
+  const std::map<std::string, OpSoBinPtr> *const so_buffer =
+      root_graph->GetExtAttr<std::map<std::string, OpSoBinPtr>>("bin_file_buffer");
+  if (so_buffer == nullptr) {
+    return false;
+  }
+  for (const std::pair<const std::string, OpSoBinPtr> &entry : *so_buffer) {
+    if ((entry.second != nullptr) && (entry.second->GetSoBinType() == SoBinType::kCustomOp)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::string GetOppPkgPath(const std::string &opp_path, const string &whole_pkg_path, const string &sub_pkg_path,
                           const string &os_cpu_type, bool &is_sub_pkg) {
   is_sub_pkg = false;
@@ -604,13 +621,18 @@ Status ModelHelper::SaveAutofuseSoBin(const GeRootModelPtr &ge_root_model) {
 
   auto bin_file_buffer = root_graph->GetExtAttr<std::map<std::string, ge::OpSoBinPtr>>("bin_file_buffer");
   if (bin_file_buffer != nullptr) {
-    GELOGD("bin_file_buffer already exists, sync autofuse so to op_so_store_.");
+    bool has_autofuse_so = false;
     for (const auto &bin_entry : *bin_file_buffer) {
       if ((bin_entry.second != nullptr) && (bin_entry.second->GetSoBinType() == SoBinType::kAutofuse)) {
         op_so_store_.AddKernel(bin_entry.second);
+        has_autofuse_so = true;
       }
     }
-    return SUCCESS;
+    if (has_autofuse_so) {
+      GELOGD("bin_file_buffer already exists, sync autofuse so to op_so_store_.");
+      return SUCCESS;
+    }
+    GELOGD("bin_file_buffer has no autofuse so, fallback to load from file.");
   }
   if (!OpSoStoreUtils::IsSoBinType(ge_root_model->GetSoInOmFlag(), SoBinType::kAutofuse)) {
     return SUCCESS;
@@ -725,7 +747,11 @@ Status ModelHelper::SaveAllModelPartiton(std::shared_ptr<OmFileSaveHelper> &om_f
 Status ModelHelper::SaveRootModelPartitionsForOmModel(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper,
                                                       const GeRootModelPtr &ge_root_model, string &output_file_name,
                                                       const GeModelPtr &ge_model) {
-  if (is_offline_) {
+  const bool has_embedded_custom_so = HasEmbeddedCustomOpSo(ge_root_model->GetRootGraph());
+  if (has_embedded_custom_so) {
+    GE_ASSERT_SUCCESS(ge_root_model->CheckAndSetNeedSoInOM(), "Check embedded custom op so dependencies failed.");
+  }
+  if (is_offline_ || has_embedded_custom_so) {
     GE_ASSERT_SUCCESS(SaveSoStoreModelPartitionInfo(om_file_save_helper, ge_root_model, output_file_name, ge_model),
                       "[SaveSoStoreModelPartition]Failed");
     GE_ASSERT_SUCCESS(SaveCustomOpsPartition(om_file_save_helper, ge_root_model), "[Save][CustomOpsPartition]Failed");
@@ -822,7 +848,11 @@ void ModelHelper::SaveOutNodesFromRootGraph(const GeRootModelPtr &ge_root_model,
 Status ModelHelper::SaveRootModelPartitions(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper,
                                             const GeRootModelPtr &ge_root_model, const GeModelPtr &first_ge_model,
                                             string &output_file_name, const bool has_asc_node) {
-  if (is_offline_ || has_asc_node) {
+  const bool has_embedded_custom_so = HasEmbeddedCustomOpSo(ge_root_model->GetRootGraph());
+  if (has_embedded_custom_so && !has_asc_node) {
+    GE_ASSERT_SUCCESS(ge_root_model->CheckAndSetNeedSoInOM(), "Check embedded custom op so dependencies failed.");
+  }
+  if (is_offline_ || has_asc_node || has_embedded_custom_so) {
     GE_ASSERT_SUCCESS(
         SaveSoStoreModelPartitionInfo(om_file_save_helper, ge_root_model, output_file_name, first_ge_model),
         "[SaveSoStoreModelPartitionInfo]Failed");

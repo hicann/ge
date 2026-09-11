@@ -263,10 +263,10 @@ Status MemcpyAsyncTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_d
 }
 
 Status MemcpyAsyncTaskCodeBuilder::SetIoAddrs(const om2::IowAddrs &iow_addrs) {
-  io_addrs_.emplace_back(ValueToPtr(iow_addrs.input_logic_addrs[0U].logic_addr));
-  io_addrs_.emplace_back(ValueToPtr(iow_addrs.output_logic_addrs[0U].logic_addr));
-  io_addr_mem_types_.emplace_back(iow_addrs.input_logic_addrs[0U].memory_type);
-  io_addr_mem_types_.emplace_back(iow_addrs.output_logic_addrs[0U].memory_type);
+  (void)io_addrs_.emplace_back(ValueToPtr(iow_addrs.input_logic_addrs[0U].logic_addr));
+  (void)io_addrs_.emplace_back(ValueToPtr(iow_addrs.output_logic_addrs[0U].logic_addr));
+  (void)io_addr_mem_types_.emplace_back(iow_addrs.input_logic_addrs[0U].memory_type);
+  (void)io_addr_mem_types_.emplace_back(iow_addrs.output_logic_addrs[0U].memory_type);
   return SUCCESS;
 }
 

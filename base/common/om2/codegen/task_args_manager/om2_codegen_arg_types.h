@@ -410,7 +410,7 @@ struct CopyHostInputInfo {
   void *host_addr;
   uint64_t device_addr;
   uint64_t tensor_size;
-  CopyHostInputInfo() : input_index(0), host_addr(nullptr), device_addr(0u), tensor_size(0U) {}
+  CopyHostInputInfo() : input_index(0), host_addr(nullptr), device_addr(0U), tensor_size(0U) {}
 };
 
 struct ModelArgsSemantic {

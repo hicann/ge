@@ -504,10 +504,10 @@ std::vector<DeclNode *> LoadAndRunFileCodeGenerator::BuildQueryResourceApis(
                ast_.Return("ACL_ERROR_FAILURE")}),
   };
   for (uint32_t i = 0U; i < runtime.stream_num; ++i) {
-    stream_desc_body.emplace_back(
+    (void)stream_desc_body.emplace_back(
         ast_.Assign(stream_flags[ast_.UInt(static_cast<uint64_t>(i))], runtime.stream_flag_values[i]));
   }
-  stream_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
+  (void)stream_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
   items.push_back(ast_.DefineFunction("GertModelGetStreamDesc", {stream_flags, stream_num, stream_ext}, "int32_t",
                                       ast_.Body(stream_desc_body)));
 
@@ -528,11 +528,11 @@ std::vector<DeclNode *> LoadAndRunFileCodeGenerator::BuildQueryResourceApis(
            ast_.Return("ACL_ERROR_FAILURE")}),
   };
   for (uint32_t i = 0U; i < runtime.event_num; ++i) {
-    event_desc_body.emplace_back(
+    (void)event_desc_body.emplace_back(
         ast_.Assign(event_flags[ast_.UInt(static_cast<uint64_t>(i))],
                     "ACL_EVENT_SYNC | ACL_EVENT_CAPTURE_STREAM_PROGRESS | ACL_EVENT_TIME_LINE"));
   }
-  event_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
+  (void)event_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
   items.push_back(ast_.DefineFunction("GertModelGetEventDesc", {event_flags, event_num, event_ext}, "int32_t",
                                       ast_.Body(event_desc_body)));
 
@@ -557,10 +557,10 @@ std::vector<DeclNode *> LoadAndRunFileCodeGenerator::BuildQueryResourceApis(
                ast_.Return("ACL_ERROR_FAILURE")}),
   };
   for (uint32_t i = 0U; i < runtime.notify_num; ++i) {
-    notify_desc_body.emplace_back(
+    (void)notify_desc_body.emplace_back(
         ast_.Assign(notify_flags[ast_.UInt(static_cast<uint64_t>(i))], "ACL_NOTIFY_DEVICE_USE_ONLY"));
   }
-  notify_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
+  (void)notify_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
   items.push_back(ast_.DefineFunction("GertModelGetNotifyDesc", {notify_flags, notify_num, notify_ext}, "int32_t",
                                       ast_.Body(notify_desc_body)));
 

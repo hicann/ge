@@ -36,16 +36,18 @@ def run_with_default_allocator(ge_graph: Graph, session: Session) -> int:
         # 3. 添加并异步执行 Graph
         session.add_graph(GRAPH_ID, ge_graph)
         graph_added = True
-        device_outputs = session.run_graph_with_stream_async(GRAPH_ID, stream, list(inputs))
+        device_outputs = session.run_graph_with_stream_async(
+            GRAPH_ID, stream, list(inputs)
+        )
 
         # 4. 等待 Stream 上的任务完成
         check_ret("acl.rt.synchronize_stream", acl.rt.synchronize_stream(stream))
-        print("[Info] 异步执行 Graph 成功！")
+        print("[Info] Asynchronous execution of the graph succeeded.")
 
         # 5. 将 Device 数据传回 Host 并打印
         host_outputs = [out.to_host() for out in device_outputs]
         for idx, tensor in enumerate(host_outputs, start=1):
-            print(f"Tensor{idx} 详情：{tensor}")
+            print(f"Tensor{idx} details: {tensor}")
         return 0
     finally:
         if stream is not None:

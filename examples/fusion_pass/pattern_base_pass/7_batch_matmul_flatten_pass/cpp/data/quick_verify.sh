@@ -13,6 +13,8 @@
 # 支持传入shape和执行次数，验证开启融合pass的性能
 # 用法: ./quick_verify.sh [batch] [m] [k] [n] [test_rounds]
 
+set -euo pipefail
+
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PASS_DIR=$(dirname "$SCRIPT_DIR")
 

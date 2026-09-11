@@ -43,7 +43,7 @@
 
 ## 快速运行
 
-在 `examples/custom_op/args_refresh_add_custom/cpp` 目录下执行：
+在 `examples/custom_op/args_refresh_add_custom/cpp` 目录下执行
 
 ### 推荐方式
 

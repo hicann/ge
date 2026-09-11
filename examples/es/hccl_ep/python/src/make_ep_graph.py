@@ -10,6 +10,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
+# ruff: noqa: F403, F405
 import os
 import sys
 
@@ -46,13 +47,19 @@ def build_ep_graph():
     # 3、创建输入节点
     inputs = []
     for idx, (name, shape, dtype) in enumerate(input_configs):
-        input_node = builder.create_input(index=idx, name=name, data_type=dtype, shape=shape)
+        input_node = builder.create_input(
+            index=idx, name=name, data_type=dtype, shape=shape
+        )
         inputs.append(input_node)
 
-    hidden_states, gate_weight, finished, shared_output, expert_weight, group_list = inputs
+    hidden_states, gate_weight, finished, shared_output, expert_weight, group_list = (
+        inputs
+    )
 
     # 4、构建计算图
-    quant_result = DynamicQuant(hidden_states, smooth_scales=None, group_index=None, dst_type=DataType.DT_INT8)
+    quant_result = DynamicQuant(
+        hidden_states, smooth_scales=None, group_index=None, dst_type=DataType.DT_INT8
+    )
     hidden_states_int8 = quant_result.y
     pertoken_scale = quant_result.scale
 
@@ -79,28 +86,38 @@ def build_ep_graph():
         N=4,
     )
 
-    topk_all = HcomAllGather(topk_cat, rank_size=RANK_SIZE, group="hccl_world_group", fusion=0, fusion_id=-1)
+    topk_all = HcomAllGather(
+        topk_cat, rank_size=RANK_SIZE, group="hccl_world_group", fusion=0, fusion_id=-1
+    )
 
     size_splits = builder.create_vector_int64([TOP_K, TOP_K, TOP_K, 1])
     split_results = SplitV(topk_all, size_splits, -1, 4, num_split=4)
     global_topk_weights = split_results[0]
-    global_topk_ids_float = split_results[1]
     global_row_idx_float = split_results[2]
     global_pertoken_scale = split_results[3]
 
-    topk_ids_rounded = Round(global_topk_ids_float)
     row_idx_rounded = Round(global_row_idx_float)
     global_row_idx = Cast(row_idx_rounded, dst_type=DataType.DT_INT64)
     global_row_idx_flat = Reshape(global_row_idx, builder.create_vector_int64([-1]))
 
     axis_const = builder.create_const_int32([0], [])
-    dispatched_hidden_states = GatherV2(global_hidden_states, global_row_idx_flat, axis_const)
-    global_pertoken_scale_squeezed = Reshape(global_pertoken_scale, builder.create_vector_int64([-1]))
-    dispatched_pertoken_scale = GatherV2(global_pertoken_scale_squeezed, global_row_idx_flat, axis_const)
-    global_topk_weights_flat = Reshape(global_topk_weights, builder.create_vector_int64([-1]))
+    dispatched_hidden_states = GatherV2(
+        global_hidden_states, global_row_idx_flat, axis_const
+    )
+    global_pertoken_scale_squeezed = Reshape(
+        global_pertoken_scale, builder.create_vector_int64([-1])
+    )
+    dispatched_pertoken_scale = GatherV2(
+        global_pertoken_scale_squeezed, global_row_idx_flat, axis_const
+    )
+    global_topk_weights_flat = Reshape(
+        global_topk_weights, builder.create_vector_int64([-1])
+    )
     group_list_int64 = Cast(group_list, dst_type=DataType.DT_INT64)
     scale_data = np.ones([NUM_EXPERTS, HIDDEN_SIZE], dtype=np.float32)
-    weight_scale = builder.create_const_float(scale_data.flatten().tolist(), [NUM_EXPERTS, HIDDEN_SIZE])
+    weight_scale = builder.create_const_float(
+        scale_data.flatten().tolist(), [NUM_EXPERTS, HIDDEN_SIZE]
+    )
 
     moe_output = GroupedMatmulFinalizeRouting(
         dispatched_hidden_states,  # x (int8)
@@ -153,17 +170,23 @@ def run_graph(graph, device_id="0") -> int:
     if rank_id is not None and rank_table_file is not None:
         config["ge.exec.rankTableFile"] = rank_table_file
         config["ge.exec.rankId"] = rank_id
-        print(f"[Info] 多卡模式 - RANK_ID: {rank_id}, RANK_TABLE_FILE: {rank_table_file}")
+        print(
+            f"[Info] Multi-card mode - RANK_ID: {rank_id}, RANK_TABLE_FILE: {rank_table_file}"
+        )
     else:
-        print("[Info] 单卡模式 - 未检测到RANK_ID和RANK_TABLE_FILE环境变量")
+        print(
+            "[Info] Single-card mode - RANK_ID and RANK_TABLE_FILE environment variables not detected"
+        )
 
     ge_api = GeApi()
     ret = ge_api.ge_initialize(config)
     if ret != 0:
-        print(f"[Error] GE初始化失败，返回码: {ret}")
+        print(f"[Error] GE initialization failed, return code: {ret}")
         return ret
 
-    print(f"[Info] GE环境初始化成功 (Device ID: {device_id}, RANK_ID: {rank_id if rank_id else 'N/A'})")
+    print(
+        f"[Info] GE environment initialized successfully (Device ID: {device_id}, RANK_ID: {rank_id if rank_id else 'N/A'})"
+    )
 
     try:
         # 2. 创建Session
@@ -173,9 +196,9 @@ def run_graph(graph, device_id="0") -> int:
         graph_id = 1
         ret = session.add_graph(graph_id, graph)
         if ret != 0:
-            print(f"[Error] 添加图失败，返回码: {ret}")
+            print(f"[Error] Failed to add graph, return code: {ret}")
             return ret
-        print(f"[Info] 图已添加到Session (Graph ID: {graph_id})")
+        print(f"[Info] Graph added to Session (Graph ID: {graph_id})")
 
         # 4. 准备输入数据
         # hidden_states
@@ -200,7 +223,9 @@ def run_graph(graph, device_id="0") -> int:
 
         # finished (BOOL 类型)
         finished_data = [False] * LOCAL_BATCH
-        finished_tensor = Tensor(finished_data, None, DataType.DT_BOOL, Format.FORMAT_ND, [LOCAL_BATCH])
+        finished_tensor = Tensor(
+            finished_data, None, DataType.DT_BOOL, Format.FORMAT_ND, [LOCAL_BATCH]
+        )
 
         # shared_output
         shared_output_data = np.full([LOCAL_BATCH, HIDDEN_SIZE], 0.5, dtype=np.float32)
@@ -213,7 +238,9 @@ def run_graph(graph, device_id="0") -> int:
         )
 
         # expert_weight
-        expert_weight_data = np.ones([NUM_EXPERTS, HIDDEN_SIZE, HIDDEN_SIZE], dtype=np.int8)
+        expert_weight_data = np.ones(
+            [NUM_EXPERTS, HIDDEN_SIZE, HIDDEN_SIZE], dtype=np.int8
+        )
         expert_weight_tensor = Tensor(
             expert_weight_data.flatten().tolist(),
             None,
@@ -241,17 +268,17 @@ def run_graph(graph, device_id="0") -> int:
             group_list_tensor,
         ]
 
-        print(f"[Info] 输入数据已准备，共{len(inputs)}个输入tensor")
+        print(f"[Info] Prepared {len(inputs)} input tensor(s)")
 
         # 5. 运行图
         ret = session.run_graph(graph_id, inputs)
-        print("[Info] 图运行成功！")
+        print("[Info] Graph executed successfully!")
         for idx, tensor in enumerate(ret, start=1):
-            print(f"Tensor{idx}详情：{tensor}")
+            print(f"Tensor{idx} details: {tensor}")
         return 0
 
     except Exception as e:
-        print(f"[Error] 执行过程中出错: {e}")
+        print(f"[Error] Error during execution: {e}")
         import traceback
 
         traceback.print_exc()
@@ -259,9 +286,9 @@ def run_graph(graph, device_id="0") -> int:
 
     finally:
         # 6. 清理GE环境
-        print("[Info] 清理GE环境...")
+        print("[Info] Cleaning up GE environment...")
         ge_api.ge_finalize()
-        print("[Success] GE环境已清理")
+        print("[Success] GE environment cleaned up")
 
 
 if __name__ == "__main__":

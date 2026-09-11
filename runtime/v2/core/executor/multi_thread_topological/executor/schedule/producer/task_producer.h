@@ -12,7 +12,7 @@
 #define AIR_CXX_RUNTIME_V2_TASK_PRODUCER_H
 
 #include "core/executor/multi_thread_topological/executor/schedule/task/task_package.h"
-#include "ge/ge_api_types.h"
+#include "external/ge_common/ge_common_api_types.h"
 #include "ge/ge_api_error_codes.h"
 
 namespace gert {

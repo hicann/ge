@@ -46,14 +46,14 @@ bash run_sample.sh -t sample_and_run_python_custom_allocator
 
 执行成功后，终端会出现以下格式的打印（具体行数取决于 GE 对输出 Tensor 的分配/释放；地址与 `size` 以实际运行为准）：
 ```
-[Info] SamplePoolAllocator 已注册到 stream
-[SamplePool] new   : addr=0x<设备内存地址>  size=<字节数> B
-[Info] 异步执行 Graph 成功！
-[SamplePool] cache : addr=0x<设备内存地址>  size=<字节数> B
-[Info] SamplePoolAllocator 已注销
+[Info] SamplePoolAllocator registered to stream
+[SamplePool] new   : addr=0x<addr>  size=<N> B
+[Info] Asynchronous execution of the graph succeeded.
+[SamplePool] cache : addr=0x<addr>  size=<N> B
+[Info] SamplePoolAllocator unregistered
 [SamplePool] destroy: freed <N> cached blocks
-[Info] 运行环境已清理
-[Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示
+[Info] Runtime environment cleaned up
+[Success] sample execution succeeded, pbtxt dump generated in current directory. The file starts with ge_onnx_ and can be viewed in netron.
 ```
 #### 输出文件说明
 

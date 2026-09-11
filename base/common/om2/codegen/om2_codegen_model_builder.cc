@@ -56,14 +56,21 @@ bool CompareInputModelIoItem(const InputModelIoItem &lhs, const InputModelIoItem
 
 std::string BuildAicoreKernelBinId(const Om2CodegenModel &codegen_model, const OpDescPtr &op_desc, bool is_atomic) {
   std::string bin_id;
+  const std::string *bin_id_ptr = nullptr;
   if (is_atomic) {
-    (void)AttrUtils::GetStr(op_desc, kAttrMemsetKernelBinId, bin_id);
+    bin_id_ptr = AttrUtils::GetStr(op_desc, kAttrMemsetKernelBinId);
   } else {
-    (void)AttrUtils::GetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, bin_id);
+    bin_id_ptr = AttrUtils::GetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID);
+  }
+  if (bin_id_ptr != nullptr) {
+    bin_id = *bin_id_ptr;
   }
   if (bin_id.empty()) {
-    (void)AttrUtils::GetStr(op_desc, ATTR_NAME_SESSION_GRAPH_ID, bin_id);
-    bin_id += std::string("_" + codegen_model.model_name + op_desc->GetName());
+    const std::string *graph_id_ptr = AttrUtils::GetStr(op_desc, ATTR_NAME_SESSION_GRAPH_ID);
+    if (graph_id_ptr != nullptr) {
+      bin_id = *graph_id_ptr;
+    }
+    bin_id += "_" + codegen_model.model_name + op_desc->GetName();
   }
   bin_id += "_AicoreKernel";
   return bin_id;

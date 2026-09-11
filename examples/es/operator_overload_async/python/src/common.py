@@ -36,9 +36,15 @@ def check_ret(name: str, ret: int) -> None:
 def build_overload_graph() -> Graph:
     """使用操作符重载构建静态 shape 加法图（shape 固定为 [2, 3]）。"""
     builder = GraphBuilder("MakeAddGraph")
-    h1 = builder.create_input(index=0, name="input1", data_type=DataType.DT_FLOAT, shape=[2, 3])
-    h2 = builder.create_input(index=1, name="input2", data_type=DataType.DT_INT64, shape=[2, 3])
-    h3 = builder.create_input(index=2, name="input3", data_type=DataType.DT_INT64, shape=[2, 3])
+    h1 = builder.create_input(
+        index=0, name="input1", data_type=DataType.DT_FLOAT, shape=[2, 3]
+    )
+    h2 = builder.create_input(
+        index=1, name="input2", data_type=DataType.DT_INT64, shape=[2, 3]
+    )
+    h3 = builder.create_input(
+        index=2, name="input3", data_type=DataType.DT_INT64, shape=[2, 3]
+    )
     builder.set_graph_output(h1 + h2 + h3, 0)
     return builder.build_and_reset()
 
@@ -82,7 +88,7 @@ def run_graph(graph: Graph, session_runner: Callable[[Graph, Session], int]) -> 
     }
     ge_api = GeApi()
     ge_api.ge_initialize(config)
-    print(f"[Info] GE 环境初始化成功 (Device ID: {DEVICE_ID})")
+    print(f"[Info] GE environment initialized successfully (Device ID: {DEVICE_ID})")
 
     try:
         check_ret("acl.init", acl.init())
@@ -90,11 +96,11 @@ def run_graph(graph: Graph, session_runner: Callable[[Graph, Session], int]) -> 
         check_ret("acl.rt.set_device", acl.rt.set_device(DEVICE_ID))
         return session_runner(graph, session)
     except Exception as e:
-        print(f"[Error] 执行过程中出错: {e}")
+        print(f"[Error] Error during execution: {e}")
         traceback.print_exc()
         return -1
     finally:
         acl.rt.reset_device(DEVICE_ID)
         acl.finalize()
         ge_api.ge_finalize()
-        print("[Info] 运行环境已清理")
+        print("[Info] Runtime environment cleaned up")

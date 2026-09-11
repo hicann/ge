@@ -24,59 +24,59 @@ int ExecuteSingleLoadedModel(aclmdlDesc *model_desc, uint32_t model_id) {
     TeardownAclSingleModelInfer(&input_io, &output_io, model_desc, model_id);
     return -1;
   }
-  std::cout << "[Info] 执行模型推理\n";
+  std::cout << "[Info] Executing model inference\n";
   if (CopyFloatInputs(SampleInputs(), input_io) != ge::SUCCESS) {
     TeardownAclSingleModelInfer(&input_io, &output_io, model_desc, model_id);
     return -1;
   }
   const aclError err = aclmdlExecute(model_id, input_io.dataset, output_io.dataset);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclmdlExecute 失败, aclError=" << err << std::endl;
+    std::cerr << "[Error] aclmdlExecute failed, aclError=" << err << std::endl;
     TeardownAclSingleModelInfer(&input_io, &output_io, model_desc, model_id);
     return -1;
   }
-  std::cout << "[Info] 模型推理结果:\n";
+  std::cout << "[Info] Model inference result:\n";
   if (PrintModelOutputs(model_desc, output_io) != ge::SUCCESS) {
     TeardownAclSingleModelInfer(&input_io, &output_io, model_desc, model_id);
     return -1;
   }
   TeardownAclSingleModelInfer(&input_io, &output_io, model_desc, model_id);
-  std::cout << "[Info] 所有资源释放成功\n";
+  std::cout << "[Info] All resources released successfully\n";
   return 0;
 }
 
 }  // namespace
 
 int RunSingleModelInfer() {
-  std::cout << "[Info] 初始化运行环境及数据\n";
+  std::cout << "[Info] Initializing runtime environment and data\n";
   aclError err = aclInit(nullptr);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclInit 失败, aclError=" << err << std::endl;
+    std::cerr << "[Error] aclInit failed, aclError=" << err << std::endl;
     return -1;
   }
   err = aclrtSetDevice(kDeviceId);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclrtSetDevice 失败, aclError=" << err << std::endl;
+    std::cerr << "[Error] aclrtSetDevice failed, aclError=" << err << std::endl;
     (void)aclFinalize();
     return -1;
   }
   uint32_t model_id = 0;
   err = aclmdlLoadFromFile("add_sample.om", &model_id);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclmdlLoadFromFile 失败, aclError=" << err << std::endl;
+    std::cerr << "[Error] aclmdlLoadFromFile failed, aclError=" << err << std::endl;
     (void)aclrtResetDevice(kDeviceId);
     (void)aclFinalize();
     return -1;
   }
   aclmdlDesc *model_desc = aclmdlCreateDesc();
   if (model_desc == nullptr) {
-    std::cerr << "[Error] aclmdlCreateDesc 失败\n";
+    std::cerr << "[Error] aclmdlCreateDesc failed\n";
     TeardownAclSingleModelInfer(nullptr, nullptr, nullptr, model_id);
     return -1;
   }
   err = aclmdlGetDesc(model_desc, model_id);
   if (err != ACL_SUCCESS) {
-    std::cerr << "[Error] aclmdlGetDesc 失败, aclError=" << err << std::endl;
+    std::cerr << "[Error] aclmdlGetDesc failed, aclError=" << err << std::endl;
     TeardownAclSingleModelInfer(nullptr, nullptr, model_desc, model_id);
     return -1;
   }

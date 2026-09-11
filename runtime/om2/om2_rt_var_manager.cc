@@ -62,7 +62,7 @@ ge::Status Om2RTVarManager::Init(const RTVarResource &resource, void *const exte
   return ge::SUCCESS;
 }
 
-ge::Status Om2RTVarManager::AllocDevAddr(const RTVarEntry &entry, void *&dev_addr) {
+ge::Status Om2RTVarManager::AllocDevAddr(const RTVarEntry &entry, void *&dev_addr) const {
   void *new_addr = nullptr;
   const auto malloc_ret = Om2Malloc(&new_addr, entry.size, entry.memory_type, 0);
   if (malloc_ret != ACL_SUCCESS) {
@@ -244,7 +244,7 @@ bool Om2RTVarManager::TryGetVarAddr(const std::string &key, const uint32_t devic
 }
 
 ge::Status Om2RTVarManager::CopyVarFromDevice(const RTVarEntry &entry, const RTVarRuntimeState &state,
-                                              const uint32_t device_id, std::vector<uint8_t> &host_buf) {
+                                              const uint32_t device_id, std::vector<uint8_t> &host_buf) const {
   auto it = state.dev_addrs.find(device_id);
   if (it == state.dev_addrs.end() || it->second == nullptr) {
     GELOGE(ge::FAILED, "[OM2][Var] dev_addr not allocated for var=%s, device=%u.", entry.var_name.c_str(), device_id);
@@ -260,7 +260,7 @@ ge::Status Om2RTVarManager::CopyVarFromDevice(const RTVarEntry &entry, const RTV
 }
 
 ge::Status Om2RTVarManager::CopyVarToDevice(const RTVarEntry &entry, const RTVarRuntimeState &state,
-                                            const uint32_t device_id, const std::vector<uint8_t> &host_buf) {
+                                            const uint32_t device_id, const std::vector<uint8_t> &host_buf) const {
   auto it = state.dev_addrs.find(device_id);
   if (it == state.dev_addrs.end() || it->second == nullptr) {
     GELOGE(ge::FAILED, "[OM2][Var] dev_addr not allocated for var=%s, device=%u.", entry.var_name.c_str(), device_id);
@@ -274,7 +274,7 @@ ge::Status Om2RTVarManager::CopyVarToDevice(const RTVarEntry &entry, const RTVar
   return ge::SUCCESS;
 }
 
-ge::Status Om2RTVarManager::TransVarOnHost(const RTVarTransRoad &trans_road, std::vector<uint8_t> &data) {
+ge::Status Om2RTVarManager::TransVarOnHost(const RTVarTransRoad &trans_road, std::vector<uint8_t> &data) const {
   ge::formats::TransResult last_result{};
   bool use_init_data = true;
   for (const auto &node : trans_road) {

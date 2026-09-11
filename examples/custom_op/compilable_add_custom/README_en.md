@@ -27,7 +27,7 @@ This sample demonstrates a minimum runnable GE custom operator sinking pipeline:
 - CANN environment has been correctly installed and configured, e.g., executed `source ${ASCEND_HOME_PATH}/set_env.sh`.
 - `atc` command is available.
 - Current environment has `ACL`, `GE`, `Graph` related headers and libraries.
-- Follow [installation guide](../../../docs/zh/quick_install.md) to complete toolkit and ops package installation.
+- Follow [installation guide](../../../docs/en/quick_install.md) to complete toolkit and ops package installation.
 
 ### Framework and Plugins
 

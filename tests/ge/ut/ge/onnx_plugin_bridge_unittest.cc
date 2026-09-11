@@ -25,6 +25,7 @@
 #include "parser/common/op_registration_tbe.h"
 #include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_c_api.h"
 #include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
+#include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_registrar.h"
 #include "proto/onnx/ge_onnx.pb.h"
 #include "register/op_registry.h"
 #include "register/register_fmk_types.h"
@@ -86,12 +87,14 @@ TEST(OnnxPythonPluginBridge, InitializeFailsOnBadSyntaxPlugin) {
 
   void *bridge = dlopen(ONNX_PYTHON_PLUGIN_BRIDGE_PATH, RTLD_NOW | RTLD_GLOBAL);
   ASSERT_NE(bridge, nullptr);
-  using InitBridgeFunc = Status (*)();
-  const auto init_bridge = reinterpret_cast<InitBridgeFunc>(dlsym(bridge, "InitOnnxPluginBridge"));
-  ASSERT_NE(init_bridge, nullptr);
+  using RegisterBridgeFunc = Status (*)(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *);
+  const auto register_plugins = reinterpret_cast<RegisterBridgeFunc>(dlsym(bridge, "RegisterOnnxPluginBridgePlugins"));
+  ASSERT_NE(register_plugins, nullptr);
+  const auto *const registrar = GetOnnxPluginBridgeRegistrar();
+  ASSERT_NE(registrar, nullptr);
 
   ASSERT_EQ(unsetenv("ASCEND_CUSTOM_OPP_PATH"), 0);
-  EXPECT_EQ(init_bridge(), SUCCESS);
+  EXPECT_EQ(register_plugins(registrar), SUCCESS);
   using ResetBridgeFunc = void (*)();
   const auto reset_bridge = reinterpret_cast<ResetBridgeFunc>(dlsym(bridge, "ResetOnnxPluginBridgeState"));
   ASSERT_NE(reset_bridge, nullptr);
@@ -113,7 +116,7 @@ TEST(OnnxPythonPluginBridge, InitializeFailsOnBadSyntaxPlugin) {
 
   ScopedBadSyntaxPlugin bad_syntax_plugin;
   ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__mde_bad_syntax_plugin_in_memory__", 1), 0);
-  EXPECT_NE(init_bridge(), SUCCESS);
+  EXPECT_NE(register_plugins(registrar), SUCCESS);
   unsetenv("ASCEND_CUSTOM_OPP_PATH");
 }
 
@@ -129,11 +132,14 @@ TEST(OnnxPythonPluginBridge, ParseParamsUsesNativeNodeAndPreservesCppPriority) {
 
   void *bridge = dlopen(ONNX_PYTHON_PLUGIN_BRIDGE_PATH, RTLD_NOW | RTLD_GLOBAL);
   ASSERT_NE(bridge, nullptr);
-  using InitBridgeFunc = Status (*)();
-  const auto init_bridge = reinterpret_cast<InitBridgeFunc>(dlsym(bridge, "InitOnnxPluginBridge"));
-  ASSERT_NE(init_bridge, nullptr);
-  ASSERT_EQ(init_bridge(), SUCCESS);
-  ASSERT_EQ(init_bridge(), SUCCESS);
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  using RegisterBridgeFunc = Status (*)(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *);
+  const auto register_plugins = reinterpret_cast<RegisterBridgeFunc>(dlsym(bridge, "RegisterOnnxPluginBridgePlugins"));
+  ASSERT_NE(register_plugins, nullptr);
+  const auto *const registrar = GetOnnxPluginBridgeRegistrar();
+  ASSERT_NE(registrar, nullptr);
+  ASSERT_EQ(register_plugins(registrar), SUCCESS);
+  ASSERT_EQ(register_plugins(registrar), SUCCESS);
 
   ge::onnx::NodeProto node;
   node.set_name("bridge_node");
@@ -268,10 +274,11 @@ TEST(OnnxPythonPluginBridge, ParseGraphCallbacks) {
   ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__ge_py_onnx_plugin_in_memory__", 1), 0);
   void *bridge = dlopen(ONNX_PYTHON_PLUGIN_BRIDGE_PATH, RTLD_NOW | RTLD_GLOBAL);
   ASSERT_NE(bridge, nullptr);
-  using InitBridgeFunc = Status (*)();
-  const auto init_bridge = reinterpret_cast<InitBridgeFunc>(dlsym(bridge, "InitOnnxPluginBridge"));
-  ASSERT_NE(init_bridge, nullptr);
-  ASSERT_EQ(init_bridge(), SUCCESS);
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  using RegisterBridgeFunc = Status (*)(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *);
+  const auto register_plugins = reinterpret_cast<RegisterBridgeFunc>(dlsym(bridge, "RegisterOnnxPluginBridgePlugins"));
+  ASSERT_NE(register_plugins, nullptr);
+  ASSERT_EQ(register_plugins(GetOnnxPluginBridgeRegistrar()), SUCCESS);
 
   Operator source_op("operator_source", "BridgeOperator");
   source_op.SetAttr("alpha", 0.5F);
@@ -293,10 +300,10 @@ TEST(OnnxPythonPluginBridge, LoadThroughCommonLoader) {
   const bool had_python_path = old_python_path != nullptr;
 
   ASSERT_EQ(unsetenv("ASCEND_CUSTOM_OPP_PATH"), 0);
-  EXPECT_EQ(LoadOnnxPythonPluginBridge(), SUCCESS);
+  EXPECT_EQ(LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()), SUCCESS);
   ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__ge_py_onnx_plugin_in_memory__", 1), 0);
   ASSERT_EQ(setenv("PYTHONPATH", "", 1), 0);
-  EXPECT_EQ(LoadOnnxPythonPluginBridge(), FAILED);
+  EXPECT_EQ(LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()), FAILED);
 
   if (had_python_path) {
     ASSERT_EQ(setenv("PYTHONPATH", old_python_path_value.c_str(), 1), 0);
@@ -304,10 +311,10 @@ TEST(OnnxPythonPluginBridge, LoadThroughCommonLoader) {
     ASSERT_EQ(unsetenv("PYTHONPATH"), 0);
   }
   ScopedInMemoryPlugin in_memory_plugin;
-  ASSERT_EQ(LoadOnnxPythonPluginBridge(), SUCCESS);
-  ASSERT_EQ(LoadOnnxPythonPluginBridge(), SUCCESS);
+  ASSERT_EQ(LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()), SUCCESS);
+  ASSERT_EQ(LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()), SUCCESS);
   UnloadOnnxPythonPluginBridge();
-  ASSERT_EQ(LoadOnnxPythonPluginBridge(), SUCCESS);
+  ASSERT_EQ(LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()), SUCCESS);
   UnloadOnnxPythonPluginBridge();
 
   if (had_plugin_path) {

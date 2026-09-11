@@ -666,11 +666,13 @@ ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::stri
     GE_ASSERT_SUCCESS(DeserializeModelMetaEntry(archive, entry, model_data));
     return ge::SUCCESS;
   }
-  if (entry.find("data/constants/") != std::string::npos) {
+  if (IsFileNameEndsWith(entry, "_constants_config.json")) {
     required.has_constants_config = true;
-    if (IsFileNameEndsWith(entry, "_constants_config.json")) {
-      GE_ASSERT_SUCCESS(DeserializeConstantsConfigEntry(archive, entry, model_data));
-    } else if (entry.find("data/constants/constant_") != std::string::npos) {
+    GE_ASSERT_SUCCESS(DeserializeConstantsConfigEntry(archive, entry, model_data));
+    return ge::SUCCESS;
+  }
+  if (entry.find("data/constants/") != std::string::npos) {
+    if (entry.find("data/constants/constant_") != std::string::npos) {
       GE_ASSERT_SUCCESS(DeserializeWeightEntry(archive, entry, model_data));
     }
     return ge::SUCCESS;
@@ -1112,7 +1114,8 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status PrepareVarAddrs(const gert::Om2ModelData &model_data, uint32_t device_id, std::vector<void *> &var_addrs) {
+  ge::Status PrepareVarAddrs(const gert::Om2ModelData &model_data, uint32_t device_id,
+                             std::vector<void *> &var_addrs) const {
     if (model_data.var_metas.empty()) {
       return ge::SUCCESS;
     }
@@ -1501,7 +1504,7 @@ class Om2ModelExecutor::Impl {
 
   ge::Status SetDynamicAippData(void *dynamic_input_addr, const uint64_t length,
                                 const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
-                                const kAippDynamicPara &aipp_parms) {
+                                const kAippDynamicPara &aipp_parms) const {
     if (dynamic_input_addr == nullptr) {
       REPORT_INNER_ERR_MSG("E19999", "Param dynamic_input_addr is nullptr, check invalid");
       GELOGE(ACL_ERROR_GE_DYNAMIC_INPUT_ADDR_INVALID, "[Check][Param] Dynamic aipp input addr is nullptr");
@@ -1776,7 +1779,7 @@ ge::Status Om2ModelExecutor::GetBatchInfoSize(size_t &shape_count) const {
   return impl_->GetBatchInfoSize(shape_count);
 }
 
-ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, const uint64_t length,
+ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, uint64_t length,
                                                 const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
                                                 const kAippDynamicPara &aipp_parms) {
   return impl_->SetDynamicAippData(dynamic_input_addr, length, aipp_batch_para, aipp_parms);

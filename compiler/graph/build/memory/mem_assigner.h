@@ -11,7 +11,7 @@
 #ifndef GE_GRAPH_BUILD_MEMORY_MEM_ASSIGNER_H_
 #define GE_GRAPH_BUILD_MEMORY_MEM_ASSIGNER_H_
 
-#include "framework/common/ge_inner_error_codes.h"
+#include "external/ge_common/ge_common_api_types.h"
 
 namespace ge {
 static const int64_t kInvalidOffset = -1;

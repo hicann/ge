@@ -457,7 +457,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
-      "fake_test/data/constants/model_0_constants_config.json",
+      "fake_test/data/model_0/model_0_constants_config.json",
       "fake_test/data/kernels/add1_faked_kernel.o",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
@@ -548,7 +548,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
 
   size_t constants_config_size = 0;
   const auto constants_config_buf =
-      archive.ExtractToMem("fake_test/data/constants/model_0_constants_config.json", constants_config_size);
+      archive.ExtractToMem("fake_test/data/model_0/model_0_constants_config.json", constants_config_size);
   ASSERT_NE(constants_config_buf, nullptr);
   const JsonFile constants_json(reinterpret_cast<const uint8_t *>(constants_config_buf.get()), constants_config_size);
   ASSERT_TRUE(constants_json.IsValid());
@@ -639,7 +639,7 @@ TEST_F(Om2PackageHelperUt, SaveToOmModel_SaveModeFalse_ReturnsModelBuffer) {
       "g1/data/model_0/runtime/csrc/Makefile",
       "g1/data/model_0/runtime/libg1_om2.so",
       "g1/data/constants/constant_0",
-      "g1/data/constants/model_0_constants_config.json",
+      "g1/data/model_0/model_0_constants_config.json",
       "g1/data/kernels/add1_faked_kernel.o",
       "g1/data/model_0/model_meta.json",
       "g1/data/model_0/op_attr.json",
@@ -775,7 +775,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
 
   size_t constants_config_size = 0;
   const auto constants_config_buf =
-      archive.ExtractToMem("fake_fileconst/data/constants/model_0_constants_config.json", constants_config_size);
+      archive.ExtractToMem("fake_fileconst/data/model_0/model_0_constants_config.json", constants_config_size);
   ASSERT_NE(constants_config_buf, nullptr);
   const JsonFile constants_json(reinterpret_cast<const uint8_t *>(constants_config_buf.get()), constants_config_size);
   ASSERT_TRUE(constants_json.IsValid());
@@ -843,13 +843,13 @@ TEST_F(Om2PackageHelperUt, RelocateExternalWeights_SkipInvalidConstItemsAndCompr
     JsonFile constants_config;
     constants_config.Set("internal_weight_size", 0U).Set("consts", consts);
     const std::string constants_config_str = constants_config.Dump();
-    ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config_str.data(),
+    ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config_str.data(),
                                       constants_config_str.size(), false));
     const std::string no_consts_config = R"({"internal_weight_size":0})";
-    ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_1_constants_config.json", no_consts_config.data(),
+    ASSERT_TRUE(zip_writer.WriteBytes("data/model_1/model_1_constants_config.json", no_consts_config.data(),
                                       no_consts_config.size(), false));
     const std::string skipped_consts_config = R"({"consts":{"internal":{"type":"INTERNAL"}}})";
-    ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_2_constants_config.json", skipped_consts_config.data(),
+    ASSERT_TRUE(zip_writer.WriteBytes("data/model_2/model_2_constants_config.json", skipped_consts_config.data(),
                                       skipped_consts_config.size(), false));
     const std::string runtime_entry = "runtime";
     ASSERT_TRUE(
@@ -874,14 +874,14 @@ TEST_F(Om2PackageHelperUt, RelocateExternalWeights_SkipInvalidConstItemsAndCompr
   const auto file_names = archive.ListFiles();
   EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_0/runtime/libfake.so"),
             file_names.end());
-  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/constants/model_1_constants_config.json"),
+  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_1/model_1_constants_config.json"),
             file_names.end());
-  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/constants/model_2_constants_config.json"),
+  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_2/model_2_constants_config.json"),
             file_names.end());
 
   size_t constants_config_size = 0;
   const auto constants_config_buf =
-      archive.ExtractToMem("saved_model/data/constants/model_0_constants_config.json", constants_config_size);
+      archive.ExtractToMem("saved_model/data/model_0/model_0_constants_config.json", constants_config_size);
   ASSERT_NE(constants_config_buf, nullptr);
   const JsonFile constants_json(reinterpret_cast<const uint8_t *>(constants_config_buf.get()), constants_config_size);
   ASSERT_TRUE(constants_json.IsValid());

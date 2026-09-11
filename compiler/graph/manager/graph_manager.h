@@ -361,7 +361,7 @@ class GraphManager {
 
   Status SetSubgraph(uint64_t session_id, ComputeGraphPtr compute_graph, EnginePartitioner &partitioner);
 
-  void SetAttrForHcomBroadCastOp(ComputeGraphPtr &compute_graph);
+  void SetAttrForHcomBroadCastOp(ComputeGraphPtr &compute_graph) const;
 
   bool IsBroadCastOpData(const NodePtr &var_node) const;
 
