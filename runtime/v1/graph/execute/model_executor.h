@@ -143,8 +143,8 @@ class ModelExecutor : public Executor {
   ge::Status LoadOm2Graph(const GeRootModelPtr &ge_root_model, const GraphNodePtr &graph_node,
                           const aclrtStream stream);
   ge::Status RunOm2Graph(const GraphNodePtr &graph_node, uint32_t graph_id, const aclrtStream stream,
-                         const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs);
-  ge::Status UnloadOm2Graph(const GeRootModelPtr &ge_root_model, uint32_t graph_id);
+                         const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs) const;
+  ge::Status UnloadOm2Graph(const GeRootModelPtr &ge_root_model, uint32_t graph_id) const;
   ge::Status GetOm2ModelTensorDesc(const GraphNodePtr &graph_node, const std::vector<ge::Om2TensorDesc> *&input_desc,
                                    const std::vector<ge::Om2TensorDesc> *&output_desc) const;
   ge::Status PrepareOm2Outputs(const GraphNodePtr &graph_node, std::vector<gert::Tensor> &outputs) const;

@@ -25,7 +25,7 @@ constexpr size_t kCastOutputNum = 1U;
 
 }  // namespace
 
-graphStatus CheckCastInputs(gert::InferSymbolComputeContext *context) {
+graphStatus CheckCastInputs(const gert::InferSymbolComputeContext *context) {
   const auto input_desc = context->GetInputDesc(0);
   GE_UNSUPPORTED_IF_NULL(input_desc);
   const auto output_desc = context->GetOutputDesc(0);

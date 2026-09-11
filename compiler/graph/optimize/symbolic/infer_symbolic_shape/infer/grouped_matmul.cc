@@ -29,11 +29,11 @@ constexpr int64_t kSplitM = 0L;
 constexpr int64_t kSplitK = 2L;
 constexpr int64_t kGroupListSparse = 2L;
 
-const gert::SymbolShape *GetDynamicShape(gert::InferSymbolShapeContext *context, size_t index, size_t offset) {
+const gert::SymbolShape *GetDynamicShape(const gert::InferSymbolShapeContext *context, size_t index, size_t offset) {
   return context->GetDynamicInputSymbolShape(index, offset);
 }
 
-bool GetBoolAttr(gert::InferSymbolShapeContext *context, size_t index, bool default_value) {
+bool GetBoolAttr(const gert::InferSymbolShapeContext *context, size_t index, bool default_value) {
   const auto attrs = context->GetAttrs();
   if (attrs == nullptr) {
     return default_value;
@@ -42,7 +42,7 @@ bool GetBoolAttr(gert::InferSymbolShapeContext *context, size_t index, bool defa
   return value == nullptr ? default_value : *value;
 }
 
-int64_t GetIntAttr(gert::InferSymbolShapeContext *context, size_t index, int64_t default_value) {
+int64_t GetIntAttr(const gert::InferSymbolShapeContext *context, size_t index, int64_t default_value) {
   const auto attrs = context->GetAttrs();
   if (attrs == nullptr) {
     return default_value;
