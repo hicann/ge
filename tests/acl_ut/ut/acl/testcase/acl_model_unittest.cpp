@@ -1427,6 +1427,37 @@ TEST_F(UTEST_ACL_Model, aclmdlQuerySizeFromMem) {
   EXPECT_NE(ret, ACL_SUCCESS);
 }
 
+TEST_F(UTEST_ACL_Model, aclmdlQueryWorkspaceSize) {
+  const char *fileName = "/";
+  size_t workSize = 1U;
+
+  EXPECT_NE(aclmdlQueryWorkspaceSize(nullptr, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, nullptr), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlQueryWorkspaceSize(fileName, 2U, &workSize), ACL_ERROR_API_NOT_SUPPORT);
+  EXPECT_EQ(workSize, 0U);
+
+  workSize = 1U;
+  EXPECT_EQ(aclmdlQueryWorkspaceSize(fileName, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, &workSize),
+            ACL_ERROR_API_NOT_SUPPORT);
+  EXPECT_EQ(workSize, 0U);
+  EXPECT_EQ(aclmdlQueryWorkspaceSize(fileName, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, nullptr), ACL_ERROR_API_NOT_SUPPORT);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlQueryWorkspaceSizeFromMem) {
+  void *model = reinterpret_cast<void *>(0x01);
+  size_t workSize = 1U;
+
+  EXPECT_NE(aclmdlQueryWorkspaceSizeFromMem(nullptr, 1U, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, nullptr), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlQueryWorkspaceSizeFromMem(model, 1U, 2U, &workSize), ACL_ERROR_API_NOT_SUPPORT);
+  EXPECT_EQ(workSize, 0U);
+
+  workSize = 1U;
+  EXPECT_EQ(aclmdlQueryWorkspaceSizeFromMem(model, 1U, ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT, &workSize),
+            ACL_ERROR_API_NOT_SUPPORT);
+  EXPECT_EQ(workSize, 0U);
+  EXPECT_EQ(aclmdlQueryWorkspaceSizeFromMem(model, 1U, ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT, nullptr),
+            ACL_ERROR_API_NOT_SUPPORT);
+}
+
 TEST_F(UTEST_ACL_Model, aclmdlQuerySize_Ok_Om2Model) {
   const char *fileName = "/fake/om2_model.om2";
   size_t workSize = 0U;
@@ -1439,6 +1470,21 @@ TEST_F(UTEST_ACL_Model, aclmdlQuerySize_Ok_Om2Model) {
   EXPECT_EQ(weightSize, 1024U);
 }
 
+TEST_F(UTEST_ACL_Model, aclmdlQueryWorkspaceSize_Ok_Om2Model) {
+  const char *fileName = "/fake/om2_model.om2";
+  size_t workSize = 0U;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(_, _)).WillRepeatedly(Invoke(IsOm2ModelFromFile));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2WorkspaceSize(_, false, _, _))
+      .WillOnce(DoAll(SetArgReferee<2>(2048U), SetArgReferee<3>(0U), Return(ge::SUCCESS)));
+  EXPECT_EQ(aclmdlQueryWorkspaceSize(fileName, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, &workSize), ACL_SUCCESS);
+  EXPECT_EQ(workSize, 2048U);
+
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2WorkspaceSize(_, true, _, _))
+      .WillOnce(DoAll(SetArgReferee<2>(2048U), SetArgReferee<3>(0U), Return(ge::SUCCESS)));
+  EXPECT_EQ(aclmdlQueryWorkspaceSize(fileName, ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT, &workSize), ACL_SUCCESS);
+  EXPECT_EQ(workSize, 2048U);
+}
+
 TEST_F(UTEST_ACL_Model, aclmdlQuerySizeFromMem_Ok_Om2Model) {
   uint8_t om2ModelData[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
   size_t workSize = 0U;
@@ -1449,6 +1495,18 @@ TEST_F(UTEST_ACL_Model, aclmdlQuerySizeFromMem_Ok_Om2Model) {
   EXPECT_EQ(aclmdlQuerySizeFromMem(om2ModelData, sizeof(om2ModelData), &workSize, &weightSize), ACL_SUCCESS);
   EXPECT_EQ(workSize, 2048U);
   EXPECT_EQ(weightSize, 1024U);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlQueryWorkspaceSizeFromMem_Ok_Om2Model) {
+  uint8_t om2ModelData[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  size_t workSize = 0U;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(_, _, _)).WillRepeatedly(Invoke(IsOm2ModelFromData));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2WorkspaceSize(_, _, true, _, _))
+      .WillOnce(DoAll(SetArgReferee<3>(2048U), SetArgReferee<4>(512U), Return(ge::SUCCESS)));
+  EXPECT_EQ(aclmdlQueryWorkspaceSizeFromMem(om2ModelData, sizeof(om2ModelData), ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT,
+                                            &workSize),
+            ACL_SUCCESS);
+  EXPECT_EQ(workSize, 1536U);
 }
 
 TEST_F(UTEST_ACL_Model, aclmdlExecute) {

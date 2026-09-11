@@ -12,7 +12,11 @@
 
 - **[aclmdlQuerySize](aclmdlQuerySize.md)**
 
+- **[aclmdlQueryWorkspaceSize](aclmdlQueryWorkspaceSize.md)**
+
 - **[aclmdlQuerySizeFromMem](aclmdlQuerySizeFromMem.md)**
+
+- **[aclmdlQueryWorkspaceSizeFromMem](aclmdlQueryWorkspaceSizeFromMem.md)**
 
 - **[aclmdlQueryExeOMDesc](aclmdlQueryExeOMDesc.md)**
 

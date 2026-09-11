@@ -351,9 +351,18 @@ Status aclStub::GetMemAndWeightSize(const void *model_data, size_t model_size, s
 Status aclStub::GetOm2MemAndWeightSize(const std::string &path, size_t &mem_size, size_t &weight_size) {
   return SUCCESS;
 }
-
 Status aclStub::GetOm2MemAndWeightSize(const void *model_data, size_t model_size, size_t &mem_size,
                                        size_t &weight_size) {
+  return SUCCESS;
+}
+
+Status aclStub::GetOm2WorkspaceSize(const std::string &path, bool query_zero_copy_size, size_t &work_size,
+                                    size_t &zero_copy_size) {
+  return SUCCESS;
+}
+
+Status aclStub::GetOm2WorkspaceSize(const void *model_data, size_t model_size, bool query_zero_copy_size,
+                                    size_t &work_size, size_t &zero_copy_size) {
   return SUCCESS;
 }
 
@@ -2199,6 +2208,17 @@ ge::Status GetOm2MemAndWeightSize(const std::string &model_path, size_t &work_si
 }
 ge::Status GetOm2MemAndWeightSize(const void *model_data, size_t model_size, size_t &work_size, size_t &weight_size) {
   return MockFunctionTest::aclStubInstance().GetOm2MemAndWeightSize(model_data, model_size, work_size, weight_size);
+}
+ge::Status GetOm2WorkspaceSize(const std::string &model_path, bool query_zero_copy_size, size_t &work_size,
+                               size_t &zero_copy_size) {
+  return MockFunctionTest::aclStubInstance().GetOm2WorkspaceSize(model_path, query_zero_copy_size, work_size,
+                                                                 zero_copy_size);
+}
+
+ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, bool query_zero_copy_size, size_t &work_size,
+                               size_t &zero_copy_size) {
+  return MockFunctionTest::aclStubInstance().GetOm2WorkspaceSize(model_data, model_size, query_zero_copy_size,
+                                                                 work_size, zero_copy_size);
 }
 ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<ge::Om2TensorDesc> &input_desc,
                                std::vector<ge::Om2TensorDesc> &input_desc_v2,

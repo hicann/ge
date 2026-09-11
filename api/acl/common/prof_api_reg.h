@@ -63,6 +63,8 @@ enum class AclProfType {
   AclmdlExecuteAsync,
   AclmdlQuerySize,
   AclmdlQuerySizeFromMem,
+  AclmdlQueryWorkspaceSize,
+  AclmdlQueryWorkspaceSizeFromMem,
   AclmdlSetDynamicBatchSize,
   AclmdlSetDynamicHWSize,
   AclmdlSetInputDynamicDims,

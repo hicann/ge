@@ -32,6 +32,40 @@
 namespace {
 constexpr int32_t DEFAULT_SYNC_TIMEOUT = -1;
 
+aclError CheckWorkspaceMemOptimizeMode(const size_t memOptimizeMode) {
+  if ((memOptimizeMode != static_cast<size_t>(ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT)) &&
+      (memOptimizeMode != static_cast<size_t>(ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT))) {
+    ACL_LOG_ERROR(
+        "[OM2][Check][MemOptimizeMode]memOptimizeMode[%zu] is invalid, it should be "
+        "ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT[%d] or ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT[%d]",
+        memOptimizeMode, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT);
+    const std::string value = std::to_string(memOptimizeMode);
+    const std::string reason = acl::AclErrorLogManager::FormatStr(
+        "it should be ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT[%d] or ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT[%d]",
+        ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT);
+    acl::AclErrorLogManager::ReportInputError(
+        acl::INVALID_PARAM_MSG, std::vector<const char *>({"param", "value", "reason"}),
+        std::vector<const char *>({"memOptimizeMode", value.c_str(), reason.c_str()}));
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  return ACL_SUCCESS;
+}
+
+aclError CalcWorkspaceSizeByOptimizeMode(const size_t memOptimizeMode, const size_t fullWorkSize,
+                                         const size_t zeroCopySize, size_t *const workSize) {
+  if (memOptimizeMode == static_cast<size_t>(ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT)) {
+    *workSize = fullWorkSize;
+    return ACL_SUCCESS;
+  }
+  if (zeroCopySize > fullWorkSize) {
+    ACL_LOG_INNER_ERROR("[OM2][Check][WorkspaceSize]zeroCopySize[%zu] is larger than fullWorkSize[%zu]", zeroCopySize,
+                        fullWorkSize);
+    return ACL_ERROR_GE_FAILURE;
+  }
+  *workSize = fullWorkSize - zeroCopySize;
+  return ACL_SUCCESS;
+}
+
 // Helper function to set device ID in OM2 model load argument
 aclError SetOm2ModelLoadArgDevice(gert::Om2ModelLoadArg &loadArgs) {
   int32_t deviceId = -1;
@@ -1302,6 +1336,26 @@ aclError aclmdlQuerySizeImplOm2(const char *fileName, size_t *workSize, size_t *
   return ACL_SUCCESS;
 }
 
+aclError aclmdlQueryWorkspaceSizeImplOm2(const char *fileName, size_t memOptimizeMode, size_t *workSize) {
+  ACL_PROFILING_REG(acl::AclProfType::AclmdlQueryWorkspaceSize);
+  ACL_LOG_INFO("[OM2] start to execute aclmdlQueryWorkspaceSize, memOptimizeMode[%zu]", memOptimizeMode);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(fileName);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(workSize);
+  ACL_REQUIRES_OK(CheckWorkspaceMemOptimizeMode(memOptimizeMode));
+
+  const bool queryZeroCopy = memOptimizeMode == static_cast<size_t>(ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT);
+  size_t fullWorkSize = 0U;
+  size_t zeroCopySize = 0U;
+  const ge::Status ret = gert::GetOm2WorkspaceSize(std::string(fileName), queryZeroCopy, fullWorkSize, zeroCopySize);
+  if (ret != ge::SUCCESS) {
+    ACL_LOG_CALL_ERROR("[OM2][Get][WorkspaceSize]aclmdlQueryWorkspaceSize failed, ge result[%u]", ret);
+    return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
+  }
+  ACL_REQUIRES_OK(CalcWorkspaceSizeByOptimizeMode(memOptimizeMode, fullWorkSize, zeroCopySize, workSize));
+  ACL_LOG_INFO("[OM2] success to get workspace size from file[%s], work size[%zu] bytes", fileName, *workSize);
+  return ACL_SUCCESS;
+}
+
 aclError aclmdlQuerySizeFromMemImplOm2(const void *model, size_t modelSize, size_t *workSize, size_t *weightSize) {
   ACL_PROFILING_REG(acl::AclProfType::AclmdlQuerySizeFromMem);
   ACL_LOG_INFO("[OM2] start to execute aclmdlQuerySizeFromMem, modelSize[%zu]", modelSize);
@@ -1322,6 +1376,28 @@ aclError aclmdlQuerySizeFromMemImplOm2(const void *model, size_t modelSize, size
   ACL_LOG_INFO("[OM2] success to get size from mem, work size[%zu] bytes, weight size[%zu] bytes", *workSize,
                *weightSize);
 
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlQueryWorkspaceSizeFromMemImplOm2(const void *model, size_t modelSize, size_t memOptimizeMode,
+                                                size_t *workSize) {
+  ACL_PROFILING_REG(acl::AclProfType::AclmdlQueryWorkspaceSizeFromMem);
+  ACL_LOG_INFO("[OM2] start to execute aclmdlQueryWorkspaceSizeFromMem, modelSize[%zu], memOptimizeMode[%zu]",
+               modelSize, memOptimizeMode);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(workSize);
+  ACL_REQUIRES_OK(CheckWorkspaceMemOptimizeMode(memOptimizeMode));
+
+  const bool queryZeroCopy = memOptimizeMode == static_cast<size_t>(ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT);
+  size_t fullWorkSize = 0U;
+  size_t zeroCopySize = 0U;
+  const ge::Status ret = gert::GetOm2WorkspaceSize(model, modelSize, queryZeroCopy, fullWorkSize, zeroCopySize);
+  if (ret != ge::SUCCESS) {
+    ACL_LOG_CALL_ERROR("[OM2][Get][WorkspaceSize]aclmdlQueryWorkspaceSizeFromMem failed, ge result[%u]", ret);
+    return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
+  }
+  ACL_REQUIRES_OK(CalcWorkspaceSizeByOptimizeMode(memOptimizeMode, fullWorkSize, zeroCopySize, workSize));
+  ACL_LOG_INFO("[OM2] success to get workspace size from mem, work size[%zu] bytes", *workSize);
   return ACL_SUCCESS;
 }
 

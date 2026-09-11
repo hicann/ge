@@ -67,6 +67,8 @@ static const std::map<acl::AclProfType, std::string> PROF_TYPE_TO_NAMES = {
     {acl::AclProfType::AclmdlExecuteAsync, "aclmdlExecuteAsync"},
     {acl::AclProfType::AclmdlQuerySize, "aclmdlQuerySize"},
     {acl::AclProfType::AclmdlQuerySizeFromMem, "aclmdlQuerySizeFromMem"},
+    {acl::AclProfType::AclmdlQueryWorkspaceSize, "aclmdlQueryWorkspaceSize"},
+    {acl::AclProfType::AclmdlQueryWorkspaceSizeFromMem, "aclmdlQueryWorkspaceSizeFromMem"},
     {acl::AclProfType::AclmdlSetDynamicBatchSize, "aclmdlSetDynamicBatchSize"},
     {acl::AclProfType::AclmdlSetDynamicHWSize, "aclmdlSetDynamicHWSize"},
     {acl::AclProfType::AclmdlSetInputDynamicDims, "aclmdlSetInputDynamicDims"},

@@ -91,6 +91,10 @@ VISIBILITY_EXPORT ge::Status GetOm2MemAndWeightSize(const std::string &model_pat
                                                     size_t &internal_weight_size);
 VISIBILITY_EXPORT ge::Status GetOm2MemAndWeightSize(const void *model_data, size_t model_size, size_t &work_size,
                                                     size_t &internal_weight_size);
+VISIBILITY_EXPORT ge::Status GetOm2WorkspaceSize(const std::string &model_path, bool query_zero_copy_size,
+                                                 size_t &work_size, size_t &zero_copy_size);
+VISIBILITY_EXPORT ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, bool query_zero_copy_size,
+                                                 size_t &work_size, size_t &zero_copy_size);
 VISIBILITY_EXPORT ge::Status GetOm2ModelMetadata(const std::string &model_path,
                                                  std::vector<ge::Om2TensorDesc> &input_desc,
                                                  std::vector<ge::Om2TensorDesc> &input_desc_v2,
