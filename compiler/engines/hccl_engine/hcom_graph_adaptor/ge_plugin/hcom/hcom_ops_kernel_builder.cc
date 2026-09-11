@@ -426,6 +426,11 @@ HcclResult HcomOpsKernelBuilder::SetSuperKernelBlockDim(const ge::OpDescPtr &opD
 
   // 设置block维度属性
   ge::AttrUtils::SetInt(opDescPtr, "hcom_block_dim", blockDim);
+  // V2 kernel设备(950/960)才设置全核同步调度属性
+  if (DeviceCapability::Instance().SupportsV2Kernel()) {
+    ge::AttrUtils::SetInt(opDescPtr, "_soft_sync_schedule_mode", 1U);
+    HCCL_INFO("[HcomOpsKernelBuilder][%s] V2 kernel device, set soft sync schedule mode to 1.", __func__);
+  }
   HCCL_INFO("[HcomOpsKernelBuilder][%s] rankSize[%u] aivCoreLimit[%u] blockDim[%u]", __func__, rankSize, aivCoreLimit,
             blockDim);
   return HCCL_SUCCESS;
