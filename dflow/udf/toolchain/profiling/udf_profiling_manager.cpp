@@ -18,7 +18,7 @@ UdfProfilingManager &UdfProfilingManager::GetInstance() {
 }
 
 int32_t UdfProfilingManager::Report() const {
-  UDF_LOG_ERROR("Udf profiling is not support now.");
+  UDF_LOG_ERROR("Udf profiling is not supported now.");
   return FLOW_FUNC_ERR_NOT_SUPPORT;
 }
 };  // namespace FlowFunc

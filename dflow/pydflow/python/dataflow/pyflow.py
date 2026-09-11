@@ -35,7 +35,9 @@ _pyflow_support_args_ = [
 ]
 
 
-def _gen_func_params(input_num, output_num, base_input_num=0, base_output_num=0, stream_input=None):
+def _gen_func_params(
+    input_num, output_num, base_input_num=0, base_output_num=0, stream_input=None
+):
     func_list = ""
     for i in range(input_num):
         func_list += f"i{i + base_input_num}"
@@ -60,7 +62,9 @@ def _get_func_num_returns(func, options):
                 f"the number:{arg_num_returns} specified by num_returns."
             )
             assert arg_num_returns == typing_num_returns, key_error_string
-        assert isinstance(arg_num_returns, int), "The 'num_returns' option must be an integer."
+        assert isinstance(arg_num_returns, int), (
+            "The 'num_returns' option must be an integer."
+        )
         assert arg_num_returns > 0, "The 'num_returns' option must be greater than 0."
         return arg_num_returns
     else:
@@ -94,7 +98,6 @@ def _init_process_point(meta_params):
     utils.set_running_instance_id(py_meta_params.get_running_instance_id())
     utils.set_running_instance_num(py_meta_params.get_running_instance_num())
     utils.set_running_in_udf()
-    work_path = py_meta_params.get_work_path()
 
 
 def _check_flow_msg(flow_msg):
@@ -128,7 +131,9 @@ def _convert_object_to_flow_msg(run_context, py_object):
                 )
 
         out_np = py_object.numpy()
-        msg = run_context.alloc_tensor_msg(out_np.shape, dt._np_dtype_to_dflow_dtype.get(np.dtype(out_np.dtype), None))
+        msg = run_context.alloc_tensor_msg(
+            out_np.shape, dt._np_dtype_to_dflow_dtype.get(np.dtype(out_np.dtype), None)
+        )
         msg_np = msg.get_tensor().numpy()
         msg_np[...] = out_np
         return msg
@@ -169,13 +174,21 @@ def _process_results(run_context, results, output_num, choice_output):
                 if choice_output is None:
                     output_msg = _convert_object_to_flow_msg(run_context, item)
                 else:
-                    output_msg = _convert_object_to_flow_msg(run_context, item) if choice_output(item) else None
+                    output_msg = (
+                        _convert_object_to_flow_msg(run_context, item)
+                        if choice_output(item)
+                        else None
+                    )
                 output_msg_list.append(output_msg)
     else:
         if choice_output is None:
             output_msg = _convert_object_to_flow_msg(run_context, results)
         else:
-            output_msg = _convert_object_to_flow_msg(run_context, results) if choice_output(results) else None
+            output_msg = (
+                _convert_object_to_flow_msg(run_context, results)
+                if choice_output(results)
+                else None
+            )
         output_msg_list.append(output_msg)
     return (ff.FLOW_FUNC_SUCCESS, output_msg_list)
 
@@ -194,9 +207,7 @@ def method(*args, **kwargs):
     )
     assert len(args) == 0, error_string
     for key in kwargs:
-        key_error_string = (
-            f"Unexpected keyword argument to @df.method: '{key}'. The supported keyword arguments are {valid_kwargs}"
-        )
+        key_error_string = f"Unexpected keyword argument to @df.method: '{key}'. The supported keyword arguments are {valid_kwargs}"
         assert key in valid_kwargs, key_error_string
 
     def decorator(func):
@@ -208,7 +219,9 @@ def method(*args, **kwargs):
         if "stream_input" in kwargs:
             func.__df_stream_input__ = kwargs["stream_input"]
             if kwargs["stream_input"] != "Queue":
-                raise TypeError(f"Invalid stream input type: {func.__df_stream_input__}, only support 'Queue' now.")
+                raise TypeError(
+                    f"Invalid stream input type: {func.__df_stream_input__}, only support 'Queue' now."
+                )
         func.__df_method__ = True
         return func
 
@@ -240,7 +253,7 @@ class PyActorProcessPoint:
     def check_options_supported(cls, node_options):
         for key in node_options.keys():
             if key not in _pyflow_support_args_:
-                raise TypeError(f"param:{key} is not support in @pyflow.")
+                raise TypeError(f"param:{key} is not supported in @pyflow.")
 
     @classmethod
     def _df_from_class(cls, decorated_class, node_options):
@@ -334,7 +347,9 @@ class PyActorProcessPoint:
                             if _check_flow_msg(input) != ff.FLOW_FUNC_SUCCESS:
                                 logger.error("invalid input")
                                 return ff.FLOW_FUNC_FAILED
-                            input_list.append(utils.convert_flow_msg_to_object(ff.FlowMsg(input)))
+                            input_list.append(
+                                utils.convert_flow_msg_to_object(ff.FlowMsg(input))
+                            )
                         elif isinstance(input, fw.FlowMsgQueue):
                             input_list.append(ff.FlowMsgQueue(input))
                         else:
@@ -343,13 +358,20 @@ class PyActorProcessPoint:
 
                     runtime_context = ff.MetaRunContext(run_context)
                     if inspect.isgeneratorfunction(self._method):  # stream output
-                        gen = self._method(self._class_ins, *tuple(input_list))  # unpacking tuple into args
+                        gen = self._method(
+                            self._class_ins, *tuple(input_list)
+                        )  # unpacking tuple into args
                         for results in gen:
-                            if self._set_output(runtime_context, results) != ff.FLOW_FUNC_SUCCESS:
+                            if (
+                                self._set_output(runtime_context, results)
+                                != ff.FLOW_FUNC_SUCCESS
+                            ):
                                 return ff.FLOW_FUNC_FAILED
                         return ff.FLOW_FUNC_SUCCESS
                     else:
-                        results = self._method(self._class_ins, *tuple(input_list))  # unpacking tuple into args
+                        results = self._method(
+                            self._class_ins, *tuple(input_list)
+                        )  # unpacking tuple into args
                         return self._set_output(runtime_context, results)
                 except utils.DfAbortException as e:
                     logger.warn("proc is aborted, %s", str(e))
@@ -362,7 +384,9 @@ class PyActorProcessPoint:
 
             def _set_output(self, runtime_context, results):
                 logger = ff.FlowFuncLogger()
-                ret = _process_results(runtime_context, results, self._output_num, self._choice_output)
+                ret = _process_results(
+                    runtime_context, results, self._output_num, self._choice_output
+                )
                 if ret[0] != ff.FLOW_FUNC_SUCCESS:
                     logger.error("failed to process outputs.")
                     return ff.FLOW_FUNC_FAILED
@@ -370,12 +394,19 @@ class PyActorProcessPoint:
                 for index, result in enumerate(result_list):
                     if result is None:
                         continue
-                    if runtime_context.set_output(index + self._output_idx_offset, result) != ff.FLOW_FUNC_SUCCESS:
+                    if (
+                        runtime_context.set_output(
+                            index + self._output_idx_offset, result
+                        )
+                        != ff.FLOW_FUNC_SUCCESS
+                    ):
                         logger.error("set output failed")
                         return ff.FLOW_FUNC_FAILED
                 return ff.FLOW_FUNC_SUCCESS
 
-        return MethodClass(class_ins, method_name, method_def, input_num, output_idx_offset, output_num)
+        return MethodClass(
+            class_ins, method_name, method_def, input_num, output_idx_offset, output_num
+        )
 
     @classmethod
     def _fnode(cls, args=None, kwargs=None, **node_options):
@@ -393,13 +424,21 @@ class PyActorProcessPoint:
                 self._method_name = method_name
                 self._default_options = copy.deepcopy(self._class_ins._default_options)
                 if hasattr(self._method, "__df_num_returns__"):
-                    self._default_options["num_returns"] = self._method.__df_num_returns__
+                    self._default_options["num_returns"] = (
+                        self._method.__df_num_returns__
+                    )
                 if hasattr(self._method, "__df_stream_input__"):
-                    self._default_options["stream_input"] = self._method.__df_stream_input__
+                    self._default_options["stream_input"] = (
+                        self._method.__df_stream_input__
+                    )
                 if hasattr(self._method, "__df_choice_output__"):
-                    self._default_options["choice_output"] = self._method.__df_choice_output__
+                    self._default_options["choice_output"] = (
+                        self._method.__df_choice_output__
+                    )
                 self._input_num = utils.get_param_count(self._method)
-                self._input_indexes = [self._class_ins._input_num + i for i in range(self._input_num)]
+                self._input_indexes = [
+                    self._class_ins._input_num + i for i in range(self._input_num)
+                ]
                 self._output_num = 1
                 self._output_idx_offset = self._class_ins._output_num
                 self._stream_input = None
@@ -408,7 +447,9 @@ class PyActorProcessPoint:
                     self._output_num = self._default_options["num_returns"]
                 if "stream_input" in self._default_options:
                     self._stream_input = self._default_options["stream_input"]
-                self._output_indexes = [self._class_ins._output_num + i for i in range(self._output_num)]
+                self._output_indexes = [
+                    self._class_ins._output_num + i for i in range(self._output_num)
+                ]
 
                 func_params = _gen_func_params(
                     self._input_num,
@@ -417,20 +458,11 @@ class PyActorProcessPoint:
                     self._class_ins._output_num,
                     self._stream_input,
                 )
-                self._class_ins._flow_func_infos.add_func_params(method_name, func_params)
+                self._class_ins._flow_func_infos.add_func_params(
+                    method_name, func_params
+                )
                 self._class_ins._input_num += self._input_num
                 self._class_ins._output_num += self._output_num
-
-            def __call__(self, *inputs):
-                if len(inputs) != self._input_num:
-                    raise utils.DfException(
-                        f"Func:{self._method_name} need {self._input_num} input, but fnode got {len(inputs)} input"
-                    )
-                return self._flow_node._build_flow_node(
-                    *inputs,
-                    input_indexes=self._input_indexes,
-                    output_indexes=self._output_indexes,
-                )
 
             def __call__(self, *inputs):
                 if len(inputs) != self._input_num:
@@ -451,7 +483,9 @@ class PyActorProcessPoint:
             method_def = getattr(class_ins._decorated_class, method_name)
             if callable(method_def) and not method_name.startswith("__"):
                 if hasattr(method_def, "__df_method__"):
-                    flow_node_method_ins = ActorFlowNodeMethod(class_ins, method_name, method_def)
+                    flow_node_method_ins = ActorFlowNodeMethod(
+                        class_ins, method_name, method_def
+                    )
                     actor_fnode_methods[method_name] = flow_node_method_ins
 
                     method_class_ins = cls.get_redefined_method(
@@ -500,10 +534,14 @@ class PyFunctionProcessPoint:
         if "stream_input" in node_options:
             self._stream_input = node_options["stream_input"]
             if self._stream_input != "Queue":
-                raise TypeError(f"Invalid stream input type: {self._stream_input}, only support 'Queue' now.")
+                raise TypeError(
+                    f"Invalid stream input type: {self._stream_input}, only support 'Queue' now."
+                )
         if "choice_output" in node_options:
             self._choice_output = node_options["choice_output"]
-        self._module_name = inspect.getmodule(function).__name__ if inspect.getmodule(function) else ""
+        self._module_name = (
+            inspect.getmodule(function).__name__ if inspect.getmodule(function) else ""
+        )
         self._clz_name = function.__name__
         self.func_name = function.__name__
         self.output_num = _get_func_num_returns(function, node_options)
@@ -513,11 +551,15 @@ class PyFunctionProcessPoint:
         _parse_option_visible_device_enable(node_options, flow_func_infos)
 
         self.input_num = utils.get_param_count(self._function)
-        func_params = _gen_func_params(self.input_num, self.output_num, stream_input=self._stream_input)
+        func_params = _gen_func_params(
+            self.input_num, self.output_num, stream_input=self._stream_input
+        )
         flow_func_infos.add_func_params(self.func_name, func_params)
 
         flow_func_infos.set_func_object(self)
-        FlowFuncRegister.register_flow_func_infos(self._module_name, self._clz_name, flow_func_infos)
+        FlowFuncRegister.register_flow_func_infos(
+            self._module_name, self._clz_name, flow_func_infos
+        )
 
         @functools.wraps(function)
         def _fnode_proxy(*args, **kwargs):
@@ -540,11 +582,16 @@ class PyFunctionProcessPoint:
             if inspect.isgeneratorfunction(self._function):  # stream output
                 gen = self._function(*tuple(input_list))  # unpacking tuple into args
                 for results in gen:
-                    if self._set_output(runtime_context, results) != ff.FLOW_FUNC_SUCCESS:
+                    if (
+                        self._set_output(runtime_context, results)
+                        != ff.FLOW_FUNC_SUCCESS
+                    ):
                         return ff.FLOW_FUNC_FAILED
                 return ff.FLOW_FUNC_SUCCESS
             else:
-                results = self._function(*tuple(input_list))  # unpacking tuple into args
+                results = self._function(
+                    *tuple(input_list)
+                )  # unpacking tuple into args
                 return self._set_output(runtime_context, results)
         except utils.DfAbortException as e:
             ff.logger.warn("proc is aborted, %s", str(e))
@@ -559,9 +606,11 @@ class PyFunctionProcessPoint:
     def check_options_supported(cls, node_options):
         for key in node_options.keys():
             if key not in _pyflow_support_args_:
-                raise TypeError(f"param:{key} is not support in @pyflow.")
+                raise TypeError(f"param:{key} is not supported in @pyflow.")
 
-    def prepare_inputs(self, inputs: Union[List[fw.FlowMsg], List[fw.FlowMsgQueue]], input_num):
+    def prepare_inputs(
+        self, inputs: Union[List[fw.FlowMsg], List[fw.FlowMsgQueue]], input_num
+    ):
         input_list = []
         logger = ff.FlowFuncLogger()
         for input_msg in inputs:
@@ -569,7 +618,9 @@ class PyFunctionProcessPoint:
                 if _check_flow_msg(input_msg) != ff.FLOW_FUNC_SUCCESS:
                     logger.error("invalid input")
                     return ff.FLOW_FUNC_FAILED, []
-                input_list.append(utils.convert_flow_msg_to_object(ff.FlowMsg(input_msg)))
+                input_list.append(
+                    utils.convert_flow_msg_to_object(ff.FlowMsg(input_msg))
+                )
             elif isinstance(input_msg, fw.FlowMsgQueue):
                 input_list.append(ff.FlowMsgQueue(input_msg))
             else:
@@ -578,10 +629,14 @@ class PyFunctionProcessPoint:
         return ff.FLOW_FUNC_SUCCESS, input_list
 
     def prepare_outputs(self, runtime_context, outputs, output_num):
-        return _process_results(runtime_context, outputs, output_num, self._choice_output)
+        return _process_results(
+            runtime_context, outputs, output_num, self._choice_output
+        )
 
     def add_process_point(self, flow_node):
-        pp = df.FuncProcessPoint(py_func=self, workspace_dir="./" + flow_node.name + "_ws")
+        pp = df.FuncProcessPoint(
+            py_func=self, workspace_dir="./" + flow_node.name + "_ws"
+        )
         flow_node.add_process_point(pp)
 
     def _super_init(self, meta_params):
@@ -620,7 +675,9 @@ def _make_pyflow(function_or_class, options):
     if inspect.isclass(function_or_class):
         return PyActorProcessPoint._df_from_class(function_or_class, options)
 
-    raise TypeError("The @flow_node decorator must be applied to either a function or a class.")
+    raise TypeError(
+        "The @flow_node decorator must be applied to either a function or a class."
+    )
 
 
 def pyflow(*args, **kwargs) -> Union[PyFunctionProcessPoint, PyActorProcessPoint]:

@@ -100,8 +100,8 @@ int32_t DeviceCpuInfo::Init(uint32_t device_id) {
   // uint64_t bit set num is 64
   std::bitset<64> aicpu_bit_set(static_cast<uint64_t>(aicpu_bit_map));
   if (aicpu_bit_set.count() != aicpu_num) {
-    UDF_LOG_ERROR("get aicpu bitmap is not match aicpu num, device id=%u, aicpu_num=%u, aicpu_bit_map=%#lx", device_id,
-                  aicpu_num, aicpu_bit_map);
+    UDF_LOG_ERROR("get aicpu bitmap does not match aicpu num, device id=%u, aicpu_num=%u, aicpu_bit_map=%#lx",
+                  device_id, aicpu_num, aicpu_bit_map);
     return FLOW_FUNC_FAILED;
   }
   aicpu_num_ = aicpu_num;
