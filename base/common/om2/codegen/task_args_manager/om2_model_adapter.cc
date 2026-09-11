@@ -40,13 +40,13 @@ constexpr uint8_t kConstructInputLogicalAllcationLoop = 2;
 bool IsInputOfNetoutputCanZeroCopy(const NodePtr &node, const int32_t anchor_idx) {
   if ((node->GetInDataAnchor(anchor_idx) == nullptr) ||
       (node->GetInDataAnchor(anchor_idx)->GetPeerOutAnchor() == nullptr) ||
-      (node->GetInDataAnchor(anchor_idx)->GetPeerOutAnchor()->GetOwnerNode() == nullptr) ||
-      (node->GetInDataAnchor(anchor_idx)->GetPeerOutAnchor()->GetOwnerNode()->GetOpDesc() == nullptr)) {
+      (node->GetInDataAnchor(anchor_idx)->GetPeerOutAnchor()->GetOwnerNodeBarePtr() == nullptr) ||
+      (node->GetInDataAnchor(anchor_idx)->GetPeerOutAnchor()->GetOwnerNodeBarePtr()->GetOpDesc() == nullptr)) {
     GELOGE(PARAM_INVALID, "[OM2] Peer node of net-output %s input %d is invalid", node->GetName().c_str(), anchor_idx);
     return false;
   }
 
-  const auto src_node = node->GetInDataAnchor(anchor_idx)->GetPeerOutAnchor()->GetOwnerNode();
+  const auto src_node = node->GetInDataAnchor(anchor_idx)->GetPeerOutAnchor()->GetOwnerNodeBarePtr();
   const int32_t src_output_index = node->GetInDataAnchor(anchor_idx)->GetPeerOutAnchor()->GetIdx();
   const auto output_desc = src_node->GetOpDesc()->GetOutputDescPtr(static_cast<uint32_t>(src_output_index));
 
