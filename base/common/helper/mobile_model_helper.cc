@@ -181,7 +181,7 @@ ge::Status GetDynamicInputsInfo(const ge::NodePtr &node, std::vector<int64_t> &i
     for (const auto &d : dynamic_inputs_indexes[i]) {
       if (static_cast<size_t>(d) >= node->GetOpDesc()->GetInputsSize() ||
           static_cast<size_t>(d) >= input_offset.size()) {
-        GELOGE(ge::FAILED, "[Mobile] dynamic inputs index: %d  is invalid, return", d);
+        GELOGE(ge::FAILED, "[Mobile] dynamic inputs index: %d is invalid, return", d);
         return ge::FAILED;
       }
       ShapeInfo shape_info;
@@ -221,7 +221,7 @@ ge::Status GetDynamicOutputsInfo(const ge::NodePtr &node, std::vector<int64_t> &
     for (const auto &d : dynamic_outputs_indexes[i]) {
       if (static_cast<size_t>(d) >= node->GetOpDesc()->GetOutputsSize() ||
           static_cast<size_t>(d) >= output_offset.size()) {
-        GELOGE(ge::FAILED, "[Mobile] dynamic outputs index: %d  is invalid, return", d);
+        GELOGE(ge::FAILED, "[Mobile] dynamic outputs index: %d is invalid, return", d);
         return ge::FAILED;
       }
       ShapeInfo shape_info;

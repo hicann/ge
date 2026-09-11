@@ -1009,7 +1009,7 @@ class Om2ModelExecutor::Impl {
         CloseMemFd(so_info.so_fd);
         const char_t *error = mmDlerror();
         error = (error == nullptr) ? "" : error;
-        GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to  load so, path = [%s], error = [%s]",
+        GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to load so, path = [%s], error = [%s]",
                so_info.so_file.c_str(), error);
         return ge::FAILED;
       }
@@ -1117,7 +1117,7 @@ class Om2ModelExecutor::Impl {
     if (run_model_info_.so_handle == nullptr) {
       const char_t *error = mmDlerror();
       error = (error == nullptr) ? "" : error;
-      GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to  load so, path = [%s], error = [%s]",
+      GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to load so, path = [%s], error = [%s]",
              run_model_info_.so_file.c_str(), error);
       return ge::FAILED;
     }

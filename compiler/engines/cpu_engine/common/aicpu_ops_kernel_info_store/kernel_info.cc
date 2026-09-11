@@ -93,7 +93,7 @@ Status KernelInfo::FillCustOpInfos(string user_name, OpInfoDescs &info_desc) {
       cust_user_infos_.emplace(pair<string, string>(op_desc.opName, user_name));
       AICPUE_LOGI("Read cust json file, op_name: %s.", op_desc.opName.c_str());
     }
-    AICPUE_LOGI("cust_user_infos_.size() =  %zu.", cust_user_infos_.size());
+    AICPUE_LOGI("cust_user_infos_.size() = %zu.", cust_user_infos_.size());
   }
   return SUCCESS;
 }

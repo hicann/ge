@@ -53,7 +53,7 @@ Status StreamActiveOp::Run(vector<TaskDef> &tasks) {
     streamActiveDef->set_active_stream_id(static_cast<uint32_t>(activeStreamList[index]));
     tasks.push_back(taskDef);
   }
-  RTS_LOGI("StreamActiveOp op:%s  size:%zu end.", name_.c_str(), activeStreamList.size());
+  RTS_LOGI("StreamActiveOp op:%s size:%zu end.", name_.c_str(), activeStreamList.size());
 
   return SUCCESS;
 }
@@ -77,7 +77,7 @@ Status StreamActiveOp::UpdateTaskDef(vector<TaskDef> &tasks) {
     streamActiveDef->set_active_stream_id(static_cast<uint32_t>(activeStreamList[index]));
     tasks.push_back(taskDef);
   }
-  RTS_LOGI("StreamActiveOp update op:%s  size:%zu end.", name_.c_str(), activeStreamList.size());
+  RTS_LOGI("StreamActiveOp update op:%s size:%zu end.", name_.c_str(), activeStreamList.size());
 
   return SUCCESS;
 }

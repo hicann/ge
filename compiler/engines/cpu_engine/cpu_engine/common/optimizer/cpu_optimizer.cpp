@@ -90,7 +90,7 @@ ge::Status CpuOptimizer::Initialize() {
   if (ge::GetContext().GetOption(ge::SOC_VERSION, soc_version) == ge::GRAPH_SUCCESS) {
     AICPUE_LOGI("Get soc version [%s] success.", soc_version.c_str());
   } else {
-    AICPUE_LOG_RUN_INFO("Failed to get soc version, please check.");
+    AICPUE_LOG_RUN_WARN("Failed to get soc version, please check.");
     return ge::SUCCESS;
   }
   CheckAndSetSocVersion(soc_version);

@@ -400,7 +400,7 @@ ge::Status MobileModel::ConvertToMobileModelDef(const ge::proto::ModelDef &model
   mobile_model_def.set_name(model_def.name());
   mobile_model_def.set_version(model_def.version());
   mobile_model_def.set_custom_version(model_def.custom_version());
-  GELOGI("[Mobile] name: %s  version: %d  custom_version: %s", mobile_model_def.name().c_str(),
+  GELOGI("[Mobile] name: %s version: %d custom_version: %s", mobile_model_def.name().c_str(),
          mobile_model_def.version(), mobile_model_def.custom_version().c_str());
 
   // repeated GraphDef graph
