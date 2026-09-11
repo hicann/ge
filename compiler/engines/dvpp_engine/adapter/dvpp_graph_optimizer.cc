@@ -33,7 +33,7 @@ ge::Status DvppGraphOptimizer::Initialize(const std::map<std::string, std::strin
     if (IsSocVersionMLR1(iter->second)) {
       dvpp_optimizer_ = std::make_shared<DvppOptimizer910B>();
     } else {
-      DVPP_REPORT_INNER_ERR_MSG("dvpp graph optimizer not support version[%s]", iter->second.c_str());
+      DVPP_REPORT_INNER_ERR_MSG("dvpp graph optimizer does not support version[%s]", iter->second.c_str());
       return ge::FAILED;
     }
   } catch (...) {
