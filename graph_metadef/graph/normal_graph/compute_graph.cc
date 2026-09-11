@@ -352,7 +352,16 @@ std::unordered_set<std::string> GetAttrStringSet(const std::vector<NodePtr> &nod
 }
 
 std::unordered_set<std::string> GetUserStreamLabels(const std::vector<NodePtr> &nodes) {
-  return GetAttrStringSet(nodes, public_attr::USER_STREAM_LABEL);
+  std::unordered_set<std::string> stream_labels;
+  for (const auto &node : nodes) {
+    const auto &op_desc = node->GetOpDesc();
+    if ((op_desc == nullptr) || OpTypeUtils::IsGraphInputNode(op_desc->GetType())) {
+      continue;
+    }
+    const std::string *attr_val_ptr = AttrUtils::GetStr(op_desc, public_attr::USER_STREAM_LABEL);
+    stream_labels.emplace(attr_val_ptr != nullptr ? *attr_val_ptr : "");
+  }
+  return stream_labels;
 }
 
 void AssembleIntAttrFuseFailReason(const NodePtr &node, const std::string &attr_key, const std::string &detail,
@@ -469,7 +478,7 @@ graphStatus InheritUserSteamLabelFromOriginNodes(const std::vector<NodePtr> &ori
   const std::unordered_set<std::string> origin_stream_labels = GetUserStreamLabels(ori_nodes);
   GE_WARN_ASSERT(origin_stream_labels.size() < 2U,
                  "Inherit user stream label failed, because origin nodes have multiple user stream label.");
-  if (origin_stream_labels.empty()) {
+  if (origin_stream_labels.empty() || origin_stream_labels.begin()->empty()) {
     return GRAPH_SUCCESS;
   }
   for (const auto &op_desc : fusion_ops) {
