@@ -85,6 +85,42 @@ void GraphNode::IncreaseLoadCount() {
   ++load_count_;
 }
 
+bool GraphNode::GetLoadFlag() const {
+  const std::lock_guard<std::mutex> lock(load_count_mu_);
+  return load_flag_;
+}
+
+void GraphNode::SetLoadFlag(const bool load_flag) {
+  const std::lock_guard<std::mutex> lock(load_count_mu_);
+  load_flag_ = load_flag;
+}
+
+void GraphNode::UpdateLoadFlag() {
+  const std::lock_guard<std::mutex> lock(load_count_mu_);
+  load_flag_ = ((load_count_ == 0U) || (load_record_ >= max_load_record_));
+}
+
+void GraphNode::SetLoadCount(const uint32_t count) {
+  const std::lock_guard<std::mutex> lock(load_count_mu_);
+  load_count_ = count;
+}
+
+uint32_t GraphNode::GetLoadRecord() const {
+  const std::lock_guard<std::mutex> lock(load_count_mu_);
+  return load_record_;
+}
+
+void GraphNode::SetLoadRecord(const uint32_t record) {
+  const std::lock_guard<std::mutex> lock(load_count_mu_);
+  load_record_ = record;
+}
+
+void GraphNode::ResetLoadRecord() {
+  const std::lock_guard<std::mutex> lock(load_count_mu_);
+  load_count_ = load_record_;
+  load_record_ = 0U;
+}
+
 Status GraphNode::ParseFrozenInputIndex() {
   std::string frozen_input;
   (void)ge::GetContext().GetOption(kFrozenInputIndexes, frozen_input);
@@ -120,7 +156,10 @@ Status GraphNode::ParseFrozenInputIndex() {
 }
 
 void GraphNode::SetLoaded() {
-  --load_count_;
+  const std::lock_guard<std::mutex> lock(load_count_mu_);
+  if (load_count_ > 0U) {
+    --load_count_;
+  }
   ++load_record_;
   load_flag_ = true;
 }
