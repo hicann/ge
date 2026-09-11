@@ -834,7 +834,7 @@ bool ComputeGraphImpl::operator==(const ComputeGraphImpl &r_graph) const {
     const auto &node_name = left_node->GetName();
     // After TopologicalSorting, node order can change, so find node by name
     const auto &right_node = r_graph.FindNode(node_name);
-    GE_IF_BOOL_EXEC(right_node == nullptr, REPORT_INNER_ERR_MSG("E18888", "left_node:%s not find in r_graph:%s",
+    GE_IF_BOOL_EXEC(right_node == nullptr, REPORT_INNER_ERR_MSG("E18888", "left_node:%s not found in r_graph:%s",
                                                                 node_name.c_str(), r_graph.GetName().c_str());
                     GELOGE(GRAPH_FAILED, "[Check][Param] right_node is NULL!!!"); return false);
     if (!((*right_node) == (*left_node))) {
@@ -1854,7 +1854,7 @@ graphStatus ComputeGraphImpl::AddInOutForNetOutputOp(const ge::OpDescPtr &net_ou
       continue;
     }
     GE_ASSERT_TRUE((src_node != nullptr) && (src_node->GetOpDesc() != nullptr) && (net_output_desc != nullptr),
-                   "Param output_nodes_info has RetvalInfo item, which src_node is invalid; "
+                   "Param output_nodes_info has RetvalInfo item, whose src_node is invalid; "
                    "or Param net_output_desc is nullptr, check invalid");
     is_input_const.push_back(ConstantUtils::IsRealConst(src_node->GetOpDesc()));
     ++iter;

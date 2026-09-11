@@ -533,7 +533,7 @@ Status Session::RemoveGraph(uint32_t graph_id) {
 // Print Output Result
 static void PrintOutputResult(std::vector<Tensor> &outputs) {
   if (outputs.empty() || (outputs[0].GetData() == nullptr)) {
-    GELOGW("outputs is empty or data is nullptr.");
+    GELOGW("outputs are empty or data is nullptr.");
     return;
   }
 

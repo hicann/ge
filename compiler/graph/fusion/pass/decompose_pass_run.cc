@@ -78,7 +78,7 @@ Status RunDecomposePass(GraphPtr &graph, CustomPassContext &pass_context, const 
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);
   const auto matched_nodes = MatchFromAllNodes(compute_graph, op_types);
   if (matched_nodes.empty()) {
-    GELOGD("[MATCH] not find any op with match_type");
+    GELOGD("[MATCH] did not find any op with match_type");
     return NOT_CHANGED;
   }
   bool is_changed = false;
@@ -96,7 +96,7 @@ Status RunDecomposePass(GraphPtr &graph, CustomPassContext &pass_context, const 
     GE_ASSERT_TRUE(it_fusion_info != fusion_info_map.end());
     it_fusion_info->second.first++;
     if (!meet_requirements(g_node)) {
-      GELOGD("Node [%s][%s] is not match requires", node->GetNamePtr(), node->GetTypePtr());
+      GELOGD("Node [%s][%s] does not match requires", node->GetNamePtr(), node->GetTypePtr());
       continue;
     }
 

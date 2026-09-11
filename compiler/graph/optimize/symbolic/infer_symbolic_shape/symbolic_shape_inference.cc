@@ -117,7 +117,7 @@ bool IsSupportInfer(const ge::OpDescPtr &op_desc) {
 graphStatus CreateExpression(const ge::DataType dtype, const uint8_t *ptr, size_t size,
                              std::vector<Expression> &const_symbol) {
   if (kComputeSupportTypes.find(dtype) == kComputeSupportTypes.end()) {
-    GELOGW("symbolic value generalize and compute not support data type %s",
+    GELOGW("symbolic value generalize and compute does not support data type %s",
            TypeUtils::DataTypeToSerialString(dtype).c_str());
     return UNSUPPORTED;
   }

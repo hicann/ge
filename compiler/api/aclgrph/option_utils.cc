@@ -184,7 +184,7 @@ Status ParseIndexedListOption(const std::string &option_name, const std::string 
     if (index_and_value_str.size() != kLeastStrElementNum) {
       REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
                                 std::vector<const char *>({option_name.c_str(), option_value.c_str()}));
-      GELOGE(PARAM_INVALID, "Options[%s] is invalid, input[%zu][%s] not match pattern: input_index:[v0,v1,...]",
+      GELOGE(PARAM_INVALID, "Options[%s] is invalid, input[%zu][%s] does not match pattern: input_index:[v0,v1,...]",
              option_name.c_str(), i, input_option_local.c_str());
       return PARAM_INVALID;
     }
@@ -1963,8 +1963,8 @@ Status CheckScreenPrinterOption(const std::map<std::string, std::string> &option
         "E10003", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>({OPTION_SCREEN_PRINT_MODE, iter->second.c_str(),
                                    "This value is not supported. It only supports enable or disable."}));
-    GELOGE(ge::PARAM_INVALID, "[Check][Option] option[%s] value[%s] invalid, not support.", OPTION_SCREEN_PRINT_MODE,
-           iter->second.c_str());
+    GELOGE(ge::PARAM_INVALID, "[Check][Option] option[%s] value[%s] invalid, is not supported.",
+           OPTION_SCREEN_PRINT_MODE, iter->second.c_str());
     return FAILED;
   }
   return SUCCESS;

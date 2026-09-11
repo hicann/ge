@@ -172,7 +172,7 @@ bool TeFileUtils::IsObjFileExsit(const std::string &opName, const std::string &j
       TE_WARNLOG("o file path [%s] does not exist.", oFilePath.c_str());
       return false;
     }
-    TE_DBGLOG("Check binary file invalid successfully.");
+    TE_DBGLOG("Check binary file successfully.");
     return true;
   }
   // mix pattern

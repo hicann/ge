@@ -76,7 +76,7 @@ class RtContextSwitchGuard {
 int64_t CalcVarSizeInBytes(const GeTensorDesc &desc) {
   int64_t var_size = GetSizeByDataType(desc.GetDataType());
   if (var_size <= 0) {
-    REPORT_INNER_ERR_MSG("E19999", "Data type:%s in desc, it's size:%" PRId64 " < 0, check invalid",
+    REPORT_INNER_ERR_MSG("E19999", "Data type:%s in desc, its size:%" PRId64 " < 0, check invalid",
                          TypeUtils::DataTypeToSerialString(desc.GetDataType()).c_str(), var_size);
     GELOGE(PARAM_INVALID, "[Calc][VarDataSize] by data type %s failed.",
            TypeUtils::DataTypeToSerialString(desc.GetDataType()).c_str());

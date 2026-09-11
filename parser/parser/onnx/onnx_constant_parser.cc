@@ -35,8 +35,8 @@ const char *kConstant = "Const";
 Status OnnxConstantParser::ParseConvertData(const ge::onnx::TensorProto &tensor_proto, ge::Tensor &tensor, int count) {
   int64_t data_type = tensor_proto.data_type();
   if (ge::OnnxUtil::ConvertOnnxDataType(data_type) == ge::DataType::DT_UNDEFINED) {
-    REPORT_INNER_ERR_MSG("E19999", "data_type %" PRId64 " not support.", data_type);
-    GELOGE(FAILED, "[Check][Param] data_type %" PRId64 " not support.", data_type);
+    REPORT_INNER_ERR_MSG("E19999", "data_type %" PRId64 " is not supported.", data_type);
+    GELOGE(FAILED, "[Check][Param] data_type %" PRId64 " is not supported.", data_type);
     return FAILED;
   }
 
@@ -77,8 +77,8 @@ Status OnnxConstantParser::ParseConvertData(const ge::onnx::TensorProto &tensor_
   if (iter != datatype_val_size_map.end()) {
     datatype_val_size = iter->second;
   } else {
-    REPORT_INNER_ERR_MSG("E19999", "data_type %" PRId64 " not support.", data_type);
-    GELOGE(domi::PARAM_INVALID, "[Find][DataType]data_type %" PRId64 " not support.", data_type);
+    REPORT_INNER_ERR_MSG("E19999", "data_type %" PRId64 " is not supported.", data_type);
+    GELOGE(domi::PARAM_INVALID, "[Find][DataType]data_type %" PRId64 " is not supported.", data_type);
     return FAILED;
   }
 

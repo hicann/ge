@@ -102,7 +102,7 @@ ge::graphStatus CollectAllEventInfos(const ge::ComputeGraphPtr &compute_graph, i
     }
   }
   GE_ASSERT_TRUE(event_ids.size() == static_cast<size_t>(event_num),
-                 "EvenId in nodes is not equal with event num %lld on model.", event_num);
+                 "EvenId in nodes are not equal with event num %lld on model.", event_num);
   for (size_t i = 0U; i < event_infos.size(); ++i) {
     GE_ASSERT_TRUE(event_infos[i].HasInitialized(), "Found event %zu no in pair.", i);
   }

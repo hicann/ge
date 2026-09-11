@@ -159,7 +159,7 @@ Status IsSupportTilingSink(gert::DataDependentInterpreter &ddi, bool &is_support
     constexpr int32_t STUB_DEV_ID = 64;
     GE_CHK_ACL_RET(aclrtGetDeviceCapability(STUB_DEV_ID, ACL_FEATURE_TSCPU_TASK_UPDATE_SUPPORT_AIC_AIV, &value));
     if (value != ACL_DEV_FEATURE_SUPPORT) {
-      GELOGD("tiling sink feature not support.");
+      GELOGD("tiling sink feature is not supported.");
       return SUCCESS;
     }
   }
@@ -288,7 +288,7 @@ Status DynamicShapePartitioner::IsGraphNeedUnknownShapePartition(bool &need_unkn
   if (is_single_op) {
     need_unknown_shape_partition = false;
     for (const auto &sub_node : GetRootGraph()->GetDirectNode()) {
-      GELOGD("Set OwnerGraphIsUnknow attr to node[%s], graph [%s]", sub_node->GetName().c_str(),
+      GELOGD("Set OwnerGraphIsUnknown attr to node[%s], graph [%s]", sub_node->GetName().c_str(),
              GetRootGraph()->GetName().c_str());
       (void)AttrUtils::SetBool(sub_node->GetOpDesc(), kOwnerGraphIsUnknown, true);
     }
@@ -298,7 +298,7 @@ Status DynamicShapePartitioner::IsGraphNeedUnknownShapePartition(bool &need_unkn
     return SUCCESS;
   }
   for (const auto &sub_node : GetRootGraph()->GetDirectNode()) {
-    GELOGD("Set OwnerGraphIsUnknow attr to node[%s], graph [%s]", sub_node->GetName().c_str(),
+    GELOGD("Set OwnerGraphIsUnknown attr to node[%s], graph [%s]", sub_node->GetName().c_str(),
            GetRootGraph()->GetName().c_str());
     (void)AttrUtils::SetBool(sub_node->GetOpDesc(), kOwnerGraphIsUnknown, true);
   }
@@ -312,14 +312,14 @@ Status DynamicShapePartitioner::IsGraphNeedUnknownShapePartition(bool &need_unkn
 void DynamicShapePartitioner::SetRootGraphUnknown() const {
   GetRootGraph()->SetGraphUnknownFlag(true);
   for (const auto &sub_node : GetRootGraph()->GetDirectNode()) {
-    GELOGD("Set OwnerGraphIsUnknow attr to node[%s], graph [%s]", sub_node->GetName().c_str(),
+    GELOGD("Set OwnerGraphIsUnknown attr to node[%s], graph [%s]", sub_node->GetName().c_str(),
            GetRootGraph()->GetName().c_str());
     (void)AttrUtils::SetBool(sub_node->GetOpDesc(), kOwnerGraphIsUnknown, true);
   }
   for (const auto &sub_graph : GetRootGraph()->GetAllSubgraphs()) {
     sub_graph->SetGraphUnknownFlag(true);
     for (const auto &sub_node : sub_graph->GetDirectNode()) {
-      GELOGD("Set OwnerGraphIsUnknow attr to node[%s], graph [%s]", sub_node->GetName().c_str(),
+      GELOGD("Set OwnerGraphIsUnknown attr to node[%s], graph [%s]", sub_node->GetName().c_str(),
              sub_graph->GetName().c_str());
       (void)AttrUtils::SetBool(sub_node->GetOpDesc(), kOwnerGraphIsUnknown, true);
     }
@@ -511,7 +511,7 @@ Status DynamicShapePartitioner::CtrlEdgeTransfer() const {
       auto op_type = op_desc->GetType();
       if (op_type == CONSTANT || op_type == CONSTANTOP) {
         if (n->GetInAllNodes().empty()) {
-          GELOGD("[CtrlEdgeTransferPass] node [%s] in nodes is empty", n->GetName().c_str());
+          GELOGD("[CtrlEdgeTransferPass] node [%s] in nodes are empty", n->GetName().c_str());
           continue;
         }
 
@@ -1010,7 +1010,7 @@ bool NoTilingCheckInputNodeUpdateShape(const ConstNodePtr &node) {
       (void)AttrUtils::GetListStr(peer_op_desc, ATTR_NAME_OP_EXPORT_SHAPE_ENGINE, update_shape_engine);
       auto it = find(update_shape_engine.begin(), update_shape_engine.end(), peer_engine_name);
       if (it == update_shape_engine.end()) {
-        GELOGI("Op[%s] not support no tiling, cause parent node[%s] engine[%s] not support export shape.",
+        GELOGI("Op[%s] does not support no tiling, cause parent node[%s] engine[%s] does not support export shape.",
                op_desc->GetName().c_str(), peer_op_desc->GetName().c_str(), peer_engine_name.c_str());
         return false;
       }
@@ -1046,8 +1046,8 @@ bool DynamicShapePartitioner::IsNodeSupportNoTiling(const ConstNodePtr &node) {
     (void)AttrUtils::GetListStr(op_desc, ATTR_NAME_OP_TILING_INLINE_ENGINE, tiling_inline_engine);
     auto it = find(tiling_inline_engine.begin(), tiling_inline_engine.end(), op_engine_name);
     if (it == tiling_inline_engine.end()) {
-      GELOGD("Op[%s] not support no tiling, cause engine[%s] not support tiling inline.", op_desc->GetName().c_str(),
-             op_engine_name.c_str());
+      GELOGD("Op[%s] does not support no tiling, cause engine[%s] does not support tiling inline.",
+             op_desc->GetName().c_str(), op_engine_name.c_str());
       return false;
     }
 
@@ -1056,8 +1056,8 @@ bool DynamicShapePartitioner::IsNodeSupportNoTiling(const ConstNodePtr &node) {
     (void)AttrUtils::GetListStr(op_desc, ATTR_NAME_OP_EXPORT_SHAPE_ENGINE, update_shape_engine);
     it = find(update_shape_engine.begin(), update_shape_engine.end(), op_engine_name);
     if (it == update_shape_engine.end()) {
-      GELOGD("Op[%s] not support no tiling, cause engine[%s] not support update shape.", op_desc->GetName().c_str(),
-             op_engine_name.c_str());
+      GELOGD("Op[%s] does not support no tiling, cause engine[%s] does not support update shape.",
+             op_desc->GetName().c_str(), op_engine_name.c_str());
       return false;
     }
   } else {
@@ -1074,17 +1074,17 @@ bool DynamicShapePartitioner::IsNodeSupportNoTiling(const ConstNodePtr &node) {
         continue;
       }
       if (out_tensor->GetShape().IsUnknownDimNum()) {
-        GELOGD("Op[%s] unknown dim num not support no tiling.", op_desc->GetNamePtr());
+        GELOGD("Op[%s] unknown dim num does not support no tiling.", op_desc->GetNamePtr());
         return false;
       }
       std::vector<std::pair<int64_t, int64_t>> range;
       if (out_tensor->GetShapeRange(range) == GRAPH_FAILED || range.size() != out_tensor->GetShape().GetDimNum()) {
-        GELOGD("Op[%s] not support no tiling, cause invalid shape range.", op_desc->GetName().c_str());
+        GELOGD("Op[%s] does not support no tiling, cause invalid shape range.", op_desc->GetName().c_str());
         return false;
       }
       for (const auto &it : range) {
         if (it.second < 0) {
-          GELOGD("Op[%s] not support no tiling, cause shape range max has -1.", op_desc->GetName().c_str());
+          GELOGD("Op[%s] does not support no tiling, cause shape range max has -1.", op_desc->GetName().c_str());
           return false;
         }
       }

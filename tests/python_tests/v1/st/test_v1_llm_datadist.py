@@ -18,8 +18,24 @@ import unittest
 from typing import Optional
 
 import numpy as np
-from llm_datadist_v1 import *
+from llm_datadist_v1 import (
+    CacheDesc,
+    CacheKey,
+    CacheKeyByIdAndIndex,
+    DataType,
+    LayerSynchronizer,
+    LLMClusterInfo,
+    LLMConfig,
+    LLMDataDist,
+    LLMException,
+    LLMRole,
+    LLMStatusCode,
+    Tensor,
+    TensorDesc,
+    TransferConfig,
+)
 from llm_datadist_v1.config import EngineConfig
+from llm_datadist_v1.data_type import get_python_dtype_from_wrapper_dtype
 from llm_datadist_v1.llm_datadist import _shutdown_handler
 from llm_datadist_v1.llm_types import BlocksCacheKey, KvCache, Placement
 from llm_datadist_v1.llm_utils import TransferCacheJob, TransferCacheParameters
@@ -33,7 +49,9 @@ class LayerSynchronizerImpl(LayerSynchronizer):
     def __init__(self, ret=True):
         self._ret = ret
 
-    def synchronize_layer(self, layer_index: int, timeout_in_millis: Optional[int]) -> bool:
+    def synchronize_layer(
+        self, layer_index: int, timeout_in_millis: Optional[int]
+    ) -> bool:
         if layer_index == 0:
             time.sleep(0.3)
         return self._ret
@@ -43,7 +61,9 @@ class MockTransferCacheJob(TransferCacheJob):
     def __init__(self, params: TransferCacheParameters) -> None:
         super().__init__(params, LayerSynchronizerImpl(True), None)
 
-    def transfer_layer(self, src_layer_index: int, dst_layer_idx, transfer_config: TransferConfig) -> LLMStatusCode:
+    def transfer_layer(
+        self, src_layer_index: int, dst_layer_idx, transfer_config: TransferConfig
+    ) -> LLMStatusCode:
         return LLMStatusCode.LLM_WAIT_PROCESS_TIMEOUT
 
 
@@ -58,7 +78,9 @@ class LlmEngineV2St(unittest.TestCase):
         print("End ", self._testMethodName)
 
     @staticmethod
-    def _engine_options(is_prompt: bool, cluster_id: int = 0, rank_id: int = -1, resource_path: str = ""):
+    def _engine_options(
+        is_prompt: bool, cluster_id: int = 0, rank_id: int = -1, resource_path: str = ""
+    ):
         cluster_info = {
             "cluster_id": cluster_id,
             "logic_device_id": ["0:0:0:0", "0:0:1:0", "0:0:2:0", "0:0:3:0"],
@@ -110,7 +132,9 @@ class LlmEngineV2St(unittest.TestCase):
         print(f"kv_cache: {kv_cache}")
         with self.assertRaises(LLMException):
             kv_cache_manager.pull_cache(cache_key, dst_kv_cache, 0, -2)
-        kv_cache_manager.pull_cache(cache_key, dst_kv_cache, src_cache_offset=0, dst_cache_offset=0)
+        kv_cache_manager.pull_cache(
+            cache_key, dst_kv_cache, src_cache_offset=0, dst_cache_offset=0
+        )
         cache_key_id = CacheKeyByIdAndIndex(cluster_id, kv_cache.cache_id, 0)
         kv_cache_manager.pull_cache(cache_key_id, dst_kv_cache, 0)
         kv_cache_manager.copy_cache(dst_kv_cache, kv_cache)
@@ -210,7 +234,9 @@ class LlmEngineV2St(unittest.TestCase):
         llm_config.device_id = 0
         llm_config.enable_switch_role = True
         options = llm_config.generate_options()
-        os.environ["RESOURCE_CONFIG_PATH"] = _TEST_BASE_DIR + "/json_file/numa_config.json"
+        os.environ["RESOURCE_CONFIG_PATH"] = (
+            _TEST_BASE_DIR + "/json_file/numa_config.json"
+        )
         engine.init(options)
         engine.switch_role(LLMRole.DECODER)
         switch_options = {
@@ -245,7 +271,9 @@ class LlmEngineV2St(unittest.TestCase):
             data_type=DataType.DT_FLOAT16,
             placement=Placement.HOST,
         )
-        return KvCache.create_cpu_cache(cpu_cache_desc, cache.per_device_tensor_addrs[0]), cache
+        return KvCache.create_cpu_cache(
+            cpu_cache_desc, cache.per_device_tensor_addrs[0]
+        ), cache
 
     def test_swap_blocks(self):
         cluster_id = 0
@@ -259,8 +287,12 @@ class LlmEngineV2St(unittest.TestCase):
 
         kv_cache_manager = llm_engine.kv_cache_manager
         # allocate npu cache
-        npu_cache, npu_cache_key = self._allocate_npu_cache(kv_cache_manager, 64 * 1024, 10, 10)
-        cpu_cache, tmp_cache = self._allocate_cpu_cache(kv_cache_manager, 64 * 1024, 20, 10)
+        npu_cache, npu_cache_key = self._allocate_npu_cache(
+            kv_cache_manager, 64 * 1024, 10, 10
+        )
+        cpu_cache, tmp_cache = self._allocate_cpu_cache(
+            kv_cache_manager, 64 * 1024, 20, 10
+        )
         src_to_dst = {3: 4, 0: 0, 1: 1, 2: 2, 5: 6, 6: 7, 7: 8, 9: 9}
         kv_cache_manager.swap_blocks(npu_cache, cpu_cache, src_to_dst)
         kv_cache_manager.swap_blocks(cpu_cache, npu_cache, src_to_dst)
@@ -323,7 +355,9 @@ class LlmEngineV2St(unittest.TestCase):
         print(transfer_config_1)
         transfer_config_2 = TransferConfig(2, dst_addrs_2, range(2, 4))
         transfer_configs = (transfer_config_1, transfer_config_2)
-        cache_task = kv_cache_manager.transfer_cache_async(kv_cache, LayerSynchronizerImpl(True), transfer_configs)
+        cache_task = kv_cache_manager.transfer_cache_async(
+            kv_cache, LayerSynchronizerImpl(True), transfer_configs
+        )
         ret = cache_task.synchronize(0)
         self.assertEqual(ret, LLMStatusCode.LLM_WAIT_PROCESS_TIMEOUT)
         rets = cache_task.get_results(0)
@@ -335,7 +369,9 @@ class LlmEngineV2St(unittest.TestCase):
         self.assertEqual(rets[1], LLMStatusCode.LLM_SUCCESS)
 
         transfer_config_3 = TransferConfig(2, dst_addrs_1 + dst_addrs_2)
-        cache_task = kv_cache_manager.transfer_cache_async(kv_cache, LayerSynchronizerImpl(True), [transfer_config_3])
+        cache_task = kv_cache_manager.transfer_cache_async(
+            kv_cache, LayerSynchronizerImpl(True), [transfer_config_3]
+        )
         ret = cache_task.synchronize()
         self.assertEqual(ret, LLMStatusCode.LLM_SUCCESS)
 
@@ -362,7 +398,9 @@ class LlmEngineV2St(unittest.TestCase):
         transfer_config_1 = TransferConfig(1, dst_addrs_1, range(0, 3))
         transfer_config_2 = TransferConfig(2, dst_addrs_2, range(2, 4))
         transfer_configs = (transfer_config_1, transfer_config_2)
-        cache_task = kv_cache_manager.transfer_cache_async(kv_cache, LayerSynchronizerImpl(False), transfer_configs)
+        cache_task = kv_cache_manager.transfer_cache_async(
+            kv_cache, LayerSynchronizerImpl(False), transfer_configs
+        )
         ret = cache_task.synchronize()
         rets = cache_task.get_results()
         self.assertNotEqual(ret, LLMStatusCode.LLM_SUCCESS)
@@ -378,7 +416,9 @@ class LlmEngineV2St(unittest.TestCase):
         self.assertEqual(job.get_results()[1], None)
 
         src_block_indices = [1, 2]
-        with self.assertRaisesRegex(LLMException, "transfer from blocks to cache is not supported"):
+        with self.assertRaisesRegex(
+            LLMException, "transfer from blocks to cache is not supported"
+        ):
             _ = kv_cache_manager.transfer_cache_async(
                 kv_cache,
                 LayerSynchronizerImpl(False),
@@ -427,9 +467,13 @@ class LlmEngineV2St(unittest.TestCase):
                 -1,
             )
         with self.assertRaises(TypeError):
-            _ = kv_cache_manager.transfer_cache_async("cache", LayerSynchronizerImpl(False), transfer_configs)
+            _ = kv_cache_manager.transfer_cache_async(
+                "cache", LayerSynchronizerImpl(False), transfer_configs
+            )
         with self.assertRaises(TypeError):
-            _ = kv_cache_manager.transfer_cache_async(None, LayerSynchronizerImpl(False), transfer_configs)
+            _ = kv_cache_manager.transfer_cache_async(
+                None, LayerSynchronizerImpl(False), transfer_configs
+            )
         kv_cache_manager.deallocate_cache(kv_cache)
         kv_cache_manager.remove_cache_key(cache_key)
         engine.finalize()
@@ -551,3 +595,9 @@ class LlmEngineV2St(unittest.TestCase):
         except LLMException:
             has_err = True
         self.assertEqual(has_err, False)
+
+    def test_get_python_dtype_invalid(self):
+        with self.assertRaises(ValueError):
+            get_python_dtype_from_wrapper_dtype(-1)
+        with self.assertRaises(ValueError):
+            get_python_dtype_from_wrapper_dtype(999)

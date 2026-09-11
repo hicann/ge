@@ -191,7 +191,7 @@ Status SubexpressionMigrationPass::Run(ComputeGraphPtr graph) {
       }
 
       if (graph_nodes.empty()) {
-        GELOGW("Graph: %s nodes is empty", graph->GetName().c_str());
+        GELOGW("Graph: %s nodes are empty", graph->GetName().c_str());
         break;
       }
       // {subgraph0, {{1, Data}, {2, Data}, {3, Data}, {4, Data}, ..., {n, Data}}}
@@ -631,8 +631,8 @@ Status SubexpressionMigrationPass::MoveNodeToParent(const ComputeGraphPtr &graph
                                                     uint32_t base_index, const std::map<uint32_t, uint32_t> &inputs,
                                                     const std::map<uint32_t, uint32_t> &outputs) const {
   if (inputs.empty()) {
-    REPORT_INNER_ERR_MSG("E19999", "Param inputs is empty, check invalid");
-    GELOGE(FAILED, "[Check][Param] Param inputs is empty");
+    REPORT_INNER_ERR_MSG("E19999", "Param inputs are empty, check invalid");
+    GELOGE(FAILED, "[Check][Param] Param inputs are empty");
     return FAILED;
   }
 

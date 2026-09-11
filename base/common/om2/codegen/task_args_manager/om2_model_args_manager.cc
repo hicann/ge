@@ -401,7 +401,7 @@ Status ModelArgsManager::ConstructOneTaskUpdateData(
 
     if (require_placement == ArgsPlacement::kArgsPlacementSqe) {
       GE_ASSERT_TRUE(!task_update_data.has_sqe_placement,
-                     "[OM2] More than one placement-sqe tasks found in task %zu, not support yet", task_index);
+                     "[OM2] More than one placement-sqe tasks found in task %zu, not supported yet", task_index);
       task_update_data.has_sqe_placement = true;
       task_update_data.sqe_update_arg.stream_id = std::numeric_limits<uint32_t>::max();
       task_update_data.sqe_update_arg.task_id = std::numeric_limits<uint32_t>::max();

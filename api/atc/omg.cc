@@ -597,7 +597,7 @@ domi::Status InitDomiOmgContext(const std::string &input_shape, const std::strin
                                       std::vector<const char *>({input_format.c_str(), "input_format",
                                                                  "ND, NCHW, NHWC, CHWN, NC1HWC0 or NHWC1C0"}));
       GELOGE(PARAM_INVALID,
-             "[Check][Param]Input format %s not support, "
+             "[Check][Param]Input format %s is not supported, "
              "expect ND/NCHW/NHWC/CHWN/NC1HWC0/NHWC1C0.",
              input_format.c_str());
       return PARAM_INVALID;
@@ -1276,7 +1276,7 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertFwkModelToJson(const domi::Framewor
            "The framework must be selected from {0(Caffe), 3(TensorFlow), 5(Onnx)} when model is set to 1(JSON)."}));
   GELOGE(PARAM_INVALID,
          "[Check][Param]Input parameter[--framework] is mandatory "
-         "and it's value must be: 0(Caffe) 3(TensorFlow) or 5(Onnx).");
+         "and its value must be: 0(Caffe) 3(TensorFlow) or 5(Onnx).");
   return PARAM_INVALID;
 }
 

@@ -134,7 +134,7 @@ Status UserHybridGraphManager::RecordDynamicGearInfo(const uint32_t graph_id) {
     dynamic_dims_info.dynamic_shape_dims.emplace_back(std::move(tmp_dims));
   }
   for (size_t i = 0U; i < dynamic_dims_info.dynamic_shape_dims.size(); ++i) {
-    GELOGI("index %zu dynamic dims is %s", i, ToString(dynamic_dims_info.dynamic_shape_dims[i]).c_str());
+    GELOGI("index %zu dynamic dims are %s", i, ToString(dynamic_dims_info.dynamic_shape_dims[i]).c_str());
   }
   for (size_t i = 0U; i < dynamic_dims_info.user_input_dims.size(); ++i) {
     const auto &input_dims_map = dynamic_dims_info.user_input_dims[i];

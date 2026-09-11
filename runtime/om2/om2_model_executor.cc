@@ -1414,7 +1414,7 @@ class Om2ModelExecutor::Impl {
                            ge::OpDescInfo &op_desc_info) const {
     GE_ASSERT_TRUE(has_model_);
     if (device_id_ != static_cast<int32_t>(device_id)) {
-      GELOGD("[OM2][Get][OpDescInfo] Device id not match, input=%u, model=%d.", device_id, device_id_);
+      GELOGD("[OM2][Get][OpDescInfo] Device id does not match, input=%u, model=%d.", device_id, device_id_);
       return ge::FAILED;
     }
     GE_ASSERT_NOTNULL(dump_manager_);

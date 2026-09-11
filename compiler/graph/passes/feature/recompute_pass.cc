@@ -125,7 +125,7 @@ Status RecomputeRewriting::RewriteGraph(const ComputeGraphPtr &graph) {
   GE_CHK_STATUS_RET(CopyAndFindNodes(graph, recompute_start_nodes, all_backward_nodes),
                     "Find backward nodes and recompute start nodes failed.");
 
-  GE_CHK_STATUS_RET(RecordLastForwardNode(all_backward_nodes), "Not find last forward node.");
+  GE_CHK_STATUS_RET(RecordLastForwardNode(all_backward_nodes), "Did not find last forward node.");
 
   GE_CHK_STATUS_RET(HandleAllRecomputeNodeInputOutput(graph, recompute_start_nodes),
                     "HandleAllRecomputeNodeInputOutput failed");

@@ -349,7 +349,7 @@ aclrtBinHandle KernelTaskInfo::GetBinHandle(const domi::TaskDef &task_def) const
     const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
     return kernel_handles_manager->GetOrRegisterKernel(register_info, bin_name);
   }
-  GELOGW("[%s][%s] task type: %u, kernel type: %u is not support bin handle.", op_desc_->GetNamePtr(),
+  GELOGW("[%s][%s] task type: %u, kernel type: %u is not supported bin handle.", op_desc_->GetNamePtr(),
          op_desc_->GetTypePtr(), task_type_, kernel_type_);
   return nullptr;
 }
@@ -723,7 +723,7 @@ Status KernelTaskInfo::UpdateEventIdForAicpuBlockingOp(const hybrid::AicpuExtInf
       return FAILED;
     }
     if (!is_support) {
-      GELOGD("Device not support blocking aicpu op process");
+      GELOGD("Device does not support blocking aicpu op process");
       return SUCCESS;
     }
     uint32_t event_id = 0U;
@@ -749,7 +749,7 @@ Status KernelTaskInfo::DistributeWaitTaskForAicpuBlockingOp() const {
     return FAILED;
   }
   if (!is_support) {
-    GELOGD("device not support blocking aicpu op process.");
+    GELOGD("device does not support blocking aicpu op process.");
     return SUCCESS;
   }
   GELOGD("Distribute wait task begin");

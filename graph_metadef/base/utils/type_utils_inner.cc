@@ -314,7 +314,7 @@ DataType TypeUtilsInner::SerialStringToDataType(const std::string &str) {
   if (it != kStringTodataTypeMap.end()) {
     return it->second;
   }
-  GELOGW("[Check][Param] SerialStringToDataType: datatype not support %s", str.c_str());
+  GELOGW("[Check][Param] SerialStringToDataType: datatype %s is not supported", str.c_str());
   return DT_UNDEFINED;
 }
 
@@ -331,7 +331,7 @@ Format TypeUtilsInner::SerialStringToFormat(const std::string &str) {
     int32_t primary_format = it->second;
     return static_cast<Format>(GetFormatFromSub(primary_format, sub_format));
   } else {
-    GELOGW("[Check][Param] Format not support %s", str.c_str());
+    GELOGW("[Check][Param] Format %s is not supported", str.c_str());
     return FORMAT_RESERVED;
   }
 }
@@ -344,7 +344,7 @@ std::string TypeUtilsInner::FormatToSerialString(const Format format) {
     }
     return it->second.c_str();
   } else {
-    GELOGW("[Check][Param] Format not support %d", format);
+    GELOGW("[Check][Param] Format %d is not supported", format);
     return "RESERVED";
   }
 }
@@ -354,7 +354,7 @@ std::string TypeUtilsInner::DataTypeToSerialString(const DataType data_type) {
   if (it != kDataTypeToStringMap.end()) {
     return it->second.c_str();
   } else {
-    GELOGW("DataTypeToSerialString: datatype not support %d", data_type);
+    GELOGW("DataTypeToSerialString: datatype %d is not supported", data_type);
     return "UNDEFINED";
   }
 }

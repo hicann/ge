@@ -88,7 +88,7 @@ bool KernelBoxHasSliceAndReduce(const NodePtr &node) {
     GE_ASSERT_NOTNULL(out_node);
     if (find(reduce_types.begin(), reduce_types.end(), out_node->GetType()) != reduce_types.end()) {
       out_node_is_reduce = true;
-      GELOGI("output nodes is reduce type: %s", node->GetName().c_str());
+      GELOGI("output nodes are reduce type: %s", node->GetName().c_str());
       break;
     }
   }
@@ -164,7 +164,7 @@ bool IsViewNodeShouldLowering(vector<const ge::Node *> origin_nodes) {
   if (origin_nodes.size() != 1) {
     for (const auto &node : origin_nodes) {
       GraphFusionReasonStore::CountNodeFuseFailReason(
-          node->GetName(), "View node num exceed one, Fall back lowering.",
+          node->GetName(), "View node num exceeds one, Fall back lowering.",
           GraphFusionReasonStore::FailReasonCategory::TEMPORARILY_NOT_SUPPORTED);
     }
     return false;

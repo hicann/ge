@@ -196,12 +196,12 @@ bool TensorInfoArgs::IsShapeInRange(const TensorInfoArgs &other) const {
   // check shape range when shape is dynamic
   if (this->IsUnknownShape()) {
     if (this->shape_.size() != this->shape_range_.size()) {
-      GELOGD("shape size %zu is not match shape range size %zu", this->shape_.size(), this->shape_range_.size());
+      GELOGD("shape size %zu does not match shape range size %zu", this->shape_.size(), this->shape_range_.size());
       return false;
     }
     for (size_t i = 0U; i < this->shape_range_.size(); ++i) {
       if (this->shape_range_[i].first > other.shape_[i]) {
-        GELOGD("shape range is not match, first is %" PRId64 ", other is %" PRId64 ", index is %zu",
+        GELOGD("shape range does not match, first is %" PRId64 ", other is %" PRId64 ", index is %zu",
                this->shape_range_[i].first, other.shape_[i], i);
         return false;
       }
@@ -211,7 +211,7 @@ bool TensorInfoArgs::IsShapeInRange(const TensorInfoArgs &other) const {
         continue;
       }
       if (this->shape_range_[i].second < other.shape_[i]) {
-        GELOGD("shape range is not match, second is %" PRId64 ", other is %" PRId64 ", index is %zu",
+        GELOGD("shape range does not match, second is %" PRId64 ", other is %" PRId64 ", index is %zu",
                this->shape_range_[i].second, other.shape_[i], i);
         return false;
       }
@@ -263,21 +263,21 @@ void CompileCacheDesc::SetScopeId(const std::initializer_list<uint64_t> scope_id
 bool CompileCacheDesc::CheckWithoutTensorInfo(const CompileCacheDesc *first, const CompileCacheDesc *second) const {
   if ((first->op_type_ != second->op_type_) ||
       (first->tensor_info_args_vec_.size() != second->tensor_info_args_vec_.size())) {
-    GELOGD("op_type_ %s, %s is not match or size %zu %zu is not match", first->op_type_.c_str(),
+    GELOGD("op_type_ %s, %s does not match or size %zu %zu does not match", first->op_type_.c_str(),
            second->op_type_.c_str(), first->tensor_info_args_vec_.size(), second->tensor_info_args_vec_.size());
     return false;
   }
   if (first->scope_id_ != second->scope_id_) {
-    GELOGD("scope id is not match");
+    GELOGD("scope id does not match");
     return false;
   }
   if (first->other_desc_.size() != second->other_desc_.size()) {
-    GELOGD("other_desc_ size %zu, %zu is not match ", first->other_desc_.size(), second->other_desc_.size());
+    GELOGD("other_desc_ size %zu, %zu does not match ", first->other_desc_.size(), second->other_desc_.size());
     return false;
   }
   for (size_t i = 0U; i < first->other_desc_.size(); ++i) {
     if (first->other_desc_[i].GetDataLen() != second->other_desc_[i].GetDataLen()) {
-      GELOGD("other_desc_ mem size %zu, %zu is not match ", first->other_desc_[i].GetDataLen(),
+      GELOGD("other_desc_ mem size %zu, %zu does not match ", first->other_desc_[i].GetDataLen(),
              second->other_desc_[i].GetDataLen());
       return false;
     }

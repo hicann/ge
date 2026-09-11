@@ -360,11 +360,12 @@ graphStatus InferShapePass::UpdateOutputFromSubgraphsForMultiDims(const std::vec
     for (auto dim : shape.GetDims()) {
       if (dim < 0) {
         REPORT_INNER_ERR_MSG("E19999",
-                             "Multi-batch not support middle dynamic shape. CurrentShape: [%s]. Please "
+                             "Multi-batch does not support middle dynamic shape. CurrentShape: [%s]. Please "
                              "check nodes in graph which cause dynamic shape.",
                              shape.ToString().c_str());
         GELOGE(PARAM_INVALID,
-               "[Check][NotSupport] DynamicDims with multi-batch not support middle dynamic shape. CurrentShape: [%s]. "
+               "[Check][NotSupport] DynamicDims with multi-batch does not support middle dynamic shape. CurrentShape: "
+               "[%s]. "
                "Please check nodes in graph which cause dynamic shape.",
                shape.ToString().c_str());
         return PARAM_INVALID;

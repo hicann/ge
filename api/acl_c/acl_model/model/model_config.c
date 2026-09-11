@@ -288,7 +288,7 @@ aclError aclmdlSetConfigOpt(aclmdlConfigHandle *handle, aclmdlConfigAttr attr, c
       return ret;
     }
   } else {
-    ACL_LOG_INNER_ERROR("not support this attr.");
+    ACL_LOG_INNER_ERROR("This attr is not supported.");
     return ACL_ERROR_INVALID_PARAM;
   }
 

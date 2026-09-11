@@ -486,7 +486,7 @@ Status Om2ModelUtils::ConstructWorkspaceAddr(const TaskSemanticContributeContext
                                              AddrSemantic &workspace_addr) {
   const bool aicpu_work_space = attrs.has_reuse_flag && (index < attrs.reuse_flag.size()) && (!attrs.reuse_flag[index]);
   if (aicpu_work_space) {
-    GELOGE(FAILED, "[OM2] Aicpu task not support append workspace addrs for now.");
+    GELOGE(FAILED, "[OM2] Appending workspace addresses is not supported for AICPU tasks.");
     return FAILED;
   }
   const bool session_scope_memory = attrs.has_no_reuse_scope && (index < attrs.no_reuse_scope.size()) &&

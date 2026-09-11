@@ -75,7 +75,7 @@ inline Status ValidateSliceSpecCommon(const size_t start_size, const size_t end_
   const uint64_t new_axis = static_cast<uint64_t>(attr.new_axis_mask) & spec_mask;
   const uint64_t consumed = spec_mask & ~(new_axis | ellipsis);
   GE_ASSERT_TRUE(__builtin_popcountll(consumed) <= static_cast<uint64_t>(input_rank),
-                 "StridedSlice index count exceeds input rank.");
+                 "StridedSlice index count(%d) exceeds input rank(%ld).", __builtin_popcountll(consumed), input_rank);
   return SUCCESS;
 }
 

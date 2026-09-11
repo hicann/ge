@@ -35,8 +35,8 @@ ge::graphStatus GetIONumOfOp(const TilingContext *const context, ge::Operator &o
   if (input_num_on_op != input_num) {
     ge::AscendString op_name;
     (void)op.GetName(op_name);
-    GELOGE(ge::PARAM_INVALID, "Input num on op %s is %zu, input num on context is %zu, not match.", op_name.GetString(),
-           input_num_on_op, input_num);
+    GELOGE(ge::PARAM_INVALID, "Input num on op %s is %zu, input num on context is %zu, does not match.",
+           op_name.GetString(), input_num_on_op, input_num);
     return ge::PARAM_INVALID;
   }
   auto compute_node_info = context->GetComputeNodeInfo();
@@ -46,7 +46,7 @@ ge::graphStatus GetIONumOfOp(const TilingContext *const context, ge::Operator &o
   if (output_num_on_op != output_num) {
     ge::AscendString op_name;
     (void)op.GetName(op_name);
-    GELOGE(ge::PARAM_INVALID, "Output num on op %s is %zu, output num on context is %zu, not match.",
+    GELOGE(ge::PARAM_INVALID, "Output num on op %s is %zu, output num on context is %zu, does not match.",
            op_name.GetString(), output_num_on_op, output_num);
     return ge::PARAM_INVALID;
   }
@@ -138,7 +138,7 @@ ge::graphStatus FindCompatibleTilingFunc(KernelContext *context) {
     GE_ASSERT_NOTNULL(tiling_fun_ptr);
     *tiling_fun_ptr = *(tiling_func_info.GetOpTilingFuncV3().target<TilingFuncV3>());
   } else {
-    GELOGE(ge::GRAPH_FAILED, "Node %s not support v3 or v4 tiling.", node_type);
+    GELOGE(ge::GRAPH_FAILED, "Node %s does not support v3 or v4 tiling.", node_type);
     return ge::GRAPH_FAILED;
   }
   return ge::GRAPH_SUCCESS;
@@ -221,7 +221,7 @@ ge::graphStatus CompatibleTilingParse(KernelContext *context) {
   } else if (tiling_version == static_cast<uint64_t>(TilingVersion::kV3)) {
     return TilingParseV3(context, *op, compile_info_key, compile_info_json);
   } else {
-    GELOGE(ge::GRAPH_FAILED, "Failed to tiling parse, not support v3 or v4.");
+    GELOGE(ge::GRAPH_FAILED, "Failed to tiling parse, does not support v3 or v4.");
     return ge::GRAPH_FAILED;
   }
   return ge::GRAPH_SUCCESS;
@@ -352,7 +352,7 @@ ge::graphStatus InnerCompatibleTiling(KernelContext *context, ge::graphStatus &t
   } else if (tiling_version == static_cast<uint64_t>(TilingVersion::kV3)) {
     tiling_func_result = TilingV3(context, *op, *tiling_fwk_data, op_run_info);
   } else {
-    GELOGE(ge::GRAPH_FAILED, "Failed to tiling parse, not support v3 or v4.");
+    GELOGE(ge::GRAPH_FAILED, "Failed to tiling parse, does not support v3 or v4.");
     return ge::GRAPH_FAILED;
   }
   optiling::RecoveryEmptyShapeOfTensorDesc(op_desc, indexes);

@@ -1341,7 +1341,7 @@ Status TensorFlowModelParser::ParseFromMemory(const char *data, uint32_t size, g
     if (tensorflow_op_map.find(node_op) == tensorflow_op_map.cend()) {
       DeleteFuisonNodeDef();
       REPORT_INNER_ERR_MSG("E19999", "Op type %s is unsupported", node_op.c_str());
-      GELOGE(FAILED, "Unsupport op type %s", node_op.c_str());
+      GELOGE(FAILED, "Unsupported op type %s", node_op.c_str());
       return INTERNAL_ERROR;
     }
 
@@ -2478,7 +2478,7 @@ Status TensorFlowModelParser::ParseProto(const std::vector<std::string> &partiti
     return FAILED;
   }
   if (partitioned_serialized.size() > 1UL) {
-    GELOGE(FAILED, "Partition graphDef vector size is beyond 1, it's not support now");
+    GELOGE(FAILED, "Partition graphDef vector size is beyond 1, it's not supported now");
     return FAILED;
   }
   if (partitioned_serialized.front().empty()) {

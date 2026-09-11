@@ -901,7 +901,7 @@ Status AiCpuBaseTask::UpdateEventIdForBlockingAicpuOp() {
     return FAILED;
   }
   if (!is_support) {
-    GELOGD("Device not support blocking aicpu op process");
+    GELOGD("Device does not support blocking aicpu op process");
     return SUCCESS;
   }
   uint32_t event_id = 0U;
@@ -1159,7 +1159,7 @@ Status AiCpuBaseTask::DistributeWaitTaskForAicpuBlockingOp(aclrtStream const str
     return FAILED;
   }
   if (!is_support) {
-    GELOGD("Device not support blocking aicpu op process.");
+    GELOGD("Device does not support blocking aicpu op process.");
     return SUCCESS;
   }
   GELOGI("Distribute queue task begin");

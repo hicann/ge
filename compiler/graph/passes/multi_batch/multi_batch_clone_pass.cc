@@ -1119,7 +1119,7 @@ Status MultiBatchClonePass::SetMaxShapeToData(const NodePtr &node, size_t out_an
   if (IsGetNextType(node)) {
     data_name.append("_").append(std::to_string(out_anchor_index));
   }
-  GELOGD("Update max shape of %s, shape dims is %s.", data_name.c_str(), ToString(data_shape.GetDims()).c_str());
+  GELOGD("Update max shape of %s, shape dims are %s.", data_name.c_str(), ToString(data_shape.GetDims()).c_str());
   const auto &dims = data_shape.GetDims();
   if (!IsGetNextType(node)) {
     if (std::all_of(dims.begin(), dims.end(), [](int64_t val) { return val >= 0; })) {
@@ -1298,7 +1298,7 @@ Status MultiBatchClonePass::UpdateSubgraphData(const NodePtr &data, size_t batch
 
   auto data_shape = NodeUtils::GetOutputDesc(*data, kDataOutIndex).GetShape();
   const auto &dims = data_shape.GetDims();
-  GELOGD("Start update shape of %s , batch index is %zu, dims is %s.", data->GetName().c_str(), batch_index,
+  GELOGD("Start update shape of %s , batch index is %zu, dims are %s.", data->GetName().c_str(), batch_index,
          ToString(dims).c_str());
   if (std::all_of(dims.begin(), dims.end(), [](int64_t val) { return val >= 0; })) {
     return SUCCESS;

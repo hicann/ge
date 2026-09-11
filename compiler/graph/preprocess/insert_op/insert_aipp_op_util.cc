@@ -315,9 +315,9 @@ Status InsertAippOpUtil::FindMaxSizeNode(const ComputeGraphPtr &graph, const Nod
   for (const auto &name : func_desc->GetSubgraphInstanceNames()) {
     const auto &subgraph = graph->GetSubgraph(name);
     if (subgraph == nullptr) {
-      REPORT_INNER_ERR_MSG("E19999", "Subgraph:%s of op:%s(%s) not find in graph:%s, check invalid", name.c_str(),
+      REPORT_INNER_ERR_MSG("E19999", "Subgraph:%s of op:%s(%s) not found in graph:%s, check invalid", name.c_str(),
                            func_desc->GetName().c_str(), func_desc->GetType().c_str(), graph->GetName().c_str());
-      GELOGE(GE_GRAPH_EMPTY_SUBGRAPH, "[Get][SubGraph] failed, Subgraph:%s of op:%s(%s) not find in graph:%s",
+      GELOGE(GE_GRAPH_EMPTY_SUBGRAPH, "[Get][SubGraph] failed, Subgraph:%s of op:%s(%s) not found in graph:%s",
              name.c_str(), func_desc->GetName().c_str(), func_desc->GetType().c_str(), graph->GetName().c_str());
       return GE_GRAPH_EMPTY_SUBGRAPH;
     }
@@ -586,9 +586,9 @@ Status InsertAippOpUtil::GetAllAipps(const NodePtr &data_node, const NodePtr &no
     for (const auto &name : op->GetSubgraphInstanceNames()) {
       const auto &subgraph = graph->GetSubgraph(name);
       if (subgraph == nullptr) {
-        REPORT_INNER_ERR_MSG("E19999", "Subgraph:%s of op:%s(%s) not find in graph:%s, check invalid", name.c_str(),
+        REPORT_INNER_ERR_MSG("E19999", "Subgraph:%s of op:%s(%s) not found in graph:%s, check invalid", name.c_str(),
                              op->GetName().c_str(), op->GetType().c_str(), graph->GetName().c_str());
-        GELOGE(GE_GRAPH_EMPTY_SUBGRAPH, "[Get][SubGraph] Subgraph:%s of op:%s(%s) not find in graph:%s", name.c_str(),
+        GELOGE(GE_GRAPH_EMPTY_SUBGRAPH, "[Get][SubGraph] Subgraph:%s of op:%s(%s) not found in graph:%s", name.c_str(),
                op->GetName().c_str(), op->GetType().c_str(), graph->GetName().c_str());
         return GE_GRAPH_EMPTY_SUBGRAPH;
       }

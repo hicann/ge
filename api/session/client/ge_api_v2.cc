@@ -626,7 +626,7 @@ Status GeSession::RemoveGraph(uint32_t graph_id) {
 
 static void PrintOutputResult(std::vector<gert::Tensor> &outputs) {
   if (outputs.empty() || (outputs[0].GetAddr() == nullptr)) {
-    GELOGW("outputs is empty or data is nullptr.");
+    GELOGW("outputs are empty or data is nullptr.");
     return;
   }
 

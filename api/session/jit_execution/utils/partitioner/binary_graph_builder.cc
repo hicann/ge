@@ -23,7 +23,7 @@ namespace ge {
 
 ComputeGraphPtr BinaryGraphBuilder::BuildGraph(const std::vector<NodePtr> &nodes, const std::string &name) const {
   if (nodes.empty()) {
-    GELOGE(ge::FAILED, "nodes is empty, no need to build graph:%s", name.c_str());
+    GELOGE(ge::FAILED, "nodes are empty, no need to build graph:%s", name.c_str());
     return nullptr;
   }
   std::unordered_set<NodePtr> nodes_set(nodes.begin(), nodes.end());

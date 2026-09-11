@@ -3602,7 +3602,7 @@ ComputeGraphPtr GraphUtils::BuildSubgraphWithNodes(const ComputeGraphPtr &graph,
 ComputeGraphPtr GraphUtils::BuildSubgraphWithNodes(ComputeGraph &graph, const std::set<NodePtr> &nodes,
                                                    const std::string &subgraph_name) {
   if (nodes.empty()) {
-    GELOGW("nodes is empty, no need to build subgraph");
+    GELOGW("nodes are empty, no need to build subgraph");
     return nullptr;
   }
 
@@ -4435,7 +4435,7 @@ void CompleteGraphBuilder::AddDataNodes(graphStatus &error_code, std::string &er
     const std::vector<uint32_t> anchor_indes = input.second.second;
     if (input_names.size() != anchor_indes.size()) {
       error_code = GRAPH_FAILED;
-      error_msg = "AddDataNodes failed: num of input_names and indexs not equal.";
+      error_msg = "AddDataNodes failed: num of input_names and indexes not equal.";
       return;
     }
     if (input_names.empty()) {
@@ -5002,7 +5002,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus GraphUtils::GetSuppor
 GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY ComputeGraphPtr
 GraphUtils::BuildGraphFromNodes(const std::unordered_set<NodePtr> &nodes, const std::string &name) {
   if (nodes.empty()) {
-    GELOGW("nodes is empty, no need to build subgraph");
+    GELOGW("nodes are empty, no need to build subgraph");
     return nullptr;
   }
 

@@ -146,7 +146,7 @@ Status AttachStreamLabelPass::AttachFlag(const NodePtr &node, std::string &strea
   const std::string &type = node->GetType();
   if (type == STREAMSWITCH) {
     if (node->GetInDataNodes().empty()) {
-      REPORT_INNER_ERR_MSG("E19999", "In data nodes is empty of op:%s(%s), check invalid", node->GetName().c_str(),
+      REPORT_INNER_ERR_MSG("E19999", "In data nodes are empty of op:%s(%s), check invalid", node->GetName().c_str(),
                            node->GetType().c_str());
       GELOGE(INTERNAL_ERROR, "[Get][InDataNodes] node %s has no input_data_node.", node->GetName().c_str());
       return INTERNAL_ERROR;

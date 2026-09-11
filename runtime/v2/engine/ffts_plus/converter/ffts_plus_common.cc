@@ -58,7 +58,7 @@ bg::ValueHolderPtr CreateNodeMemParam(const ge::NodePtr &node, FFTSAllMemPara &a
   std::string para_key = key.empty() ? node->GetName() : key;
   const auto iter = all_mem_para.node_to_args_para.find(para_key);
   if (iter == all_mem_para.node_to_args_para.end()) {
-    GELOGE(ge::FAILED, "Node[%s] not find args para.", node->GetName().c_str());
+    GELOGE(ge::FAILED, "Node[%s] not found args para.", node->GetName().c_str());
     return nullptr;
   }
   auto node_ori_para = bg::ValueHolder::CreateConst(&iter->second, sizeof(iter->second));

@@ -82,7 +82,7 @@ ge::Status ConvertToMobileTensorDescriptor(const ge::proto::TensorDescriptor &td
   mobile_td->set_name(td.name());
   mobile_td->set_dtype(ConvertToMobileDataType(td.dtype()));
   if (td.shape().dim().size() > 0) {
-    GE_ASSERT_TRUE(mobile_td->dtype() != ge::mobile::proto::DataType::DT_UNDEFINED, "[Mobile] dtype is not support.");
+    GE_ASSERT_TRUE(mobile_td->dtype() != ge::mobile::proto::DataType::DT_UNDEFINED, "[Mobile] dtype is not supported.");
   } else {
     GELOGD("[Mobile] desc shape is null, should not check dtype.");
   }

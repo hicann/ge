@@ -38,7 +38,7 @@ bool BinaryManager::SingleOpReuseOmBinary(const OpBuildTaskPtr &opTask, json &bi
   }
 
   if (!BinaryMatchWithStaticKeyAndDynInfo(opTask, generalizedResult, binListJson)) {
-    TE_DBGLOG("Node(%s) staticKey or dynInfo not match. Need to compile", GetTaskNodeName(opTask).c_str());
+    TE_DBGLOG("Node(%s) staticKey or dynInfo does not match. Need to compile", GetTaskNodeName(opTask).c_str());
     return false;
   }
 
