@@ -51,6 +51,7 @@ std::map<ge::DataType, ge::proto::DataType> g_dump_data_type_map = {
     {ge::DT_UINT2, ge::proto::DT_UINT2},
     {ge::DT_HIFLOAT8, ge::proto::DT_HIFLOAT8},
     {ge::DT_HIFLOAT4, ge::proto::DT_HIFLOAT4},
+    {ge::DT_HIFLOAT4_SCALE, ge::proto::DT_HIFLOAT4_SCALE},
     {ge::DT_FLOAT8_E5M2, ge::proto::DT_FLOAT8_E5M2},
     {ge::DT_FLOAT8_E4M3FN, ge::proto::DT_FLOAT8_E4M3FN},
     {ge::DT_FLOAT8_E8M0, ge::proto::DT_FLOAT8_E8M0},

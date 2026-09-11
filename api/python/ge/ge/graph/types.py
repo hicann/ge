@@ -58,7 +58,8 @@ class DataType(IntEnum):
     DT_FLOAT4_E2M1 = 40  # float4_e2m1 type
     DT_FLOAT4_E1M2 = 41  # float4_e1m2 type
     DT_HIFLOAT4 = 42  # hifloat4 type
-    DT_MAX = 43  # Mark the boundaries of data types
+    DT_HIFLOAT4_SCALE = 43  # hifloat4 scale type
+    DT_MAX = 44  # Mark the boundaries of data types
 
 
 class Format(IntEnum):

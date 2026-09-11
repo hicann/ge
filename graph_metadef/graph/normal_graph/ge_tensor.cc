@@ -77,6 +77,7 @@ const std::map<DataType, ::ge::proto::DataType> kDataTypeMap = {
     {DT_FLOAT6_E3M2, proto::DT_FLOAT6_E3M2},
     {DT_FLOAT6_E2M3, proto::DT_FLOAT6_E2M3},
     {DT_HIFLOAT4, proto::DT_HIFLOAT4},
+    {DT_HIFLOAT4_SCALE, proto::DT_HIFLOAT4_SCALE},
     {DT_FLOAT4_E2M1, proto::DT_FLOAT4_E2M1},
     {DT_FLOAT4_E1M2, proto::DT_FLOAT4_E1M2},
 };

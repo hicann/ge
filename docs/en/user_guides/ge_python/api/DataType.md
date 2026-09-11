@@ -63,7 +63,8 @@ DataType is an enumeration class inheriting from IntEnum, used to define all ele
 | DT_FLOAT4_E2M1 | 40 | 4-bit floating-point (E2M1 format) |
 | DT_FLOAT4_E1M2 | 41 | 4-bit floating-point (E1M2 format) |
 | DT_HIFLOAT4 | 42 | 4-bit high-precision floating-point |
-| DT_MAX | 43 | Data type boundary marker, not representing actual data type |
+| DT_HIFLOAT4_SCALE | 43 | hifloat4 with scale factor (4 bytes per element) |
+| DT_MAX | 44 | Data type boundary marker, not representing actual data type |
 
 ## Constraint Description
 

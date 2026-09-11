@@ -81,7 +81,8 @@ class TestDataType:
         assert DataType.DT_FLOAT4_E2M1 == 40
         assert DataType.DT_FLOAT4_E1M2 == 41
         assert DataType.DT_HIFLOAT4 == 42
-        assert DataType.DT_MAX == 43
+        assert DataType.DT_HIFLOAT4_SCALE == 43
+        assert DataType.DT_MAX == 44
 
     def test_data_type_enum_inheritance(self):
         """测试 DataType 枚举继承"""
@@ -163,7 +164,9 @@ class TestAttrValueType:
         # 测试枚举 repr
         assert repr(AttrValueType.VT_STRING) == "<AttrValueType.VT_STRING: 1>"
         assert repr(AttrValueType.VT_FLOAT) == "<AttrValueType.VT_FLOAT: 2>"
-        assert repr(AttrValueType.VT_LIST_STRING) == "<AttrValueType.VT_LIST_STRING: 1001>"
+        assert (
+            repr(AttrValueType.VT_LIST_STRING) == "<AttrValueType.VT_LIST_STRING: 1001>"
+        )
 
     def test_attr_data_type_enum_usage_in_attr_value(self):
         """测试 AttrValueType 在 AttrValue 中的使用"""

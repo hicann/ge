@@ -24,6 +24,7 @@
 #include "ge/ge_api_types.h"
 #include "framework/common/string_util.h"
 #include "framework/common/framework_types_internal.h"
+#include "framework/common/output_type_map.h"
 #include "framework/common/util.h"
 #include "graph/ge_context.h"
 #include "common/checker.h"
@@ -46,14 +47,10 @@ const int64_t kDynamicImageSizeNum = 2;
 const constexpr size_t kLeastStrElementNum = 2UL;
 const int32_t kBase = 10;
 // datatype/formats from user to GE, Unified to util interface file later
-const std::map<std::string, ge::DataType> kOutputTypeSupportDatatype = {
-    {"FP32", ge::DT_FLOAT},          {"FP16", ge::DT_FLOAT16},
-    {"UINT8", ge::DT_UINT8},         {"INT8", ge::DT_INT8},
-    {"HIF8", ge::DT_HIFLOAT8},       {"HIF4", ge::DT_HIFLOAT4},
-    {"FP8E5M2", ge::DT_FLOAT8_E5M2}, {"FP8E4M3FN", ge::DT_FLOAT8_E4M3FN},
-};
+const auto &kOutputTypeSupportDatatype = ge::OutputTypeStrToDatatype();
 const char *const kOutputTypeSupport =
-    "The current value is not within the valid range. Only support FP32, FP16, UINT8, INT8, HIF8, FP8E5M2, FP8E4M3FN.";
+    "The current value is not within the valid range. Only support FP32, FP16, UINT8, INT8, HIF8, HIF4SCALE, "
+    "FP8E5M2, FP8E4M3FN.";
 const std::set<std::string> kBufferOptimizeSupportOption = {"l1_optimize", "l2_optimize", "off_optimize",
                                                             "l1_and_l2_optimize"};
 // The function is incomplete. Currently, only l2_optimize, off_optimize is supported.

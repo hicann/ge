@@ -16,6 +16,7 @@
 #include <memory>
 
 #include "framework/common/debug/log.h"
+#include "framework/common/output_type_map.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "framework/common/helper/model_helper.h"
 #include "common/helper/model_parser_base.h"
@@ -78,13 +79,6 @@ void UpdateOutputTypeNameAndIndex(std::string &node_name, std::string &index_str
 // When the model is converted to a JSON file, the following operator attributes in the blacklist will be ignored
 const std::set<std::string> kOmBlackFields = {"output",      "data_offset", "data", "workspace", "workspace_bytes",
                                               "memory_size", "weight_size", "size", "bt",        "quantize_factor"};
-
-static std::map<std::string, ge::DataType> output_type_str_to_datatype = {
-    {"FP32", ge::DT_FLOAT},          {"FP16", ge::DT_FLOAT16},
-    {"UINT8", ge::DT_UINT8},         {"INT8", ge::DT_INT8},
-    {"HIF8", ge::DT_HIFLOAT8},       {"HIF4", ge::DT_HIFLOAT4},
-    {"FP8E5M2", ge::DT_FLOAT8_E5M2}, {"FP8E4M3FN", ge::DT_FLOAT8_E4M3FN},
-};
 
 static bool CheckInputTrueOrFalse(const std::string &s, const std::string &atc_param) {
   if ((s == "true") || (s == "false")) {
@@ -341,6 +335,7 @@ domi::Status VerifyOutputTypeAndOutNodes(std::vector<std::string> &out_type_vec)
 }
 
 domi::Status CheckOutPutDataTypeSupport(const std::string &output_type) {
+  const auto &output_type_str_to_datatype = ge::OutputTypeStrToDatatype();
   std::map<std::string, ge::DataType>::const_iterator it = output_type_str_to_datatype.find(output_type);
   if (it == output_type_str_to_datatype.cend()) {
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
@@ -378,6 +373,7 @@ domi::Status ParseOutputType(const std::string &output_type,
       return FAILED;
     }
     std::string dt_value = StringUtils::Trim(node_index_type_v[kDTValueIndex]);
+    const auto &output_type_str_to_datatype = ge::OutputTypeStrToDatatype();
     std::map<std::string, ge::DataType>::const_iterator it = output_type_str_to_datatype.find(dt_value);
     if (it == output_type_str_to_datatype.cend()) {
       REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),

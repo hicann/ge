@@ -187,10 +187,10 @@ Status HostCpuEngine::PrepareOutputs(const ge::ConstOpDescPtr &op_desc, std::vec
 
   Status ret = SUCCESS;
   const std::set<DataType> output_data_type_set = {
-      DT_BOOL,        DT_INT8,        DT_INT16,       DT_INT32,      DT_INT64,    DT_UINT8,
-      DT_UINT16,      DT_UINT32,      DT_UINT64,      DT_FLOAT16,    DT_FLOAT,    DT_DOUBLE,
-      DT_INT4,        DT_COMPLEX64,   DT_COMPLEX128,  DT_HIFLOAT8,   DT_HIFLOAT4, DT_FLOAT8_E4M3FN,
-      DT_FLOAT8_E5M2, DT_FLOAT4_E2M1, DT_FLOAT4_E1M2, DT_FLOAT8_E8M0};
+      DT_BOOL,          DT_INT8,        DT_INT16,       DT_INT32,       DT_INT64,      DT_UINT8,
+      DT_UINT16,        DT_UINT32,      DT_UINT64,      DT_FLOAT16,     DT_FLOAT,      DT_DOUBLE,
+      DT_INT4,          DT_COMPLEX64,   DT_COMPLEX128,  DT_HIFLOAT8,    DT_HIFLOAT4,   DT_HIFLOAT4_SCALE,
+      DT_FLOAT8_E4M3FN, DT_FLOAT8_E5M2, DT_FLOAT4_E2M1, DT_FLOAT4_E1M2, DT_FLOAT8_E8M0};
   for (size_t i = 0U; i < op_desc->GetOutputsSize(); ++i) {
     const auto &out_desc = op_desc->GetOutputDesc(static_cast<uint32_t>(i));
     const std::set<DataType>::const_iterator &output_data_type_iter = output_data_type_set.find(out_desc.GetDataType());

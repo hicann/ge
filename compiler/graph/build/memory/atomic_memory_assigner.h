@@ -131,8 +131,9 @@ struct MemsetNodeAddrAndAttr {
 
 inline bool IsFloatType(const DataType dt) {
   return (dt == DT_FLOAT) || (dt == DT_FLOAT16) || (dt == DT_DOUBLE) || (dt == DT_BF16) || (dt == DT_HIFLOAT8) ||
-         (dt == DT_HIFLOAT4) || (dt == DT_FLOAT8_E5M2) || (dt == DT_FLOAT8_E4M3FN) || (dt == DT_FLOAT8_E8M0) ||
-         (dt == DT_FLOAT6_E3M2) || (dt == DT_FLOAT6_E2M3) || (dt == DT_FLOAT4_E2M1) || (dt == DT_FLOAT4_E1M2);
+         (dt == DT_HIFLOAT4) || (dt == DT_HIFLOAT4_SCALE) || (dt == DT_FLOAT8_E5M2) || (dt == DT_FLOAT8_E4M3FN) ||
+         (dt == DT_FLOAT8_E8M0) || (dt == DT_FLOAT6_E3M2) || (dt == DT_FLOAT6_E2M3) || (dt == DT_FLOAT4_E2M1) ||
+         (dt == DT_FLOAT4_E1M2);
 }
 
 const std::list<NodeIndexIO> *FindSymbolAnchors(const BlockMemAssignerPtr &mem_assigner, const NodePtr &node,
