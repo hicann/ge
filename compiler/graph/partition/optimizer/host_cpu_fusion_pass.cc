@@ -418,9 +418,9 @@ void CollectRegionExternalOutputs(const std::unordered_set<const Node *> &compon
     for (const auto &node : region.nodes) {
       for (const auto &output : node->GetAllOutDataAnchors()) {
         std::vector<InDataAnchorPtr> external_consumers;
-        for (const auto &consumer : output->GetPeerInDataAnchors()) {
+        for (const auto *consumer : output->GetPeerInDataAnchorsPtr()) {
           if (component_set.count(consumer->GetOwnerNodeBarePtr()) == 0U) {
-            external_consumers.emplace_back(consumer);
+            external_consumers.emplace_back(consumer->GetOwnerNodeBarePtr()->GetInDataAnchor(consumer->GetIdx()));
           }
         }
         if (!external_consumers.empty() && claimed_outputs.emplace(output.get()).second) {
