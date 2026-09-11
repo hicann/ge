@@ -19,7 +19,6 @@
 #include "debug/ge_log.h"
 #include "framework/common/framework_types_internal.h"
 #include "graph/custom_op/cast.h"
-#include "graph/operator_factory_impl.h"
 
 namespace ge {
 namespace {
@@ -129,17 +128,21 @@ graphStatus DeserializeCustomKernelItem(CustomOpRegistry &registry, const Parsed
 }
 }  // namespace
 
+struct CustomOpRegistry::Impl {
+  std::vector<OpProtoClaimRecord> proto_claims;
+};
+
 CustomOpRegistry::~CustomOpRegistry() {
   try {
-    std::vector<std::string> op_types;
+    std::vector<OpProtoClaimRecord> claims;
     {
       const std::lock_guard<std::mutex> lock(mu_);
-      for (const auto &entry : creators_) {
-        op_types.push_back(entry.first.GetString());
+      if (impl_ != nullptr) {
+        claims = impl_->proto_claims;
       }
     }
-    if (!op_types.empty()) {
-      OperatorFactoryImpl::RemoveCustomOpCreators(op_types);
+    if (!claims.empty()) {
+      OpProtoLedger::ReleaseClaims(claims);  // 按事务日志精确扣减，替代盲删（锁外执行，避免与账本锁嵌套）
     }
   } catch (const std::exception &e) {
     GELOGW("[CUSTOM OP] Exception in CustomOpRegistry destructor: %s", e.what());
@@ -380,5 +383,14 @@ graphStatus CustomOpRegistry::LoadCustomOpsPartition(const uint8_t *data, size_t
 
   GELOGI("[CUSTOM OP] load custom ops partition success.");
   return GRAPH_SUCCESS;
+}
+
+void CustomOpRegistry::AppendProtoClaims(std::vector<OpProtoClaimRecord> &&claims) {
+  const std::lock_guard<std::mutex> lock(mu_);
+  if (impl_ == nullptr) {
+    impl_ = std::make_shared<Impl>();
+  }
+  impl_->proto_claims.insert(impl_->proto_claims.end(), std::make_move_iterator(claims.begin()),
+                             std::make_move_iterator(claims.end()));
 }
 }  // namespace ge

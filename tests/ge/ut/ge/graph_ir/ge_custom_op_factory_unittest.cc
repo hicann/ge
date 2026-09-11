@@ -20,6 +20,8 @@
 #include "graph/custom_op/cast.h"
 #include "graph/custom_op_factory.h"
 #include "graph/custom_op_registry.h"
+#include "graph/custom_op/op_proto_ledger.h"
+#include "graph/operator_factory_impl.h"
 #include "runtime/custom_op/python_custom_op_adapter.h"
 #include "ge/ge_api_error_codes.h"
 #include "macro_utils/dt_public_scope.h"
@@ -769,4 +771,64 @@ TEST(UtestCustomOpRegistry, IncCov_LoadCustomOpsPartition_RegisteredNonPortableO
             }));
   const auto payload = BuildCustomOpPartition("IncCovNonPortableOp", {0x1U});
   EXPECT_EQ(ge::GRAPH_FAILED, registry.LoadCustomOpsPartition(payload.data(), payload.size()));
+}
+
+// 回归（本特性要修的 bug）：双 registry 同 op_type，先销毁者不得删除全局条目
+TEST(UtestCustomOpFactory, CrossModelSameOpTypeSurvivesFirstRegistryDestroy) {
+  OpProtoLedger::ResetForFinalize();
+  const std::string op_type = "CrossModelSurviveOp";
+  OperatorFactoryImpl::RemoveCustomOpCreators({op_type});
+  const OpCreatorV2 creator = [](const AscendString &) { return Operator(); };
+  auto reg1 = std::make_shared<CustomOpRegistry>();
+  {
+    ScopedOpProtoLoadTxn txn(reg1);
+    OpProtoLedger::SetCurrentProvider("fp_cross_a", "cross_model_a.so");
+    ASSERT_EQ(OperatorFactoryImpl::RegisterOperatorCreator(op_type, creator), GRAPH_SUCCESS);
+  }
+  auto reg2 = std::make_shared<CustomOpRegistry>();
+  {
+    ScopedOpProtoLoadTxn txn(reg2);
+    OpProtoLedger::SetCurrentProvider("fp_cross_a", "cross_model_a.so");
+    OpProtoLedger::ClaimProviderMaps(op_type);
+  }
+  ASSERT_TRUE(OperatorFactoryImpl::IsExistOp(op_type));
+  // 白盒直访私有 entries_（依赖 UT target 的 -fno-access-control）；回放后重新获取
+  const auto *entry = OpProtoLedger::GetInstance().entries_.count(op_type) != 0U
+                          ? &OpProtoLedger::GetInstance().entries_.at(op_type).at(OpProtoMapKind::kCreatorV2)
+                          : nullptr;
+  ASSERT_NE(entry, nullptr);
+  ASSERT_EQ(entry->refcount, 2U);
+
+  reg1.reset();                                          // 卸载模型 A
+  EXPECT_TRUE(OperatorFactoryImpl::IsExistOp(op_type));  // 核心：不再被盲删
+  entry = OpProtoLedger::GetInstance().entries_.count(op_type) != 0U
+              ? &OpProtoLedger::GetInstance().entries_.at(op_type).at(OpProtoMapKind::kCreatorV2)
+              : nullptr;
+  ASSERT_NE(entry, nullptr);
+  EXPECT_EQ(entry->refcount, 1U);
+
+  reg2.reset();  // 全部卸载
+  EXPECT_FALSE(OperatorFactoryImpl::IsExistOp(op_type));
+  EXPECT_EQ(OpProtoLedger::GetInstance().entries_.count(op_type), 0U);
+  OpProtoLedger::ResetForFinalize();
+}
+
+// 回归（既有盲删缺陷的另一面）：仅含 kernel creator（无原型 claim）的 registry 析构不得动全局工厂
+TEST(UtestCustomOpFactory, KernelOnlyRegistryDestroyKeepsGlobalFactoryEntry) {
+  OpProtoLedger::ResetForFinalize();
+  const std::string op_type = "KernelOnlyKeepOp";
+  OperatorFactoryImpl::RemoveCustomOpCreators({op_type});
+  const OpCreatorV2 creator = [](const AscendString &) { return Operator(); };
+  ASSERT_EQ(OperatorFactoryImpl::RegisterOperatorCreator(op_type, creator), GRAPH_SUCCESS);  // 无事务：非本模型资产
+
+  auto registry = std::make_shared<CustomOpRegistry>();
+  // RegistryTestOp 为本文件匿名命名空间中已有的 BaseCustomOp 具体子类（BaseCustomOp 可能含纯虚接口，不可直接实例化）
+  ASSERT_EQ(
+      registry->RegisterCreator(AscendString(op_type.c_str()), OpBackend::kDevice,
+                                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<RegistryTestOp>(); }),
+      GRAPH_SUCCESS);
+  registry.reset();  // 旧行为：creators_ 盲删全局条目；新行为：无 claim 不动
+  EXPECT_TRUE(OperatorFactoryImpl::IsExistOp(op_type));
+  OperatorFactoryImpl::RemoveCustomOpCreators({op_type});
+  OpProtoLedger::ResetForFinalize();
 }

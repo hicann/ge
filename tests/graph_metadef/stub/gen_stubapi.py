@@ -418,6 +418,7 @@ SKIP_METHODS = [
     "CallInitFunc",
     "UpdateFormatImpl",
     "CreateOrGetCustomOpLocked",
+    "AppendProtoClaims",
     "CallInferFuncV1",
     "CallInferFuncV2",
     "InferShapeByOutputShapesAttr",

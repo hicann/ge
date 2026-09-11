@@ -482,6 +482,7 @@ set(MULTI_PARTS_TEST_FILES
     "runtime/custom_op/python_custom_op_proto_unittest.cc"
     "runtime/custom_op/python_custom_op_infer_meta_unittest.cc"
     "graph_ir/ge_custom_op_factory_unittest.cc"
+    "graph_ir/op_proto_ledger_unittest.cc"
     "graph_ir/ge_custom_op_pull_registry_unittest.cc"
     "graph_ir/ge_operator_factory_unittest.cc"
     "graph_ir/ge_ir_build_unittest.cc"
@@ -726,6 +727,38 @@ target_link_libraries(python_custom_op_bridge_loader_ut_fake PRIVATE
     ge_metadef_headers
 )
 
+add_library(fake_custom_op_conflict_so_a SHARED "graph_ir/fake_custom_op_conflict_so_a.cc")
+target_compile_definitions(fake_custom_op_conflict_so_a PRIVATE google=ascend_private)
+target_compile_options(fake_custom_op_conflict_so_a PRIVATE
+    ${AIR_COMMON_DYNAMIC_COMPILE_OPTION}
+    -Werror=format
+    -Wall -Wfloat-equal -Werror
+)
+target_include_directories(fake_custom_op_conflict_so_a PRIVATE
+    ${AIR_CODE_DIR}
+    ${AIR_CODE_DIR}/inc/graph_metadef
+)
+target_link_libraries(fake_custom_op_conflict_so_a PRIVATE
+    ge_intf_pub
+    ge_metadef_headers
+)
+
+add_library(fake_custom_op_conflict_so_b SHARED "graph_ir/fake_custom_op_conflict_so_b.cc")
+target_compile_definitions(fake_custom_op_conflict_so_b PRIVATE google=ascend_private)
+target_compile_options(fake_custom_op_conflict_so_b PRIVATE
+    ${AIR_COMMON_DYNAMIC_COMPILE_OPTION}
+    -Werror=format
+    -Wall -Wfloat-equal -Werror
+)
+target_include_directories(fake_custom_op_conflict_so_b PRIVATE
+    ${AIR_CODE_DIR}
+    ${AIR_CODE_DIR}/inc/graph_metadef
+)
+target_link_libraries(fake_custom_op_conflict_so_b PRIVATE
+    ge_intf_pub
+    ge_metadef_headers
+)
+
 # libge_mutiparts_utest
 add_executable(ut_libge_multiparts_utest
     ${COMMON_TEST_FILES}
@@ -749,10 +782,14 @@ target_compile_definitions(ut_libge_multiparts_utest PRIVATE
     google=ascend_private
     FUNC_VISIBILITY
     PYTHON_CUSTOM_OP_LOADER_UT_FAKE_BRIDGE_PATH="$<TARGET_FILE:python_custom_op_bridge_loader_ut_fake>"
+    FAKE_CUSTOM_OP_CONFLICT_SO_A_PATH="$<TARGET_FILE:fake_custom_op_conflict_so_a>"
+    FAKE_CUSTOM_OP_CONFLICT_SO_B_PATH="$<TARGET_FILE:fake_custom_op_conflict_so_b>"
 )
 
 add_dependencies(ut_libge_multiparts_utest
     python_custom_op_bridge_loader_ut_fake
+    fake_custom_op_conflict_so_a
+    fake_custom_op_conflict_so_b
 )
 
 target_include_directories(ut_libge_multiparts_utest PRIVATE
@@ -1447,6 +1484,13 @@ target_compile_options(ut_libge_distinct_load_utest PRIVATE
 
 target_compile_definitions(ut_libge_distinct_load_utest PRIVATE
     google=ascend_private
+    FAKE_CUSTOM_OP_CONFLICT_SO_A_PATH="$<TARGET_FILE:fake_custom_op_conflict_so_a>"
+    FAKE_CUSTOM_OP_CONFLICT_SO_B_PATH="$<TARGET_FILE:fake_custom_op_conflict_so_b>"
+)
+
+add_dependencies(ut_libge_distinct_load_utest
+    fake_custom_op_conflict_so_a
+    fake_custom_op_conflict_so_b
 )
 
 target_include_directories(ut_libge_distinct_load_utest PRIVATE

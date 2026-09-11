@@ -103,6 +103,7 @@ SET(GRAPH_SOURCE_LIST
     "normal_graph/custom_op_registry.cc"
     "normal_graph/operator_factory.cc"
     "normal_graph/operator_factory_impl.cc"
+    "normal_graph/op_proto_ledger.cc"
     "normal_graph/graph.cc"
     "normal_graph/gnode.cc"
     "normal_graph/named_io_node_builder.cc"
