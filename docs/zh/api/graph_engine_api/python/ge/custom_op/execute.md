@@ -33,7 +33,7 @@ def execute(self, input_0, ..., *, attr_0, ...) -> None
 
 - `execute`只能以schema-bound形式使用。算子必须存在算子原型；否则在校验或调用时抛出`RuntimeError`。
 - 回调不得声明可变位置参数或可变关键字参数。输入和属性的数量、顺序或属性名称不匹配时，抛出`TypeError`。
-- `execute`无需为输入参数指定类型提示；但是，任何指定的类型提示都将根据算子原型进行验证，以确保一致性。回调必须显式声明`-> None`返回注解，并且返回值必须为`None`。
+- `execute`无需为输入参数指定类型提示；但是，任何指定的类型提示都将根据算子原型进行验证，以确保一致性。
 - 回调返回值必须为`None`，并且必须声明`-> None`返回注解。
 - `get_execute_ctx()`只能在当前同步`execute`回调内调用。返回的`EagerOpExecutionContext`、`Tensor`和`RuntimeAttrs`等借用对象只能在当前回调内使用，回调返回或抛出异常后失效。
 
