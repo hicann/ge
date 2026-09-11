@@ -118,8 +118,9 @@ struct GertModelBaseInfo {
 using ReportModelBaseInfoFunc = int32_t (*)(void *instance_handle, const GertModelBaseInfo *info);
 
 enum GertModelTaskLaunchType : uint64_t {
-  ACL_RT_LAUNCH_KERNEL_V2 = 0,        // 通过 aclrtLaunchKernelWithConfigV2 下发。
-  RT_STARS_TASK_LAUNCH_WITH_FLAG = 1  // 通过 rtStarsTaskLaunchWithFlag 下发。
+  ACL_RT_LAUNCH_KERNEL_V2 = 0,         // 通过 aclrtLaunchKernelWithConfigV2 下发。
+  RT_STARS_TASK_LAUNCH_WITH_FLAG = 1,  // 通过 rtStarsTaskLaunchWithFlag 下发。
+  ACL_RT_LAUNCH_CUSTOM_KERNEL = 2,     // 通过 自定义算子的回调函数 下发。
 };
 
 /**
@@ -150,11 +151,23 @@ struct GertModelLaunchStarsTaskWithFlagParams {
 };
 
 /**
+ * @brief 自定义算子下发参数。
+ */
+struct GertModelLaunchCustomKernelParams {
+  uint64_t struct_size = sizeof(GertModelLaunchCustomKernelParams);  // 布局变化时更新。
+  uint32_t (*func_launch_custom_kernel)(void * /* eager op */,
+                                        void * /* eager op context */) = nullptr;  // 输入，自定义算子下发回调函数
+  void *eager_op = nullptr;                                                        // 输入，自定义算子op
+  void *eager_op_context = nullptr;                                                // 输入，自定义算子op执行入参
+};
+
+/**
  * @brief 任务下发参数联合体，根据 GertModelTaskLaunchInfo::launch_type 选择成员。
  */
 union GertModelTaskLaunchParams {
   GertModelLaunchKernelV2Params launch_kernel_v2_params;
   GertModelLaunchStarsTaskWithFlagParams launch_stars_task_params;
+  GertModelLaunchCustomKernelParams launch_custom_kernel_params;
 };
 
 /**

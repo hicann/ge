@@ -38,32 +38,32 @@ GertModelTaskDesc MakeTaskInfo() {
   return info;
 }
 
-TEST_F(Om2WithoutGraphDumpTest, AddOm2TaskInfoWithoutGraphSkipsExceptionInfoWhenDumpDisabled) {
+TEST_F(Om2WithoutGraphDumpTest, PostprocessOm2TaskInfoWithoutGraphSkipsExceptionInfoWhenDumpDisabled) {
   ModelDumpManager manager(1U);
   manager.SetClearDfxCacheFlagAfterLoad(true);
 
-  EXPECT_EQ(manager.AddOm2TaskInfo(MakeTaskInfo()), SUCCESS);
+  EXPECT_EQ(manager.PostprocessOm2TaskInfo(MakeTaskInfo()), SUCCESS);
 
   OpDescInfo op_info{};
   EXPECT_FALSE(manager.GetOpDescInfo(OpDescInfoId(1U, 1U), op_info));
 }
 
-TEST_F(Om2WithoutGraphDumpTest, AddOm2TaskInfoWithoutGraphKeepsExceptionInfoWhenDumpEnabled) {
+TEST_F(Om2WithoutGraphDumpTest, PostprocessOm2TaskInfoWithoutGraphKeepsExceptionInfoWhenDumpEnabled) {
   DumpConfig::Instance().SetExceptionDumpEnabled(true);
   ModelDumpManager manager(1U);
   manager.SetClearDfxCacheFlagAfterLoad(true);
 
-  EXPECT_EQ(manager.AddOm2TaskInfo(MakeTaskInfo()), SUCCESS);
+  EXPECT_EQ(manager.PostprocessOm2TaskInfo(MakeTaskInfo()), SUCCESS);
 
   OpDescInfo op_info{};
   EXPECT_TRUE(manager.GetOpDescInfo(OpDescInfoId(1U, 1U), op_info));
   EXPECT_EQ(op_info.op_name, "test_op");
 }
 
-TEST_F(Om2WithoutGraphDumpTest, AddOm2TaskInfoKeepsExceptionInfoByDefault) {
+TEST_F(Om2WithoutGraphDumpTest, PostprocessOm2TaskInfoKeepsExceptionInfoByDefault) {
   ModelDumpManager manager(1U);
 
-  EXPECT_EQ(manager.AddOm2TaskInfo(MakeTaskInfo()), SUCCESS);
+  EXPECT_EQ(manager.PostprocessOm2TaskInfo(MakeTaskInfo()), SUCCESS);
 
   OpDescInfo op_info{};
   EXPECT_TRUE(manager.GetOpDescInfo(OpDescInfoId(1U, 1U), op_info));

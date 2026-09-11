@@ -142,6 +142,8 @@ Status CustomTaskCodeBuilder::RenderDispatchCustomKernel(const VarRef &op, const
   body.push_back(RenderDispatchLoop(op, ctx));
   auto distribution = RenderDistribution(op, ctx);
   (void)body.insert(body.end(), distribution.begin(), distribution.end());
+  auto launch_callback = HandleExecuteCallback(op, ctx);
+  (void)body.insert(body.end(), launch_callback.begin(), launch_callback.end());
   return TaskCodeBuilderUtil::RenderDispatchFunc(ast_, "DispatchCustomKernel", body, items);
 }
 
@@ -192,11 +194,96 @@ BodyItem CustomTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRe
 std::vector<BodyItem> CustomTaskCodeBuilder::RenderDistribution(const VarRef &op, const VarRef &ctx) const {
   auto custom = op.Arrow("dispatch_info").Attr("custom");
   auto stream = ctx.Attr("stream_list")[custom.Attr("stream_id")];
+  auto allocator = ast_.Var("auto", "allocator");
+  auto eager_context_holder = ast_.Var("auto", "eager_context_holder");
+  auto eager_context = ast_.Var("auto", "eager_context");
+  auto custom_op_ptr = ast_.Var("auto", "custom_op_ptr");
+  auto eager_execute_op_ptr = ast_.Var("auto", "eager_execute_op_ptr");
 
   return {
-      ChkStatus(ast_.Call("KernelCustTaskDistribute",
-                          {op.Arrow("op_name"), op.Arrow("dispatch_info").Attr("custom").Attr("op_type"),
-                           ast_.Var("", "input_tensors"), ast_.Var("", "output_tensors"), stream})),
+      ast_.BlankLine(),
+      ast_.Comment("construct EagerOpExecutionContext"),
+      ast_.VarDecl(allocator, ast_.Call("std::make_shared<AllocatorFaker>", {})),
+      ast_.VarDecl(
+          eager_context_holder,
+          ast_.Call("BuildKernelContextHolder",
+                    {op.Arrow("op_name"), op.Arrow("dispatch_info").Attr("custom").Attr("op_type"),
+                     ast_.Var("", "input_tensors"), ast_.Var("", "output_tensors"), allocator.Attr("get()"), stream})),
+      ast_.VarDecl(eager_context,
+                   ast_.ReinterpretCast("gert::EagerOpExecutionContext *", eager_context_holder.Attr("context_"))),
+
+      ast_.BlankLine(),
+      ast_.Comment("construct EagerExecuteOp"),
+      ast_.VarDecl(custom_op_ptr, ast_.Call("ge::CustomOpFactory::CreateOrGetCustomOp",
+                                            {op.Arrow("dispatch_info").Attr("custom").Attr("op_type")})),
+      ast_.Call("OM2_CHK_NOTNULL", {custom_op_ptr}),
+      ast_.VarDecl(eager_execute_op_ptr, ast_.Call("dynamic_cast<ge::EagerExecuteOp *>", {custom_op_ptr})),
+      ast_.If(eager_execute_op_ptr == "nullptr",
+              {ast_.Call("OM2_LOGE", {ast_.Str("%s is custom op but did not implement EagerExecuteOp."),
+                                      eager_context.Arrow("GetNodeType()")}),
+               ast_.Return("ACL_ERROR_FAILURE")}),
+
+      ast_.BlankLine(),
+      ast_.Comment("execute custom kernel directly"),
+      ast_.If(ctx.Attr("launch_func") == "nullptr",
+              {
+                  ast_.Call("OM2_LOGI", {ast_.Str("DispatchCustomKernel: Start to execute custom kernel directly.")}),
+                  ChkStatus(ast_.Call("LaunchEagerExecuteOp", {eager_execute_op_ptr, eager_context})),
+                  ast_.Return("ACL_SUCCESS"),
+              }),
+  };
+}
+
+std::vector<BodyItem> CustomTaskCodeBuilder::HandleExecuteCallback(const VarRef &op, const VarRef &ctx) const {
+  auto custom = op.Arrow("dispatch_info").Attr("custom");
+  auto task_type = custom.Attr("task_type");
+  auto stream = ctx.Attr("stream_list")[custom.Attr("stream_id")];
+  auto launch_params = ast_.Var("GertModelTaskLaunchParams", "launch_params");
+  auto eager_context = ast_.Var("auto", "eager_context");
+  auto eager_execute_op_ptr = ast_.Var("auto", "eager_execute_op_ptr");
+
+  return {
+      ast_.BlankLine(),
+      ast_.Comment("execute custom kernel by callback"),
+      ast_.VarDecl(ast_.Var("GertModelTaskDesc", "task_info")),
+      ChkStatus(ast_.Call("AssembleOm2TaskInfo",
+                          {ast_.Var("", "task_info").Addr(),
+                           op.Arrow("op_name"),
+                           custom.Attr("op_type"),
+                           ast_.UInt(0U),
+                           custom.Attr("stream_id"),
+                           ast_.UInt(0U),  // block-dim
+                           ast_.UInt(0U),
+                           ast_.ReinterpretCast("uintptr_t", ast_.Var("", "args_info").Arrow("dev_addr")),
+                           ast_.Var("", "args_info").Arrow("size"),
+                           ast_.Var("", "report_inputs").Data(),
+                           ast_.StaticCast("uint64_t", ast_.Var("", "report_inputs").Size()),
+                           ast_.Var("", "report_outputs").Data(),
+                           ast_.StaticCast("uint32_t", ast_.Var("", "report_outputs").Size()),
+                           ast_.Var("", "report_workspace_addrs").Data(),
+                           ast_.Var("", "report_workspace_sizes").Data(),
+                           ast_.StaticCast("uint32_t", ast_.Var("", "report_workspace_addrs").Size()),
+                           task_type,
+                           stream,
+                           ast_.UInt(0U),
+                           ast_.UInt(0U)})),
+      ChkStatus(ast_.Call("aclrtStreamGetId",
+                          {ast_.Var("", "task_info").Attr("stream"),
+                           ast_.ReinterpretCast("int32_t *", ast_.Var("", "task_info").Attr("stream_id").Addr())})),
+      ast_.Assign(ast_.Var("", "task_info").Attr("task_raw_info"), Arg(nullptr)),
+
+      ast_.VarDecl(launch_params, ast_.InitList({})),
+      ast_.Assign(launch_params.Attr("launch_custom_kernel_params").Attr("func_launch_custom_kernel"),
+                  ast_.Var("", "LaunchEagerExecuteOp")),
+      ast_.Assign(launch_params.Attr("launch_custom_kernel_params").Attr("eager_op"), eager_execute_op_ptr),
+      ast_.Assign(launch_params.Attr("launch_custom_kernel_params").Attr("eager_op_context"), eager_context),
+
+      ast_.VarDecl(ast_.Var("GertModelTaskLaunchInfo", "launch_info"),
+                   ast_.DesignatedInit({{"launch_type", ast_.Var("", "ACL_RT_LAUNCH_CUSTOM_KERNEL")},
+                                        {"task_info", ast_.Var("", "task_info").Addr()},
+                                        {"launch_params", launch_params.Addr()}})),
+      ast_.Call("OM2_LOGI", {ast_.Str("DispatchCustomKernel: Start to execute custom kernel launch callback.")}),
+      ChkStatus(ast_.Call("ctx.launch_func", {ctx.Attr("instance_handle"), ast_.Var("", "launch_info").Addr()})),
   };
 }
 

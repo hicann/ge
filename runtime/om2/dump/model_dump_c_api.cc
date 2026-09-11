@@ -66,7 +66,7 @@ int32_t ReportDfxTaskPostprocess(uint32_t model_id, void *instance_handle, const
     GELOGW("ModelDumpManager is null, skip postprocess");
     return ge::SUCCESS;
   }
-  return static_cast<int32_t>(manager->AddOm2TaskInfo(*task_info));
+  return static_cast<int32_t>(manager->PostprocessOm2TaskInfo(*task_info));
 }
 
 int32_t IsDataDumpEnabled(uint32_t model_id, void *instance_handle, const char *op_name, uint8_t *is_data_dump) {
