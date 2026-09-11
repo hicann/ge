@@ -11,6 +11,7 @@
 #include "graph_optimizer/node_optimizer/split_c_to_n_optimizer.h"
 #include "graph_optimizer/graph_fusion/fusion_pass_manager/fusion_pass_registry.h"
 #include "common/fe_graph_common.h"
+#include "graph/utils/op_desc_utils.h"
 #include "register/graph_optimizer/fusion_common/unknown_shape_utils.h"
 
 namespace fe {
@@ -19,24 +20,55 @@ const int kRealDimNchwTo5Hd = 0;
 const int kInputShapeLimit = 4;
 const int kValidNcDimSize = 2;
 const int kSplitvInput2 = 2;
+const int kSplitvNchwDimNum = -3;
+
+bool SplitCToNOptimizer::CheckSplitVDim(const ge::NodePtr &node, const ge::OpDescPtr &op_desc) const {
+  auto in_nodes = node->GetInDataNodes();
+  if (in_nodes.size() < 3U) {
+    return false;
+  }
+  std::string op_type1;
+  std::string op_type2;
+  if (!ge::NodeUtils::GetConstOpType(in_nodes.at(1), op_type1) ||
+      !ge::NodeUtils::GetConstOpType(in_nodes.at(kSplitvInput2), op_type2)) {
+    return false;
+  }
+  auto weight_list = ge::OpDescUtils::GetWeights(in_nodes.at(kSplitvInput2));
+  if (weight_list.empty() || weight_list[0] == nullptr) {
+    FE_LOGD("[%s] is SplitV but split_dim weight is empty, cannot optimize.", op_desc->GetName().c_str());
+    return false;
+  }
+  ge::ConstGeTensorPtr dim_tensor = weight_list[0];
+  const auto &dim_tensor_desc = dim_tensor->GetTensorDesc();
+  std::size_t data_size = dim_tensor->GetData().size();
+  int64_t split_dim_val = 0;
+  if (dim_tensor_desc.GetDataType() == ge::DT_INT32 && data_size >= sizeof(int32_t)) {
+    split_dim_val = static_cast<int64_t>(*reinterpret_cast<const int32_t *>(dim_tensor->GetData().data()));
+  } else if (dim_tensor_desc.GetDataType() == ge::DT_INT64 && data_size >= sizeof(int64_t)) {
+    split_dim_val = *reinterpret_cast<const int64_t *>(dim_tensor->GetData().data());
+  } else {
+    FE_LOGD("[%s] is SplitV but split_dim dtype[%d] or data size[%zu] is invalid, cannot optimize.",
+            op_desc->GetName().c_str(), dim_tensor_desc.GetDataType(), data_size);
+    return false;
+  }
+  if (split_dim_val != 1 && split_dim_val != kSplitvNchwDimNum) {
+    FE_LOGD("[%s] is SplitV but split_dim value is %ld, not 1 or -3, cannot optimize.", op_desc->GetName().c_str(),
+            split_dim_val);
+    return false;
+  }
+  ge::GeTensorDescPtr input_tensor = op_desc->MutableInputDesc(0);
+  if (input_tensor == nullptr || input_tensor->GetFormat() != ge::FORMAT_NCHW) {
+    FE_LOGD("[%s] is SplitV but input0 format is not NCHW, cannot optimize.", op_desc->GetName().c_str());
+    return false;
+  }
+  FE_LOGD("[%s] is SplitV with const input1 and input2, split_dim value is %ld.", op_desc->GetName().c_str(),
+          split_dim_val);
+  return true;
+}
 
 bool SplitCToNOptimizer::CheckSplitDim(const ge::NodePtr &node, const ge::OpDescPtr &op_desc) const {
   if (op_desc->GetType() == fe::SPLITV) {
-    auto in_nodes = node->GetInDataNodes();
-    if (in_nodes.size() >= 3U) {
-      std::string op_type1;
-      std::string op_type2;
-      if (ge::NodeUtils::GetConstOpType(in_nodes.at(1), op_type1) &&
-          ge::NodeUtils::GetConstOpType(in_nodes.at(kSplitvInput2), op_type2)) {
-        ge::GeTensorDescPtr input_tensor = op_desc->MutableInputDesc(0);
-        if (input_tensor == nullptr || input_tensor->GetFormat() != ge::FORMAT_NCHW) {
-          FE_LOGD("[%s] is SplitV but input0 format is not NCHW, cannot optimize.", op_desc->GetName().c_str());
-          return false;
-        }
-        FE_LOGD("[%s] is SplitV with const input1 and input2, skip split_dim check.", op_desc->GetName().c_str());
-        return true;
-      }
-    }
+    return CheckSplitVDim(node, op_desc);
   }
 
   int64_t split_dim = -1;
