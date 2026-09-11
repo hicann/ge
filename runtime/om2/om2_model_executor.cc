@@ -666,11 +666,13 @@ ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::stri
     GE_ASSERT_SUCCESS(DeserializeModelMetaEntry(archive, entry, model_data));
     return ge::SUCCESS;
   }
-  if (entry.find("data/constants/") != std::string::npos) {
+  if (IsFileNameEndsWith(entry, "_constants_config.json")) {
     required.has_constants_config = true;
-    if (IsFileNameEndsWith(entry, "_constants_config.json")) {
-      GE_ASSERT_SUCCESS(DeserializeConstantsConfigEntry(archive, entry, model_data));
-    } else if (entry.find("data/constants/constant_") != std::string::npos) {
+    GE_ASSERT_SUCCESS(DeserializeConstantsConfigEntry(archive, entry, model_data));
+    return ge::SUCCESS;
+  }
+  if (entry.find("data/constants/") != std::string::npos) {
+    if (entry.find("data/constants/constant_") != std::string::npos) {
       GE_ASSERT_SUCCESS(DeserializeWeightEntry(archive, entry, model_data));
     }
     return ge::SUCCESS;

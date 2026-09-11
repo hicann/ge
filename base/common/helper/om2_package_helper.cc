@@ -101,7 +101,7 @@ std::string StripOm2ArchiveRoot(const std::string &entry_name) {
 }
 
 bool IsOm2ConstantsConfigEntry(const std::string &entry_name) {
-  return (entry_name.find(OM2_CONSTANTS_DIR) == 0U) && EndsWith(entry_name, kOm2ConstantsConfigSuffix);
+  return (entry_name.find("data/model_") == 0U) && EndsWith(entry_name, kOm2ConstantsConfigSuffix);
 }
 
 bool ShouldCompressRepackedOm2Entry(const std::string &entry_name) {

@@ -97,8 +97,9 @@ Status SerializeConstantsConfig(const gert::Om2ModelData &model_data,
   }
   (void)json_file.Set("consts", const_json_object);
   const std::string constants_json_str = json_file.Dump();
+  const std::string model_index_str = std::to_string(model_index);
   const auto constants_config_path =
-      FormatOm2Path(OM2_CONSTANTS_CONFIG_PATH_FORMAT, std::to_string(model_index).c_str());
+      FormatOm2Path(OM2_CONSTANTS_CONFIG_PATH_FORMAT, model_index_str.c_str(), model_index_str.c_str());
   GE_ASSERT_TRUE(
       zip_writer->WriteBytes(constants_config_path, constants_json_str.data(), constants_json_str.size(), false));
   return SUCCESS;
