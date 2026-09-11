@@ -202,8 +202,8 @@ void LaunchTfMemcpyTask(const ge::NodePtr &node, bg::ValueHolderPtr &ordered_hol
       bg::AicpuTfLaunchKernel(aicpu_tf_args.args_handler, global_data.GetStream(), rts_args.bin_handle, node);
   auto sync_stream = bg::ValueHolder::CreateSingleDataOutput("SyncStream", {global_data.GetStream()});
 
-  SetReleaseAfter(memcpy_input, launch_tf_holder);
-  SetReleaseAfter(node_output.addrs, launch_tf_holder);
+  SetReleaseAfter(memcpy_input, sync_stream);
+  SetReleaseAfter(node_output.addrs, sync_stream);
 
   bg::ValueHolder::AddDependency(update_tf_holder, launch_tf_holder);
   bg::ValueHolder::AddDependency(prepare_copy_inputs, launch_tf_holder);
@@ -259,8 +259,8 @@ void LaunchCCMemcpyTask(const ge::NodePtr &node, bg::ValueHolderPtr &ordered_hol
                               node->GetOpDesc(), aicpu_cc_args.ext_info_handler, rts_args.bin_handle, node);
   auto sync_stream = bg::ValueHolder::CreateSingleDataOutput("SyncStream", {global_data.GetStream()});
 
-  SetReleaseAfter(memcpy_input, launch_cc_holder);
-  SetReleaseAfter(node_output.addrs, launch_cc_holder);
+  SetReleaseAfter(memcpy_input, sync_stream);
+  SetReleaseAfter(node_output.addrs, sync_stream);
 
   bg::ValueHolder::AddDependency(prepare_copy_inputs, launch_cc_holder);
   bg::ValueHolder::AddDependency(update_cc_holder, launch_cc_holder);
