@@ -297,8 +297,8 @@ Status ExceptionDumpImpl::SaveOpInfo(const GertModelTaskDesc &task_info) {
       GELOGE(PARAM_INVALID, "[Check][Param] OM2 task input tensor is null, index=%u.", i);
       return PARAM_INVALID;
     }
-    const auto &tensor = *entry.tensor;
-    op_info.input_addrs.emplace_back(const_cast<void *>(tensor.GetAddr()));
+    auto &tensor = *entry.tensor;
+    op_info.input_addrs.emplace_back(tensor.GetAddr());
     op_info.input_size.emplace_back(tensor.GetSize());
     op_info.input_data_type.emplace_back(static_cast<ge::DataType>(tensor.GetDataType()));
     op_info.input_format.emplace_back(static_cast<ge::Format>(tensor.GetStorageFormat()));
@@ -319,8 +319,8 @@ Status ExceptionDumpImpl::SaveOpInfo(const GertModelTaskDesc &task_info) {
       GELOGE(PARAM_INVALID, "[Check][Param] OM2 task output tensor is null, index=%u.", i);
       return PARAM_INVALID;
     }
-    const auto &tensor = *entry.tensor;
-    op_info.output_addrs.emplace_back(const_cast<void *>(tensor.GetAddr()));
+    auto &tensor = *entry.tensor;
+    op_info.output_addrs.emplace_back(tensor.GetAddr());
     op_info.output_size.emplace_back(tensor.GetSize());
     op_info.output_data_type.emplace_back(static_cast<ge::DataType>(tensor.GetDataType()));
     op_info.output_format.emplace_back(static_cast<ge::Format>(tensor.GetStorageFormat()));

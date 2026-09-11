@@ -30,7 +30,7 @@
  */
 struct GertModelTaskIoEntry {
   uint64_t struct_size = sizeof(GertModelTaskIoEntry);  // 布局变化时更新
-  const gert::Tensor *tensor = nullptr;                 // 输入，Tensor 基础信息指针，不允许为空。
+  gert::Tensor *tensor = nullptr;                       // 输入，Tensor 基础信息指针，不允许为空。
   uint64_t offset = 0;                                  // 输入，Tensor 地址在 args buffer 中的偏移，单位为字节。
 };
 
@@ -152,7 +152,7 @@ struct GertModelRunCallbacks {
 // GertModelBaseInfo: report_model_base_info 回调入参（codegen → executor 传递 rt_model_handle）
 struct GertModelBaseInfo {
   uint64_t struct_size = sizeof(GertModelBaseInfo);  // 布局变化时更新
-  const void *rt_model_handle = nullptr;             // 输入：codegen 创建的 aclmdlRI*（InitResources 后即可获得）
+  void *rt_model_handle = nullptr;                   // 输入：codegen 创建的 aclmdlRI*（InitResources 后即可获得）
 };
 
 using ReportModelBaseInfoFunc = int32_t (*)(void *instance_handle, const struct GertModelBaseInfo *info);

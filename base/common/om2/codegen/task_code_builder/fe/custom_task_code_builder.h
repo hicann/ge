@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_GENERATOR_FE_CUSTOM_TASK_CODE_GENERATOR_H_
-#define AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_GENERATOR_FE_CUSTOM_TASK_CODE_GENERATOR_H_
+#ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_GENERATOR_FE_CUSTOM_TASK_CODE_BUILDER_H_
+#define AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_GENERATOR_FE_CUSTOM_TASK_CODE_BUILDER_H_
 
 #include "common/om2/codegen/task_code_builder/task_code_builder.h"
 
@@ -23,7 +23,7 @@ class CustomTaskCodeBuilder : public TaskCodeBuilder {
   static constexpr const char *kDispatchFuncName = "DispatchCustomKernel";
 
  public:
-  explicit CustomTaskCodeBuilder(AstBuildContext &ast) : TaskCodeBuilder(ast) {}
+  using TaskCodeBuilder::TaskCodeBuilder;
 
   // ── Public overrides & accessors ──
   int64_t ParseOpIndex(const domi::TaskDef &task_def) override;
@@ -35,12 +35,12 @@ class CustomTaskCodeBuilder : public TaskCodeBuilder {
  private:
   // ── Build data assembly ──
   Status RenderDispatchCustomKernel(const VarRef &op, const VarRef &ctx, std::vector<DeclNode *> &items);
-  std::vector<BodyItem> RenderDispatchSetup(const VarRef &op, const VarRef &ctx);
-  BodyItem RenderDispatchLoop(const VarRef &op, const VarRef &ctx);
-  std::vector<BodyItem> RenderDistribution(const VarRef &op, const VarRef &ctx);
-  std::vector<BodyItem> HandleInputOutputArg(const VarRef &a, const VarRef &ctx);
+  std::vector<BodyItem> RenderDispatchSetup(const VarRef &op, const VarRef &ctx) const;
+  BodyItem RenderDispatchLoop(const VarRef &op, const VarRef &ctx) const;
+  std::vector<BodyItem> RenderDistribution(const VarRef &op, const VarRef &ctx) const;
+  std::vector<BodyItem> HandleInputOutputArg(const VarRef &a, const VarRef &ctx) const;
   void AssignTaskLocalIoNames();
-  void InitArgsTableEntry(const TaskSemanticContributeContext &context, const uint32_t args_size);
+  void InitArgsTableEntry(const TaskSemanticContributeContext &context, const uint64_t args_size);
 
   // ── Member variables ──
   CustomBuildData build_data_;
@@ -48,4 +48,4 @@ class CustomTaskCodeBuilder : public TaskCodeBuilder {
 };
 }  // namespace ge
 
-#endif  // AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_GENERATOR_FE_CUSTOM_TASK_CODE_GENERATOR_H_
+#endif  // AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_GENERATOR_FE_CUSTOM_TASK_CODE_BUILDER_H_

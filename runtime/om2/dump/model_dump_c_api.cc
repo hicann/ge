@@ -102,7 +102,7 @@ int32_t ReportModelBaseInfo(void *instance_handle, const struct GertModelBaseInf
     return ge::SUCCESS;
   }
   ge::dump::ModelDumpInfo &model_dump_info = dump_manager->GetModelDumpInfo();
-  model_dump_info.rt_model_handle = const_cast<void *>(info->rt_model_handle);
+  model_dump_info.rt_model_handle = info->rt_model_handle;
 
   return dump_manager->SetModelDumpInfo(model_dump_info);
 }

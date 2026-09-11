@@ -432,7 +432,7 @@ Status ResolveStablePart(StablePartId id, std::string &output) {
       output =
           "struct GertModelTaskIoEntry {\n"
           "  uint64_t struct_size = sizeof(GertModelTaskIoEntry);\n"
-          "  const gert::Tensor *tensor = nullptr;\n"
+          "  gert::Tensor *tensor = nullptr;\n"
           "  uint64_t offset = 0;\n"
           "};\n"
           "\n"
@@ -504,7 +504,7 @@ Status ResolveStablePart(StablePartId id, std::string &output) {
           "\n"
           "struct GertModelBaseInfo {\n"
           "  uint64_t struct_size = sizeof(GertModelBaseInfo);\n"
-          "  const void *rt_model_handle = nullptr;\n"
+          "  void *rt_model_handle = nullptr;\n"
           "};\n"
           "\n"
           "using ReportModelBaseInfoFunc = int32_t (*)(void *instance_handle, const struct GertModelBaseInfo *info);\n"
