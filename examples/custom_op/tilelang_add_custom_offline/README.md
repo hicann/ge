@@ -48,7 +48,7 @@ graph_build 生成 AIR 文件 → ATC 加载 AIR 编译 OM
 
 GE 回调 Compile(ctx)
   ├─ 读取输入元素数量 → 构建 binary key
-  ├─ exec("python3 add_custom_kernel.py <N> <output.so>")（同机有卡编译）
+  ├─ popen("python3 add_custom_kernel.py <N> <output.so>")（同机有卡编译）
   ├─ TileLang 编译器编译 kernel 源码 → 产出 .so（host-wrapper）
   ├─ 读取 .so 文件字节 → so_data
   ├─ mkstemps 临时文件读取后立即 unlink
@@ -144,7 +144,7 @@ Precision check passed, max_error=0
 | 算子类型 | `AddCustomOffline` |
 | 输入 | `x` (float32), `y` (float32) |
 | 输出 | `z` (float32) |
-| 输入 shape | `[4096]` (固定) |
+| 输入 shape | `[4096]`（固定） |
 | 输出 shape | `[4096]` |
 | 格式 | ND |
 | kernel 名称 | `main_kernel`（由 `call` 封装） |
@@ -176,7 +176,7 @@ GE 交付件，实现 `CompilableOp` + `PortableOp` + `EagerExecuteOp` + `ShapeI
 
 - **Compile**: subprocess 调用 Python 编译 TileLang → 读取 `.so` 字节 → `dlopen` → 缓存
 - **Serialize**: 将 `kernel_entries_` 中的 `.so` 字节序列化为二进制 buffer
-- **Deserialize**: 从 buffer 恢复 `.so` 字节 → 写临时文件 → `dlopen` → 缓存
+- **Deserialize**: 从 buffer 恢复 `.so` 字节 → `memfd_create` 从内存加载（不落盘）→ `dlopen` → 缓存
 - **Execute**: 使用缓存的函数指针调用 `call(x, y, z, stream)`
 - 使用 `std::mutex` 保证线程安全
 
@@ -202,7 +202,7 @@ ATC 编译 AIR → OM 时会自动触发 `Compile` + `Serialize`。
 
 ## 注意事项
 
-- **同机有卡编译限定**：TileLang-Ascend 当前通过 `torch.npu.get_device_name()` 做运行时平台检测，不支持离线指定目标架构。因此 `Compile` 回调中调用 Python 编译器时未传递 `--soc_version`，编译产物绑定编译机 NPU。本样例仅适用于"编译机与目标机为同一 NPU"的场景，不能用于跨平台 ATC 离线编译。如需跨平台编译，需等待 TileLang 支持离线目标指定后更新。
+- **同机有卡编译限定**：TileLang-Ascend 当前通过 `torch.npu.get_device_name()` 做运行时平台检测，不支持离线指定目标架构。因此 `Compile` 回调中调用 Python 编译器时未传递 `--soc_version`，编译产物绑定编译机 NPU。本样例仅适用于“编译机与目标机为同一 NPU”的场景，不能用于跨平台 ATC 离线编译。如需跨平台编译，需等待 TileLang 支持离线目标指定后更新。
 - `graph_build` 阶段需要运行环境具备 Python + TileLang-Ascend；`model_exec` 阶段不需要（OM 自包含 `.so` 编译产物）。
 - `ge.graphRunMode=1` 确保走在线执行链路（PRIORITY_GRAPH 模式）。
 - 序列化格式为自定义格式，GE 只透传不解析，格式完全由算子控制。所有 `uint32_t` 字段使用小端格式。
