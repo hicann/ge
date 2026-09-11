@@ -278,6 +278,20 @@ Status PostOpProcessForSubgraph(const ParseArg &arg, ge::ComputeGraphPtr sub_gra
   }
   return SUCCESS;
 }
+
+// ONNX If 算子规范（https://onnx.ai/onnx/operators/onnx__If.html）：
+// If 有且仅有 1 个输入 cond（bool 标量，min=1, max=1）；then_branch/else_branch
+// 子图通过隐式闭包（按名字）引用外层作用域的值。
+void WarnOnnxIfNodeNonSpecInputs(const ge::onnx::NodeProto &node_proto) {
+  // 仅提示 If：其他算子注册子图适配器时不应套用 If 的规范。
+  if (node_proto.op_type() != std::string(parser::IF)) {
+    return;
+  }
+  if (node_proto.input_size() != 1) {
+    GELOGW("If node:%s has %d inputs, but ONNX spec allows only 1 input (cond).", node_proto.name().c_str(),
+           node_proto.input_size());
+  }
+}
 }  // namespace
 
 Status OnnxModelParser::ParseOutput(ge::onnx::GraphProto &onnx_graph) {
@@ -917,6 +931,9 @@ Status OnnxModelParser::AdaptAndFindAllOnnxGraph(
       }
       std::vector<ge::onnx::GraphProto *> onnx_graphs;
       std::map<std::string, ge::onnx::GraphProto *> name_to_onnx_subgraph;
+      // 提示必须在适配前做：适配会把闭包捕获物化为 If 节点的额外输入，
+      // 之后再提示会把物化产物误判为非规范输入。
+      WarnOnnxIfNodeNonSpecInputs(*node_proto);
       if (subgraph_adapter->AdaptAndFindAllSubgraphs(node_proto, onnx_graphs, name_to_onnx_subgraph, graph_name) !=
           SUCCESS) {
         GELOGE(FAILED, "[Adapt][Subgraph] adapt subgraph of node:%s failed.", node_proto->name().c_str());

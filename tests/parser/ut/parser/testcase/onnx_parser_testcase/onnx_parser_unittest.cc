@@ -337,6 +337,76 @@ TEST_F(UtestOnnxParser, IfSubgraphAdapterIsIdempotent) {
   EXPECT_EQ(second_subgraphs[1]->input_size(), else_input_size);
 }
 
+TEST_F(UtestOnnxParser, IfSubgraphAdapterSkipsCondSlotWhenDeduplicating) {
+  // 分支闭包捕获 cond：If.input[0] 固定为 cond 槽位，If 侧去重必须跳过它，
+  // 否则子图侧追加 cond 而 If 侧不追加，子图 Data 的 parent_index 越界。
+  // 适配后 If.input 应为 [cond, cond]，子图 input 应为 [cond]。
+  ge::onnx::NodeProto if_node =
+      MakeIfNode("capture_cond_if", "cond", MakeAddBranch("cond", "Y_then"), MakeAddBranch("cond", "Y_else"));
+  std::vector<ge::onnx::GraphProto *> subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  AdaptIf(if_node, subgraphs, name_to_graph);
+
+  ASSERT_EQ(if_node.input_size(), 2);
+  EXPECT_EQ(if_node.input(0), "cond");
+  EXPECT_EQ(if_node.input(1), "cond");
+  ASSERT_EQ(subgraphs.size(), 2U);
+  for (const ge::onnx::GraphProto *subgraph : subgraphs) {
+    ASSERT_EQ(subgraph->input_size(), 1);
+    EXPECT_EQ(subgraph->input(0).name(), "cond");
+  }
+}
+
+TEST_F(UtestOnnxParser, IfSubgraphAdapterMultiInputCapturesExistingInput) {
+  // 非规范用法：If.input = [cond, x]（伪位置传参），分支按名字闭包引用 x。
+  // 旧版解析器可正常编译此类模型，为防有人使用，适配需保持兼容：
+  // x 不重复追加（已在 input[1..] 去重集合中），子图 Data 的
+  // parent_index = data_index + 1 映射到 If.input[1] = x，索引合法。
+  ge::onnx::NodeProto if_node =
+      MakeIfNode("multi_input_if", "cond", MakeAddBranch("x", "Y_then"), MakeAddBranch("x", "Y_else"));
+  if_node.add_input("x");
+  std::vector<ge::onnx::GraphProto *> subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  AdaptIf(if_node, subgraphs, name_to_graph);
+
+  ASSERT_EQ(if_node.input_size(), 2);
+  EXPECT_EQ(if_node.input(0), "cond");
+  EXPECT_EQ(if_node.input(1), "x");
+  ASSERT_EQ(subgraphs.size(), 2U);
+  for (const ge::onnx::GraphProto *subgraph : subgraphs) {
+    ASSERT_EQ(subgraph->input_size(), 1);
+    EXPECT_EQ(subgraph->input(0).name(), "x");
+  }
+}
+
+TEST_F(UtestOnnxParser, IfSubgraphAdapterMultiInputCapturesExistingAndNewInputs) {
+  // 非规范用法：If.input = [cond, x]，分支闭包引用 x 和 y。旧版解析器可正常
+  // 编译此类模型，为防有人使用，适配需保持兼容：x 不重复追加，y 追加到
+  // If.input[2] 与子图 input[1]，子图 Data 位置与 If.input[1..] 一一对应，索引合法。
+  ge::onnx::GraphProto then_graph = MakeAddBranch("x", "Y_then");
+  ge::onnx::NodeProto *then_add = then_graph.mutable_node(0);
+  then_add->add_input("y");
+  ge::onnx::GraphProto else_graph = MakeAddBranch("y", "Y_else");
+  ge::onnx::NodeProto *else_add = else_graph.mutable_node(0);
+  else_add->add_input("x");
+  ge::onnx::NodeProto if_node = MakeIfNode("multi_input_if", "cond", then_graph, else_graph);
+  if_node.add_input("x");
+  std::vector<ge::onnx::GraphProto *> subgraphs;
+  std::map<std::string, ge::onnx::GraphProto *> name_to_graph;
+  AdaptIf(if_node, subgraphs, name_to_graph);
+
+  ASSERT_EQ(if_node.input_size(), 3);
+  EXPECT_EQ(if_node.input(0), "cond");
+  EXPECT_EQ(if_node.input(1), "x");
+  EXPECT_EQ(if_node.input(2), "y");
+  ASSERT_EQ(subgraphs.size(), 2U);
+  for (const ge::onnx::GraphProto *subgraph : subgraphs) {
+    ASSERT_EQ(subgraph->input_size(), 2);
+    EXPECT_EQ(subgraph->input(0).name(), "x");
+    EXPECT_EQ(subgraph->input(1).name(), "y");
+  }
+}
+
 TEST_F(UtestOnnxParser, onnx_parser_if_node) {
   std::string case_dir = __FILE__;
   case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
