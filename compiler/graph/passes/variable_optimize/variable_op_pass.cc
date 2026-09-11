@@ -239,7 +239,7 @@ Status VariableOpPass::Run(ge::ComputeGraphPtr graph) {
   return SUCCESS;
 }
 
-Status VariableOpPass::DealFusion(const SameVarPtr &same_vars) {
+Status VariableOpPass::DealFusion(const SameVarPtr &same_vars) const {
   for (const auto &var_node : same_vars->var_nodes) {
     GE_CHECK_NOTNULL(var_node);
     GELOGD("Begin to fusion var %s with trans", var_node->GetName().c_str());
@@ -393,7 +393,7 @@ Status VariableOpPass::CheckSameAndTransOp(const SameVarPtr &same_vars, bool &is
   return SUCCESS;
 }
 
-Status VariableOpPass::CheckVariableRefLegally(const SameVarPtr &same_vars, bool &is_var_ref_legally) {
+Status VariableOpPass::CheckVariableRefLegally(const SameVarPtr &same_vars, bool &is_var_ref_legally) const {
   is_var_ref_legally = true;
   auto var_ref_nodes = GetRefVars(same_vars);
   GELOGD("var name %s, ref var count %zu.", same_vars->var_name.c_str(), var_ref_nodes.size());
