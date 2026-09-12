@@ -178,7 +178,7 @@ Status BuildCompileInputs(const std::vector<gert::Tensor> &ori_inputs, const Com
   {
     std::lock_guard<std::mutex> locker(cache_mutex);
     GE_ASSERT_SUCCESS(GetAllCondInputData(graph, need_host_data_idx, cond_input_cache));
-    GE_ASSERT_SUCCESS(SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(graph, need_host_data_idx));
+    GE_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(graph, need_host_data_idx));
   }
 
   compile_inputs = TensorTransUtils::ShareFromGertTenosrs(ori_inputs);
@@ -360,8 +360,7 @@ Status JitExecutor::RunWithCallback(UserGraphExecution &&task) {
   std::set<size_t> keep_on_host_idxs;
   if (ep != nullptr && ep->GetSlicedGraph() != nullptr) {
     std::lock_guard<std::mutex> locker(guarded_execution_cache_mutex_);
-    JIT_ASSERT_SUCCESS(SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(ep->GetSlicedGraph(), keep_on_host_idxs),
-                       task);
+    JIT_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(ep->GetSlicedGraph(), keep_on_host_idxs), task);
   }
   JIT_ASSERT_SUCCESS(CopyHostInputsToDevice(task, device_allocator_.get(), tensors0, keep_on_host_idxs), task);
   if (ep != nullptr && ep->GetSlicedGraph() != nullptr) {

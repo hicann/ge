@@ -33,6 +33,8 @@
 
 namespace ge {
 namespace {
+constexpr int64_t kMaxSymbolicValueSize = 200;
+
 template <typename T>
 ge::Symbol CreateSymbol(const uint8_t *ptr, size_t i) {
   T value;
@@ -130,15 +132,15 @@ graphStatus CreateExpression(const ge::DataType dtype, const uint8_t *ptr, size_
 bool SupportSymbolizeValue(const char *op_type, const GeTensorDescPtr &tensor_desc) {
   GE_ASSERT_NOTNULL(op_type);
   GE_ASSERT_NOTNULL(tensor_desc);
+  GELOGI("Max symbolic value size %lld is supported", kMaxSymbolicValueSize);
   auto attr = tensor_desc->GetAttrsGroup<SymbolicDescAttr>();
   GE_ASSERT_NOTNULL(attr);
   auto symbol_shape_size = attr->symbolic_tensor.GetOriginSymbolShape().GetSymbolShapeSize();
   int64_t const_shape_size = -1;
   if (symbol_shape_size.GetExprType() == ExprType::kExprConstantInteger &&
-      symbol_shape_size.GetConstValue(const_shape_size) &&
-      const_shape_size > SymbolicInferUtil::kMaxSymbolicValueSize) {
+      symbol_shape_size.GetConstValue(const_shape_size) && const_shape_size > kMaxSymbolicValueSize) {
     GELOGW("symbolic value generalize and compute only support shape size <= %lld, but current shape size is %lld",
-           SymbolicInferUtil::kMaxSymbolicValueSize, const_shape_size);
+           kMaxSymbolicValueSize, const_shape_size);
     return false;
   }
   return true;

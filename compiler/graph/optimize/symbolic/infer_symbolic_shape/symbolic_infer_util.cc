@@ -15,10 +15,8 @@
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/attr_utils.h"
-#include "graph/utils/type_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "base/registry/op_impl_space_registry_v2.h"
-#include "graph/optimize/symbolic/symbolic_kernel_factory.h"
 
 #include <op_type_utils.h>
 
@@ -26,31 +24,7 @@ namespace ge {
 constexpr static size_t kByteBitCount = 8UL;
 
 namespace {
-constexpr const char *const kNeedSymbolizeValueIdxsAttr = "_ge_need_symbolize_value_idxs";
-
-bool IsSupportSymbolizeValueDtype(const DataType dtype) {
-  return dtype == DT_INT32 || dtype == DT_INT64 || dtype == DT_UINT32 || dtype == DT_UINT64;
-}
-
-bool IsSupportSymbolizeValueDataNode(const NodePtr &data_node) {
-  const auto &op_desc = data_node->GetOpDesc();
-  if (op_desc == nullptr || op_desc->GetOutputsSize() == 0U) {
-    GELOGW("data node %s has no valid output desc, skip symbolize value.", data_node->GetNamePtr());
-    return false;
-  }
-  const auto &output_desc = op_desc->GetOutputDesc(0);
-  if (!IsSupportSymbolizeValueDtype(output_desc.GetDataType())) {
-    GELOGW("data node %s dtype %s does not support symbolize value, skip.", data_node->GetNamePtr(),
-           TypeUtils::DataTypeToSerialString(output_desc.GetDataType()).c_str());
-    return false;
-  }
-  const int64_t shape_size = output_desc.GetShape().GetShapeSize();
-  if (shape_size < 0 || shape_size > SymbolicInferUtil::kMaxSymbolicValueSize) {
-    GELOGW("data node %s shape size %lld exceeds symbolize value limit, skip.", data_node->GetNamePtr(), shape_size);
-    return false;
-  }
-  return true;
-}
+constexpr const char *const kValueDependentIdxsAttr = "_ge_value_dependent_idxs";
 }  // namespace
 
 graphStatus SymbolicInferUtil::GetConstInt(const gert::SymbolTensor *tensor, DataType dt, int64_t &value) {
@@ -156,45 +130,7 @@ NodePtr SymbolicInferUtil::GetCondInput(const NodePtr &node) {
   return parent_input == nullptr ? cond_input : parent_input;
 }
 
-bool IsValueDependentConsumer(const NodePtr &data_node, const OpDescPtr &consumer_op, size_t input_idx,
-                              const std::shared_ptr<gert::OpImplSpaceRegistryV2> &space_registry) {
-  auto functions = gert::OpImplInferSymbolShapeRegistry::GetInstance().GetOpImpl(consumer_op->GetType().c_str());
-  if (functions != nullptr) {
-    const gert::OpImplKernelRegistry::OpImplFunctionsV2 *function_new = functions;
-    if (space_registry != nullptr) {
-      const auto *space_func = space_registry->GetOpImpl(consumer_op->GetType().c_str());
-      if (space_func != nullptr) {
-        function_new = space_func;
-      }
-    }
-    size_t ir_index = input_idx;
-    if (!ge::OpDescUtils::GetInputIrIndexes2InstanceIndexesPairMap(consumer_op).empty() &&
-        ge::OpDescUtils::GetInputIrIndexByInstanceIndex(consumer_op, input_idx, ir_index) != GRAPH_SUCCESS) {
-      ir_index = input_idx;
-    }
-    if (function_new->IsInputDataDependency(ir_index)) {
-      GELOGI("data node %s is value-dependent, consumer %s input idx %zu is data dependency.", data_node->GetNamePtr(),
-             consumer_op->GetNamePtr(), input_idx);
-      return true;
-    }
-  }
-  const auto &op_infer_depends = consumer_op->GetOpInferDepends();
-  if (op_infer_depends.empty()) {
-    return false;
-  }
-  auto input_name = consumer_op->GetValidInputNameByIndex(static_cast<uint32_t>(input_idx));
-  if (std::find(op_infer_depends.cbegin(), op_infer_depends.cend(), input_name) != op_infer_depends.cend()) {
-    GELOGI("data node %s is value-dependent, consumer %s input name %s in op_infer_depends.", data_node->GetNamePtr(),
-           consumer_op->GetNamePtr(), input_name.c_str());
-    return true;
-  }
-  return false;
-}
-
-bool SymbolicInferUtil::NeedSymbolizeValueDataNode(const NodePtr &data_node) {
-  if (!IsSupportSymbolizeValueDataNode(data_node)) {
-    return false;
-  }
+bool SymbolicInferUtil::IsValueDependentDataNode(const NodePtr &data_node) {
   const auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
   for (const auto *out_anchor : data_node->GetAllOutDataAnchorsPtr()) {
     if (out_anchor == nullptr) {
@@ -212,13 +148,36 @@ bool SymbolicInferUtil::NeedSymbolizeValueDataNode(const NodePtr &data_node) {
       if (consumer_op == nullptr) {
         continue;
       }
-      if (SymbolicKernelFactory::GetInstance().Create(consumer_op->GetType()) != nullptr) {
-        GELOGI("data node %s need symbolize value, consumer %s realizes symbolic compute.", data_node->GetNamePtr(),
-               consumer_op->GetNamePtr());
-        return true;
-      }
       const size_t input_idx = static_cast<size_t>(peer_anchor->GetIdx());
-      if (IsValueDependentConsumer(data_node, consumer_op, input_idx, space_registry)) {
+
+      auto functions = gert::OpImplInferSymbolShapeRegistry::GetInstance().GetOpImpl(consumer_op->GetType().c_str());
+      if (functions != nullptr) {
+        const gert::OpImplKernelRegistry::OpImplFunctionsV2 *function_new = functions;
+        if (space_registry != nullptr) {
+          const auto *space_func = space_registry->GetOpImpl(consumer_op->GetType().c_str());
+          if (space_func != nullptr) {
+            function_new = space_func;
+          }
+        }
+        size_t ir_index = 0UL;
+        if (ge::OpDescUtils::GetInputIrIndexByInstanceIndex(consumer_op, input_idx, ir_index) != GRAPH_SUCCESS) {
+          ir_index = input_idx;
+        }
+        if (function_new->IsInputDataDependency(ir_index)) {
+          GELOGI("data node %s is value-dependent, consumer %s input idx %zu is data dependency.",
+                 data_node->GetNamePtr(), consumer_op->GetNamePtr(), input_idx);
+          return true;
+        }
+      }
+
+      const auto &op_infer_depends = consumer_op->GetOpInferDepends();
+      if (op_infer_depends.empty()) {
+        continue;
+      }
+      auto input_name = consumer_op->GetValidInputNameByIndex(static_cast<uint32_t>(input_idx));
+      if (std::find(op_infer_depends.cbegin(), op_infer_depends.cend(), input_name) != op_infer_depends.cend()) {
+        GELOGI("data node %s is value-dependent, consumer %s input name %s in op_infer_depends.",
+               data_node->GetNamePtr(), consumer_op->GetNamePtr(), input_name.c_str());
         return true;
       }
     }
@@ -226,15 +185,15 @@ bool SymbolicInferUtil::NeedSymbolizeValueDataNode(const NodePtr &data_node) {
   return false;
 }
 
-Status SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(const ComputeGraphPtr &graph,
-                                                         std::set<size_t> &need_symbolize_value_idxs) {
+Status SymbolicInferUtil::GetValueDependentInputIdxs(const ComputeGraphPtr &graph,
+                                                     std::set<size_t> &value_dependent_idxs) {
   if (graph == nullptr) {
     return SUCCESS;
   }
   std::vector<int64_t> cached_idxs;
-  if (ge::AttrUtils::GetListInt(graph, kNeedSymbolizeValueIdxsAttr, cached_idxs)) {
+  if (ge::AttrUtils::GetListInt(graph, kValueDependentIdxsAttr, cached_idxs)) {
     for (const auto idx : cached_idxs) {
-      need_symbolize_value_idxs.insert(static_cast<size_t>(idx));
+      value_dependent_idxs.insert(static_cast<size_t>(idx));
     }
     return SUCCESS;
   }
@@ -249,14 +208,14 @@ Status SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(const ComputeGraphPtr &
     }
     int32_t data_index = -1;
     (void)AttrUtils::GetInt(op_desc, ATTR_NAME_INDEX, data_index);
-    if (data_index >= 0 && NeedSymbolizeValueDataNode(node)) {
+    if (data_index >= 0 && IsValueDependentDataNode(node)) {
       computed_idxs.insert(static_cast<size_t>(data_index));
-      GELOGI("graph %s input data index %d need symbolize value.", graph->GetName().c_str(), data_index);
+      GELOGI("graph %s input data index %d is value-dependent.", graph->GetName().c_str(), data_index);
     }
   }
   std::vector<int64_t> cached_vec(computed_idxs.cbegin(), computed_idxs.cend());
-  (void)ge::AttrUtils::SetListInt(graph, kNeedSymbolizeValueIdxsAttr, cached_vec);
-  need_symbolize_value_idxs.insert(computed_idxs.cbegin(), computed_idxs.cend());
+  (void)ge::AttrUtils::SetListInt(graph, kValueDependentIdxsAttr, cached_vec);
+  value_dependent_idxs.insert(computed_idxs.cbegin(), computed_idxs.cend());
   return SUCCESS;
 }
 

@@ -35,9 +35,6 @@ const Expression kSymbolTwo{Symbol(2)};
 
 class SymbolicInferUtil {
  public:
-  // 符号值（SymbolicValue）元素个数上限，值符号化与形状推导统一收敛在此处
-  static constexpr int64_t kMaxSymbolicValueSize = 200;
-
   static graphStatus GetConstInt(const gert::SymbolTensor *tensor, DataType dt, int64_t &value);
 
   template <typename T1, typename T2>
@@ -144,9 +141,8 @@ class SymbolicInferUtil {
   static std::string DumpSymbolTensor(const gert::SymbolTensor &symbolic_tensor);
   static bool IsSupportCondNode(const NodePtr &node);
   static NodePtr GetCondInput(const NodePtr &node);
-  static bool NeedSymbolizeValueDataNode(const NodePtr &data_node);
-  static Status GetNeedSymbolizeValueInputIdxs(const ComputeGraphPtr &graph,
-                                               std::set<size_t> &need_symbolize_value_idxs);
+  static bool IsValueDependentDataNode(const NodePtr &data_node);
+  static Status GetValueDependentInputIdxs(const ComputeGraphPtr &graph, std::set<size_t> &value_dependent_idxs);
 };
 }  // namespace ge
 
