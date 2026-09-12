@@ -23,6 +23,7 @@
 #include <fstream>
 #include "common/checker.h"
 #include "graph/types.h"
+#include "graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 
 #include "autofuse/common/autofuse_base_type.h"
@@ -128,7 +129,13 @@ inline void Trim(std::string &str) {
 
 inline void ParseSkipNodeNamesConfig(const std::string &config_path, std::unordered_set<std::string> &skip_node_types,
                                      std::unordered_set<std::string> &skip_node_names) {
-  std::ifstream file(config_path);
+  const std::string real_config_path = RealPath(config_path.c_str());
+  if (real_config_path.empty()) {
+    GELOGW("Failed to get canonical path for skip node names config file: %s", config_path.c_str());
+    return;
+  }
+
+  std::ifstream file(real_config_path);
   if (!file.is_open()) {
     GELOGW("Failed to open skip node names config file: %s", config_path.c_str());
     return;
