@@ -70,7 +70,7 @@ ge::Status Op::GetOpInputMemData(uint8_t *&memBase, uint64_t &memSize, int64_t &
       inputOffset -= static_cast<int64_t>(reinterpret_cast<uintptr_t>(memBase));
       return SUCCESS;
     } else {
-      RTS_REPORT_CALL_ERROR("hostBase or hostSize not find.");
+      RTS_REPORT_CALL_ERROR("hostBase or hostSize not found.");
       return FAILED;
     }
   }
@@ -107,7 +107,7 @@ ge::Status Op::GetOpOutputMemData(uint8_t *&memBase, uint64_t &memSize, int64_t 
       outputOffset -= static_cast<int64_t>(reinterpret_cast<uintptr_t>(memBase));
       return SUCCESS;
     } else {
-      RTS_REPORT_CALL_ERROR("hostBase or hostSize not find.");
+      RTS_REPORT_CALL_ERROR("hostBase or hostSize not found.");
       return FAILED;
     }
   }

@@ -147,7 +147,7 @@ Status StreamSwitchOp::GenerateCtxDef(const Node &node) {
   if (data_type_ == ACL_RT_SWITCH_INT32) {
     condSwitchCtx->set_ar_size(2);  // data type only support int32 int32:arsize=2, int64:arsize=3
   } else {
-    RTS_LOGE("not support data type, data_type=%u", data_type_);
+    RTS_LOGE("Unsupported data type, data_type=%u.", data_type_);
     return INTERNAL_ERROR;
   }
 
