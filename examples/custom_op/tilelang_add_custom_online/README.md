@@ -18,7 +18,7 @@
 | 编译时机 | `run.sh` 预先编译 `.so` | `CompileGraph` 阶段在线编译 |
 | 加载时机 | `Execute` 首次调用时 lazy `dlopen` | `Compile` 回调中 `dlopen`，`Execute` 直接使用缓存 |
 | 编译触发 | 人工运行 `python3 add_custom_kernel.py` | GE `CustomGraphOptimizer` 回调 `Compile` |
-| shape 缓存 | 无（固定 N=4096） | 按元素数量构建 key 缓存，支持多元素数量 |
+| shape 缓存 | 无（固定 N=4096） | 按元素数量构建 key 缓存，支持多种输入规模 |
 | 线程安全 | `std::once_flag` | `std::mutex`（`Compile` 可能被并行调用） |
 
 ## 目录结构
@@ -46,7 +46,7 @@ GE 编译阶段 (CompileGraph):
     ├─ 读取输入元素数量 → 构建 binary key
     ├─ 若 key 未缓存:
     │   ├─ 定位 add_custom_kernel.py（OPP 包中，与 libcust_opapi.so 同目录）
-    │   ├─ exec("python3 add_custom_kernel.py <N> <output.so>")（同机有卡编译）
+    │   ├─ popen("python3 add_custom_kernel.py <N> <output.so>")（同机有卡编译）
     │   ├─ TileLang 编译器编译 kernel 源码 → 产出 .so（host-wrapper）
     │   └─ dlopen .so + dlsym("call") → 缓存函数指针（临时文件读取后立即 unlink）
     └─ 返回 GRAPH_SUCCESS
@@ -175,7 +175,7 @@ GE 原生构图测试程序：
 | 算子类型 | `AddCustomOnline` |
 | 输入 | `x` (float32), `y` (float32) |
 | 输出 | `z` (float32) |
-| 输入 shape | `[4096]` (固定) |
+| 输入 shape | `[4096]`（固定） |
 | 输出 shape | `[4096]` |
 | 格式 | ND |
 | kernel 名称 | `main_kernel`（由 `call` 封装） |
@@ -198,7 +198,7 @@ export ASCEND_CUSTOM_OPP_PATH="$(pwd)/output:$ASCEND_CUSTOM_OPP_PATH"
 
 ## 注意事项
 
-- **同机有卡编译限定**：TileLang-Ascend 当前通过 `torch.npu.get_device_name()` 做运行时平台检测，不支持离线指定目标架构。本样例仅适用于"编译机与目标机为同一 NPU"的场景。
+- **同机有卡编译限定**：TileLang-Ascend 当前通过 `torch.npu.get_device_name()` 做运行时平台检测，不支持离线指定目标架构。本样例仅适用于“编译机与目标机为同一 NPU”的场景。
 - kernel 源码 `.py` 安装在 OPP 包的 `op_graph/lib/<os>/<arch>/` 目录下，与 `libcust_opapi.so` 同目录，`Compile` 通过 `dladdr` 定位。
 - 编译产出的 `.so` 使用 `mkstemps` 生成唯一临时文件，读取后立即 `unlink`，不会残留。
 - `ge.graphRunMode=1` 确保走在线执行链路（PRIORITY_GRAPH 模式）。

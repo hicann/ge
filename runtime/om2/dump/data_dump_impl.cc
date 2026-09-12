@@ -152,7 +152,12 @@ Status DataDumpImpl::ExecuteLoadDumpInfo(const toolkit::aicpu::dump::OpMappingIn
 }
 
 Status DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
-                                             toolkit::aicpu::dump::OpMappingInfo &op_mapping_info) {
+                                             toolkit::aicpu::dump::OpMappingInfo &dump_op_mapping_info) {
+  if (op_mapping_base_info_initialized_) {
+    dump_op_mapping_info = op_mapping_base_info_;
+    return ge::SUCCESS;
+  }
+  auto &op_mapping_info = op_mapping_base_info_;
   const char *model_name = (model_info.model_name != nullptr) ? model_info.model_name : "";
   op_mapping_info.set_dump_path(DumpConfig::Instance().GetDumpPath() + std::to_string(model_info.device_id) + "/");
   op_mapping_info.set_model_name(model_name);
@@ -198,6 +203,8 @@ Status DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
   } else {
     op_mapping_info.set_dump_data(toolkit::aicpu::dump::DumpData::TENSOR_DUMP_DATA);
   }
+  dump_op_mapping_info = op_mapping_base_info_;
+  op_mapping_base_info_initialized_ = true;
   return ge::SUCCESS;
 }
 

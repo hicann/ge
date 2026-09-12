@@ -16,6 +16,7 @@
 #include "framework/runtime/dump/exception_dump_impl.h"
 #include "framework/runtime/dump/overflow_dump_impl.h"
 #include "framework/runtime/dump/profiling_impl.h"
+#include "framework/runtime/dump/dump_op_impl.h"
 #include "common/checker.h"
 #include "framework/common/debug/ge_log.h"
 
@@ -36,6 +37,7 @@ ModelDumpManager::ModelDumpManager(uint32_t model_id) : model_id_(model_id) {
   exception_impl_ = std::make_unique<ExceptionDumpImpl>();
   overflow_impl_ = std::make_unique<OverflowDumpImpl>();
   profiling_impl_ = std::make_unique<ProfilingImpl>();
+  dump_op_impl_ = std::make_unique<DumpOpImpl>();
 }
 
 ModelDumpManager::~ModelDumpManager() {
@@ -133,9 +135,52 @@ Status ModelDumpManager::IsDataDumpEnabled(const char *op_name, uint8_t *is_data
   return SUCCESS;
 }
 
+bool ModelDumpManager::NeedDataDump(const GertModelTaskDesc &task_info) const {
+  const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
+  const char *model_name = (model_info_.model_name != nullptr) ? model_info_.model_name : "";
+  const char *root_graph_name = (model_info_.root_graph_name != nullptr) ? model_info_.root_graph_name : "";
+
+  GELOGD("NeedDataDump: op_name=%s, task_id=%u, stream_id=%u", op_name, task_info.task_id, task_info.stream_id);
+
+  // 判断该算子是否需要保存到 data dump：
+  // 1. 配置了 data dump 且算子在列表中
+  // 2. 开启了 overflow dump（所有算子都需要保存用于定位）
+  // data dump 是否生效需要同时满足全局开关和当前模型/op 命中 dump_list，避免 model_name 不匹配时误保存任务。
+  const bool need_data_dump = DumpConfig::Instance().IsDataDumpEnabled() &&
+                              DumpConfig::Instance().IsOpNeedDump(model_name, root_graph_name, op_name);
+  const bool need_overflow_dump = DumpConfig::Instance().IsOverflowDumpEnabled();
+  const bool need_save_to_data_dump = need_data_dump || need_overflow_dump;
+
+  GELOGD(
+      "PreprocessOm2TaskInfo: op_name=%s, need_data_dump=%u, need_overflow_dump=%u, "
+      "need_save_to_data_dump=%u",
+      op_name, need_data_dump, need_overflow_dump, need_save_to_data_dump);
+
+  return need_save_to_data_dump;
+}
+
 Status ModelDumpManager::PreprocessOm2TaskInfo(const GertModelTaskDesc &task_info) {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
-  GELOGD("PreprocessOm2TaskInfo: op_name=%s, stream_id=%u", op_name, task_info.stream_id);
+  GELOGD("PreprocessOm2TaskInfo: op_name=%s, task_id=%u, stream_id=%u", op_name, task_info.task_id,
+         task_info.stream_id);
+
+  const bool need_save_to_data_dump = NeedDataDump(task_info);
+  const std::string &dump_mode = DumpConfig::Instance().GetDumpMode();
+  const bool need_dump_input = (dump_mode == GE_DUMP_MODE_INPUT) || (dump_mode == GE_DUMP_MODE_ALL);
+
+  GELOGD("PreprocessOm2TaskInfo: op_name=%s, need_save_to_data_dump=%u, need_dump_input=%u", op_name,
+         need_save_to_data_dump, need_dump_input);
+
+  ModelTaskType type = static_cast<ModelTaskType>(task_info.task_type);
+  // dump custom op input
+  if (need_dump_input && need_save_to_data_dump && type == ModelTaskType::MODEL_TASK_CUSTOM_KERNEL) {
+    auto &dump_op = dump_op_impl_->GetInputDumpOp(task_info.op_name);
+    GE_CHK_STATUS_RET(data_dump_impl_->BuildOpMappingBasicInfo(model_info_, dump_op->GetOpMappingInfo()));
+    GE_CHK_STATUS_RET(dump_op->BuildTaskInputs(task_info));
+    GE_CHK_STATUS_RET(dump_op->ExecutorDumpOp(task_info.op_name, task_info.stream));
+
+    return SUCCESS;
+  }
 
   if (task_info.task_raw_info == nullptr) {
     return SUCCESS;
@@ -149,28 +194,29 @@ Status ModelDumpManager::PreprocessOm2TaskInfo(const GertModelTaskDesc &task_inf
   return SUCCESS;
 }
 
-Status ModelDumpManager::AddOm2TaskInfo(const GertModelTaskDesc &task_info) {
+Status ModelDumpManager::PostprocessOm2TaskInfo(const GertModelTaskDesc &task_info) {
   const char *op_name = (task_info.op_name != nullptr) ? task_info.op_name : "";
-  const char *model_name = (model_info_.model_name != nullptr) ? model_info_.model_name : "";
-  const char *root_graph_name = (model_info_.root_graph_name != nullptr) ? model_info_.root_graph_name : "";
-  GELOGD("AddOm2TaskInfo: op_name=%s, task_id=%u, stream_id=%u", op_name, task_info.task_id, task_info.stream_id);
+  GELOGD("PostprocessOm2TaskInfo: op_name=%s, task_id=%u, stream_id=%u", op_name, task_info.task_id,
+         task_info.stream_id);
 
-  // 判断该算子是否需要保存到 data dump：
-  // 1. 配置了 data dump 且算子在列表中
-  // 2. 开启了 overflow dump（所有算子都需要保存用于定位）
-  // data dump 是否生效需要同时满足全局开关和当前模型/op 命中 dump_list，避免 model_name 不匹配时误保存任务。
-  const bool need_data_dump = DumpConfig::Instance().IsDataDumpEnabled() &&
-                              DumpConfig::Instance().IsOpNeedDump(model_name, root_graph_name, op_name);
-  const bool need_overflow_dump = DumpConfig::Instance().IsOverflowDumpEnabled();
-  const bool need_save_to_data_dump = need_data_dump || need_overflow_dump;
+  const bool need_save_to_data_dump = NeedDataDump(task_info);
+  const std::string &dump_mode = DumpConfig::Instance().GetDumpMode();
+  const bool need_dump_output = (dump_mode == GE_DUMP_MODE_OUTPUT) || (dump_mode == GE_DUMP_MODE_ALL);
 
-  GELOGD(
-      "AddOm2TaskInfo: op_name=%s, need_data_dump=%u, need_overflow_dump=%u, "
-      "need_save_to_data_dump=%u",
-      op_name, need_data_dump, need_overflow_dump, need_save_to_data_dump);
+  GELOGD("PostprocessOm2TaskInfo: op_name=%s, need_save_to_data_dump=%u, need_dump_output=%u", op_name,
+         need_save_to_data_dump, need_dump_output);
 
   // task_type 类型转换
   ModelTaskType type = static_cast<ModelTaskType>(task_info.task_type);
+  // dump custom op output
+  if (need_dump_output && need_save_to_data_dump && type == ModelTaskType::MODEL_TASK_CUSTOM_KERNEL) {
+    auto &dump_op = dump_op_impl_->GetOutputDumpOp(task_info.op_name);
+    GE_CHK_STATUS_RET(data_dump_impl_->BuildOpMappingBasicInfo(model_info_, dump_op->GetOpMappingInfo()));
+    GE_CHK_STATUS_RET(dump_op->BuildTaskOutputs(task_info));
+    GE_CHK_STATUS_RET(dump_op->ExecutorDumpOp(task_info.op_name, task_info.stream));
+
+    return SUCCESS;
+  }
 
   // Data Dump / Overflow Dump：保存 Task 信息到 AICPU
   // Overflow dump 需要保存算子的输入输出信息用于问题定位

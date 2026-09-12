@@ -136,8 +136,14 @@ ACL_FUNC_VISIBILITY aclError aclmdlUnloadImplOm2(uint32_t modelId);
 
 ACL_FUNC_VISIBILITY aclError aclmdlQuerySizeImplOm2(const char *fileName, size_t *workSize, size_t *weightSize);
 
+ACL_FUNC_VISIBILITY aclError aclmdlQueryWorkspaceSizeImplOm2(const char *fileName, size_t memOptimizeMode,
+                                                             size_t *workSize);
+
 ACL_FUNC_VISIBILITY aclError aclmdlQuerySizeFromMemImplOm2(const void *model, size_t modelSize, size_t *workSize,
                                                            size_t *weightSize);
+
+ACL_FUNC_VISIBILITY aclError aclmdlQueryWorkspaceSizeFromMemImplOm2(const void *model, size_t modelSize,
+                                                                    size_t memOptimizeMode, size_t *workSize);
 
 ACL_FUNC_VISIBILITY aclError aclmdlSetDynamicBatchSizeImplOm2(uint32_t modelId, aclmdlDataset *dataset, size_t index,
                                                               uint64_t batchSize);

@@ -26,11 +26,11 @@ class SubgraphInputImpl {
   Status AddInput(const NodeIo &node_input) {
     const auto in_node = NodeAdapter::GNode2Node(node_input.node);
     const auto in_data_anchor = in_node->GetInDataAnchor(node_input.index);
-    GE_ASSERT_NOTNULL(in_data_anchor, "Node [%s][%s] input[%d] is not exist", in_node->GetNamePtr(),
+    GE_ASSERT_NOTNULL(in_data_anchor, "Node [%s][%s] input[%d] does not exist", in_node->GetNamePtr(),
                       in_node->GetTypePtr(), node_input.index);
     if (tensor_producer_ == nullptr) {
       tensor_producer_ = in_data_anchor->GetPeerOutAnchor();
-      GE_ASSERT_NOTNULL(tensor_producer_, "The tensor producer of node [%s][%s] input[%d] is not exist",
+      GE_ASSERT_NOTNULL(tensor_producer_, "The tensor producer of node [%s][%s] input[%d] does not exist",
                         in_node->GetNamePtr(), in_node->GetTypePtr(), node_input.index);
     } else {
       // check node_input has same tensor producer
@@ -58,7 +58,7 @@ class SubgraphOutputImpl {
     GE_ASSERT_TRUE(NodeAdapter::GNode2Node(output_.node) == nullptr, "SubgraphOutput has already been set");
     auto node = NodeAdapter::GNode2Node(node_output.node);
     GE_ASSERT_NOTNULL(node);
-    GE_ASSERT_NOTNULL(node->GetOutDataAnchor(node_output.index), "Node [%s][%s] output [%ld] is not exist",
+    GE_ASSERT_NOTNULL(node->GetOutDataAnchor(node_output.index), "Node [%s][%s] output [%ld] does not exist",
                       node->GetNamePtr(), node->GetTypePtr(), node_output.index);
     output_ = node_output;
     return SUCCESS;
@@ -111,7 +111,7 @@ class SubgraphBoundaryImpl {
   Status GetOutput(int64_t index, SubgraphOutput &subgraph_output) const {
     const auto iter = idx_2_subgraph_output_.find(index);
     if (iter == idx_2_subgraph_output_.cend()) {
-      GELOGE(FAILED, "Output of index %ld is not exist", index);
+      GELOGE(FAILED, "Output of index %ld does not exist", index);
       return FAILED;
     }
     subgraph_output = iter->second;

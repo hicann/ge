@@ -352,7 +352,16 @@ std::unordered_set<std::string> GetAttrStringSet(const std::vector<NodePtr> &nod
 }
 
 std::unordered_set<std::string> GetUserStreamLabels(const std::vector<NodePtr> &nodes) {
-  return GetAttrStringSet(nodes, public_attr::USER_STREAM_LABEL);
+  std::unordered_set<std::string> stream_labels;
+  for (const auto &node : nodes) {
+    const auto &op_desc = node->GetOpDesc();
+    if ((op_desc == nullptr) || OpTypeUtils::IsGraphInputNode(op_desc->GetType())) {
+      continue;
+    }
+    const std::string *attr_val_ptr = AttrUtils::GetStr(op_desc, public_attr::USER_STREAM_LABEL);
+    stream_labels.emplace(attr_val_ptr != nullptr ? *attr_val_ptr : "");
+  }
+  return stream_labels;
 }
 
 void AssembleIntAttrFuseFailReason(const NodePtr &node, const std::string &attr_key, const std::string &detail,
@@ -469,7 +478,7 @@ graphStatus InheritUserSteamLabelFromOriginNodes(const std::vector<NodePtr> &ori
   const std::unordered_set<std::string> origin_stream_labels = GetUserStreamLabels(ori_nodes);
   GE_WARN_ASSERT(origin_stream_labels.size() < 2U,
                  "Inherit user stream label failed, because origin nodes have multiple user stream label.");
-  if (origin_stream_labels.empty()) {
+  if (origin_stream_labels.empty() || origin_stream_labels.begin()->empty()) {
     return GRAPH_SUCCESS;
   }
   for (const auto &op_desc : fusion_ops) {
@@ -834,7 +843,7 @@ bool ComputeGraphImpl::operator==(const ComputeGraphImpl &r_graph) const {
     const auto &node_name = left_node->GetName();
     // After TopologicalSorting, node order can change, so find node by name
     const auto &right_node = r_graph.FindNode(node_name);
-    GE_IF_BOOL_EXEC(right_node == nullptr, REPORT_INNER_ERR_MSG("E18888", "left_node:%s not find in r_graph:%s",
+    GE_IF_BOOL_EXEC(right_node == nullptr, REPORT_INNER_ERR_MSG("E18888", "left_node:%s not found in r_graph:%s",
                                                                 node_name.c_str(), r_graph.GetName().c_str());
                     GELOGE(GRAPH_FAILED, "[Check][Param] right_node is NULL!!!"); return false);
     if (!((*right_node) == (*left_node))) {
@@ -1854,7 +1863,7 @@ graphStatus ComputeGraphImpl::AddInOutForNetOutputOp(const ge::OpDescPtr &net_ou
       continue;
     }
     GE_ASSERT_TRUE((src_node != nullptr) && (src_node->GetOpDesc() != nullptr) && (net_output_desc != nullptr),
-                   "Param output_nodes_info has RetvalInfo item, which src_node is invalid; "
+                   "Param output_nodes_info has RetvalInfo item, whose src_node is invalid; "
                    "or Param net_output_desc is nullptr, check invalid");
     is_input_const.push_back(ConstantUtils::IsRealConst(src_node->GetOpDesc()));
     ++iter;

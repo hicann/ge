@@ -235,15 +235,15 @@ inline ge::Status ConvertAclError2Ge(int32_t ret) {
     }                                                                                          \
   } while (false)
 
-#define LLM_FREE_ACL_LOG(addr)                                                                    \
-  do {                                                                                            \
-    if ((addr) != nullptr) {                                                                      \
-      const aclError error = aclrtFree(addr);                                                     \
-      if (error != ACL_ERROR_NONE) {                                                              \
-        LLMLOGE(ge::FAILED, "Call aclrtFree failed, error:  0x%X", static_cast<uint32_t>(error)); \
-      }                                                                                           \
-      (addr) = nullptr;                                                                           \
-    }                                                                                             \
+#define LLM_FREE_ACL_LOG(addr)                                                                   \
+  do {                                                                                           \
+    if ((addr) != nullptr) {                                                                     \
+      const aclError error = aclrtFree(addr);                                                    \
+      if (error != ACL_ERROR_NONE) {                                                             \
+        LLMLOGE(ge::FAILED, "Call aclrtFree failed, error: 0x%X", static_cast<uint32_t>(error)); \
+      }                                                                                          \
+      (addr) = nullptr;                                                                          \
+    }                                                                                            \
   } while (false)
 
 #endif  // AIR_RUNTIME_LLM_ENGINE_COMMON_LLM_LOG_H

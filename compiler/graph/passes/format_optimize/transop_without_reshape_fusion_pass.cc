@@ -124,13 +124,13 @@ bool TransOpWithoutReshapeFusionPass::IsFormatContinuous(const OutDataAnchorPtr 
 
   if (IsTransOp(in_node) && in_op->GetType() != CAST) {
     if (in_op_desc->GetFormat() == FORMAT_ND) {
-      GELOGD("Node %s(%s) input format %s, not support fusion.", in_op->GetNamePtr(), in_op->GetTypePtr(),
+      GELOGD("Node %s(%s) input format %s, does not support fusion.", in_op->GetNamePtr(), in_op->GetTypePtr(),
              TypeUtils::FormatToSerialString(in_op_desc->GetFormat()).c_str());
       return false;
     }
 
     if (!FusionFormatSupport(in_op_desc->GetFormat())) {
-      GELOGD("Node %s(%s) input format %s, not support fusion.", in_op->GetNamePtr(), in_op->GetTypePtr(),
+      GELOGD("Node %s(%s) input format %s, does not support fusion.", in_op->GetNamePtr(), in_op->GetTypePtr(),
              TypeUtils::FormatToSerialString(in_op_desc->GetFormat()).c_str());
       return false;
     }
@@ -249,7 +249,7 @@ graphStatus TransOpWithoutReshapeFusionPass::NeedRemainNode(const OutDataAnchorP
   auto out_node = out_anchor->GetOwnerNodeBarePtr();
   GE_CHECK_NOTNULL(out_node);
   if (!IsFormatContinuous(out_anchor, in_anchor)) {
-    GELOGD("Abandoned Fusion node %s(%s) and node %s(%s) format is uncontinuous or not support.",
+    GELOGD("Abandoned Fusion node %s(%s) and node %s(%s) format is uncontinuous or not supported.",
            out_node->GetNamePtr(), out_node->GetTypePtr(), in_node->GetNamePtr(), in_node->GetTypePtr());
     need_remain = true;
     return GRAPH_SUCCESS;
@@ -856,7 +856,7 @@ graphStatus TransOpWithoutReshapeFusionPass::FormatFusion(const int32_t index, O
       ++fusion_op_count;
       GELOGI("support format transfer op %s", format_transfer_op->GetName().c_str());
     } else {
-      GELOGW("ability not support.src format:%d, src datatype:%d, dst format:%d, dst datatype:%d",
+      GELOGW("ability is not supported.src format:%d, src datatype:%d, dst format:%d, dst datatype:%d",
              format_transfer_input.GetFormat(), format_transfer_input.GetDataType(), format_transfer_output.GetFormat(),
              format_transfer_output.GetDataType());
       fusion_op_count = kInvalidFusionOpCount;
@@ -895,7 +895,7 @@ graphStatus TransOpWithoutReshapeFusionPass::DataTypeFusion(const int32_t index,
              cast_op->GetName().c_str(), cast_input.GetFormat(), cast_input.GetDataType(), cast_output.GetFormat(),
              cast_output.GetDataType());
     } else {
-      GELOGW("ability not support.src format:%d, src datatype:%d, dst format:%d, dst datatype:%d",
+      GELOGW("ability is not supported.src format:%d, src datatype:%d, dst format:%d, dst datatype:%d",
              cast_input.GetFormat(), cast_input.GetDataType(), cast_output.GetFormat(), cast_output.GetDataType());
       fusion_op_count = kInvalidFusionOpCount;
     }

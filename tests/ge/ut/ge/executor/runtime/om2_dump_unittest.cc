@@ -438,15 +438,15 @@ TEST_F(ModelDumpManagerTest, SetModelDumpInfoWithoutOverflowTest) {
   EXPECT_EQ(ret, SUCCESS);
 }
 
-// 测试 AddOm2TaskInfo - 无 Dump 启用场景
-TEST_F(ModelDumpManagerTest, AddOm2TaskInfoNoDumpEnabledTest) {
+// 测试 PostprocessOm2TaskInfo - 无 Dump 启用场景
+TEST_F(ModelDumpManagerTest, PostprocessOm2TaskInfoNoDumpEnabledTest) {
   ModelDumpManager manager(1);
   GertModelTaskDesc info{};
   info.op_name = "test_op";
   info.task_id = 1;
   info.stream_id = 1;
 
-  Status ret = manager.AddOm2TaskInfo(info);
+  Status ret = manager.PostprocessOm2TaskInfo(info);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -513,8 +513,8 @@ TEST_F(ModelDumpManagerTest, ReportModelBaseInfoInvalidParamReturnsSuccess) {
   EXPECT_EQ(ReportModelBaseInfo(&executor, &info), ge::SUCCESS);
 }
 
-// 测试 AddOm2TaskInfo - Data Dump 启用场景
-TEST_F(ModelDumpManagerTest, AddOm2TaskInfoDataDumpEnabledTest) {
+// 测试 PostprocessOm2TaskInfo - Data Dump 启用场景
+TEST_F(ModelDumpManagerTest, PostprocessOm2TaskInfoDataDumpEnabledTest) {
   // 启用 Data Dump
   DumpConfig::Instance().SetDataDumpEnabled(true);
 
@@ -524,12 +524,12 @@ TEST_F(ModelDumpManagerTest, AddOm2TaskInfoDataDumpEnabledTest) {
   info.task_id = 1;
   info.stream_id = 1;
 
-  Status ret = manager.AddOm2TaskInfo(info);
+  Status ret = manager.PostprocessOm2TaskInfo(info);
   EXPECT_EQ(ret, SUCCESS);
 }
 
-// 测试 AddOm2TaskInfo - Exception Dump 启用场景
-TEST_F(ModelDumpManagerTest, AddOm2TaskInfoExceptionDumpEnabledTest) {
+// 测试 PostprocessOm2TaskInfo - Exception Dump 启用场景
+TEST_F(ModelDumpManagerTest, PostprocessOm2TaskInfoExceptionDumpEnabledTest) {
   // 启用 Exception Dump
   DumpConfig::Instance().SetExceptionDumpEnabled(true);
 
@@ -539,7 +539,7 @@ TEST_F(ModelDumpManagerTest, AddOm2TaskInfoExceptionDumpEnabledTest) {
   info.task_id = 1;
   info.stream_id = 1;
 
-  Status ret = manager.AddOm2TaskInfo(info);
+  Status ret = manager.PostprocessOm2TaskInfo(info);
   EXPECT_EQ(ret, SUCCESS);
 }
 
@@ -577,7 +577,7 @@ TEST_F(ModelDumpManagerTest, DispatchDumpInfoDataDumpEnabledTest) {
   taskInfo.op_name = "test_op";
   taskInfo.task_id = 1;
   taskInfo.stream_id = 1;
-  manager.AddOm2TaskInfo(taskInfo);
+  manager.PostprocessOm2TaskInfo(taskInfo);
 
   Status ret = manager.DispatchDumpInfo();
   EXPECT_EQ(ret, SUCCESS);

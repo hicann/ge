@@ -1546,4 +1546,90 @@ TEST_F(SoInOmST, MultiCustomizeSoLoad) {
   UnLoadDefaultSpaceRegistry();
   LoadDefaultSpaceRegistry();
 }
+
+/**
+ * 用例描述：双模型同 op_type 自定义算子生命周期（同内容共享）
+ *
+ * 预置条件：
+ * 1. 不安装算子包，om 携带同内容自定义算子 so
+ *
+ * 测试步骤：
+ * 1. 构造两个携带同内容自定义算子 so 的 model_data
+ * 2. 先后加载两个模型、执行模型 A
+ * 3. 卸载模型 A，执行模型 B
+ * 4. 卸载模型 B
+ *
+ * 预期结果：
+ * 1. 卸载 A 后 B 执行无回归（无 "No op_proto" 告警、不崩溃）
+ * 2. 全部卸载后全局条目清理
+ */
+TEST_F(SoInOmST, DualModelSameContentCustomOpLifecycle_0001) {
+  UnLoadDefaultSpaceRegistry();
+  auto paths = CreateSceneInfo();
+  auto scene_info_path = paths[0];
+  auto opp_path = paths[1];
+
+  auto graph = ShareGraph::BuildSingleNodeGraph();
+  ge::AttrUtils::SetBool(graph, ge::ATTR_SINGLE_OP_SCENE, true);
+  graph->TopologicalSorting();
+  auto ge_root_model = GeModelBuilder(graph)
+                           .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
+                           .FakeTbeBin({"Add"})
+                           .BuildGeRootModel();
+
+  auto model_data_a =
+      ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShapeSoInOmFile(CreateMultiCustomizeOppSoFunc, opp_path);
+  GE_MAKE_GUARD(release_a, [&model_data_a] {
+    if (model_data_a.model_data != nullptr) {
+      FreeModelData(model_data_a);
+    }
+  });
+  auto model_data_b =
+      ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShapeSoInOmFile(CreateMultiCustomizeOppSoFunc, opp_path);
+  GE_MAKE_GUARD(release_b, [&model_data_b] {
+    if (model_data_b.model_data != nullptr) {
+      FreeModelData(model_data_b);
+    }
+  });
+
+  ge::graphStatus error_code_a = ge::GRAPH_FAILED;
+  auto stream_executor_a = LoadStreamExecutorFromModelData(model_data_a, error_code_a);
+  ASSERT_NE(stream_executor_a, nullptr);
+  ASSERT_EQ(error_code_a, ge::GRAPH_SUCCESS);
+  ge::graphStatus error_code_b = ge::GRAPH_FAILED;
+  auto stream_executor_b = LoadStreamExecutorFromModelData(model_data_b, error_code_b);
+  ASSERT_NE(stream_executor_b, nullptr);
+  ASSERT_EQ(error_code_b, ge::GRAPH_SUCCESS);
+
+  rtStream_t stream;
+  ASSERT_EQ(aclrtCreateStreamWithConfig(&stream, static_cast<uint32_t>(RT_STREAM_PRIORITY_DEFAULT), 0), RT_ERROR_NONE);
+  auto outputs = FakeTensors({2048}, 1);
+  auto inputs = FakeTensors({2048}, 2);
+  auto i3 = FakeValue<uint64_t>(reinterpret_cast<uint64_t>(stream));
+
+  auto executor_a = stream_executor_a->GetOrCreateLoaded(stream, {stream, nullptr});
+  ASSERT_NE(executor_a, nullptr);
+  ASSERT_EQ(
+      executor_a->Execute({i3.value}, inputs.GetTensorList(), inputs.size(), outputs.GetTensorList(), outputs.size()),
+      ge::GRAPH_SUCCESS);
+
+  // 卸载模型 A 后执行模型 B：核心断言（修复前此路径会触发全局条目被删/悬空）
+  ASSERT_EQ(executor_a->UnLoad(), ge::GRAPH_SUCCESS);
+  // 完整销毁模型 A：释放 executor/builder/root_model 持有链 → ~CustomOpRegistry → 账本 claim 回放（被测修复点）
+  stream_executor_a = nullptr;
+  auto executor_b = stream_executor_b->GetOrCreateLoaded(stream, {stream, nullptr});
+  ASSERT_NE(executor_b, nullptr);
+  ASSERT_EQ(
+      executor_b->Execute({i3.value}, inputs.GetTensorList(), inputs.size(), outputs.GetTensorList(), outputs.size()),
+      ge::GRAPH_SUCCESS);
+
+  ASSERT_EQ(executor_b->UnLoad(), ge::GRAPH_SUCCESS);
+  // 完整销毁模型 B：确保断言时两个模型的注册表均已析构，全局条目清理生效
+  stream_executor_b = nullptr;
+  aclrtDestroyStream(stream);
+  ASSERT_EQ(GetOmSoFilesNumFromDisk(), 0);
+  system(("rm -rf " + scene_info_path).c_str());
+  UnLoadDefaultSpaceRegistry();
+  LoadDefaultSpaceRegistry();
+}
 }  // namespace gert

@@ -91,6 +91,7 @@ map<std::string, DataType> kDataTypeDict = {
     {"int4", DT_INT4},
     {"hifloat8", DT_HIFLOAT8},
     {"hifloat4", DT_HIFLOAT4},
+    {"hifloat4_scale", DT_HIFLOAT4_SCALE},
     {"float8_e5m2", DT_FLOAT8_E5M2},
     {"float8_e4m3fn", DT_FLOAT8_E4M3FN},
 };

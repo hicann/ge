@@ -24,6 +24,7 @@
 #include "ge/ge_api_types.h"
 #include "framework/common/string_util.h"
 #include "framework/common/framework_types_internal.h"
+#include "framework/common/output_type_map.h"
 #include "framework/common/util.h"
 #include "graph/ge_context.h"
 #include "common/checker.h"
@@ -46,14 +47,10 @@ const int64_t kDynamicImageSizeNum = 2;
 const constexpr size_t kLeastStrElementNum = 2UL;
 const int32_t kBase = 10;
 // datatype/formats from user to GE, Unified to util interface file later
-const std::map<std::string, ge::DataType> kOutputTypeSupportDatatype = {
-    {"FP32", ge::DT_FLOAT},          {"FP16", ge::DT_FLOAT16},
-    {"UINT8", ge::DT_UINT8},         {"INT8", ge::DT_INT8},
-    {"HIF8", ge::DT_HIFLOAT8},       {"HIF4", ge::DT_HIFLOAT4},
-    {"FP8E5M2", ge::DT_FLOAT8_E5M2}, {"FP8E4M3FN", ge::DT_FLOAT8_E4M3FN},
-};
+const auto &kOutputTypeSupportDatatype = ge::OutputTypeStrToDatatype();
 const char *const kOutputTypeSupport =
-    "The current value is not within the valid range. Only support FP32, FP16, UINT8, INT8, HIF8, FP8E5M2, FP8E4M3FN.";
+    "The current value is not within the valid range. Only support FP32, FP16, UINT8, INT8, HIF8, HIF4SCALE, "
+    "FP8E5M2, FP8E4M3FN.";
 const std::set<std::string> kBufferOptimizeSupportOption = {"l1_optimize", "l2_optimize", "off_optimize",
                                                             "l1_and_l2_optimize"};
 // The function is incomplete. Currently, only l2_optimize, off_optimize is supported.
@@ -187,7 +184,7 @@ Status ParseIndexedListOption(const std::string &option_name, const std::string 
     if (index_and_value_str.size() != kLeastStrElementNum) {
       REPORT_PREDEFINED_ERR_MSG("E10014", std::vector<const char *>({"parameter", "value"}),
                                 std::vector<const char *>({option_name.c_str(), option_value.c_str()}));
-      GELOGE(PARAM_INVALID, "Options[%s] is invalid, input[%zu][%s] not match pattern: input_index:[v0,v1,...]",
+      GELOGE(PARAM_INVALID, "Options[%s] is invalid, input[%zu][%s] does not match pattern: input_index:[v0,v1,...]",
              option_name.c_str(), i, input_option_local.c_str());
       return PARAM_INVALID;
     }
@@ -1966,8 +1963,8 @@ Status CheckScreenPrinterOption(const std::map<std::string, std::string> &option
         "E10003", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>({OPTION_SCREEN_PRINT_MODE, iter->second.c_str(),
                                    "This value is not supported. It only supports enable or disable."}));
-    GELOGE(ge::PARAM_INVALID, "[Check][Option] option[%s] value[%s] invalid, not support.", OPTION_SCREEN_PRINT_MODE,
-           iter->second.c_str());
+    GELOGE(ge::PARAM_INVALID, "[Check][Option] option[%s] value[%s] invalid, is not supported.",
+           OPTION_SCREEN_PRINT_MODE, iter->second.c_str());
     return FAILED;
   }
   return SUCCESS;

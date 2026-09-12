@@ -38,9 +38,10 @@ Status TensorFlowDataParser::ParseParams(const Message *op_src, ge::OpDescPtr &o
   GE_RETURN_WITH_LOG_IF_ERROR(ParseInputFromUser(op_src, op_def), "parse shape of data op %s from user failed",
                               op_def->GetName().c_str());
 
-  GE_RETURN_WITH_LOG_IF_ERROR(CheckInputShape(op_def->GetName()),
-                              "input node %s :check user designated input shape not match input shape defined in model",
-                              op_def->GetName().c_str());
+  GE_RETURN_WITH_LOG_IF_ERROR(
+      CheckInputShape(op_def->GetName()),
+      "input node %s :check user designated input shape does not match input shape defined in model",
+      op_def->GetName().c_str());
 
   // Parse data dimension values and add them to op_def
   GE_RETURN_WITH_LOG_IF_ERROR(ParseShape(user_input_dims_v, op_def), "TensorFlowDataParser::ParseShape failed");

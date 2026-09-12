@@ -206,6 +206,10 @@ class aclStub {
   virtual ge::Status GetOm2MemAndWeightSize(const std::string &path, size_t &mem_size, size_t &weight_size);
   virtual ge::Status GetOm2MemAndWeightSize(const void *model_data, size_t model_size, size_t &mem_size,
                                             size_t &weight_size);
+  virtual ge::Status GetOm2WorkspaceSize(const std::string &path, bool query_zero_copy_size, size_t &work_size,
+                                         size_t &zero_copy_size);
+  virtual ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, bool query_zero_copy_size,
+                                         size_t &work_size, size_t &zero_copy_size);
   virtual ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<ge::Om2TensorDesc> &input_desc,
                                          std::vector<ge::Om2TensorDesc> &input_desc_v2,
                                          std::vector<ge::Om2TensorDesc> &output_desc,
@@ -475,6 +479,10 @@ class MockFunctionTest : public aclStub {
   MOCK_METHOD3(GetOm2MemAndWeightSize, ge::Status(const std::string &path, size_t &mem_size, size_t &weight_size));
   MOCK_METHOD4(GetOm2MemAndWeightSize,
                ge::Status(const void *model_data, size_t model_size, size_t &mem_size, size_t &weight_size));
+  MOCK_METHOD4(GetOm2WorkspaceSize, ge::Status(const std::string &path, bool query_zero_copy_size, size_t &work_size,
+                                               size_t &zero_copy_size));
+  MOCK_METHOD5(GetOm2WorkspaceSize, ge::Status(const void *model_data, size_t model_size, bool query_zero_copy_size,
+                                               size_t &work_size, size_t &zero_copy_size));
   MOCK_METHOD5(GetOm2ModelMetadata,
                ge::Status(const std::string &model_path, std::vector<ge::Om2TensorDesc> &input_desc,
                           std::vector<ge::Om2TensorDesc> &input_desc_v2, std::vector<ge::Om2TensorDesc> &output_desc,

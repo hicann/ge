@@ -15,6 +15,7 @@
 #include <malloc.h>
 #include "ge/ge_api_v2.h"
 #include "ge_is_initialize.h"
+#include "output_data_logger.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "common/plugin/datatype_util.h"
 #include "graph_metadef/common/plugin/plugin_manager.h"
@@ -76,13 +77,14 @@ constexpr size_t kGesizeuint16 = sizeof(uint16_t);
 constexpr size_t kGesizeuint32 = sizeof(uint32_t);
 
 std::map<ge::DataType, size_t> CONST_OPDATA_TYPE_SIZE_MAP = {
-    {ge::DT_FLOAT, kGesizefloat},        {ge::DT_FLOAT16, kGesizehalffloat},  {ge::DT_INT8, kGesizeint8},
-    {ge::DT_INT16, kGesizeint16},        {ge::DT_INT32, kGesizeint32},        {ge::DT_INT64, kGesizeint64},
-    {ge::DT_UINT8, kGesizeuint8},        {ge::DT_UINT16, kGesizeuint16},      {ge::DT_UINT32, kGesizeuint32},
-    {ge::DT_UINT64, kGesizeuint64},      {ge::DT_DOUBLE, kGesizedouble},      {ge::DT_BOOL, kGesizebool},
-    {ge::DT_HIFLOAT8, kGesizefloat8},    {ge::DT_FLOAT8_E5M2, kGesizefloat8}, {ge::DT_FLOAT8_E4M3FN, kGesizefloat8},
-    {ge::DT_FLOAT8_E8M0, kGesizefloat8}, {ge::DT_FLOAT6_E3M2, kGesizefloat8}, {ge::DT_FLOAT6_E2M3, kGesizefloat8},
-    {ge::DT_FLOAT4_E2M1, kGesizefloat8}, {ge::DT_FLOAT4_E1M2, kGesizefloat8}, {ge::DT_HIFLOAT4, kGesizefloat8},
+    {ge::DT_FLOAT, kGesizefloat},          {ge::DT_FLOAT16, kGesizehalffloat},  {ge::DT_INT8, kGesizeint8},
+    {ge::DT_INT16, kGesizeint16},          {ge::DT_INT32, kGesizeint32},        {ge::DT_INT64, kGesizeint64},
+    {ge::DT_UINT8, kGesizeuint8},          {ge::DT_UINT16, kGesizeuint16},      {ge::DT_UINT32, kGesizeuint32},
+    {ge::DT_UINT64, kGesizeuint64},        {ge::DT_DOUBLE, kGesizedouble},      {ge::DT_BOOL, kGesizebool},
+    {ge::DT_HIFLOAT8, kGesizefloat8},      {ge::DT_FLOAT8_E5M2, kGesizefloat8}, {ge::DT_FLOAT8_E4M3FN, kGesizefloat8},
+    {ge::DT_FLOAT8_E8M0, kGesizefloat8},   {ge::DT_FLOAT6_E3M2, kGesizefloat8}, {ge::DT_FLOAT6_E2M3, kGesizefloat8},
+    {ge::DT_FLOAT4_E2M1, kGesizefloat8},   {ge::DT_FLOAT4_E1M2, kGesizefloat8}, {ge::DT_HIFLOAT4, kGesizefloat8},
+    {ge::DT_HIFLOAT4_SCALE, kGesizefloat},
 };
 
 // dfx for RunGraphAsync, log error on error return
@@ -531,7 +533,7 @@ Status Session::RemoveGraph(uint32_t graph_id) {
 // Print Output Result
 static void PrintOutputResult(std::vector<Tensor> &outputs) {
   if (outputs.empty() || (outputs[0].GetData() == nullptr)) {
-    GELOGW("outputs is empty or data is nullptr.");
+    GELOGW("outputs are empty or data is nullptr.");
     return;
   }
 
@@ -540,45 +542,10 @@ static void PrintOutputResult(std::vector<Tensor> &outputs) {
     GELOGI("DataType %s has not defined size", TypeUtils::DataTypeToSerialString(data_type).c_str());
     return;
   }
+  const auto addr = outputs[0].GetData();
   // take first 10 at most
   for (size_t i = 0UL; (i < 10UL) && (i < (outputs[0].GetSize() / CONST_OPDATA_TYPE_SIZE_MAP[data_type])); ++i) {
-    switch (data_type) {
-      case DT_BOOL:
-      case DT_INT8:
-      case DT_UINT8:
-      case DT_HIFLOAT8:
-      case DT_FLOAT8_E5M2:
-      case DT_FLOAT8_E4M3FN:
-      case DT_FLOAT8_E8M0:
-      case DT_FLOAT6_E3M2:
-      case DT_FLOAT6_E2M3:
-      case DT_HIFLOAT4:
-      case DT_FLOAT4_E2M1:
-      case DT_FLOAT4_E1M2:
-        GELOGI("output data[%zu]=%d", i, *(reinterpret_cast<int8_t *>(outputs[0].GetData()) + i));
-        break;
-      case DT_INT16:
-      case DT_UINT16:
-        GELOGI("output data[%zu]=%d", i, *(reinterpret_cast<int16_t *>(outputs[0].GetData()) + i));
-        break;
-      case DT_INT32:
-      case DT_UINT32:
-        GELOGI("output data[%zu]=%d", i, *(reinterpret_cast<int32_t *>(outputs[0].GetData()) + i));
-        break;
-      case DT_INT64:
-      case DT_UINT64:
-        GELOGI("output data[%zu]=%ld", i, *(reinterpret_cast<int64_t *>(outputs[0].GetData()) + i));
-        break;
-      case DT_FLOAT:
-        GELOGI("output data[%zu]=%f", i, *(reinterpret_cast<float *>(outputs[0].GetData()) + i));
-        break;
-      case DT_DOUBLE:
-        GELOGI("output data[%zu]=%lf", i, *(reinterpret_cast<double *>(outputs[0].GetData()) + i));
-        break;
-      default:
-        GELOGI("Output datatype %s is not supported.", TypeUtils::DataTypeToSerialString(data_type).c_str());
-        return;
-    }
+    LogOutputData(i, data_type, addr);
   }
 }
 

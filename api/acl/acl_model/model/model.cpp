@@ -1818,6 +1818,18 @@ aclError aclmdlQuerySizeImpl(const char *fileName, size_t *workSize, size_t *wei
   return ACL_SUCCESS;
 }
 
+aclError aclmdlQueryWorkspaceSizeImpl(const char *fileName, size_t memOptimizeMode, size_t *workSize) {
+  ACL_PROFILING_REG(acl::AclProfType::AclmdlQueryWorkspaceSize);
+  ACL_LOG_INFO("start to execute aclmdlQueryWorkspaceSize, memOptimizeMode[%zu]", memOptimizeMode);
+  (void)fileName;
+
+  if (workSize != nullptr) {
+    *workSize = 0U;
+  }
+  ACL_LOG_INFO("aclmdlQueryWorkspaceSize is not supported by OM model.");
+  return ACL_ERROR_API_NOT_SUPPORT;
+}
+
 aclError aclmdlQuerySizeFromMemImpl(const void *model, size_t modelSize, size_t *workSize, size_t *weightSize) {
   ACL_PROFILING_REG(acl::AclProfType::AclmdlQuerySizeFromMem);
   ACL_LOG_INFO("start to execute ACL_QueryModelSizeFromMem, modelSize[%zu]", modelSize);
@@ -1839,6 +1851,20 @@ aclError aclmdlQuerySizeFromMemImpl(const void *model, size_t modelSize, size_t 
   ACL_LOG_INFO("success to get size from mem, work size[%zu] bytes, weight size[%zu] bytes", *workSize, *weightSize);
 
   return ACL_SUCCESS;
+}
+
+aclError aclmdlQueryWorkspaceSizeFromMemImpl(const void *model, size_t modelSize, size_t memOptimizeMode,
+                                             size_t *workSize) {
+  ACL_PROFILING_REG(acl::AclProfType::AclmdlQueryWorkspaceSizeFromMem);
+  ACL_LOG_INFO("start to execute aclmdlQueryWorkspaceSizeFromMem, modelSize[%zu], memOptimizeMode[%zu]", modelSize,
+               memOptimizeMode);
+  (void)model;
+
+  if (workSize != nullptr) {
+    *workSize = 0U;
+  }
+  ACL_LOG_INFO("aclmdlQueryWorkspaceSizeFromMem is not supported by OM model.");
+  return ACL_ERROR_API_NOT_SUPPORT;
 }
 
 aclError aclmdlSetDynamicBatchSizeImpl(uint32_t modelId, aclmdlDataset *dataset, size_t index, uint64_t batchSize) {

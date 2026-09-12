@@ -179,7 +179,7 @@ static graphStatus ConcatV2DSymbolicKernelCompute(gert::InferSymbolComputeContex
   if (ret != SUCCESS) {
     return ret;
   }
-  GE_ASSERT_TRUE(inputs_dims.size() > 0, "inputs_dims size not match, is %zu", inputs_dims.size());
+  GE_ASSERT_TRUE(inputs_dims.size() > 0, "inputs_dims size does not match, is %zu", inputs_dims.size());
   std::vector<int64_t> first_shape = inputs_dims[0];
   if (first_shape.empty()) {
     GE_ASSERT_TRUE(concat_dim == 0 || concat_dim == -1, "concat_dim=%lld must equal 0 or -1", concat_dim);

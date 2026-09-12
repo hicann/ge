@@ -493,7 +493,7 @@ Status TensorAssign::SetGeTensor(const TensorProto &tensor, GeTensorPtr &weight)
     datatype_val_size = iter->second;
   } else {
     GE_CHECK_GE(data_type, 0);
-    GE_LOGE("datatype:%s not support.", DataType_Name(data_type).c_str());
+    GE_LOGE("datatype:%s is not supported.", DataType_Name(data_type).c_str());
     return FAILED;
   }
 

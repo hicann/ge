@@ -366,6 +366,16 @@ aclError aclmdlQuerySize(const char *fileName, size_t *workSize, size_t *weightS
                : aclmdlQuerySizeImpl(fileName, workSize, weightSize);
 }
 
+aclError aclmdlQueryWorkspaceSize(const char *fileName, size_t memOptimizeMode, size_t *workSize) {
+  bool isOm2 = false;
+  aclError ret = AclIsOm2ModelByPath(fileName, &isOm2);
+  if (ret != ACL_ERROR_NONE) {
+    return ret;
+  }
+  return isOm2 ? aclmdlQueryWorkspaceSizeImplOm2(fileName, memOptimizeMode, workSize)
+               : aclmdlQueryWorkspaceSizeImpl(fileName, memOptimizeMode, workSize);
+}
+
 aclError aclmdlQuerySizeFromMem(const void *model, size_t modelSize, size_t *workSize, size_t *weightSize) {
   bool isOm2 = false;
   const aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
@@ -374,6 +384,17 @@ aclError aclmdlQuerySizeFromMem(const void *model, size_t modelSize, size_t *wor
   }
   return isOm2 ? aclmdlQuerySizeFromMemImplOm2(model, modelSize, workSize, weightSize)
                : aclmdlQuerySizeFromMemImpl(model, modelSize, workSize, weightSize);
+}
+
+aclError aclmdlQueryWorkspaceSizeFromMem(const void *model, size_t modelSize, size_t memOptimizeMode,
+                                         size_t *workSize) {
+  bool isOm2 = false;
+  aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
+  if (ret != ACL_ERROR_NONE) {
+    return ret;
+  }
+  return isOm2 ? aclmdlQueryWorkspaceSizeFromMemImplOm2(model, modelSize, memOptimizeMode, workSize)
+               : aclmdlQueryWorkspaceSizeFromMemImpl(model, modelSize, memOptimizeMode, workSize);
 }
 
 aclError aclmdlSetDynamicBatchSize(uint32_t modelId, aclmdlDataset *dataset, size_t index, uint64_t batchSize) {

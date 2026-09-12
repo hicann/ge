@@ -32,10 +32,10 @@ class DeployerGrpcService final : public deployer::DeployerService::Service {
     }
 
     if ((context == nullptr) || (request == nullptr)) {
-      REPORT_INNER_ERR_MSG("E19999", "Input params is null.");
-      GELOGE(FAILED, "[Check][Params] Input params is null.");
+      REPORT_INNER_ERR_MSG("E19999", "Input params are null.");
+      GELOGE(FAILED, "[Check][Params] Input params are null.");
       response->set_error_code(FAILED);
-      response->set_error_message("Input params is null");
+      response->set_error_message("Input params are null");
       return ::grpc::Status::OK;
     }
 

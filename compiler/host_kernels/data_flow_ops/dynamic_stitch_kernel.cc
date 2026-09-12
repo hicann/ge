@@ -190,14 +190,14 @@ Status DynamicStitchKernel::StitchDataFollowIndices(int64_t data_unit, const std
       // if index repeated, need new data replace old data , so give more allowance
       if (indices_set.find(input_indices[j]) != indices_set.end()) {
         if (ge::CheckInt64AddOverflow(input_indices[j], data_unit) != SUCCESS) {
-          GELOGW("Check int64 mul overflow failed. Indices is %d, data_unit is %ld.", input_indices[j], data_unit);
+          GELOGW("Check int64 mul overflow failed. Indices are %d, data_unit is %ld.", input_indices[j], data_unit);
           return NOT_CHANGED;
         }
         allowance += data_unit;
       }
       indices_set.insert(input_indices[j]);
       if (CheckInt64MulOverflow(input_indices[j], data_unit) != SUCCESS) {
-        GELOGW("Check int64 mul overflow failed. Indices is %d, data_unit is %ld.", input_indices[j], data_unit);
+        GELOGW("Check int64 mul overflow failed. Indices are %d, data_unit is %ld.", input_indices[j], data_unit);
         return NOT_CHANGED;
       }
       dst_offset = input_indices[j] * data_unit;

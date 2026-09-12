@@ -365,7 +365,7 @@ int32_t FlowFuncManager::ResetFuncState() {
         int32_t reset_ret = func_wrapper->second->ResetFlowFuncState();
         if (reset_ret != FLOW_FUNC_SUCCESS) {
           if (reset_ret == FLOW_FUNC_ERR_NOT_SUPPORT) {
-            UDF_LOG_WARN("flow func not support reset state, instance name=%s, func name=%s",
+            UDF_LOG_WARN("flow func does not support reset state, instance name=%s, func name=%s",
                          instance_func.first.c_str(), func_wrapper->first.c_str());
           } else {
             UDF_LOG_ERROR("reset flow func state failed, instance name=%s, func name=%s, ret=%d",

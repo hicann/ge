@@ -1177,7 +1177,7 @@ bool TeFusionManager::IsFusionCheckTask(const OpBuildTaskPtr &opTask) {
  * @return  bool            true: success, false: fail
  */
 bool TeFusionManager::BuildFusionOp(OpBuildTaskPtr &opTask, const std::string &opCompileStrategyStr) {
-  TE_INFOLOG("Build taskID:[%lu:%lu]. Nodes is [%s]. CompileStrategy is [%s].", opTask->graphId, opTask->taskId,
+  TE_INFOLOG("Build taskID:[%lu:%lu]. Nodes are [%s]. CompileStrategy is [%s].", opTask->graphId, opTask->taskId,
              GetNodesName(opTask->opNodes).c_str(), opCompileStrategyStr.c_str());
 
   opTask->opRes = nullptr;

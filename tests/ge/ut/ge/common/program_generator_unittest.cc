@@ -7853,7 +7853,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_WithCustomKernel_Ok) {
   EXPECT_NE(load_run.find("class CustKernelContextHolder"), std::string::npos);
   EXPECT_NE(load_run.find("CustKernelContextHolder BuildKernelContextHolder"), std::string::npos);
   EXPECT_NE(load_run.find("class AllocatorFaker : public gert::GertAllocator"), std::string::npos);
-  EXPECT_NE(load_run.find("aclError KernelCustTaskDistribute("), std::string::npos);
+  EXPECT_NE(load_run.find("uint32_t LaunchEagerExecuteOp("), std::string::npos);
   EXPECT_NE(load_run.find("aclError DeserializeCustKernelBinaries("), std::string::npos);
 
   // Load 方法中应调用 DeserializeCustKernelBinaries 反序列化自定义内核二进制

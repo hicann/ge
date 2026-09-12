@@ -38,6 +38,7 @@ class CustomTaskCodeBuilder : public TaskCodeBuilder {
   std::vector<BodyItem> RenderDispatchSetup(const VarRef &op, const VarRef &ctx) const;
   BodyItem RenderDispatchLoop(const VarRef &op, const VarRef &ctx) const;
   std::vector<BodyItem> RenderDistribution(const VarRef &op, const VarRef &ctx) const;
+  std::vector<BodyItem> HandleExecuteCallback(const VarRef &op, const VarRef &ctx) const;
   std::vector<BodyItem> HandleInputOutputArg(const VarRef &a, const VarRef &ctx) const;
   void AssignTaskLocalIoNames();
   void InitArgsTableEntry(const TaskSemanticContributeContext &context, const uint64_t args_size);

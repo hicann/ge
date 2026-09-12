@@ -30,7 +30,7 @@ LowerResult LoweringCmoNode(const ge::NodePtr &node, const LowerInput &lower_inp
 
   // update inner_len && src
   LOWER_REQUIRE(!lower_input.input_addrs.empty(), "Input addrs is empty for node [%s].", node->GetNamePtr());
-  LOWER_REQUIRE(!lower_input.input_shapes.empty(), "Input shapes is empty for node [%s].", node->GetNamePtr());
+  LOWER_REQUIRE(!lower_input.input_shapes.empty(), "Input shapes are empty for node [%s].", node->GetNamePtr());
   ge::DataType dt = node->GetOpDescBarePtr()->GetInputDesc(0U).GetDataType();
   auto dt_holder = bg::ValueHolder::CreateConst(&dt, sizeof(ge::DataType));
 

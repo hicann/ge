@@ -17,6 +17,7 @@
 #include "common/util/mem_utils.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "graph/debug/ge_util.h"
+#include "graph/custom_op/op_proto_ledger.h"
 
 extern "C" {
 void ReleaseOpsRegInfo();
@@ -40,6 +41,29 @@ namespace {
 std::atomic<bool> is_register_overridable(false);
 std::shared_ptr<std::map<std::string, OpCreatorV2>> backup_operator_creators_v2_;
 std::shared_ptr<std::map<std::string, OpCreator>> backup_operator_creators_v1_;
+
+template <typename T>
+bool OverrideExistingEntry(std::shared_ptr<std::map<std::string, T>> &entries, const std::string &op_type,
+                           const T &value, const OpProtoMapKind kind) {
+  if (!OpProtoLedger::HasActiveTxn()) {
+    return false;
+  }
+  if (OpProtoLedger::ShouldBlockRegister(op_type, kind, true)) {
+    return false;
+  }
+  const auto it = entries->find(op_type);
+  if (it == entries->cend()) {
+    return false;
+  }
+  const T old_value = it->second;
+  it->second = value;
+  OpProtoLedger::RecordOverride(op_type, kind, [entries, op_type, old_value]() {
+    if (entries != nullptr) {
+      (*entries)[op_type] = old_value;
+    }
+  });
+  return true;
+}
 }  // namespace
 std::shared_ptr<std::map<std::string, OpCreator>> OperatorFactoryImpl::operator_creators_;
 std::shared_ptr<std::map<std::string, OpCreatorV2>> OperatorFactoryImpl::operator_creators_v2_;
@@ -127,7 +151,7 @@ InferShapeFunc OperatorFactoryImpl::GetInferShapeFunc(const std::string &operato
   if (operator_infershape_funcs_ == nullptr) {
     return nullptr;
   }
-  const std::map<std::string, ge::InferShapeFunc>::const_iterator it = operator_infershape_funcs_->find(operator_type);
+  auto it = operator_infershape_funcs_->find(operator_type);
   if (it == operator_infershape_funcs_->cend()) {
     return nullptr;
   }
@@ -206,11 +230,19 @@ graphStatus OperatorFactoryImpl::RegisterOperatorCreator(const std::string &oper
     operator_creators_ = MakeShared<std::map<std::string, OpCreator>>();
     GE_CHECK_NOTNULL(operator_creators_);
   }
-  const std::map<std::string, ge::OpCreator>::const_iterator it = operator_creators_->find(operator_type);
+  auto it = operator_creators_->find(operator_type);
   if (it != operator_creators_->cend()) {
+    if (OverrideExistingEntry(operator_creators_, operator_type, op_creator, OpProtoMapKind::kCreatorV1)) {
+      return GRAPH_SUCCESS;
+    }
+    OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kCreatorV1, true);
     return GRAPH_FAILED;
   }
+  if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kCreatorV1, false)) {
+    return GRAPH_FAILED;  // 活跃异实现：写入前拦截，不产生无人认领的全局残留
+  }
   (void)operator_creators_->emplace(operator_type, op_creator);
+  OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kCreatorV1, false);
   GELOGD("Register operator creator for %s.", operator_type.c_str());
   return GRAPH_SUCCESS;
 }
@@ -222,17 +254,36 @@ graphStatus OperatorFactoryImpl::RegisterOperatorCreator(const std::string &oper
     GE_CHECK_NOTNULL(operator_creators_v2_);
   }
   auto it = operator_creators_v2_->find(operator_type);
-  if (it != operator_creators_v2_->cend()) {
-    if (is_register_overridable.load()) {
-      GELOGD("Override creator v2 for %s.", operator_type.c_str());
-      it->second = op_creator;
-      return GRAPH_SUCCESS;
+  if (it == operator_creators_v2_->cend()) {
+    if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kCreatorV2, false)) {
+      return GRAPH_FAILED;  // 活跃异实现：写入前拦截，不产生无人认领的全局残留
     }
-    return GRAPH_FAILED;
+    (void)operator_creators_v2_->emplace(operator_type, op_creator);
+    OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kCreatorV2, false);
+    GELOGD("Register creator v2 for %s.", operator_type.c_str());
+    return GRAPH_SUCCESS;
   }
-  (void)operator_creators_v2_->emplace(operator_type, op_creator);
-  GELOGD("Register creator v2 for %s.", operator_type.c_str());
-  return GRAPH_SUCCESS;
+  if (is_register_overridable.load() || OpProtoLedger::HasActiveTxn()) {
+    GELOGD("Override creator v2 for %s.", operator_type.c_str());
+    if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kCreatorV2, true)) {
+      return GRAPH_FAILED;  // 事务内覆盖异提供者槽位：拦截，保留在位值
+    }
+    const auto old_creator = it->second;
+    it->second = op_creator;
+    if (OpProtoLedger::HasActiveTxn()) {
+      OpProtoLedger::RecordOverride(operator_type, OpProtoMapKind::kCreatorV2, [operator_type, old_creator]() {
+        if (operator_creators_v2_ != nullptr) {
+          (*operator_creators_v2_)[operator_type] = old_creator;
+        }
+      });
+    } else {
+      OpProtoLedger::MarkGlobalOverride(operator_type, OpProtoMapKind::kCreatorV2);
+      OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kCreatorV2, true);
+    }
+    return GRAPH_SUCCESS;
+  }
+  OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kCreatorV2, true);
+  return GRAPH_FAILED;
 }
 
 graphStatus OperatorFactoryImpl::RegisterInferShapeFunc(const std::string &operator_type,
@@ -242,13 +293,31 @@ graphStatus OperatorFactoryImpl::RegisterInferShapeFunc(const std::string &opera
     operator_infershape_funcs_ = MakeShared<std::map<std::string, InferShapeFunc>>();
     GE_CHECK_NOTNULL(operator_infershape_funcs_);
   }
-  const std::map<std::string, ge::InferShapeFunc>::const_iterator it = operator_infershape_funcs_->find(operator_type);
+  auto it = operator_infershape_funcs_->find(operator_type);
   if (it != operator_infershape_funcs_->cend()) {
+    if (OpProtoLedger::HasActiveTxn()) {
+      if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kInferShape, true)) {
+        return GRAPH_FAILED;
+      }
+      const auto old_infer_shape = it->second;
+      it->second = infer_shape_func;
+      OpProtoLedger::RecordOverride(operator_type, OpProtoMapKind::kInferShape, [operator_type, old_infer_shape]() {
+        if (operator_infershape_funcs_ != nullptr) {
+          (*operator_infershape_funcs_)[operator_type] = old_infer_shape;
+        }
+      });
+      return GRAPH_SUCCESS;
+    }
     GELOGW("op [%s] has registered infer func", operator_type.c_str());
+    OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kInferShape, true);
     return GRAPH_FAILED;
+  }
+  if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kInferShape, false)) {
+    return GRAPH_FAILED;  // 活跃异实现：写入前拦截，不产生无人认领的全局残留
   }
   GELOGD("Register infer func for type: %s.", operator_type.c_str());
   (void)operator_infershape_funcs_->emplace(operator_type, infer_shape_func);
+  OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kInferShape, false);
   return GRAPH_SUCCESS;
 }
 
@@ -282,9 +351,18 @@ graphStatus OperatorFactoryImpl::RegisterInferFormatFunc(const std::string &oper
   }
   const std::map<std::string, ge::InferShapeFunc>::const_iterator it = operator_inferformat_funcs_->find(operator_type);
   if (it != operator_inferformat_funcs_->cend()) {
+    if (OverrideExistingEntry(operator_inferformat_funcs_, operator_type, infer_format_func,
+                              OpProtoMapKind::kInferFormat)) {
+      return GRAPH_SUCCESS;
+    }
+    OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kInferFormat, true);
     return GRAPH_FAILED;
   }
+  if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kInferFormat, false)) {
+    return GRAPH_FAILED;  // 活跃异实现：写入前拦截，不产生无人认领的全局残留
+  }
   (void)operator_inferformat_funcs_->emplace(operator_type, infer_format_func);
+  OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kInferFormat, false);
   return GRAPH_SUCCESS;
 }
 
@@ -296,9 +374,17 @@ graphStatus OperatorFactoryImpl::RegisterVerifyFunc(const std::string &operator_
   }
   const std::map<std::string, ge::InferShapeFunc>::const_iterator it = operator_verify_funcs_->find(operator_type);
   if (it != operator_verify_funcs_->cend()) {
+    if (OverrideExistingEntry(operator_verify_funcs_, operator_type, verify_func, OpProtoMapKind::kVerify)) {
+      return GRAPH_SUCCESS;
+    }
+    OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kVerify, true);
     return GRAPH_FAILED;
   }
+  if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kVerify, false)) {
+    return GRAPH_FAILED;  // 活跃异实现：写入前拦截，不产生无人认领的全局残留
+  }
   (void)operator_verify_funcs_->emplace(operator_type, verify_func);
+  OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kVerify, false);
   return GRAPH_SUCCESS;
 }
 
@@ -312,9 +398,18 @@ graphStatus OperatorFactoryImpl::RegisterInferDataSliceFunc(const std::string &o
   const std::map<std::string, ge::InferShapeFunc>::const_iterator it =
       operator_infer_data_slice_funcs_->find(operator_type);
   if (it != operator_infer_data_slice_funcs_->cend()) {
+    if (OverrideExistingEntry(operator_infer_data_slice_funcs_, operator_type, infer_data_slice_func,
+                              OpProtoMapKind::kInferDataSlice)) {
+      return GRAPH_SUCCESS;
+    }
+    OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kInferDataSlice, true);
     return GRAPH_FAILED;
   }
+  if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kInferDataSlice, false)) {
+    return GRAPH_FAILED;  // 活跃异实现：写入前拦截，不产生无人认领的全局残留
+  }
   (void)operator_infer_data_slice_funcs_->emplace(operator_type, infer_data_slice_func);
+  OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kInferDataSlice, false);
   return GRAPH_SUCCESS;
 }
 
@@ -333,11 +428,21 @@ graphStatus OperatorFactoryImpl::RegisterInferValueRangeFunc(const std::string &
   const std::map<std::string, ge::InferValueRangePara>::const_iterator it =
       operator_infer_value_range_paras_->find(operator_type);
   if (it != operator_infer_value_range_paras_->cend()) {
+    InferValueRangePara new_para(when_call, use_cpu_kernel, infer_value_range_func);
+    if (OverrideExistingEntry(operator_infer_value_range_paras_, operator_type, new_para,
+                              OpProtoMapKind::kInferValueRange)) {
+      return GRAPH_SUCCESS;
+    }
     GELOGW("optype[%s] has registered infervalue func", operator_type.c_str());
+    OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kInferValueRange, true);
     return GRAPH_FAILED;
+  }
+  if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kInferValueRange, false)) {
+    return GRAPH_FAILED;  // 活跃异实现：写入前拦截，不产生无人认领的全局残留
   }
   InferValueRangePara tmp_para(when_call, use_cpu_kernel, infer_value_range_func);
   (void)operator_infer_value_range_paras_->emplace(operator_type, tmp_para);
+  OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kInferValueRange, false);
 
   GELOGD("Optype[%s] infervalue func registered successfully, when_call = %d, use_cpu_kernel = %d",
          operator_type.c_str(), static_cast<int32_t>(when_call), static_cast<int32_t>(use_cpu_kernel));
@@ -366,9 +471,18 @@ graphStatus OperatorFactoryImpl::RegisterInferAxisSliceFunc(const std::string &o
   const std::map<std::string, InferAxisSliceFunc>::const_iterator it =
       operator_infer_axis_slice_funcs_->find(operator_type);
   if (it != operator_infer_axis_slice_funcs_->cend()) {
+    if (OverrideExistingEntry(operator_infer_axis_slice_funcs_, operator_type, infer_axis_slice_func,
+                              OpProtoMapKind::kAxisSlice)) {
+      return GRAPH_SUCCESS;
+    }
+    OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kAxisSlice, true);
     return GRAPH_FAILED;
   }
+  if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kAxisSlice, false)) {
+    return GRAPH_FAILED;  // 活跃异实现：写入前拦截，不产生无人认领的全局残留
+  }
   (void)operator_infer_axis_slice_funcs_->emplace(operator_type, infer_axis_slice_func);
+  OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kAxisSlice, false);
   return GRAPH_SUCCESS;
 }
 
@@ -394,10 +508,19 @@ graphStatus OperatorFactoryImpl::RegisterInferAxisTypeInfoFunc(const std::string
   const std::map<std::string, InferAxisTypeInfoFunc>::const_iterator it =
       operator_infer_axis_type_info_funcs_->find(operator_type);
   if (it != operator_infer_axis_type_info_funcs_->cend()) {
+    if (OverrideExistingEntry(operator_infer_axis_type_info_funcs_, operator_type, infer_axis_type_info_func,
+                              OpProtoMapKind::kAxisTypeInfo)) {
+      return GRAPH_SUCCESS;
+    }
     GELOGW("optype[%s] has registered axis type info func", operator_type.c_str());
+    OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kAxisTypeInfo, true);
     return GRAPH_FAILED;
   }
+  if (OpProtoLedger::ShouldBlockRegister(operator_type, OpProtoMapKind::kAxisTypeInfo, false)) {
+    return GRAPH_FAILED;  // 活跃异实现：写入前拦截，不产生无人认领的全局残留
+  }
   (void)operator_infer_axis_type_info_funcs_->emplace(operator_type, infer_axis_type_info_func);
+  OpProtoLedger::OnRegistered(operator_type, OpProtoMapKind::kAxisTypeInfo, false);
   return GRAPH_SUCCESS;
 }
 

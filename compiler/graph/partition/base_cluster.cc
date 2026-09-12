@@ -340,7 +340,7 @@ bool BaseCluster::AddFrameInput(InDataAnchorPtr anchor) {
   if (anchor != nullptr && anchor->GetPeerOutAnchor() != nullptr) {
     auto index = inputs_.size();
     if (merge_inputs_) {
-      GELOGD("Merge inputs is enabled");
+      GELOGD("Merge inputs are enabled");
       auto src_node = anchor->GetPeerOutAnchor()->GetOwnerNode();
       std::string src_key = src_node->GetName() + ":" + std::to_string(anchor->GetPeerOutAnchor()->GetIdx());
       std::map<std::string, size_t>::const_iterator it = src_key_to_frame_input_.find(src_key);

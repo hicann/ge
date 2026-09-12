@@ -93,7 +93,7 @@ void UpdateFftsPlusTaskAddr(domi::TaskDef &task_def, const std::map<int64_t, int
         mutable_mix_aic_aiv_ctx->set_task_addr(k, static_cast<uint64_t>(it->second));
         GELOGD("update task_addr[%d], [%ld] to [%ld]", k, orig_task_addr, it->second);
       } else {
-        GELOGW("update task_addr[%d] [%ld] NOT match", k, orig_task_addr);
+        GELOGW("update task_addr[%d] [%ld] does not match", k, orig_task_addr);
       }
     }
   }

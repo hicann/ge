@@ -142,7 +142,7 @@ Status MemoryGroupManager::SetRemoteGroupCacheConfig(const std::string &remote_g
   constexpr const char *kConfigPattern = R"(\d{1,12}(:\d{1,10})?(,\d{1,12}(:\d{1,10})?){0,127})";
   std::regex config_regex(kConfigPattern);
   if (!std::regex_match(remote_group_cache_config, config_regex)) {
-    GELOGE(PARAM_INVALID, "Remote group cache config=%s is not match pattern %s.", remote_group_cache_config.c_str(),
+    GELOGE(PARAM_INVALID, "Remote group cache config=%s does not match pattern %s.", remote_group_cache_config.c_str(),
            kConfigPattern);
     return PARAM_INVALID;
   }

@@ -37,16 +37,16 @@ ge::Status InitVarIfHasInitValue(const VarDevAddrMgr *const var_mgr, void *var_d
     const auto &init_desc = init_value->GetTensorDesc();
     const auto &var_desc = var_mgr->tensor_desc;
     GE_ASSERT_TRUE(var_desc.GetShape().GetDims() == init_desc.GetShape().GetDims(),
-                   "_init_value shape not match,"
+                   "_init_value shape does not match,"
                    " var_shape: %s, init_shape: %s",
                    var_desc.GetShape().ToString().c_str(), init_desc.GetShape().ToString().c_str());
     GE_ASSERT_TRUE(var_desc.GetDataType() == init_desc.GetDataType(),
-                   "_init_value data type not match, "
+                   "_init_value data type does not match, "
                    "var data type: %s, init value data type: %s",
                    TypeUtils::DataTypeToSerialString(var_desc.GetDataType()).c_str(),
                    TypeUtils::DataTypeToSerialString(init_desc.GetDataType()).c_str());
     GE_ASSERT_TRUE(var_desc.GetFormat() == init_desc.GetFormat(),
-                   "_init_value format not match, "
+                   "_init_value format does not match, "
                    "var format: %s, init format: %s",
                    TypeUtils::FormatToSerialString(var_desc.GetFormat()).c_str(),
                    TypeUtils::FormatToSerialString(init_desc.GetFormat()).c_str());

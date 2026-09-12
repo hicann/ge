@@ -211,9 +211,7 @@ class GraphNode {
   void SetBuildFlag(const bool buildFlag) {
     build_flag_ = buildFlag;
   }
-  bool GetLoadFlag() const {
-    return load_flag_;
-  }
+  bool GetLoadFlag() const;
   RunGraphMode GetRunGraphMode() const {
     return run_graph_mode_;
   }
@@ -221,12 +219,8 @@ class GraphNode {
     run_graph_mode_ = mode;
   }
   // allow repeatively load graph owns same graph id
-  void UpdateLoadFlag() {
-    load_flag_ = ((load_count_ == 0U) || (load_record_ >= max_load_record_));
-  }
-  void SetLoadFlag(const bool load_flag) {
-    load_flag_ = load_flag;
-  }
+  void UpdateLoadFlag();
+  void SetLoadFlag(const bool load_flag);
   void SetIsSpecificStream(const bool specific_stream) {
     is_specific_stream_ = specific_stream;
   }
@@ -255,15 +249,12 @@ class GraphNode {
     sem_.SetMaxSize(size);
   }
 
-  void SetLoadCount(const uint32_t count) {
-    load_count_ = count;
-  }
-  uint32_t GetLoadRecord() const {
-    return load_record_;
-  }
-  void SetLoadRecord(const uint32_t record) {
-    load_record_ = record;
-  }
+  void SetLoadCount(const uint32_t count);
+  uint32_t GetLoadRecord() const;
+  void SetLoadRecord(const uint32_t record);
+  // reset load_count_ to load_record_ and load_record_ to 0 atomically,
+  // allow model to be loaded again without adding graph again
+  void ResetLoadRecord();
   void IncreaseLoadCount();
   void SetLoaded();
   void SetFeatureBaseRefreshable(const bool refreshable) {
@@ -412,7 +403,7 @@ class GraphNode {
   // total times of loading a graph with same graph_id.
   uint32_t load_record_{0U};
   uint32_t max_load_record_{kMaxLoadNum};
-  std::mutex load_count_mu_;
+  mutable std::mutex load_count_mu_;
   bool is_feature_base_refreshable_ = false;
 
   InputMemoryBaseInfo const_mem_;

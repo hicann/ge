@@ -53,7 +53,7 @@ ge::graphStatus ValidateCopyFlowInputNum(const KernelContext *context, const siz
   GE_ASSERT_TRUE(!ge::MulOverflow(copy_flow_count, kSizeOfCopyToDevice, input_num));
   GE_ASSERT_TRUE(!ge::AddOverflow(input_start, input_num, input_num));
   if (input_num != context->GetInputNum()) {
-    GELOGE(ge::GRAPH_FAILED, "input num is not matched, input start %zu, copy flow count %zu, total input num %zu",
+    GELOGE(ge::GRAPH_FAILED, "input num does not match, input start %zu, copy flow count %zu, total input num %zu",
            input_start, copy_flow_count, context->GetInputNum());
     return ge::GRAPH_FAILED;
   }
@@ -205,9 +205,9 @@ ge::graphStatus PrepareCopyFlowResult(KernelContext *context) {
   GE_ASSERT_NOTNULL(args);
   GE_ASSERT_NOTNULL(allocated_addrs);
   GE_ASSERT_NOTNULL(inputs_index_cvv);
-  GE_ASSERT_TRUE(allocated_addrs->GetSize() == output_num, "allocated addr num %zu is not match output num %zu",
+  GE_ASSERT_TRUE(allocated_addrs->GetSize() == output_num, "allocated addr num %zu does not match output num %zu",
                  allocated_addrs->GetSize(), output_num);
-  GE_ASSERT_TRUE(inputs_index_cvv->GetSize() == output_num, "input index num %zu is not match output num %zu",
+  GE_ASSERT_TRUE(inputs_index_cvv->GetSize() == output_num, "input index num %zu does not match output num %zu",
                  inputs_index_cvv->GetSize(), output_num);
   GE_ASSERT_SUCCESS(args->UpdateMergedCopyInfo());
 
@@ -272,7 +272,7 @@ ge::graphStatus LaunchCopyFlowH2D(KernelContext *context) {
   auto allocated_addrs = context->GetInputPointer<TypedContinuousVector<GertTensorData *>>(
       static_cast<size_t>(LaunchCopyFlowH2DInputs::kAllocatedAddrs));
   GE_ASSERT_NOTNULL(allocated_addrs);
-  GE_ASSERT_TRUE(allocated_addrs->GetSize() == *input_num, "allocated addr num %zu is not match input num %zu",
+  GE_ASSERT_TRUE(allocated_addrs->GetSize() == *input_num, "allocated addr num %zu does not match input num %zu",
                  allocated_addrs->GetSize(), *input_num);
   auto allocated_data = allocated_addrs->GetData();
   GE_ASSERT_NOTNULL(allocated_data);
@@ -319,7 +319,7 @@ ge::graphStatus CopyFlowLaunch(KernelContext *context) {
   auto output_num = context->GetOutputNum();
   if (static_cast<size_t>(CopyFlowLaunchInputs::kAddrAndLengthStart) + (output_num * kSizeOfCopyToDevice) !=
       context->GetInputNum()) {
-    GELOGE(ge::GRAPH_FAILED, "input num is not matched, input start %zu, output num %zu, total input num %zu",
+    GELOGE(ge::GRAPH_FAILED, "input num does not match, input start %zu, output num %zu, total input num %zu",
            static_cast<size_t>(CopyFlowLaunchInputs::kAddrAndLengthStart), output_num, context->GetInputNum());
     return ge::GRAPH_FAILED;
   }

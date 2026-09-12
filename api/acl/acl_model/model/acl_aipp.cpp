@@ -134,7 +134,7 @@ static aclError GetModelOriDims(const uint32_t modelId, const uint32_t relatedIn
 
   // Parse NHW from input Dims when inputDims is not empty
   if (inputDims.empty()) {
-    ACL_LOG_INNER_ERROR("[Check][InputDims]get model origin input dims fail, origin input dims is empty");
+    ACL_LOG_INNER_ERROR("[Check][InputDims]get model origin input dims fail, origin input dims are empty");
     return ACL_ERROR_GE_FAILURE;
   }
   // Get the index of the maximum gear
@@ -418,7 +418,7 @@ aclError aclmdlSetInputAIPPImpl(uint32_t modelId, aclmdlDataset *dataset, size_t
 
   mdlRet = GetAndCheckAippParams(modelId, modelDesc, index, aippParmsSet);
   if (mdlRet != ACL_SUCCESS) {
-    ACL_LOG_ERROR("[Check][AippParams]Dynamic AIPP parameters is invalid, parameters verification failed");
+    ACL_LOG_ERROR("[Check][AippParams]Dynamic AIPP parameters are invalid, parameters verification failed");
     acl::AclErrorLogManager::ReportInputError(
         acl::INVALID_AIPP_MSG, std::vector<const char *>({"param", "reason"}),
         std::vector<const char *>({"parameters", "parameters verification failed"}));

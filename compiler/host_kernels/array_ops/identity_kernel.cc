@@ -25,7 +25,7 @@ Status IdentityKernel::Compute(const ge::OpDescPtr op_desc, const std::vector<ge
     return NOT_CHANGED;
   }
   if (input.empty()) {
-    GELOGE(PARAM_INVALID, "Node [%s] inputs is empty.", op_desc->GetName().c_str());
+    GELOGE(PARAM_INVALID, "Node [%s] inputs are empty.", op_desc->GetName().c_str());
     return NOT_CHANGED;
   }
   if (op_desc->GetOutputsSize() < 1) {

@@ -57,7 +57,7 @@ aclError CheckInput(const char *opType, const int32_t numInputs, const aclTensor
   ACL_REQUIRES_NON_NEGATIVE(numInputs);
   ACL_REQUIRES_NON_NEGATIVE(numOutputs);
   if (compileFlag != ACL_COMPILE_SYS && compileFlag != ACL_COMPILE_UNREGISTERED) {
-    ACL_LOG_ERROR("[Check][Type]aclopCompile compile type[%d] not support", static_cast<int32_t>(compileFlag));
+    ACL_LOG_ERROR("[Check][Type]aclopCompile compile type[%d] is not supported", static_cast<int32_t>(compileFlag));
     acl::AclErrorLogManager::ReportInputError(
         acl::UNSUPPORTED_FEATURE_MSG, std::vector<const char *>({"feature", "reason"}),
         std::vector<const char *>({"compile type", "must be equal to ACL_COMPILE_SYS or ACL_COMPILE_UNREGISTERED"}));
@@ -141,7 +141,7 @@ aclError aclopCompile(const char *opType, int numInputs, const aclTensorDesc *co
   ACL_REQUIRES_NON_NEGATIVE(numInputs);
   ACL_REQUIRES_NON_NEGATIVE(numOutputs);
   if (compileFlag != ACL_COMPILE_SYS && compileFlag != ACL_COMPILE_UNREGISTERED) {
-    ACL_LOG_ERROR("[Check][CompileFlag]aclopCompileType [%d] not support", static_cast<int32_t>(compileFlag));
+    ACL_LOG_ERROR("[Check][CompileFlag]aclopCompileType [%d] is not supported", static_cast<int32_t>(compileFlag));
     acl::AclErrorLogManager::ReportInputError(
         acl::INVALID_PARAM_MSG, std::vector<const char *>({"param", "value", "reason"}),
         std::vector<const char *>({"compile type", std::to_string(compileFlag).c_str(), "not in range"}));
@@ -153,13 +153,13 @@ aclError aclopCompile(const char *opType, int numInputs, const aclTensorDesc *co
   if (acl::array_utils::IsHostMemTensorDesc(numInputs, inputDesc) != ACL_SUCCESS) {
     ACL_LOG_INNER_ERROR(
         "[Check][TensorDesc]aclopCompile ACL_MEMTYPE_HOST or "
-        "ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT placeMent in inputDesc not support");
+        "ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT placeMent in inputDesc is not supported");
     return ACL_ERROR_API_NOT_SUPPORT;
   }
   if (acl::array_utils::IsHostMemTensorDesc(numOutputs, outputDesc) != ACL_SUCCESS) {
     ACL_LOG_INNER_ERROR(
         "[Check][TensorDesc]aclopCompile ACL_MEMTYPE_HOST or "
-        "ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT placeMent in outputDesc not support");
+        "ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT placeMent in outputDesc is not supported");
     return ACL_ERROR_API_NOT_SUPPORT;
   }
 

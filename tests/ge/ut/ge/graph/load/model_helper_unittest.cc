@@ -54,6 +54,8 @@
 #include "graph/custom_op.h"
 #include "graph/custom_op_factory.h"
 #include "graph/custom_op_registry.h"
+#include "graph/custom_op/op_proto_ledger.h"
+#include "graph/operator_factory_impl.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 
 using namespace std;
@@ -3226,6 +3228,182 @@ TEST_F(UtestModelHelper, SetSaveMode_Test) {
   ModelHelper model_helper;
   model_helper.SetSaveMode(true);
   model_helper.SetSaveMode(false);
+}
+
+namespace {
+constexpr char kFakeConflictOpType[] = "FakeCustomOpConflictUt";
+
+// 白盒观测助手（依赖 UT target 的 -fno-access-control，直访账本私有 entries_）：
+// entries_ 在加载/回放后可能被修改，每个断言点须重新获取，不得跨改动复用指针
+static const OpProtoLedger::MapLedgerEntry *GetLedgerEntryForUt(
+    const std::string &op_type, const OpProtoMapKind kind = OpProtoMapKind::kCreatorV2) {
+  const auto &entries = OpProtoLedger::GetInstance().entries_;
+  const auto it = entries.find(op_type);
+  if (it == entries.cend()) {
+    return nullptr;
+  }
+  const auto map_it = it->second.find(kind);
+  return (map_it == it->second.cend()) ? nullptr : &map_it->second;
+}
+
+static bool HasLedgerEntryForUt(const std::string &op_type) {
+  return OpProtoLedger::GetInstance().entries_.count(op_type) != 0U;
+}
+
+static std::string FakeCustomOpConflictSoAPath() {
+  return FAKE_CUSTOM_OP_CONFLICT_SO_A_PATH;
+}
+static std::string FakeCustomOpConflictSoBPath() {
+  return FAKE_CUSTOM_OP_CONFLICT_SO_B_PATH;
+}
+
+GeRootModelPtr BuildRootModelForCustomOpLoadUt(const std::string &graph_name) {
+  auto graph = std::make_shared<ComputeGraph>(graph_name);
+  auto ge_root_model = std::make_shared<GeRootModel>();
+  if (ge_root_model->Initialize(graph) != SUCCESS) {
+    return nullptr;
+  }
+  return ge_root_model;
+}
+
+OmFileLoadHelper BuildSoBinsOnlyLoadHelperForUt(const std::vector<uint8_t> &so_payload) {
+  OmFileLoadHelper load_helper;
+  load_helper.is_inited_ = true;
+  OmFileContext cur_ctx;
+  ModelPartition so_partition;
+  so_partition.type = ModelPartitionType::SO_BINS;
+  so_partition.data = so_payload.data();
+  so_partition.size = so_payload.size();
+  cur_ctx.partition_datas_.push_back(so_partition);
+  load_helper.model_contexts_.push_back(cur_ctx);
+  return load_helper;
+}
+}  // namespace
+
+// E2E：同名异内容双模型 → 后加载者被无条件拦截；拦截后全局状态等价
+TEST_F(UtestModelHelper, LoadCustomOpRegistryShouldBlockConflictingImplementation) {
+  CustomOpSoLoader::GetInstance().Cleanup();
+  OpProtoLedger::ResetForFinalize();
+  OperatorFactoryImpl::RemoveCustomOpCreators({kFakeConflictOpType});
+  CustomOpSoLoader::GetInstance().Finalize();
+
+  std::vector<char_t> so_data_a;
+  ASSERT_TRUE(ReadSoDataForModelHelperUt(FakeCustomOpConflictSoAPath(), so_data_a));
+  std::vector<char_t> so_data_b;
+  ASSERT_TRUE(ReadSoDataForModelHelperUt(FakeCustomOpConflictSoBPath(), so_data_b));
+  const auto so_bin_a = BuildCustomOpSoBinForModelHelperUt("fake_custom_op_conflict_a.so", "vendor_ut", so_data_a);
+  const auto so_bin_b = BuildCustomOpSoBinForModelHelperUt("fake_custom_op_conflict_b.so", "vendor_ut", so_data_b);
+  ASSERT_NE(so_bin_a, nullptr);
+  ASSERT_NE(so_bin_b, nullptr);
+
+  // 模型 A：加载成功
+  std::vector<uint8_t> so_payload_a;
+  ASSERT_TRUE(BuildSoBinsPayloadForModelHelperUt({so_bin_a}, so_payload_a));
+  auto root_model_a = BuildRootModelForCustomOpLoadUt("task5_conflict_model_a");
+  ASSERT_NE(root_model_a, nullptr);
+  {
+    ModelHelper model_helper_a;
+    EXPECT_EQ(model_helper_a.LoadCustomOpRegistry(BuildSoBinsOnlyLoadHelperForUt(so_payload_a), root_model_a), SUCCESS);
+  }
+  EXPECT_TRUE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+
+  // 模型 B：同名异实现 → 拦截
+  std::vector<uint8_t> so_payload_b;
+  ASSERT_TRUE(BuildSoBinsPayloadForModelHelperUt({so_bin_b}, so_payload_b));
+  auto root_model_b = BuildRootModelForCustomOpLoadUt("task5_conflict_model_b");
+  ASSERT_NE(root_model_b, nullptr);
+  {
+    ModelHelper model_helper_b;
+    EXPECT_NE(model_helper_b.LoadCustomOpRegistry(BuildSoBinsOnlyLoadHelperForUt(so_payload_b), root_model_b), SUCCESS);
+  }
+  EXPECT_EQ(root_model_b->GetCustomOpRegistry(), nullptr);  // 未提交
+
+  // 拦截后全局状态等价：条目仍在、refcount 仍为 1
+  const auto *entry = GetLedgerEntryForUt(kFakeConflictOpType);
+  ASSERT_NE(entry, nullptr);
+  EXPECT_EQ(entry->refcount, 1U);
+  EXPECT_TRUE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+
+  // 拦截不毒化后续加载：同内容重载成功
+  auto root_model_c = BuildRootModelForCustomOpLoadUt("task5_conflict_model_c");
+  ASSERT_NE(root_model_c, nullptr);
+  {
+    ModelHelper model_helper_c;
+    EXPECT_EQ(model_helper_c.LoadCustomOpRegistry(BuildSoBinsOnlyLoadHelperForUt(so_payload_a), root_model_c), SUCCESS);
+  }
+
+  // 卸载 A/C 后条目归零清理
+  root_model_a.reset();
+  root_model_c.reset();
+  EXPECT_FALSE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+  EXPECT_FALSE(HasLedgerEntryForUt(kFakeConflictOpType));
+  OpProtoLedger::ResetForFinalize();
+}
+
+// E2E：同内容双模型共享借用，先卸载者不影响后者
+TEST_F(UtestModelHelper, LoadCustomOpRegistrySameContentTwiceSharesAndSurvivesUnload) {
+  CustomOpSoLoader::GetInstance().Cleanup();
+  OpProtoLedger::ResetForFinalize();
+  OperatorFactoryImpl::RemoveCustomOpCreators({kFakeConflictOpType});
+  CustomOpSoLoader::GetInstance().Finalize();
+
+  std::vector<char_t> so_data_a;
+  ASSERT_TRUE(ReadSoDataForModelHelperUt(FakeCustomOpConflictSoAPath(), so_data_a));
+  const auto so_bin_a = BuildCustomOpSoBinForModelHelperUt("fake_custom_op_conflict_a.so", "vendor_ut", so_data_a);
+  std::vector<uint8_t> so_payload_a;
+  ASSERT_TRUE(BuildSoBinsPayloadForModelHelperUt({so_bin_a}, so_payload_a));
+
+  auto root_model_a = BuildRootModelForCustomOpLoadUt("task5_share_model_a");
+  auto root_model_b = BuildRootModelForCustomOpLoadUt("task5_share_model_b");
+  ASSERT_NE(root_model_a, nullptr);
+  ASSERT_NE(root_model_b, nullptr);
+  {
+    ModelHelper model_helper_a;
+    EXPECT_EQ(model_helper_a.LoadCustomOpRegistry(BuildSoBinsOnlyLoadHelperForUt(so_payload_a), root_model_a), SUCCESS);
+  }
+  {
+    ModelHelper model_helper_b;
+    EXPECT_EQ(model_helper_b.LoadCustomOpRegistry(BuildSoBinsOnlyLoadHelperForUt(so_payload_a), root_model_b), SUCCESS);
+  }
+  const auto *entry = GetLedgerEntryForUt(kFakeConflictOpType);
+  ASSERT_NE(entry, nullptr);
+  EXPECT_EQ(entry->refcount, 2U);
+
+  root_model_a.reset();  // 卸载 A
+  EXPECT_TRUE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+  root_model_b.reset();  // 卸载 B → 归零清理
+  EXPECT_FALSE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+  OpProtoLedger::ResetForFinalize();
+}
+
+// E2E：pull 失败回滚（既有用例语义保持）+ 回滚后账本无残留
+TEST_F(UtestModelHelper, LoadCustomOpRegistryRollbackLeavesNoLedgerResidue) {
+  CustomOpSoLoader::GetInstance().Cleanup();
+  OpProtoLedger::ResetForFinalize();
+  OperatorFactoryImpl::RemoveCustomOpCreators({kFakeConflictOpType});
+  CustomOpSoLoader::GetInstance().Finalize();
+
+  std::vector<char_t> so_data_a;
+  ASSERT_TRUE(ReadSoDataForModelHelperUt(FakeCustomOpConflictSoAPath(), so_data_a));
+  const auto so_bin_a = BuildCustomOpSoBinForModelHelperUt("fake_custom_op_conflict_a.so", "vendor_ut", so_data_a);
+  std::vector<uint8_t> so_payload_a;
+  ASSERT_TRUE(BuildSoBinsPayloadForModelHelperUt({so_bin_a}, so_payload_a));
+
+  auto root_model_a = BuildRootModelForCustomOpLoadUt("task5_rollback_model_a");
+  ASSERT_NE(root_model_a, nullptr);
+  {
+    ModelHelper model_helper_a;
+    EXPECT_EQ(model_helper_a.LoadCustomOpRegistry(BuildSoBinsOnlyLoadHelperForUt(so_payload_a), root_model_a), SUCCESS);
+  }
+  const auto *entry = GetLedgerEntryForUt(kFakeConflictOpType);
+  ASSERT_NE(entry, nullptr);
+  ASSERT_EQ(entry->refcount, 1U);
+
+  // 模拟加载失败回滚：手工销毁 registry（等同失败路径 registry 未挂载即析构）
+  root_model_a.reset();
+  EXPECT_FALSE(HasLedgerEntryForUt(kFakeConflictOpType));
+  EXPECT_FALSE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+  OpProtoLedger::ResetForFinalize();
 }
 
 }  // namespace ge

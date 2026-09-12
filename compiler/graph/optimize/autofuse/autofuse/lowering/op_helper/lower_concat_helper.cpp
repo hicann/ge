@@ -222,12 +222,12 @@ bool LowerConcatHelper::CheckGraph() const {
   GE_WARN_ASSERT(output_node != nullptr);
   auto in_num = graph_->GetInputNodes().size();
   auto parent_in_num = static_cast<size_t>(fused_asc_backend_node_->GetAllInDataAnchorsSize());
-  GE_WARN_ASSERT(in_num == parent_in_num, "[%s] input not match, in_num = %u, parent_node in_num = %u",
+  GE_WARN_ASSERT(in_num == parent_in_num, "[%s] input does not match, in_num = %u, parent_node in_num = %u",
                  fused_asc_backend_node_->GetNamePtr(), in_num, parent_in_num);
 
   auto out_num = output_node->GetAllInDataAnchorsSize();
   auto parent_out_num = fused_asc_backend_node_->GetAllOutDataAnchorsSize();
-  GE_WARN_ASSERT(out_num == parent_out_num, "[%s] output not match, out_num = %u, parent out_num = %u",
+  GE_WARN_ASSERT(out_num == parent_out_num, "[%s] output does not match, out_num = %u, parent out_num = %u",
                  fused_asc_backend_node_->GetNamePtr(), out_num, parent_out_num);
   return true;
 }

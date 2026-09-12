@@ -31,14 +31,23 @@
 
 namespace ge {
 static std::map<std::string, ge::DataType> output_type_str_to_datatype = {
-    {"FP32", ge::DT_FLOAT},          {"FP16", ge::DT_FLOAT16},
-    {"INT8", ge::DT_INT8},           {"INT16", ge::DT_INT16},
-    {"UINT16", ge::DT_UINT16},       {"UINT8", ge::DT_UINT8},
-    {"INT32", ge::DT_INT32},         {"INT64", ge::DT_INT64},
-    {"UINT32", ge::DT_UINT32},       {"UINT64", ge::DT_UINT64},
-    {"DOUBLE", ge::DT_DOUBLE},       {"BF16", ge::DT_BF16},
-    {"HIF4", ge::DT_HIFLOAT4},       {"HIF8", ge::DT_HIFLOAT8},
-    {"FP8E5M2", ge::DT_FLOAT8_E5M2}, {"FP8E4M3FN", ge::DT_FLOAT8_E4M3FN},
+    {"FP32", ge::DT_FLOAT},
+    {"FP16", ge::DT_FLOAT16},
+    {"INT8", ge::DT_INT8},
+    {"INT16", ge::DT_INT16},
+    {"UINT16", ge::DT_UINT16},
+    {"UINT8", ge::DT_UINT8},
+    {"INT32", ge::DT_INT32},
+    {"INT64", ge::DT_INT64},
+    {"UINT32", ge::DT_UINT32},
+    {"UINT64", ge::DT_UINT64},
+    {"DOUBLE", ge::DT_DOUBLE},
+    {"BF16", ge::DT_BF16},
+    {"HIF4", ge::DT_HIFLOAT4},
+    {"HIF4SCALE", ge::DT_HIFLOAT4_SCALE},
+    {"HIF8", ge::DT_HIFLOAT8},
+    {"FP8E5M2", ge::DT_FLOAT8_E5M2},
+    {"FP8E4M3FN", ge::DT_FLOAT8_E4M3FN},
 };
 
 // the size of user defined output datatype or format std::string after split by ":".

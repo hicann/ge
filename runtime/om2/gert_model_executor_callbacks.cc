@@ -25,6 +25,7 @@
 #include "graph_metadef/common/ge_common/util.h"
 #include "profiling/prof_common.h"
 #include "rt_external_stars.h"
+#include "runtime/gert_model/gert_model_executor_types.h"
 
 namespace {
 
@@ -81,13 +82,18 @@ bool IsAicoreTask(const GertModelTaskDesc &task_info) {
   return is_all_kernel || is_aicore_kernel;
 }
 
+bool IsCustomKernelTask(const GertModelTaskDesc &task_info) {
+  const auto task_type = static_cast<ge::ModelTaskType>(task_info.task_type);
+  return task_type == ge::ModelTaskType::MODEL_TASK_CUSTOM_KERNEL;
+}
+
 int32_t ReportTaskPreprocess(void *instance_handle, GertModelTaskDesc *task_info) {
   const auto kernel_type = static_cast<ge::ccKernelType>(task_info->kernel_type);
   if (instance_handle == nullptr) {
     GELOGW("[OM2] ModelExecutor handle is null, skip preprocess.");
     return ge::SUCCESS;
   }
-  if (!(IsAicoreTask(*task_info) || (kernel_type == ge::ccKernelType::AI_CPU_KFC))) {
+  if (!(IsAicoreTask(*task_info) || IsCustomKernelTask(*task_info) || (kernel_type == ge::ccKernelType::AI_CPU_KFC))) {
     GELOGI(
         "[OM2] Current task does not require preprocess, model_id=%u, op_name=%s, op_type=%s, task_type=%u, "
         "kernel_type=%llu.",
@@ -202,6 +208,33 @@ int32_t LaunchDsaTask(void *instance_handle, GertModelTaskLaunchInfo *launch_inf
   return ReportTaskPostprocess(instance_handle, task_info);
 }
 
+int32_t LaunchCustKernelDumpTask(void *instance_handle, GertModelTaskLaunchInfo *launch_info) {
+  GE_ASSERT_NOTNULL(launch_info, "[OM2] launch_info is nullptr, model_id=%u.", GetModelId(instance_handle));
+  GE_ASSERT_NOTNULL(launch_info->task_info, "[OM2] task_info is nullptr, model_id=%u.", GetModelId(instance_handle));
+  GE_ASSERT_NOTNULL(launch_info->launch_params, "[OM2] launch_params is nullptr, model_id=%u.",
+                    GetModelId(instance_handle));
+  auto &kernel_params = launch_info->launch_params->launch_custom_kernel_params;
+  GE_ASSERT_NOTNULL(kernel_params.func_launch_custom_kernel, "[OM2] func_launch_custom_kernel is nullptr, model_id=%u.",
+                    GetModelId(instance_handle));
+
+  GE_RETURN_WITH_LOG_IF_ERROR(ReportTaskPreprocess(instance_handle, launch_info->task_info),
+                              "[OM2] preprocess failed, model_id=%u, op_name=%s, op_type=%s.",
+                              GetModelId(instance_handle), GetTaskOpName(launch_info->task_info),
+                              GetTaskOpType(launch_info->task_info));
+
+  GE_RETURN_WITH_LOG_IF_ERROR(
+      kernel_params.func_launch_custom_kernel(kernel_params.eager_op, kernel_params.eager_op_context),
+      "[OM2] execute custom kernel failed, model_id=%u, op_name=%s, op_type=%s.", GetModelId(instance_handle),
+      GetTaskOpName(launch_info->task_info), GetTaskOpType(launch_info->task_info));
+
+  GE_RETURN_WITH_LOG_IF_ERROR(ReportTaskPostprocess(instance_handle, launch_info->task_info),
+                              "[OM2] postprocess failed, model_id=%u, op_name=%s, op_type=%s.",
+                              GetModelId(instance_handle), GetTaskOpName(launch_info->task_info),
+                              GetTaskOpType(launch_info->task_info));
+
+  return ge::SUCCESS;
+}
+
 }  // namespace
 
 extern "C" int32_t GertModelLaunchTask(void *instance_handle, GertModelTaskLaunchInfo *launch_info) {
@@ -211,6 +244,8 @@ extern "C" int32_t GertModelLaunchTask(void *instance_handle, GertModelTaskLaunc
       return LaunchKernelTask(instance_handle, launch_info);
     case RT_STARS_TASK_LAUNCH_WITH_FLAG:
       return LaunchDsaTask(instance_handle, launch_info);
+    case ACL_RT_LAUNCH_CUSTOM_KERNEL:
+      return LaunchCustKernelDumpTask(instance_handle, launch_info);
     default:
       GELOGE(ge::UNSUPPORTED, "[OM2] Unsupported launch type=%u, model_id=%u, op_name=%s, op_type=%s.",
              static_cast<uint32_t>(launch_info->launch_type), GetModelId(instance_handle),

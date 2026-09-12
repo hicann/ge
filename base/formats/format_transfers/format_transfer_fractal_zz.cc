@@ -341,7 +341,7 @@ Status TransFormatFromFracZzToNd(const TransArgs &args, TransResult &result, con
 Status FormatTransferFractalZz::TransFormat(const TransArgs &args, TransResult &result) {
   if (!CheckDataTypeSupportForFractalZz(args.src_data_type)) {
     GELOGE(ACL_ERROR_GE_DATATYPE_INVALID,
-           "[Check][Datatype]Failed, not support trans format from %s to %s, "
+           "[Check][Datatype] Format conversion from %s to %s is not supported, "
            "src shape %s, dst shape %s, data type %s",
            TypeUtils::FormatToSerialString(args.src_format).c_str(),
            TypeUtils::FormatToSerialString(args.dst_format).c_str(), ShapeToString(args.src_shape).c_str(),
@@ -357,7 +357,7 @@ Status FormatTransferFractalZz::TransFormat(const TransArgs &args, TransResult &
   }
   if ((!CheckShape(args.src_primary_format, args.src_shape)) || (!IsShapeValid(args.dst_shape))) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID,
-           "[Check][Shape]Failed, not support trans format from %s to %s, "
+           "[Check][Shape] Format conversion from %s to %s is not supported, "
            "src shape %s, dst shape %s, data type %s",
            TypeUtils::FormatToSerialString(args.src_primary_format).c_str(),
            TypeUtils::FormatToSerialString(args.dst_primary_format).c_str(), ShapeToString(args.src_shape).c_str(),
@@ -393,7 +393,7 @@ Status FormatTransferFractalZz::TransShape(const Format src_format, const std::v
                                            std::vector<int64_t> &dst_shape) {
   if (!CheckDataTypeSupportForFractalZz(data_type)) {
     GELOGE(ACL_ERROR_GE_DATATYPE_INVALID,
-           "[Check][Datatype]Failed, not support trans format from %s to %s, "
+           "[Check][Datatype] Format conversion from %s to %s is not supported, "
            "src shape %s, data type %s",
            TypeUtils::FormatToSerialString(src_format).c_str(), TypeUtils::FormatToSerialString(dst_format).c_str(),
            ShapeToString(src_shape).c_str(), TypeUtils::DataTypeToSerialString(data_type).c_str());
@@ -409,7 +409,7 @@ Status FormatTransferFractalZz::TransShape(const Format src_format, const std::v
   const Format dst_primary_format = static_cast<Format>(GetPrimaryFormat(static_cast<int32_t>(dst_format)));
   if (!CheckShape(src_primary_format, src_shape)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID,
-           "[Check][Shape]Failed, not support trans format from %s to %s, "
+           "[Check][Shape] Format conversion from %s to %s is not supported, "
            "src shape %s, data type %s",
            TypeUtils::FormatToSerialString(src_primary_format).c_str(),
            TypeUtils::FormatToSerialString(dst_primary_format).c_str(), ShapeToString(src_shape).c_str(),
@@ -430,7 +430,7 @@ Status FormatTransferFractalZz::TransShape(const Format src_format, const std::v
 Status FormatTransferFractalZzND::TransFormat(const TransArgs &args, TransResult &result) {
   if (!CheckDataTypeSupportForFractalZz(args.src_data_type)) {
     GELOGE(ACL_ERROR_GE_DATATYPE_INVALID,
-           "[Check][Datatype]Failed, not support trans format from %s to %s, "
+           "[Check][Datatype] Format conversion from %s to %s is not supported, "
            "src shape %s, dst shape %s, data type %s",
            TypeUtils::FormatToSerialString(args.src_format).c_str(),
            TypeUtils::FormatToSerialString(args.dst_format).c_str(), ShapeToString(args.src_shape).c_str(),
@@ -447,8 +447,8 @@ Status FormatTransferFractalZzND::TransFormat(const TransArgs &args, TransResult
 
   if ((!IsShapeValid(args.src_shape)) || (!CheckShape(args.dst_primary_format, args.dst_shape))) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID,
-           "[Check][Shape]Failed, not support trans format "
-           "from %s to %s, src shape %s, dst shape %s, data type %s",
+           "[Check][Shape] Format conversion from %s to %s is not supported, "
+           "src shape %s, dst shape %s, data type %s",
            TypeUtils::FormatToSerialString(args.src_format).c_str(),
            TypeUtils::FormatToSerialString(args.dst_format).c_str(), ShapeToString(args.src_shape).c_str(),
            ShapeToString(args.dst_shape).c_str(), TypeUtils::DataTypeToSerialString(args.src_data_type).c_str());

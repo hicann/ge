@@ -92,7 +92,7 @@ ge::Status CreateSoPathHolder(const ge::NodePtr &node, bg::ValueHolderPtr &so_pa
   auto bin_file_buffer = graph->GetExtAttr<std::map<std::string, ge::OpSoBinPtr>>("bin_file_buffer");
   if (bin_file_buffer == nullptr) {
     // bin_file_buffer不存在，走so_path流程
-    GELOGD("Not exist bin_file_buffer.");
+    GELOGD("Does not exist bin_file_buffer.");
     return ge::SUCCESS;
   }
   auto buffer = bin_file_buffer->find(so_path);
@@ -103,7 +103,7 @@ ge::Status CreateSoPathHolder(const ge::NodePtr &node, bg::ValueHolderPtr &so_pa
       return ge::SUCCESS;
     }
 
-    GELOGE(ge::FAILED, "Not exist autofuse so in bin_file_buffer, key:%s.", so_path.c_str());
+    GELOGE(ge::FAILED, "Does not exist autofuse so in bin_file_buffer, key:%s.", so_path.c_str());
     return ge::FAILED;
   }
   GE_ASSERT_NOTNULL(buffer->second.get());

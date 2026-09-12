@@ -158,7 +158,7 @@ bool PotentialFoldingPass::IsKnownEmptyTenor(const ge::GeShape &shape) const {
 Status PotentialFoldingPass::UpdatePeerShapeIfChanged(const NodePtr &node,
                                                       const std::vector<GeTensorPtr> &outputs) const {
   if (node->GetOpDesc()->GetOutputsSize() != outputs.size()) {
-    GELOGE(INTERNAL_ERROR, "Out anchor size %zu, outputs size %zu, not match.", node->GetOpDesc()->GetOutputsSize(),
+    GELOGE(INTERNAL_ERROR, "Out anchor size %zu, outputs size %zu, do not match.", node->GetOpDesc()->GetOutputsSize(),
            outputs.size());
     return INTERNAL_ERROR;
   }

@@ -253,7 +253,7 @@ int32_t LlmServiceFlowFunc::GetCache(const std::shared_ptr<MetaRunContext> &run_
   UDF_LOG_INFO("[cache_id:%ld][GetTensor] start, tensor_index = %d", req_info->cache_id, req_info->tensor_index);
   CacheEntry cache_entry;
   if (!CacheManager::GetInstance().GetCacheEntry(req_info->cache_id, cache_entry)) {
-    UDF_LOG_ERROR("[cache_id:%ld][GetTensor] failed, cache not exist");
+    UDF_LOG_ERROR("[cache_id:%ld][GetTensor] failed, cache does not exist");
     return SetOutput(run_context, out_index, FsmStatus::kFsmKvNotExist);
   }
 

@@ -23,6 +23,7 @@
 #include "graph/custom_op/cast.h"
 #include "graph/custom_op_registry.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/custom_op/op_proto_ledger.h"
 #include "graph/utils/attr_utils.h"
 
 namespace ge {
@@ -243,10 +244,11 @@ Status ModelHelper::LoadCustomOps(const OmFileLoadHelper &om_load_helper, const 
 Status ModelHelper::LoadCustomOpRegistry(const OmFileLoadHelper &om_load_helper,
                                          const GeRootModelPtr &ge_root_model) const {
   GE_ASSERT_NOTNULL(ge_root_model);
-  std::vector<CustomOpSoHandlePtr> loaded_handles;
-  GE_CHK_STATUS_RET(LoadOpSoBin(om_load_helper, ge_root_model, loaded_handles), "[CUSTOM OP] Load so bins failed.");
   auto registry = std::make_shared<CustomOpRegistry>();
   GE_ASSERT_NOTNULL(registry);
+  ScopedOpProtoLoadTxn proto_load_txn(registry);
+  std::vector<CustomOpSoHandlePtr> loaded_handles;
+  GE_CHK_STATUS_RET(LoadOpSoBin(om_load_helper, ge_root_model, loaded_handles), "[CUSTOM OP] Load so bins failed.");
   if (loaded_handles.empty()) {
     GE_ASSERT_TRUE(!HasNonEmptyCustomOpsPartition(om_load_helper),
                    "[CUSTOM OP] custom ops partition exists but no custom op so is loaded.");
@@ -257,6 +259,21 @@ Status ModelHelper::LoadCustomOpRegistry(const OmFileLoadHelper &om_load_helper,
 
   GE_CHK_STATUS_RET(CustomOpRegistryBuilder::AddCreatorsFromSoHandles(loaded_handles, registry),
                     "[CUSTOM OP] Build model custom op registry failed.");
+  if (!proto_load_txn.GetConflicts().empty()) {
+    for (const auto &conflict : proto_load_txn.GetConflicts()) {
+      GELOGE(FAILED,
+             "[CUSTOM OP] conflicting custom op implementations for op type[%s] map kind[%u]: incumbent so[%s] "
+             "fingerprint[%s], "
+             "challenger so[%s] fingerprint[%s].",
+             conflict.op_type.c_str(), static_cast<uint32_t>(conflict.map_kind), conflict.incumbent_so_name.c_str(),
+             conflict.incumbent_fingerprint.c_str(), conflict.challenger_so_name.c_str(),
+             conflict.challenger_fingerprint.c_str());
+    }
+    GELOGE(FAILED,
+           "[CUSTOM OP] load model failed: models in one process must use the same implementation for the "
+           "same custom op type. Align custom op package versions and retry.");
+    return FAILED;
+  }
   GE_CHK_STATUS_RET(LoadCustomOps(om_load_helper, registry), "[CUSTOM OP] Load custom ops to registry failed.");
   GE_CHK_STATUS_RET(ValidateCustomOpsDeserialized(ge_root_model, registry),
                     "[CUSTOM OP] Validate model custom ops deserialized failed.");

@@ -818,6 +818,36 @@ ge::Status GetOm2MemAndWeightSizeFromArchive(ge::RAIIZipArchive &archive, size_t
   return ge::SUCCESS;
 }
 
+ge::Status GetOm2WorkspaceSizeFromArchive(ge::RAIIZipArchive &archive, const bool query_zero_copy_size,
+                                          size_t &work_size, size_t &zero_copy_size) {
+  work_size = 0U;
+  zero_copy_size = 0U;
+  const auto file_names = archive.ListFiles();
+  for (const auto &file_name : file_names) {
+    if (IsFileNameEndsWith(file_name, "model_meta.json")) {
+      size_t buff_size = 0UL;
+      auto buff_data = archive.ExtractToMem(file_name, buff_size);
+      GE_ASSERT_TRUE(buff_data != nullptr && buff_size != 0U);
+      const ge::JsonFile model_meta_json(buff_data.get(), buff_size);
+      GE_ASSERT_TRUE(model_meta_json.IsValid());
+      GE_ASSERT_SUCCESS(GetModelJsonValue("work_size", work_size, model_meta_json));
+      if (query_zero_copy_size) {
+        if (!model_meta_json.Get("zero_copy_size", zero_copy_size)) {
+          zero_copy_size = 0U;
+        }
+        if (zero_copy_size > work_size) {
+          GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Check] zero_copy_size[%zu] is larger than work_size[%zu].",
+                 zero_copy_size, work_size);
+          return ACL_ERROR_GE_PARAM_INVALID;
+        }
+      }
+      return ge::SUCCESS;
+    }
+  }
+  GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Get][ModelMeta] model_meta.json not found.");
+  return ACL_ERROR_GE_PARAM_INVALID;
+}
+
 ge::Status GetOm2ModelMetadataFromArchive(ge::RAIIZipArchive &archive, std::vector<ge::Om2TensorDesc> &input_desc,
                                           std::vector<ge::Om2TensorDesc> &input_desc_v2,
                                           std::vector<ge::Om2TensorDesc> &output_desc,
@@ -979,7 +1009,7 @@ class Om2ModelExecutor::Impl {
         CloseMemFd(so_info.so_fd);
         const char_t *error = mmDlerror();
         error = (error == nullptr) ? "" : error;
-        GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to  load so, path = [%s], error = [%s]",
+        GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to load so, path = [%s], error = [%s]",
                so_info.so_file.c_str(), error);
         return ge::FAILED;
       }
@@ -1003,6 +1033,23 @@ class Om2ModelExecutor::Impl {
       weight_buf = ge::ReadonlyByteBuffer(om2_data.constants_data.weight_data.get(), ge::ConditionalDeleter{false});
     }
 
+    return ge::SUCCESS;
+  }
+
+  ge::Status CheckExternalWorkSize(const Om2ModelLoadArg &load_arg) const {
+    if (load_arg.work_ptr == nullptr) {
+      return ge::SUCCESS;
+    }
+    // The generated pbody receives only work_ptr, so executor must validate the user-provided buffer size first.
+    const size_t required_work_size = load_arg.reuse_zero_copy
+                                          ? (model_meta_info_.work_size - model_meta_info_.zero_copy_size)
+                                          : model_meta_info_.work_size;
+    if (load_arg.work_size < required_work_size) {
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID,
+             "[OM2][Check] External workspace size[%zu] is smaller than required size[%zu].", load_arg.work_size,
+             required_work_size);
+      return ACL_ERROR_GE_PARAM_INVALID;
+    }
     return ge::SUCCESS;
   }
 
@@ -1070,7 +1117,7 @@ class Om2ModelExecutor::Impl {
     if (run_model_info_.so_handle == nullptr) {
       const char_t *error = mmDlerror();
       error = (error == nullptr) ? "" : error;
-      GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to  load so, path = [%s], error = [%s]",
+      GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to load so, path = [%s], error = [%s]",
              run_model_info_.so_file.c_str(), error);
       return ge::FAILED;
     }
@@ -1367,7 +1414,7 @@ class Om2ModelExecutor::Impl {
                            ge::OpDescInfo &op_desc_info) const {
     GE_ASSERT_TRUE(has_model_);
     if (device_id_ != static_cast<int32_t>(device_id)) {
-      GELOGD("[OM2][Get][OpDescInfo] Device id not match, input=%u, model=%d.", device_id, device_id_);
+      GELOGD("[OM2][Get][OpDescInfo] Device id does not match, input=%u, model=%d.", device_id, device_id_);
       return ge::FAILED;
     }
     GE_ASSERT_NOTNULL(dump_manager_);
@@ -1701,6 +1748,10 @@ ge::Status Om2ModelExecutor::Load(const gert::Om2ModelData &model_data, const Om
   std::vector<KernelBinInfo> kernel_bin_info;
   GE_CHK_STATUS_RET(impl_->LoadFromOm2ModelData(model_data, weight_buf, kernel_bin_info),
                     "[OM2][Load] Load from Om2ModelData failed.");
+  const auto check_work_size_ret = impl_->CheckExternalWorkSize(load_arg);
+  if (check_work_size_ret != ge::SUCCESS) {
+    return check_work_size_ret;
+  }
   GE_ASSERT_SUCCESS(impl_->LoadSharedObject());
   GE_ASSERT_SUCCESS(impl_->ResolveSymbols());
   GE_ASSERT_SUCCESS(impl_->CreateDumpManager(load_arg));
@@ -1885,6 +1936,27 @@ ge::Status GetOm2MemAndWeightSize(const void *model_data, size_t model_size, siz
   GE_ASSERT_TRUE(archive.IsGood());
   GE_ASSERT_SUCCESS(GetOm2MemAndWeightSizeFromArchive(archive, work_size, internal_weight_size));
   return ge::SUCCESS;
+}
+
+ge::Status GetOm2WorkspaceSize(const std::string &model_path, const bool query_zero_copy_size, size_t &work_size,
+                               size_t &zero_copy_size) {
+  ge::ModelData model_data;
+  GE_CHK_STATUS_RET(LoadOm2DataFromFile(model_path, model_data), "[OM2][Query] Load model data from file failed.");
+  std::shared_ptr<void> data_guarder(model_data.model_data, [](const void *const p) {
+    if (p != nullptr) {
+      delete[] static_cast<const uint8_t *>(p);
+    }
+  });
+  ge::RAIIZipArchive archive(static_cast<uint8_t *>(model_data.model_data), model_data.model_len);
+  GE_ASSERT_TRUE(archive.IsGood());
+  return GetOm2WorkspaceSizeFromArchive(archive, query_zero_copy_size, work_size, zero_copy_size);
+}
+
+ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, const bool query_zero_copy_size,
+                               size_t &work_size, size_t &zero_copy_size) {
+  ge::RAIIZipArchive archive(static_cast<const uint8_t *>(model_data), model_size);
+  GE_ASSERT_TRUE(archive.IsGood());
+  return GetOm2WorkspaceSizeFromArchive(archive, query_zero_copy_size, work_size, zero_copy_size);
 }
 
 ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<ge::Om2TensorDesc> &input_desc,

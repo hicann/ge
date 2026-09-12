@@ -198,7 +198,11 @@ void IfSubgraphAdapter::AddInputNodeForGraph(const std::set<std::string> &all_in
 void IfSubgraphAdapter::AddInputForParentNode(const std::set<std::string> &all_inputs,
                                               ge::onnx::NodeProto &parent_node) const {
   std::set<std::string> existing_inputs;
-  for (int i = 0; i < parent_node.input_size(); i++) {
+  // input[0] 固定是 cond 槽位，不参与去重：若分支子图闭包捕获了 cond，
+  // 子图侧会把它追加为新的子图 input（对应 If.input 的下一个槽位），
+  // 此时 If 侧必须同步追加同名输入，不能复用 input[0]，否则子图 Data 的
+  // parent_index = data_index + 1 会越界。
+  for (int i = 1; i < parent_node.input_size(); i++) {
     existing_inputs.emplace(parent_node.input(i));
   }
   for (const auto &input_name : all_inputs) {

@@ -168,7 +168,7 @@ bool AclOpMap<T>::CheckValueRange(const AclOp &op, const T &entry) const {
       ACL_LOG_INFO("the input [%zu] needs to check value range", i);
       if (!attr_utils::ValueRangeCheck(entry->inputDescArr[i].valueRange, op.inputs[i],
                                        entry->inputDescArr[i].dataType)) {
-        ACL_LOG_DEBUG("ValueRangeCheck input is not match");
+        ACL_LOG_DEBUG("ValueRangeCheck input does not match");
         return false;
       }
     }
@@ -178,7 +178,7 @@ bool AclOpMap<T>::CheckValueRange(const AclOp &op, const T &entry) const {
       ACL_LOG_INFO("the output [%zu] needs to check value range", i);
       if (!attr_utils::ValueRangeCheck(entry->outputDescArr[i].valueRange, op.outputs[i],
                                        entry->outputDescArr[i].dataType)) {
-        ACL_LOG_DEBUG("ValueRangeCheck output is not match");
+        ACL_LOG_DEBUG("ValueRangeCheck output does not match");
         return false;
       }
     }

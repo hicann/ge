@@ -82,7 +82,7 @@ int32_t NpuSchedProcessor::Initialize(int32_t device_id) {
   }
   device_id_ = device_id;
   auto phy_device_id = GlobalConfig::Instance().GetPhyDeviceId();
-  UDF_LOG_INFO("npu sched processor init success, running device id=%d,  phy_device_id=%d.", device_id, phy_device_id);
+  UDF_LOG_INFO("npu sched processor init success, running device id=%d, phy_device_id=%d.", device_id, phy_device_id);
   return FLOW_FUNC_SUCCESS;
 }
 

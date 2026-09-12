@@ -37,7 +37,7 @@ graphStatus InferShape4LayerNorm(gert::InferSymbolShapeContext *context) {
   auto *begin_norm_axis_ptr = attrs->GetAttrPointer<int64_t>(0);
   GE_ASSERT_NOTNULL(begin_norm_axis_ptr);
   if (!SymbolicInferUtil::IsDimValid(x_shape->GetDimNum(), *begin_norm_axis_ptr)) {
-    GELOGE(PARAM_INVALID, "axis=%d  but input_x is %d", *begin_norm_axis_ptr, x_shape->GetDimNum());
+    GELOGE(PARAM_INVALID, "axis=%d but input_x is %d", *begin_norm_axis_ptr, x_shape->GetDimNum());
     return PARAM_INVALID;
   }
   int64_t begin_norm_axis_val = *begin_norm_axis_ptr < 0

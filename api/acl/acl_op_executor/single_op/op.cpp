@@ -112,13 +112,13 @@ aclError aclopCreateHandleImpl(const char *opType, int numInputs, const aclTenso
   if (acl::array_utils::IsHostMemTensorDesc(numInputs, inputDesc) != ACL_SUCCESS) {
     ACL_LOG_INNER_ERROR(
         "[Check][HostMemTensorDesc]aclopCreateHandle or ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT "
-        "placeMent in inputDesc not support");
+        "placeMent in inputDesc is not supported");
     return ACL_ERROR_API_NOT_SUPPORT;
   }
   if (acl::array_utils::IsHostMemTensorDesc(numOutputs, outputDesc) != ACL_SUCCESS) {
     ACL_LOG_INNER_ERROR(
         "[Check][HostMemTensorDesc]aclopCreateHandle ACL_MEMTYPE_HOST or "
-        "ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT placeMent in outputDesc not support");
+        "ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT placeMent in outputDesc is not supported");
     return ACL_ERROR_API_NOT_SUPPORT;
   }
 

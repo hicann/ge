@@ -84,7 +84,7 @@ Status OpsKernelExecutorManager::InitializePlugin(PluginManager &plugin_manager,
   const std::vector<std::string> func_check_list = {kExecutorPluginFuncInitialize, kExecutorPluginFuncGetExecutors,
                                                     kExecutorPluginFuncFinalize};
   GE_CHK_STATUS_RET(plugin_manager.LoadSo(plugin_paths, func_check_list),
-                    "[Check][SoFile] not find any valid so file.");
+                    "[Check][SoFile] not found any valid so file.");
   if (plugin_manager.InvokeAll<std::map<std::string, std::string> &, Status>(kExecutorPluginFuncInitialize, options_) !=
       SUCCESS) {
     GELOGE(GE_OPS_GET_NO_VALID_SO, "[Invoke][OpsKernelInfo]PluginManager InvokeAll failed.");

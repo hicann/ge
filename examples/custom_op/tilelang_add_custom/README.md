@@ -8,7 +8,7 @@
 - **核心链路**: `TileLang kernel → 预编译 .so → GE 交付件 → 进程内构图 → Session::ExecuteGraphWithStreamAsync 在线执行`
 - **场景**: 场景 A — 动态图在线执行（预编译 kernel + host 调度）
 
-本样例以 element-wise Add 算子为例，展示如何将 TileLang 编写的 kernel 通过 GE 语言无关自定义算子机制接入图编译和执行流程。
+本样例以 element-wise Add 算子为例，展示如何将 TileLang 编写的 kernel 通过 GE 的语言无关自定义算子机制接入图编译和执行流程。
 
 ## 目录结构
 
@@ -98,7 +98,7 @@ bash run.sh
 Kernel .so saved to: add_kernel.so
 [INFO] Step 2/4: build custom op library and session_run
 ...
-[INFO] Step 3/4: kernel .so installed in OPP package.
+[INFO] kernel .so installed in OPP package.
 [INFO] Step 4/4: run session test
 Precision check passed, max_error=0
 [INFO] Sample pipeline finished.
@@ -111,12 +111,12 @@ Precision check passed, max_error=0
 GE 交付件，实现 `EagerExecuteOp` + `ShapeInferOp`：
 
 - **Execute**:
-  1. 首次调用时通过 `dlopen` 加载 `add_kernel.so`（路径从 `ASCEND_CUSTOM_OPP_PATH` 定位），`dlsym` 获取 `call` 函数指针
+  1. 首次调用时通过 `dlopen` 加载 `add_kernel.so`（路径通过 `ASCEND_CUSTOM_OPP_PATH` 环境变量定位），`dlsym` 获取 `call` 函数指针
   2. 校验两个输入的 shape size 均为 4096
   3. 分配输出 Tensor，调用 `call(x_ptr, y_ptr, z_ptr, stream)`
 - **InferShape / InferDataType**: 输出 shape 和 dtype 与输入相同
 - 使用 `std::once_flag` 保证线程安全的延迟加载
-- kernel `.so` 路径从 `ASCEND_CUSTOM_OPP_PATH` 环境变量定位，不依赖工作目录
+- kernel `.so` 路径通过 `ASCEND_CUSTOM_OPP_PATH` 环境变量定位，不依赖工作目录
 
 ### `ge/add_custom.h`
 
@@ -144,7 +144,7 @@ GE 原生构图测试程序：
 | 算子类型 | `AddCustom` |
 | 输入 | `x` (float32), `y` (float32) |
 | 输出 | `z` (float32) |
-| 输入 shape | `[4096]` (固定) |
+| 输入 shape | `[4096]`（固定） |
 | 输出 shape | `[4096]` |
 | 格式 | ND |
 | kernel 名称 | `main_kernel`（由 `call` 封装） |
@@ -174,4 +174,4 @@ export ASCEND_CUSTOM_OPP_PATH="$(pwd)/output:$ASCEND_CUSTOM_OPP_PATH"
 - `ge.graphRunMode=1` 确保走在线执行链路（PRIORITY_GRAPH 模式）。
 - 当前样例仅支持 float32，如需支持更多数据类型需调整 `REG_OP` 的 `DATATYPE` 约束和 TileLang kernel 的 dtype 参数。
 - TileLang-Ascend 的平台检测基于 `torch.npu.get_device_name()`，Ascend910 映射为 A2 平台。
-- kernel `.so` 安装在 OPP 包的 `op_graph/lib/<os>/<arch>/` 目录下，与 `libcust_opapi.so` 同目录，路径从 `ASCEND_CUSTOM_OPP_PATH` 定位。
+- kernel `.so` 安装在 OPP 包的 `op_graph/lib/<os>/<arch>/` 目录下，与 `libcust_opapi.so` 同目录，路径通过 `ASCEND_CUSTOM_OPP_PATH` 环境变量定位。

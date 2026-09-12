@@ -501,6 +501,7 @@ TEST_F(UtestComputeGraph, FuseNodeKeepTopo_success) {
   AttrUtils::SetStr(relu3->GetOpDesc(), public_attr::USER_STREAM_LABEL, "test_stream");
   auto relu4 = builder.AddNode("Relu4", "Relu", 1, 1);
   auto relu5 = builder.AddNode("Relu5", "Relu", 1, 1);
+  AttrUtils::SetStr(relu5->GetOpDesc(), public_attr::USER_STREAM_LABEL, "test_stream");
   auto relu6 = builder.AddNode("Relu6", "Relu", 1, 1);
   auto add_node = builder.AddNode("Add", "Add", 2, 1);
   auto add2_node = builder.AddNode("Add2", "Add", 2, 1);
@@ -1028,6 +1029,80 @@ TEST_F(UtestComputeGraph, StreamLableNotSame_FuseNodeKeepTopo_failed) {
   std::string inherited_stream_label;
   AttrUtils::GetStr(op_desc_new, public_attr::USER_STREAM_LABEL, inherited_stream_label);
   EXPECT_TRUE(inherited_stream_label.empty());
+}
+
+TEST_F(UtestComputeGraph, StreamLablePartial_FuseNodeKeepTopo_failed) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto tensor_desc = std::make_shared<GeTensorDesc>();
+  tensor_desc->SetShape(GeShape({1}));
+  tensor_desc->SetDataType(DT_FLOAT);
+  tensor_desc->SetFormat(FORMAT_CHWN);
+
+  auto data1 = builder.AddNode("Data1", "Data", 0, 1);
+  auto data2 = builder.AddNode("Data2", "Data", 0, 1);
+  auto relu1 = builder.AddNode("Relu1", "Relu", 1, 1);
+  auto relu2 = builder.AddNode("Relu2", "Relu", 1, 1);
+  auto relu3 = builder.AddNode("Relu3", "Relu", 1, 1);
+  AttrUtils::SetStr(relu3->GetOpDesc(), public_attr::USER_STREAM_LABEL, "test_stream1");
+  auto relu4 = builder.AddNode("Relu4", "Relu", 1, 1);
+  auto relu5 = builder.AddNode("Relu5", "Relu", 1, 1);
+  auto relu6 = builder.AddNode("Relu6", "Relu", 1, 1);
+  auto add_node = builder.AddNode("Add", "Add", 2, 1);
+  auto add2_node = builder.AddNode("Add2", "Add", 2, 1);
+  auto netoutput = builder.AddNode("Netoutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(data1, 0, relu1, 0);
+  builder.AddDataEdge(data2, 0, relu2, 0);
+  builder.AddDataEdge(relu1, 0, relu3, 0);
+  builder.AddDataEdge(relu1, 0, relu4, 0);
+  builder.AddDataEdge(relu3, 0, relu5, 0);
+  builder.AddDataEdge(relu4, 0, relu6, 0);
+  builder.AddDataEdge(relu5, 0, add_node, 0);
+  builder.AddDataEdge(relu6, 0, add_node, 1);
+  builder.AddDataEdge(relu2, 0, add2_node, 0);
+  builder.AddDataEdge(add_node, 0, add2_node, 1);
+  builder.AddDataEdge(add2_node, 0, netoutput, 0);
+  auto graph = builder.GetGraph();
+
+  auto op_desc_new = std::make_shared<OpDesc>("fuse_node", "Relu");
+  op_desc_new->AddInputDesc(tensor_desc->Clone());
+  op_desc_new->AddOutputDesc(tensor_desc->Clone());
+  std::string not_support_reason;
+  EXPECT_FALSE(graph->IsSupportFuse({relu3, relu5}, not_support_reason));
+  EXPECT_TRUE(not_support_reason.find("test_stream1") > 0);
+  auto fuse_node_vec = graph->FuseNodeKeepTopo({relu3, relu5}, {op_desc_new});
+  EXPECT_TRUE(fuse_node_vec.empty());
+  std::string inherited_stream_label;
+  AttrUtils::GetStr(op_desc_new, public_attr::USER_STREAM_LABEL, inherited_stream_label);
+  EXPECT_TRUE(inherited_stream_label.empty());
+}
+
+TEST_F(UtestComputeGraph, StreamLableWithStreamIrrelevantNode_FuseNodeKeepTopo_success) {
+  ut::GraphBuilder builder = ut::GraphBuilder("graph");
+  auto tensor_desc = std::make_shared<GeTensorDesc>();
+  tensor_desc->SetShape(GeShape({1}));
+  tensor_desc->SetDataType(DT_FLOAT);
+  tensor_desc->SetFormat(FORMAT_CHWN);
+
+  auto const1 = builder.AddNode("Const1", CONSTANT, 0, 1);
+  auto relu3 = builder.AddNode("Relu3", "Relu", 1, 1);
+  AttrUtils::SetStr(relu3->GetOpDesc(), public_attr::USER_STREAM_LABEL, "test_stream");
+  auto relu5 = builder.AddNode("Relu5", "Relu", 1, 1);
+  auto netoutput = builder.AddNode("Netoutput", "NetOutput", 1, 0);
+  builder.AddDataEdge(const1, 0, relu3, 0);
+  builder.AddDataEdge(relu3, 0, relu5, 0);
+  builder.AddDataEdge(relu5, 0, netoutput, 0);
+  auto graph = builder.GetGraph();
+
+  auto op_desc_new = std::make_shared<OpDesc>("fuse_node", "Relu");
+  op_desc_new->AddInputDesc(tensor_desc->Clone());
+  op_desc_new->AddOutputDesc(tensor_desc->Clone());
+  std::string not_support_reason;
+  EXPECT_TRUE(graph->IsSupportFuse({relu3, const1}, not_support_reason));
+  auto fuse_node_vec = graph->FuseNodeKeepTopo({relu3, const1}, {op_desc_new});
+  ASSERT_EQ(fuse_node_vec.size(), 1U);
+  std::string inherited_stream_label;
+  AttrUtils::GetStr(op_desc_new, public_attr::USER_STREAM_LABEL, inherited_stream_label);
+  EXPECT_STREQ(inherited_stream_label.c_str(), "test_stream");
 }
 
 TEST_F(UtestComputeGraph, RemoveNode_success) {

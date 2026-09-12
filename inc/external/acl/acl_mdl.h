@@ -936,6 +936,22 @@ ACL_FUNC_VISIBILITY aclError aclmdlQuerySize(const char *fileName, size_t *workS
 
 /**
  * @ingroup AscendCL
+ * @brief Get working memory size required for model execution according to the model file and workspace memory
+ * optimization mode
+ *
+ * @param  fileName [IN]         Model path to get memory information
+ * @param  memOptimizeMode [IN]  Workspace memory optimization mode.
+ *                                Valid values: ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT(0),
+ *                                ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT(1)
+ * @param  workSize [OUT]        The amount of working memory for model executed
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlQueryWorkspaceSize(const char *fileName, size_t memOptimizeMode, size_t *workSize);
+
+/**
+ * @ingroup AscendCL
  * @brief Get the size of each partition and working memory size
  * required for model execution according to the model file
  *
@@ -965,6 +981,24 @@ ACL_FUNC_VISIBILITY aclError aclmdlQueryExeOMDesc(const char *fileName, aclmdlEx
  */
 ACL_FUNC_VISIBILITY aclError aclmdlQuerySizeFromMem(const void *model, size_t modelSize, size_t *workSize,
                                                     size_t *weightSize);
+
+/**
+ * @ingroup AscendCL
+ * @brief Get working memory size required for model execution according to the model data in memory and workspace
+ * memory optimization mode
+ *
+ * @param  model [IN]            model memory which user manages
+ * @param  modelSize [IN]        model data size
+ * @param  memOptimizeMode [IN]  Workspace memory optimization mode.
+ *                                Valid values: ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT(0),
+ *                                ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT(1)
+ * @param  workSize [OUT]        The amount of working memory for model executed
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlQueryWorkspaceSizeFromMem(const void *model, size_t modelSize,
+                                                             size_t memOptimizeMode, size_t *workSize);
 
 /**
  * @ingroup AscendCL

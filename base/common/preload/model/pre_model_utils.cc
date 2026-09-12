@@ -240,7 +240,7 @@ std::vector<std::pair<uint64_t, uint32_t>> PreModelUtils::GetWorkspaceDataAddrOf
     const bool aicpu_work_space =
         (has_workspace_reuse && (i < workspace_reuse_flag.size()) && (!workspace_reuse_flag[i]));
     if (aicpu_work_space) {
-      GELOGW("not support aicpu work space, pls check.");
+      GELOGW("AICPU workspace is not supported. Please check.");
       continue;
     }
     const bool session_scope_memory = (has_workspace_no_reuse_scope) && (i < workspace_no_reuse_scope.size());

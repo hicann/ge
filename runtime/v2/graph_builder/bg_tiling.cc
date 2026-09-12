@@ -581,7 +581,7 @@ ge::Status GetArgsFormatForTilingData(const ge::NodePtr &node, std::string &args
       args_format_str = ctx_def.mix_aic_aiv_ctx().args_format();
     }
   } else if (op_desc->GetType() == ge::PARTITIONEDCALL) {
-    GELOGW("Node[%s] ffts task not support", node->GetNamePtr());
+    GELOGW("Node[%s] ffts task is not supported", node->GetNamePtr());
     return ge::UNSUPPORTED;
   } else {
     const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);

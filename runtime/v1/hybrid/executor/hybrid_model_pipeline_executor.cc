@@ -367,7 +367,7 @@ Status HybridModelPipelineExecutor::Execute(const std::vector<gert::Tensor> &inp
   (void)ctrl_args;
   (void)outputs;
   (void)inputs;
-  GELOGE(FAILED, "Pipeline executor not support upper interface RunGraph");
+  GELOGE(FAILED, "Pipeline executor does not support upper interface RunGraph");
   return FAILED;
 }
 

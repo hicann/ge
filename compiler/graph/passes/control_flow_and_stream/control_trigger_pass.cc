@@ -54,7 +54,7 @@ Status ControlTriggerPass::HandleDynamicCtrlEdges(ComputeGraphPtr &graph, NodePt
   }
 
   if (switch_node == nullptr) {
-    GELOGI("Not find valid switch node.");
+    GELOGI("Did not find valid switch node.");
     return SUCCESS;
   }
   auto iter1 = control_trigger_map_.find(node);

@@ -381,6 +381,39 @@ std::string MakeVarResourceJson(const size_t init_data_offset, const size_t init
   return root.Dump();
 }
 
+std::string MakeModelMetaJsonWithZeroCopySize(const size_t zero_copy_size) {
+  std::string model_meta = MakeModelMetaJson();
+  const std::string old_field = R"("zero_copy_size": 0)";
+  const std::string new_field = "\"zero_copy_size\": " + std::to_string(zero_copy_size);
+  const auto pos = model_meta.find(old_field);
+  EXPECT_NE(pos, std::string::npos);
+  if (pos != std::string::npos) {
+    model_meta.replace(pos, old_field.size(), new_field);
+  }
+  return model_meta;
+}
+
+std::string MakeModelMetaJsonWithoutZeroCopySize() {
+  std::string model_meta = MakeModelMetaJson();
+  const std::string work_size_field = R"(    "work_size": 2048,
+)";
+  const std::string work_size_field_without_comma = R"(    "work_size": 2048
+)";
+  const auto work_size_pos = model_meta.find(work_size_field);
+  EXPECT_NE(work_size_pos, std::string::npos);
+  if (work_size_pos != std::string::npos) {
+    model_meta.replace(work_size_pos, work_size_field.size(), work_size_field_without_comma);
+  }
+  const std::string field = R"(    "zero_copy_size": 0
+)";
+  const auto pos = model_meta.find(field);
+  EXPECT_NE(pos, std::string::npos);
+  if (pos != std::string::npos) {
+    model_meta.erase(pos, field.size());
+  }
+  return model_meta;
+}
+
 static std::string interface_header_src = R"(#pragma once
 
 #include <cstddef>
@@ -1516,6 +1549,7 @@ TEST_F(Om2ModelExecutorUt, load_preserves_zero_copy_and_origin_input_dims_from_m
 
   gert::Om2ModelExecutor executor;
   auto load_arg{MakeOm2LoadArg()};
+  load_arg.reuse_zero_copy = true;
   std::vector<uint8_t> external_work(1024U, 0U);
   load_arg.work_ptr = external_work.data();
   load_arg.work_size = external_work.size();
@@ -1703,6 +1737,15 @@ TEST_F(Om2ModelExecutorUt, load_ok_with_external_work_ptr_and_internal_weight_fr
   ASSERT_EQ(setenv("OM2_EXPECT_CONST0_MODE", "NON_NULL", 1), 0);
   ASSERT_EQ(setenv("OM2_EXPECT_CONST0_FIRST_BYTE", "1", 1), 0);
   EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, load_failed_when_external_work_size_is_insufficient) {
+  auto model_data_holder = LoadValidModelData();
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  load_arg.work_ptr = reinterpret_cast<void *>(0x12345);
+  load_arg.work_size = 1024U;
+  EXPECT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), ACL_ERROR_GE_PARAM_INVALID);
 }
 
 TEST_F(Om2ModelExecutorUt, load_ok_with_internal_work_ptr_and_external_device_weight) {
@@ -2020,6 +2063,64 @@ TEST_F(Om2ModelExecutorUt, get_mem_and_weight_size_from_mem_ok) {
             SUCCESS);
   EXPECT_EQ(work_size, 2048U);
   EXPECT_EQ(weight_size, 16U);
+}
+
+TEST_F(Om2ModelExecutorUt, get_workspace_size_from_file_default_ok) {
+  PrepareOm2File();
+  size_t work_size = 0U;
+  size_t zero_copy_size = 1024U;
+  EXPECT_EQ(gert::GetOm2WorkspaceSize(om2_file_path_, false, work_size, zero_copy_size), SUCCESS);
+  EXPECT_EQ(work_size, 2048U);
+  EXPECT_EQ(zero_copy_size, 0U);
+}
+
+TEST_F(Om2ModelExecutorUt, get_workspace_size_from_file_with_zero_copy_size_ok) {
+  const std::string om2_file_path = PathUtils::Join({test_work_dir_, "workspace_zero_copy.om2"});
+  ZipArchiveWriter zip_writer(om2_file_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithZeroCopySize(512U);
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  size_t work_size = 0U;
+  size_t zero_copy_size = 0U;
+  EXPECT_EQ(gert::GetOm2WorkspaceSize(om2_file_path, true, work_size, zero_copy_size), SUCCESS);
+  EXPECT_EQ(work_size, 2048U);
+  EXPECT_EQ(zero_copy_size, 512U);
+}
+
+TEST_F(Om2ModelExecutorUt, get_workspace_size_missing_zero_copy_size_ok) {
+  const std::string om2_file_path = PathUtils::Join({test_work_dir_, "workspace_missing_zero_copy.om2"});
+  ZipArchiveWriter zip_writer(om2_file_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithoutZeroCopySize();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  size_t work_size = 0U;
+  size_t zero_copy_size = 1024U;
+  EXPECT_EQ(gert::GetOm2WorkspaceSize(om2_file_path, true, work_size, zero_copy_size), SUCCESS);
+  EXPECT_EQ(work_size, 2048U);
+  EXPECT_EQ(zero_copy_size, 0U);
+}
+
+TEST_F(Om2ModelExecutorUt, get_workspace_size_failed_when_zero_copy_size_overflows_work_size) {
+  const std::string om2_file_path = PathUtils::Join({test_work_dir_, "workspace_zero_copy_overflow.om2"});
+  ZipArchiveWriter zip_writer(om2_file_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJsonWithZeroCopySize(4096U);
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+
+  size_t work_size = 0U;
+  size_t zero_copy_size = 0U;
+  EXPECT_EQ(gert::GetOm2WorkspaceSize(om2_file_path, true, work_size, zero_copy_size), ACL_ERROR_GE_PARAM_INVALID);
 }
 
 // 辅助函数：生成带属性的op_attr.json

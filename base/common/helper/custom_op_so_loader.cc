@@ -26,6 +26,7 @@
 #include "common/checker.h"
 #include "framework/common/debug/log.h"
 #include "graph/custom_op_load_context.h"
+#include "graph/custom_op/op_proto_ledger.h"
 #include "graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 
@@ -182,6 +183,7 @@ void CustomOpSoLoader::Finalize() {
       release_ops_reg_info();
     }
   }
+  OpProtoLedger::ResetForFinalize();
   loader.Cleanup();
 }
 
@@ -292,6 +294,7 @@ Status CustomOpSoLoader::LoadSingleCustomOpSoBin(const OpSoBinPtr &so_bin,
   GE_ASSERT_SUCCESS(GetSoKey(so_bin, diagnostic_so_key));
   std::string fingerprint_key;
   GE_ASSERT_SUCCESS(CalculateSoBinFingerprint(so_bin, fingerprint_key));
+  OpProtoLedger::SetCurrentProvider(fingerprint_key, so_bin->GetSoName());
 
   auto loaded_handle = GetLoadedHandle(fingerprint_key);
   if (loaded_handle != nullptr) {
@@ -315,6 +318,7 @@ Status CustomOpSoLoader::LoadSingleCustomOpSoBin(const OpSoBinPtr &so_bin,
   }
   PublishOrReuseLoadedHandle(fingerprint_key, candidate_handle, loaded_handle);
   GE_ASSERT_NOTNULL(loaded_handle);
+  OpProtoLedger::AttachProviderHandle(fingerprint_key, std::shared_ptr<void>(loaded_handle));
   loaded_handles.emplace_back(loaded_handle);
   return SUCCESS;
 }

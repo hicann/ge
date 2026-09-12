@@ -79,7 +79,8 @@ void AutoMappingUtil::ConvertTensorList(const domi::tensorflow::AttrValue_ListVa
 void AutoMappingUtil::ConvertFunc(const domi::tensorflow::NameAttrList &tf_func, ge::NamedAttrs &ge_func,
                                   const int32_t recursive_depth) {
   if (recursive_depth >= kMaxFuncRecursiveDepth) {
-    GELOGW("The call stack has exceeded the maximum recursive depth");
+    GELOGW("The call stack has exceeded the maximum recursive depth(%d), max(%d)", recursive_depth,
+           kMaxFuncRecursiveDepth);
     return;
   }
   ge_func.SetName(tf_func.name());
@@ -110,7 +111,8 @@ void AutoMappingUtil::ConvertShapeList(const domi::tensorflow::AttrValue_ListVal
 void AutoMappingUtil::ConvertFuncList(const domi::tensorflow::AttrValue_ListValue &list,
                                       std::vector<ge::NamedAttrs> &vec, const int32_t recursive_depth) {
   if (recursive_depth >= kMaxFuncRecursiveDepth) {
-    GELOGW("The call stack has exceeded the maximum recursive depth");
+    GELOGW("The call stack has exceeded the maximum recursive depth(%d), max(%d)", recursive_depth,
+           kMaxFuncRecursiveDepth);
     return;
   }
   vec.clear();

@@ -600,7 +600,7 @@ KernelBox StoreConv2D(const ge::OutDataAnchorPtr &dst, const std::vector<ge::InD
     return StoreExtern(dst);
   }
   if (dims.size() != 4U) {
-    GELOGI("Drop lower result of %s as output shape dim=%zu not support", BufferName(dst).c_str(), dims.size());
+    GELOGI("Drop lower result of %s as output shape dim=%zu is not supported", BufferName(dst).c_str(), dims.size());
     return StoreExtern(dst);
   }
   std::vector<LoopOpPtr> input_buffers;

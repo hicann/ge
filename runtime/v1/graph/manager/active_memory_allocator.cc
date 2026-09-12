@@ -303,7 +303,7 @@ uint8_t *ExpandableActiveMemoryAllocator::MallocMemory(const std::string &purpos
       incremental ? (used_memory_size_ + static_cast<size_t>(memory_size)) : static_cast<size_t>(memory_size);
   if (MallocVirtualMemory(malloc_size) != SUCCESS) {
     support_reserve_mem_address_ = false;
-    GELOGW("Maybe not support rtReserveMemAddress.");
+    GELOGW("Maybe does not support rtReserveMemAddress.");
     return nullptr;
   }
   GE_ASSERT_SUCCESS(MallocPhysicalMemoryAndMap(purpose, malloc_size));

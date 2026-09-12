@@ -266,7 +266,7 @@ int32_t FlowFuncRunContext::CheckAffinityPolicy(AffinityPolicy policy) const {
     }
   } else if (params_->IsBalanceGather()) {
     if (policy == AffinityPolicy::NO_AFFINITY) {
-      UDF_LOG_ERROR("balance gather node not support NO_AFFINITY(%d) policy, instance name[%s].",
+      UDF_LOG_ERROR("balance gather node does not support NO_AFFINITY(%d) policy, instance name[%s].",
                     static_cast<int32_t>(AffinityPolicy::NO_AFFINITY), params_->GetName());
       return FLOW_FUNC_ERR_PARAM_INVALID;
     }
@@ -310,7 +310,7 @@ int32_t FlowFuncRunContext::BalanceOptionFilter(const OutOptions &options,
     const auto &out_msg = out_msgs[i];
     auto mbuf_flow_msg = std::dynamic_pointer_cast<MbufFlowMsg>(out_msg);
     if (mbuf_flow_msg == nullptr) {
-      UDF_LOG_ERROR("not support custom define flow msg now, instance name[%s].", params_->GetName());
+      UDF_LOG_ERROR("does not support custom define flow msg now, instance name[%s].", params_->GetName());
       return FLOW_FUNC_ERR_PARAM_INVALID;
     }
     uint32_t data_label = 0;

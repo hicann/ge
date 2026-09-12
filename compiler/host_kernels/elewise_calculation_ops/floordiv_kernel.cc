@@ -77,7 +77,7 @@ Status FloorDivKernel::FloorDivCheck(const OpDescPtr &op_desc_ptr,
     return PARAM_INVALID;
   }
   if (kFloorDivSupportedType.find(x_data_dtype) == kFloorDivSupportedType.end()) {
-    GELOGW("FloorDivKernel data type %s not support, node name: %s",
+    GELOGW("FloorDivKernel data type %s is not supported, node name: %s",
            TypeUtils::DataTypeToSerialString(x_data_dtype).c_str(), op_desc_ptr->GetName().c_str());
     return PARAM_INVALID;
   }

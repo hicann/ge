@@ -32,7 +32,7 @@ int32_t ReportDfxTaskPreprocess(uint32_t model_id, void *instance_handle, const 
   (void)model_id;
 
   if ((extended_attrs != nullptr) || (extended_attrs_size != 0U)) {
-    GELOGW("Extended attrs is not supported in preprocess");
+    GELOGW("Extended attrs are not supported in preprocess");
   }
 
   if ((instance_handle == nullptr) || (task_info == nullptr)) {
@@ -53,7 +53,7 @@ int32_t ReportDfxTaskPostprocess(uint32_t model_id, void *instance_handle, const
   (void)model_id;
 
   if ((extended_attrs != nullptr) || (extended_attrs_size != 0U)) {
-    GELOGW("Extended attrs is not supported in postprocess");
+    GELOGW("Extended attrs are not supported in postprocess");
   }
 
   if ((instance_handle == nullptr) || (task_info == nullptr)) {
@@ -66,7 +66,7 @@ int32_t ReportDfxTaskPostprocess(uint32_t model_id, void *instance_handle, const
     GELOGW("ModelDumpManager is null, skip postprocess");
     return ge::SUCCESS;
   }
-  return static_cast<int32_t>(manager->AddOm2TaskInfo(*task_info));
+  return static_cast<int32_t>(manager->PostprocessOm2TaskInfo(*task_info));
 }
 
 int32_t IsDataDumpEnabled(uint32_t model_id, void *instance_handle, const char *op_name, uint8_t *is_data_dump) {

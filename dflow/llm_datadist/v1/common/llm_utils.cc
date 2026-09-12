@@ -130,7 +130,7 @@ ge::Status LLMUtils::FindContiguousBlockIndexPair(const std::vector<uint64_t> &s
                                                   const std::vector<uint64_t> &dst_blocks,
                                                   std::vector<std::vector<std::pair<int64_t, int64_t>>> &result) {
   LLM_CHK_BOOL_RET_STATUS(src_blocks.size() == dst_blocks.size(), ge::LLM_PARAM_INVALID,
-                          "src_block num:%zu not match dst_block num:%zu", src_blocks.size(), dst_blocks.size());
+                          "src_block num:%zu does not match dst_block num:%zu", src_blocks.size(), dst_blocks.size());
   std::vector<std::pair<int64_t, int64_t>> block_mapping;
   for (size_t i = 0UL; i < src_blocks.size(); ++i) {
     block_mapping.emplace_back(std::make_pair(src_blocks[i], dst_blocks[i]));

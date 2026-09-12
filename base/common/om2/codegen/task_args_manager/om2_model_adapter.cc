@@ -407,16 +407,17 @@ Status ModelAdapter::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> 
         input_indexes_to_copy_info_[input_index] = {static_cast<uint32_t>(mem_allocation_and_offset.id),
                                                     mem_allocation_and_offset.offset, data_size};
         GELOGW(
-            "[OM2][mem allocation][input] model_name %s, input_index %u, op_name %s op_type %s not support zero copy, "
+            "[OM2][mem allocation][input] model_name %s, input_index %u, op_name %s op_type %s does not support zero "
+            "copy, "
             "%s.",
             name_.c_str(), input_index, item.second->GetName().c_str(), item.second->GetType().c_str(),
             input_indexes_to_copy_info_[input_index].ToString().c_str());
         GE_ASSERT_TRUE((item.second->GetType() != REFDATA),
-                       "[OM2] model_name %s, input_index %u, op_name %s op_type %s not support zero copy",
+                       "[OM2] model_name %s, input_index %u, op_name %s op_type %s does not support zero copy",
                        name_.c_str(), input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
         if (copy_host_input_indexes_.count(input_index) != 0U) {
-          GELOGW("[OM2] model_name %s, host_input_index %u, op_name %s op_type %s not support zero copy", name_.c_str(),
-                 input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
+          GELOGW("[OM2] model_name %s, host_input_index %u, op_name %s op_type %s does not support zero copy",
+                 name_.c_str(), input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
         }
 
         input_index++;
@@ -452,7 +453,7 @@ Status ModelAdapter::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> 
       zero_copy_input_indexes_.push_back(input_index);
       if (copy_host_input_indexes_.count(input_index) > 0U) {
         GE_ASSERT_TRUE((item.second->GetType() != REFDATA),
-                       "[OM2] model_name %s, input_index %u, op_name %s op_type %s not support host input index ",
+                       "[OM2] model_name %s, input_index %u, op_name %s op_type %s does not support host input index ",
                        name_.c_str(), input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
         CopyHostInputInfo copy_host_input = {};
         copy_host_input.input_index = input_index;
@@ -524,7 +525,7 @@ Status ModelAdapter::GenOutputMemAllocations(const std::vector<OpDescPtr> &outpu
         uint32_t id = 0xFFFFFFFFU;
         uint64_t offset = logical_addr;
         if (mem_types[i] != kVarMemType) {
-          GE_ASSERT_TRUE(ret == SUCCESS, "[OM2] not find 0x%" PRIx64 " in allocating table", logical_addr);
+          GE_ASSERT_TRUE(ret == SUCCESS, "[OM2] not found 0x%" PRIx64 " in allocating table", logical_addr);
           id = static_cast<uint32_t>(mem_allocation_and_offset.id);
           offset = mem_allocation_and_offset.offset;
         }

@@ -182,6 +182,7 @@ int32_t CondRemovePass::GetCondIndex(const GeTensor *tensor) {
     case DT_UINT8:
     case DT_HIFLOAT8:
     case DT_HIFLOAT4:
+    case DT_HIFLOAT4_SCALE:
     case DT_FLOAT8_E5M2:
     case DT_FLOAT8_E4M3FN:
       return (tensor_size >= sizeof(uint8_t)) ? static_cast<int32_t>(*data_ptr) : kInvalidRetVal;

@@ -44,7 +44,7 @@ class DataFlowInfoImpl {
 
   Status SetUserData(const void *data, size_t size, size_t offset) {
     if (CheckParamsForUserData(data, size, offset) != SUCCESS) {
-      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "Failed to set user data, the params is invalid.");
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "Failed to set user data, the params are invalid.");
       return ACL_ERROR_GE_PARAM_INVALID;
     }
     const auto cpy_ret = memcpy_s((user_data_ + offset), (kMaxUserDataSize - offset), data, size);
@@ -56,7 +56,7 @@ class DataFlowInfoImpl {
 
   Status GetUserData(void *data, size_t size, size_t offset) const {
     if (CheckParamsForUserData(data, size, offset) != SUCCESS) {
-      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "Failed to get user data, the params is invalid.");
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "Failed to get user data, the params are invalid.");
       return ACL_ERROR_GE_PARAM_INVALID;
     }
     const auto cpy_ret = memcpy_s(data, size, (user_data_ + offset), size);

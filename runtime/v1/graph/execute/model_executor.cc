@@ -30,7 +30,6 @@
 
 namespace ge {
 namespace {
-constexpr uint8_t kNeverLoaded = 0U;
 constexpr size_t kOm2OutputMemAlignment = 64U;
 constexpr uint32_t kExecuteStreamNumPerModel = 1U;
 
@@ -847,8 +846,7 @@ Status ModelExecutor::CheckAndReleaseMemory(const GeRootModelPtr &ge_root_model,
     }
     it.second->SetLoadFlag(false);
     // Allow model to be loaded agagin without adding graph again
-    it.second->SetLoadCount(it.second->GetLoadRecord());
-    it.second->SetLoadRecord(kNeverLoaded);
+    it.second->ResetLoadRecord();
     tmp_ge_root_model->ClearAllModelId();
 
     if ((!release_all)) {
@@ -919,8 +917,7 @@ Status ModelExecutor::CheckAndReleaseStream(const GeRootModelPtr &ge_root_model,
 
     it.second->SetLoadFlag(false);
     // Allow model to be loaded agagin without adding graph again
-    it.second->SetLoadCount(it.second->GetLoadRecord());
-    it.second->SetLoadRecord(kNeverLoaded);
+    it.second->ResetLoadRecord();
 
     GE_CHK_ACL_RET(aclrtGetStreamAvailableNum(&available_stream_num));
     if (required_stream_num <= available_stream_num) {
@@ -995,8 +992,7 @@ Status ModelExecutor::CheckAndReleaseEvent(const GeRootModelPtr &ge_root_model, 
 
     it.second->SetLoadFlag(false);
     // Allow model to be loaded agagin without adding graph again
-    it.second->SetLoadCount(it.second->GetLoadRecord());
-    it.second->SetLoadRecord(kNeverLoaded);
+    it.second->ResetLoadRecord();
 
     GE_CHK_ACL_RET(aclrtGetEventAvailNum(&available_event_num));
     if (required_event_num <= available_event_num) {

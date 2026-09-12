@@ -44,8 +44,8 @@ ge::graphStatus SequenceAtDoComputeExtend(KernelContext *context, const uint64_t
 
   auto tensor_ref = sequence->Get(index);
   if (tensor_ref == nullptr) {
-    GELOGE(ge::PARAM_INVALID, "input index is out of range.");
-    REPORT_INNER_ERR_MSG("E39999", "input index is out of range.");
+    GELOGE(ge::PARAM_INVALID, "input index(%" PRId64 ") is out of range [0, %zu).", index, sequence->Size());
+    REPORT_INNER_ERR_MSG("E39999", "input index(%" PRId64 ") is out of range [0, %zu).", index, sequence->Size());
     return ge::PARAM_INVALID;
   }
 

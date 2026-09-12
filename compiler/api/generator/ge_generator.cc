@@ -1129,7 +1129,8 @@ Status GeGenerator::BuildSingleOp(OpDescPtr &op_desc, const std::vector<GeTensor
     // 2. check engine type when compile online
     ret = CheckEngineTypeSupport(node, engine_type);
     if (ret != SUCCESS) {
-      GELOGE(ret, "[Check][EngineType]not support node:%s with engine of %d.", node->GetName().c_str(), engine_type);
+      GELOGE(ret, "[Check][EngineType] does not support node:%s with engine of %d.", node->GetName().c_str(),
+             engine_type);
       return ret;
     }
   }
@@ -1447,7 +1448,7 @@ Status GeGenerator::CheckEngineTypeSupport(const NodePtr &node, OpEngineType eng
         std::vector<const char *>({op_desc->GetName().c_str(), op_desc->GetType().c_str(), "engine type",
                                    "It only supports default/AIcoreEngine/VectorEngine"}));
     GELOGE(FAILED,
-           "[Check][Param] value:%d not support, "
+           "[Check][Param] value:%d is not supported, "
            "only support default/AIcoreEngine/VectorEngine now",
            static_cast<int32_t>(engine_type));
     return FAILED;

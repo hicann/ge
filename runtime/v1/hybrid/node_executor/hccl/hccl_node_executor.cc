@@ -51,10 +51,11 @@ Status HcclNodeTask::FillHcomOpInfo(const TaskContext &context, const OpDescPtr 
   const ge::DataType src_data_type = input_desc->GetDataType();
   const auto iter = kConstOpHcclDataType.find(static_cast<int64_t>(src_data_type));
   if (iter == kConstOpHcclDataType.end()) {
-    REPORT_INNER_ERR_MSG("E19999", "%s(%s) inputdesc0 datatype:%s not support.", op_desc->GetName().c_str(),
+    REPORT_INNER_ERR_MSG("E19999", "%s(%s) inputdesc0 datatype:%s does not support.", op_desc->GetName().c_str(),
                          op_desc->GetType().c_str(), TypeUtils::DataTypeToSerialString(src_data_type).c_str());
-    GELOGE(PARAM_INVALID, "[Find][DataType] %s(%s) inputdesc0 datatype:%s not support.", op_desc->GetName().c_str(),
-           op_desc->GetType().c_str(), TypeUtils::DataTypeToSerialString(src_data_type).c_str());
+    GELOGE(PARAM_INVALID, "[Find][DataType] %s(%s) inputdesc0 datatype:%s does not support.",
+           op_desc->GetName().c_str(), op_desc->GetType().c_str(),
+           TypeUtils::DataTypeToSerialString(src_data_type).c_str());
     return PARAM_INVALID;
   }
   hcom_op_info.dataType = iter->second;
@@ -416,10 +417,11 @@ static Status BuildAllToAllVparams(const TaskContext &context, HcomAllToAllVPara
   const ge::DataType src_data_type = input_desc->GetDataType();
   const auto iter = kConstOpHcclDataType.find(static_cast<int64_t>(src_data_type));
   if (iter == kConstOpHcclDataType.end()) {
-    REPORT_INNER_ERR_MSG("E19999", "%s(%s) alltoallv datatype:%s not support.", op_desc_p->GetName().c_str(),
+    REPORT_INNER_ERR_MSG("E19999", "%s(%s) alltoallv datatype:%s does not support.", op_desc_p->GetName().c_str(),
                          op_desc_p->GetType().c_str(), TypeUtils::DataTypeToSerialString(src_data_type).c_str());
-    GELOGE(PARAM_INVALID, "[Find][DataType] %s(%s) alltoallv datatype:%s not support.", op_desc_p->GetName().c_str(),
-           op_desc_p->GetType().c_str(), TypeUtils::DataTypeToSerialString(src_data_type).c_str());
+    GELOGE(PARAM_INVALID, "[Find][DataType] %s(%s) alltoallv datatype:%s does not support.",
+           op_desc_p->GetName().c_str(), op_desc_p->GetType().c_str(),
+           TypeUtils::DataTypeToSerialString(src_data_type).c_str());
     return PARAM_INVALID;
   }
   params.sendtype = iter->second;
@@ -454,9 +456,9 @@ static Status BuildGatherAllToAllParams(const TaskContext &context, HcomGatherAl
   (void)ge::AttrUtils::GetDataType(op_desc, HCOM_ATTR_DATA_TYPE, hccl_data_type);
   const auto iter = kConstOpHcclDataType.find(static_cast<int64_t>(hccl_data_type));
   if (iter == kConstOpHcclDataType.end()) {
-    REPORT_INNER_ERR_MSG("E19999", "%s(%s) received datatype:%s not support.", op_desc->GetName().c_str(),
+    REPORT_INNER_ERR_MSG("E19999", "%s(%s) received datatype:%s does not support.", op_desc->GetName().c_str(),
                          op_desc->GetType().c_str(), TypeUtils::DataTypeToSerialString(hccl_data_type).c_str());
-    GELOGE(PARAM_INVALID, "[Find][DataType] %s(%s) received datatype:%s not support.", op_desc->GetName().c_str(),
+    GELOGE(PARAM_INVALID, "[Find][DataType] %s(%s) received datatype:%s does not support.", op_desc->GetName().c_str(),
            op_desc->GetType().c_str(), TypeUtils::DataTypeToSerialString(hccl_data_type).c_str());
     return PARAM_INVALID;
   }
@@ -489,10 +491,11 @@ static Status BuildAllToAllVCParams(const TaskContext &context, HcomAllToAllVCPa
   const ge::DataType src_data_type = input_desc->GetDataType();
   const auto iter = kConstOpHcclDataType.find(static_cast<int64_t>(src_data_type));
   if (iter == kConstOpHcclDataType.end()) {
-    REPORT_INNER_ERR_MSG("E19999", "%s(%s) alltoallv datatype:%s not support.", op_desc_p->GetName().c_str(),
+    REPORT_INNER_ERR_MSG("E19999", "%s(%s) alltoallv datatype:%s does not support.", op_desc_p->GetName().c_str(),
                          op_desc_p->GetType().c_str(), TypeUtils::DataTypeToSerialString(src_data_type).c_str());
-    GELOGE(PARAM_INVALID, "[Find][DataType] %s(%s) alltoallv datatype:%s not support.", op_desc_p->GetName().c_str(),
-           op_desc_p->GetType().c_str(), TypeUtils::DataTypeToSerialString(src_data_type).c_str());
+    GELOGE(PARAM_INVALID, "[Find][DataType] %s(%s) alltoallv datatype:%s does not support.",
+           op_desc_p->GetName().c_str(), op_desc_p->GetType().c_str(),
+           TypeUtils::DataTypeToSerialString(src_data_type).c_str());
     return PARAM_INVALID;
   }
   params.sendtype = iter->second;

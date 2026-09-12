@@ -171,11 +171,11 @@ Status CheckSequenceOfGetnext(const ComputeGraphPtr &graph, const std::vector<No
   GELOGD("Start check input sequence from getnext sink nodes and input shape.");
   if (getnext_sink_node.size() != kNumOfGetnextNode) {
     REPORT_INNER_ERR_MSG("E19999",
-                         "Not support dynamic dims when a graph with multi getnext nodes, graph:%s, "
+                         "Dynamic dims are not supported when a graph with multi getnext nodes, graph:%s, "
                          "num of getnext node:%zu, check invalid",
                          graph->GetName().c_str(), getnext_sink_node.size());
     GELOGE(PARAM_INVALID,
-           "[Check][Param] Not support dynamic dims when a graph with multi getnext nodes, graph:%s, "
+           "[Check][Param] Dynamic dims are not supported when a graph with multi getnext nodes, graph:%s, "
            "num of getnext node:%zu",
            graph->GetName().c_str(), getnext_sink_node.size());
     return PARAM_INVALID;
@@ -249,11 +249,11 @@ Status UpdateNameOfGetnext(const ComputeGraphPtr &graph, const std::vector<NodeP
   GELOGD("Update first value of input shape by getnext sink nodes.");
   if (getnext_sink_nodes.size() != kNumOfGetnextNode) {
     REPORT_INNER_ERR_MSG("E19999",
-                         "Not support dynamic dims when a graph with multi getnext nodes, graph:%s, "
+                         "Dynamic dims are not supported when a graph with multi getnext nodes, graph:%s, "
                          "num of getnext node:%zu, check invalid",
                          graph->GetName().c_str(), getnext_sink_nodes.size());
     GELOGE(PARAM_INVALID,
-           "[Check][Param] Not support dynamic dims when a graph with multi getnext nodes, graph:%s, "
+           "[Check][Param] Dynamic dims are not supported when a graph with multi getnext nodes, graph:%s, "
            "num of getnext node:%zu",
            graph->GetName().c_str(), getnext_sink_nodes.size());
     return PARAM_INVALID;
@@ -792,7 +792,7 @@ Status ParseInputShapes(const std::string &input_shapes,
     }
 
     if (shape_pair_vec[1].empty()) {
-      GELOGE(INTERNAL_ERROR, "The shape [%s] has a name, it's value cannot be empty", shape.c_str());
+      GELOGE(INTERNAL_ERROR, "The shape [%s] has a name, its value cannot be empty", shape.c_str());
       return INTERNAL_ERROR;
     }
 
@@ -839,7 +839,7 @@ Status BuildSubgraphMuliDimsInput(const std::vector<std::pair<std::string, std::
     std::string tmp_dims;
     for (size_t j = 0U; j < dynamic_count; ++j) {
       if (tmp[j].empty()) {
-        GELOGI("input_shapes: %zu matched dims is empty", i);
+        GELOGI("input_shapes: %zu matched dims are empty", i);
         tmp_dims.clear();
         break;
       }

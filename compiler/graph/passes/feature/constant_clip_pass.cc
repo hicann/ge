@@ -34,6 +34,7 @@ constexpr ge::float32_t E5M2_MAX_VALUE = 1.75 * std::pow(2, 15);
 constexpr ge::float32_t E4M3FN_MAX_VALUE = 1.75 * std::pow(2, 8);
 constexpr ge::float32_t HIF4_MAX_VALUE = 1.3125f * 262144.0f;
 constexpr ge::float32_t HIF4_MIN_VALUE = 8.881784197e-16f;
+// hif4_scale 的取值范围由缩放因子决定，不存在静态上下限，权重裁剪不涉及该类型
 bool IsFloatDt(const ge::DataType &dt) {
   return (dt == ge::DT_FLOAT) || (dt == ge::DT_FLOAT16) || (dt == ge::DT_DOUBLE) || (dt == ge::DT_BF16) ||
          (dt == ge::DT_HIFLOAT8) || (dt == ge::DT_HIFLOAT4) || (dt == ge::DT_FLOAT8_E5M2) ||

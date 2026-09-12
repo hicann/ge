@@ -233,7 +233,7 @@ ge::graphStatus ExeGraphSerializer::SerializeComputeNodeInfo(const std::vector<g
         space_registry->GetOpImpl(compute_node->GetOpDescBarePtr()->GetType().c_str()) != nullptr) {
       private_attrs = space_registry->GetOpImpl(compute_node->GetOpDescBarePtr()->GetType().c_str())->private_attrs;
     } else {
-      GELOGW("Space registry is null. Private attrs is set empty.");
+      GELOGW("Space registry is null. Private attrs are set empty.");
     }
     // todo 临时方案：解决const weight在host侧内存占用太大的问题
     // 当前实现：const的weight value在序列化compute node info时会新申请内存，因为value属性是const的ir属性会做序列化，

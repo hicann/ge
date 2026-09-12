@@ -23,6 +23,7 @@
 #include "graph/custom_op/args_refresh.h"
 #include "graph/custom_op/capability.h"
 #include "graph/error_codes.h"
+#include "graph/custom_op/op_proto_ledger.h"
 
 namespace ge {
 class BaseCustomOp;
@@ -49,8 +50,10 @@ class CustomOpRegistry {
   bool HasCustomOp(const AscendString &op_type) const;
   graphStatus GetAllRegisteredOps(std::vector<AscendString> &all_registered_ops) const;
   graphStatus LoadCustomOpsPartition(const uint8_t *data, size_t len);
+  void AppendProtoClaims(std::vector<OpProtoClaimRecord> &&claims);
 
  private:
+  struct Impl;
   BaseCustomOp *CreateOrGetCustomOpLocked(const AscendString &op_type, OpBackend backend);
   BaseCustomOp *CacheCustomOpLocked(const AscendString &op_type, OpBackend backend,
                                     std::unique_ptr<BaseCustomOp> base_custom_op);
@@ -59,6 +62,7 @@ class CustomOpRegistry {
   std::vector<CustomOpSoHandlePtr> so_handles_;
   std::map<AscendString, std::map<OpBackend, BaseOpCreator>> creators_;
   std::map<AscendString, std::map<OpBackend, std::shared_ptr<BaseCustomOp>>> custom_ops_;
+  std::shared_ptr<Impl> impl_;
 };
 
 using CustomOpRegistryPtr = std::shared_ptr<CustomOpRegistry>;

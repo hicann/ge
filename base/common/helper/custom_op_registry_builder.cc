@@ -21,6 +21,7 @@
 #include "framework/common/debug/log.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "graph/custom_op_pull_registry.h"
+#include "graph/custom_op/op_proto_ledger.h"
 #include "mmpa/mmpa_api.h"
 
 namespace ge {
@@ -54,6 +55,8 @@ struct PendingCreator {
   std::string op_type;
   OpBackend backend;
   CustomOpCreateFunc creator = nullptr;
+  std::string fingerprint;  // 来源 SO 内容指纹（pull 记账归因）
+  std::string so_name;      // 来源 SO 名（诊断）
 };
 
 bool IsValidOpBackend(const OpBackend backend) {
@@ -140,7 +143,9 @@ Status ValidateAndCollectCreator(const std::string &op_type, const OpBackend bac
   }
 
   (void)pending_op_keys.insert(op_key);
-  pending_creators.push_back({op_type, backend, creator});
+  // fingerprint/so_name 为"未回填"哨兵（空串），由 CollectCreatorsFromSoHandle 按来源 SO 回填；
+  // 显式补齐初始化器，避免 -Werror=missing-field-initializers（CI 工具链）报错
+  pending_creators.push_back({op_type, backend, creator, "", ""});
   return SUCCESS;
 }
 
@@ -204,7 +209,15 @@ Status CollectCreatorsFromSoHandle(const CustomOpSoHandlePtr &so_handle, const C
   PullCreatorSymbols symbols;
   GE_CHK_STATUS_RET(ResolvePullCreatorSymbols(so_handle->GetHandle(), dlsym_func, symbols),
                     "[CUSTOM OP] resolve pull creator symbols failed.");
-  return LoadAndCollectCreators(symbols, registry, pending_op_keys, pending_creators);
+  GE_CHK_STATUS_RET(LoadAndCollectCreators(symbols, registry, pending_op_keys, pending_creators),
+                    "[CUSTOM OP] load and collect pull creators failed.");
+  for (auto &pending_creator : pending_creators) {
+    if (pending_creator.fingerprint.empty()) {
+      pending_creator.fingerprint = so_handle->GetFingerprintKey();
+      pending_creator.so_name = so_handle->GetSoName();
+    }
+  }
+  return SUCCESS;
 }
 }  // namespace
 
@@ -229,6 +242,8 @@ Status CustomOpRegistryBuilder::AddCreatorsFromSoHandles(const std::vector<Custo
   }
 
   for (const auto &pending_creator : pending_creators) {
+    OpProtoLedger::SetCurrentProvider(pending_creator.fingerprint, pending_creator.so_name);
+    OpProtoLedger::ClaimProviderMaps(pending_creator.op_type);
     const auto register_ret = registry->RegisterCreator(
         AscendString(pending_creator.op_type.c_str()), pending_creator.backend,
         [creator = pending_creator.creator]() { return std::unique_ptr<BaseCustomOp>(creator()); });

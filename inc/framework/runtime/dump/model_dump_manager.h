@@ -28,6 +28,7 @@ class DataDumpImpl;
 class ExceptionDumpImpl;
 class OverflowDumpImpl;
 class ProfilingImpl;
+class DumpOpImpl;
 
 // ============================================================
 //              复用 C API 中的结构体定义
@@ -87,11 +88,13 @@ class VISIBILITY_EXPORT ModelDumpManager {
   // ========================================================================
   // Task 级信息接口
   // ========================================================================
-  Status AddOm2TaskInfo(const GertModelTaskDesc &task_info);
+  Status PostprocessOm2TaskInfo(const GertModelTaskDesc &task_info);
 
   Status PreprocessOm2TaskInfo(const GertModelTaskDesc &task_info);
 
   Status IsDataDumpEnabled(const char *op_name, uint8_t *is_data_dump) const;
+
+  bool NeedDataDump(const GertModelTaskDesc &task_info) const;
 
   // ========================================================================
   // Dump 下发接口
@@ -117,6 +120,7 @@ class VISIBILITY_EXPORT ModelDumpManager {
   std::unique_ptr<ExceptionDumpImpl> exception_impl_;
   std::unique_ptr<OverflowDumpImpl> overflow_impl_;
   std::unique_ptr<ProfilingImpl> profiling_impl_;
+  std::unique_ptr<DumpOpImpl> dump_op_impl_;
 };
 
 }  // namespace dump
