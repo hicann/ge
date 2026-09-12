@@ -37,7 +37,7 @@ bool ParseSocVersion(int argc, char **argv, int start_index, std::string *soc_ve
 int main(int argc, char **argv) {
   if (argc < 2) {
     std::cerr << "[Error] Usage: offline_compile_sample <command> [--soc-version <version>]\n"
-              << "  命令: build-model | build-bundle | run-infer | run-bundle-infer\n";
+              << "  command: build-model | build-bundle | run-infer | run-bundle-infer\n";
     return -1;
   }
   const std::string cmd = argv[1];
