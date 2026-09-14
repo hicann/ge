@@ -164,7 +164,7 @@ bool BroadcastFormatProcess::CheckOriginFormat(const std::vector<ge::Format> &in
   }
 
   if (input_shapes.empty()) {
-    FE_LOGD("The input shapes is empty.");
+    FE_LOGD("The input shapes are empty.");
     return false;
   }
   if (input_shapes.size() != input_formats.size()) {
@@ -342,7 +342,7 @@ bool BroadcastFormatProcess::CheckShapeWithSubformatSupportBroadcast(vector<ge::
   for (size_t i = 1; i < shape_size; i++) {
     size_t tmp_dim_num = shapes[i].GetDimNum();
     if (tmp_dim_num != dim_num) {
-      FE_LOGD("[ChkShpWithSubfmtSupBrdcst] shape_dims size[%zu], tmp_shape_dims size[%zu], not support broadcast.",
+      FE_LOGD("[ChkShpWithSubfmtSupBrdcst] shape_dims size[%zu], tmp_shape_dims size[%zu], broadcast is not supported.",
               dim_num, tmp_dim_num);
       return false;
     }
@@ -379,8 +379,9 @@ bool BroadcastFormatProcess::CheckNewShapeSupportBroadcast(const ge::OpDesc &op_
     new_shapes.emplace_back(new_shape);
   }
   if (!CheckShapeWithSubformatSupportBroadcast(new_shapes)) {
-    FE_LOGD("[GraphOpt][GenBuiltInFmt][ChkNewShpSupotBrdcst] node[%s, %s] with sub_format[%u] not support broadcast",
-            op_desc.GetName().c_str(), op_desc.GetName().c_str(), sub_format);
+    FE_LOGD(
+        "[GraphOpt][GenBuiltInFmt][ChkNewShpSupotBrdcst] node[%s, %s] with sub_format[%u] does not support broadcast",
+        op_desc.GetName().c_str(), op_desc.GetName().c_str(), sub_format);
     return false;
   }
   return true;

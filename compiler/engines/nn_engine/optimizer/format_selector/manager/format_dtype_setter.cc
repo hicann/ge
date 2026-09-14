@@ -277,7 +277,7 @@ Status FormatDtypeSetter::SetSupportFormatDtypeByNode(ge::NodePtr node_ptr,
   OpKernelInfoPtr op_kernel_info_ptr =
       OpsKernelManager::Instance(GetEngineName()).GetOpKernelInfoByOpType(op_impl_type, op_type);
   if (op_kernel_info_ptr == nullptr) {
-    FE_LOGW("Engine[%s] not support op_impl_type[%ld].", GetEngineName().c_str(), op_impl_type);
+    FE_LOGW("Engine[%s] does not support op_impl_type[%ld].", GetEngineName().c_str(), op_impl_type);
     return SUCCESS;
   }
 

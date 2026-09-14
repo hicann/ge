@@ -380,7 +380,7 @@ bool BufferFusionPassRunner::GetPatternMatchStatus(BufferFusionPattern &pattern)
     }
     if (desc->group_id != TBE_PATTERN_GROUPID_INVALID) {
       if (!group_status[desc->group_id]) {
-        FE_LOGD("group[%ld] not match", desc->group_id);
+        FE_LOGD("group[%ld] does not match", desc->group_id);
         status = false;
         break;
       }
@@ -776,7 +776,7 @@ bool BufferFusionPassRunner::SkipNodeBeforeMatch(const ge::NodePtr &node, size_t
   }
   if (!op_desc->ignore_output_num && curr_node_num > 1 &&
       (curr_node_num != curr_desc_num || op_desc->out_branch_type != TBE_OUTPUT_BRANCH_MULTI)) {
-    FE_LOGI("Not match info: out relation [%ld], outnode size [%zu], outdesc size [%zu]. Node %s, desc %s.",
+    FE_LOGI("The out relation [%ld], outnode size [%zu], outdesc size [%zu] do not match. Node %s, desc %s.",
             op_desc->out_branch_type, curr_node_num, curr_desc_num, node->GetName().c_str(),
             op_desc->desc_name.c_str());
     return true;

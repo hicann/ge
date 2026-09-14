@@ -210,7 +210,7 @@ void GraphReplace::UpdateOuterInputs(const string &pattern_name, GraphMatchResul
 
 Status GraphReplace::UpdateMatchedOuterAnchor(GraphMatchResult &match_result, string &pattern_name) const {
   if (match_result.origin_outer_inputs.empty() || match_result.origin_outer_outputs.empty()) {
-    FE_LOGW("Not get origin outer input and output, pattern_name[%s]", pattern_name.c_str());
+    FE_LOGW("Failed to get origin outer input and output, pattern_name[%s]", pattern_name.c_str());
     return SUCCESS;
   }
 

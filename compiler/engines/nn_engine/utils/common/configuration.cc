@@ -1854,7 +1854,7 @@ bool Configuration::GetConfigValueByKey(const std::map<string, string> &options,
                                         const string &cfg_key, string &value, string &file_path) const {
   std::map<string, string>::const_iterator iter = options.find(file_key);
   if (iter == options.end() || iter->second.empty()) {
-    FE_LOGD("Not find key[%s] in options.", file_key.c_str());
+    FE_LOGD("Failed to find key[%s] in options.", file_key.c_str());
     return true;
   }
   file_path = iter->second;

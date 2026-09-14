@@ -246,7 +246,7 @@ static Status parse_attr_list_from_op(const ge::OpDescPtr &op_desc_ptr,
     }
     auto iter = ATTR_STRING_TO_VALUETYPE_MAP.find(each_op_attr_type[1]);
     if (iter == ATTR_STRING_TO_VALUETYPE_MAP.end()) {
-      REPORT_FE_ERROR("[SubGraphOpt][Compile][ParAttrFromOp] Not support attr[%s] in node[%s].",
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][ParAttrFromOp] Does not support attr[%s] in node[%s].",
                       each_op_attr_type[1].c_str(), op_desc_ptr->GetName().c_str());
       return FAILED;
     }

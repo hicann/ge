@@ -155,7 +155,7 @@ Status FusionRuleNodeConstructor::CheckNodeValidity(FusionRuleNodePtr node) {
     for (size_t i = 0; i < node->input_data_anchors_.size(); ++i) {
       if (static_cast<int>(i) != node->input_data_anchors_[i]->GetAnchorIdx()) {
         REPORT_FE_ERROR(
-            "[GraphOpt][FusionRuleInit][ChkNdValid] Node[%s]'s input anchor[%zu] not equal to it's index[%d], input"
+            "[GraphOpt][FusionRuleInit][ChkNdValid] Node[%s]'s input anchor[%zu] not equal to its index[%d], input "
             "anchor not continuous.",
             node->GetNodeName().c_str(), i, node->input_data_anchors_[i]->GetAnchorIdx());
         return ILLEGAL_RULE;
@@ -165,7 +165,7 @@ Status FusionRuleNodeConstructor::CheckNodeValidity(FusionRuleNodePtr node) {
     for (size_t i = 0; i < node->output_data_anchors_.size(); ++i) {
       if (static_cast<int>(i) != node->output_data_anchors_[i]->GetAnchorIdx()) {
         REPORT_FE_ERROR(
-            "[GraphOpt][FusionRuleInit][ChkNdValid] Node:%s's output anchor[%zu] not equal to it's index[%d], "
+            "[GraphOpt][FusionRuleInit][ChkNdValid] Node:%s's output anchor[%zu] not equal to its index[%d], "
             "output anchor not continuous.",
             node->GetNodeName().c_str(), i, node->output_data_anchors_[i]->GetAnchorIdx());
         return ILLEGAL_RULE;

@@ -298,7 +298,7 @@ bool NeedIgnoreOp(const ge::NodePtr &node, const bool use_op_type) {
   bool stc_tiling_depend = false;
   (void)ge::AttrUtils::GetBool(node->GetOpDesc(), kDynamicTilingDependOp, stc_tiling_depend);
   if (stc_to_dyn_soft_sync || stc_tiling_depend) {
-    FE_LOGD("Node [%s] is soft sync or stc_tiling_depend op, not support fusion.", node->GetName().c_str());
+    FE_LOGD("Node [%s] is soft sync or stc_tiling_depend op, does not support fusion.", node->GetName().c_str());
     return true;
   }
   return false;
@@ -1083,7 +1083,7 @@ bool IsSuppoertedFormat(const ge::Format cur_heavy_format, const uint32_t &cur_s
           input_sub_formats.end() &&
       cur_sub_format > DEFAULT_SUB_FORMAT &&
       std::find(input_sub_formats.begin(), input_sub_formats.end(), cur_sub_format) == input_sub_formats.end()) {
-    FE_LOGD("[IsSuppoertedFormat] Cur sub_format not support.");
+    FE_LOGD("[IsSuppoertedFormat] Cur sub_format is not supported.");
     return false;
   }
 
@@ -1093,7 +1093,7 @@ bool IsSuppoertedFormat(const ge::Format cur_heavy_format, const uint32_t &cur_s
       return true;
     }
   }
-  FE_LOGD("[IsSuppoertedFormat] Format not support");
+  FE_LOGD("[IsSuppoertedFormat] Format is not supported");
   return false;
 }
 

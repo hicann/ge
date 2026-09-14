@@ -1375,7 +1375,7 @@ void TbeInfoAssembler::GenerateTbePrivateAttrValue(const ge::OpDesc &op_desc, co
                                                    te::TbeAttrValue &tbe_attr_value, const string &attr_name) const {
   auto func = k_private_attr_get_funcs.find(value_type.GetValueType());
   if (func == k_private_attr_get_funcs.end()) {
-    FE_LOGW("Current not support");
+    FE_LOGW("Current value type is not supported.");
   } else {
     func->second(op_desc, value_type, tbe_attr_value, attr_name);
   }
