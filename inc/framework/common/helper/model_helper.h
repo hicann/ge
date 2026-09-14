@@ -232,7 +232,7 @@ class GE_FUNC_VISIBILITY ModelHelper : public ModelSaveHelper {
                               Buffer &model_buffer, Buffer &task_buffer, const size_t model_index = 0U) const;
 
   Status LoadOpSoBin(const OmFileLoadHelper &om_load_helper, const GeRootModelPtr &ge_root_model,
-                     std::vector<CustomOpSoHandlePtr> &loaded_handles) const;
+                     std::vector<OpSoBinPtr> &custom_op_so_bins) const;
   Status ValidateCustomOpsDeserialized(const GeRootModelPtr &ge_root_model, const CustomOpRegistryPtr &registry) const;
   Status LoadCustomOps(const OmFileLoadHelper &om_load_helper, const CustomOpRegistryPtr &registry) const;
   Status LoadTilingData(const OmFileLoadHelper &om_load_helper, const GeRootModelPtr &ge_root_model) const;

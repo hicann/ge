@@ -1293,8 +1293,8 @@ TEST_F(UtestModelHelper, LoadOpSoBinSuccess) {
   so_patition.size = so_payload.size();
   cur_ctx.partition_datas_.push_back(so_patition);
   load_helper.model_contexts_.push_back(cur_ctx);
-  std::vector<CustomOpSoHandlePtr> loaded_handles;
-  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, loaded_handles), SUCCESS);
+  std::vector<OpSoBinPtr> custom_op_so_bins;
+  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, custom_op_so_bins), SUCCESS);
 }
 
 TEST_F(UtestModelHelper, LoadTilingDataSuccess) {
@@ -1955,8 +1955,10 @@ TEST_F(UtestModelHelper, LoadOpSoBinCustomTypeInvalidPayloadShouldFail) {
 
   ModelHelper model_helper;
   model_helper.model_ = ge_model;
+  std::vector<OpSoBinPtr> custom_op_so_bins;
+  ASSERT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, custom_op_so_bins), SUCCESS);
   std::vector<CustomOpSoHandlePtr> loaded_handles;
-  EXPECT_NE(model_helper.LoadOpSoBin(load_helper, ge_root_model, loaded_handles), SUCCESS);
+  EXPECT_NE(model_helper.LoadCustomOpSoBins(custom_op_so_bins, loaded_handles), SUCCESS);
 }
 
 TEST_F(UtestModelHelper, CustomOpSoLoaderLoadSuccessAndCleanupShouldReleaseHandleAndFd) {
@@ -2296,8 +2298,8 @@ TEST_F(UtestModelHelper, LoadOpSoBinDataFail) {
   cur_ctx.partition_datas_.push_back(so_patition);
   load_helper.model_contexts_.push_back(cur_ctx);
   model_helper.model_ = ge_model;
-  std::vector<CustomOpSoHandlePtr> loaded_handles;
-  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, loaded_handles), SUCCESS);
+  std::vector<OpSoBinPtr> custom_op_so_bins;
+  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, custom_op_so_bins), SUCCESS);
 }
 
 TEST_F(UtestModelHelper, LoadOpSoBinDataNonEmptyInvalidPayloadShouldFail) {
@@ -2321,8 +2323,8 @@ TEST_F(UtestModelHelper, LoadOpSoBinDataNonEmptyInvalidPayloadShouldFail) {
 
   ModelHelper model_helper;
   model_helper.model_ = ge_model;
-  std::vector<CustomOpSoHandlePtr> loaded_handles;
-  EXPECT_NE(model_helper.LoadOpSoBin(load_helper, ge_root_model, loaded_handles), SUCCESS);
+  std::vector<OpSoBinPtr> custom_op_so_bins;
+  EXPECT_NE(model_helper.LoadOpSoBin(load_helper, ge_root_model, custom_op_so_bins), SUCCESS);
 }
 
 TEST_F(UtestModelHelper, GetBinDataSuccess) {
@@ -2713,8 +2715,8 @@ TEST_F(UtestModelHelper, SaveAndLoadOfflineAutofuseSo) {
   OmFileLoadHelper load_helper;
   std::vector<uint8_t> so_payload;
   ASSERT_TRUE(BuildOfflineAutofuseSoBinsForModelHelperUt(load_helper, so_payload));
-  std::vector<CustomOpSoHandlePtr> loaded_handles;
-  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, loaded_handles), SUCCESS);
+  std::vector<OpSoBinPtr> custom_op_so_bins;
+  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, custom_op_so_bins), SUCCESS);
 
   const auto &root_model = model_helper.GetGeRootModel();
   const auto &so_list = root_model->GetAllSoBin();
@@ -2899,8 +2901,8 @@ TEST_F(UtestModelHelper, LoadOpSoBinGuardCheckSoStoredInGraphAttr) {
   (void)AttrUtils::SetStr(*(model_helper.model_.get()), ATTR_MODEL_HOST_ENV_OS, "linux");
   (void)AttrUtils::SetStr(*(model_helper.model_.get()), ATTR_MODEL_HOST_ENV_CPU, "x86_64");
 
-  std::vector<CustomOpSoHandlePtr> loaded_handles;
-  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, loaded_handles), SUCCESS);
+  std::vector<OpSoBinPtr> custom_op_so_bins;
+  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, custom_op_so_bins), SUCCESS);
 
   std::string guard_data;
   EXPECT_TRUE(AttrUtils::GetStr(root_graph, "_guard_check_so_data", guard_data));
@@ -2995,9 +2997,9 @@ TEST_F(UtestModelHelper, LoadOpSoBinNoSoBinsPartitionReturnsSuccess) {
   ASSERT_EQ(ge_root_model->Initialize(graph), SUCCESS);
 
   ModelHelper model_helper;
-  std::vector<CustomOpSoHandlePtr> loaded_handles;
-  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, loaded_handles), SUCCESS);
-  EXPECT_TRUE(loaded_handles.empty());
+  std::vector<OpSoBinPtr> custom_op_so_bins;
+  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model, custom_op_so_bins), SUCCESS);
+  EXPECT_TRUE(custom_op_so_bins.empty());
 }
 
 TEST_F(UtestModelHelper, LoadCustomOpsToRegistryNullRegistryReturnsFailed) {
@@ -3403,6 +3405,76 @@ TEST_F(UtestModelHelper, LoadCustomOpRegistryRollbackLeavesNoLedgerResidue) {
   root_model_a.reset();
   EXPECT_FALSE(HasLedgerEntryForUt(kFakeConflictOpType));
   EXPECT_FALSE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+  OpProtoLedger::ResetForFinalize();
+}
+
+// 回归：两个带同一自定义算子 SO 的 OM 并发加载时，注册提交不能竞争全局算子工厂。
+TEST_F(UtestModelHelper, LoadCustomOpRegistryConcurrentModelsShareGlobalFactorySafely) {
+  CustomOpSoLoader::GetInstance().Cleanup();
+  OpProtoLedger::ResetForFinalize();
+  OperatorFactoryImpl::RemoveCustomOpCreators({kFakeConflictOpType});
+  CustomOpSoLoader::GetInstance().Finalize();
+
+  std::vector<char_t> so_data;
+  ASSERT_TRUE(ReadSoDataForModelHelperUt(FakeCustomOpConflictSoAPath(), so_data));
+  const auto so_bin = BuildCustomOpSoBinForModelHelperUt("fake_custom_op_concurrent.so", "vendor_ut", so_data);
+  ASSERT_NE(so_bin, nullptr);
+  std::vector<uint8_t> so_payload;
+  ASSERT_TRUE(BuildSoBinsPayloadForModelHelperUt({so_bin}, so_payload));
+
+  auto root_model_a = BuildRootModelForCustomOpLoadUt("concurrent_model_a");
+  auto root_model_b = BuildRootModelForCustomOpLoadUt("concurrent_model_b");
+  ASSERT_NE(root_model_a, nullptr);
+  ASSERT_NE(root_model_b, nullptr);
+
+  Status status_a = FAILED;
+  Status status_b = FAILED;
+  std::mutex start_mutex;
+  std::condition_variable start_cv;
+  size_t ready_count = 0U;
+  bool start_loading = false;
+  std::thread thread_a([&]() {
+    std::unique_lock<std::mutex> lock(start_mutex);
+    ++ready_count;
+    start_cv.notify_all();
+    start_cv.wait(lock, [&]() { return start_loading; });
+    lock.unlock();
+    ModelHelper model_helper;
+    status_a = model_helper.LoadCustomOpRegistry(BuildSoBinsOnlyLoadHelperForUt(so_payload), root_model_a);
+  });
+  std::thread thread_b([&]() {
+    std::unique_lock<std::mutex> lock(start_mutex);
+    ++ready_count;
+    start_cv.notify_all();
+    start_cv.wait(lock, [&]() { return start_loading; });
+    lock.unlock();
+    ModelHelper model_helper;
+    status_b = model_helper.LoadCustomOpRegistry(BuildSoBinsOnlyLoadHelperForUt(so_payload), root_model_b);
+  });
+
+  {
+    std::unique_lock<std::mutex> lock(start_mutex);
+    ASSERT_TRUE(start_cv.wait_for(lock, std::chrono::seconds(5), [&]() { return ready_count == 2U; }));
+    start_loading = true;
+  }
+  start_cv.notify_all();
+  thread_a.join();
+  thread_b.join();
+
+  ASSERT_EQ(status_a, SUCCESS);
+  ASSERT_EQ(status_b, SUCCESS);
+  ASSERT_NE(root_model_a->GetCustomOpRegistry(), nullptr);
+  ASSERT_NE(root_model_b->GetCustomOpRegistry(), nullptr);
+  const auto *entry = GetLedgerEntryForUt(kFakeConflictOpType);
+  ASSERT_NE(entry, nullptr);
+  EXPECT_EQ(entry->refcount, 2U);
+  EXPECT_TRUE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+
+  root_model_a.reset();
+  EXPECT_TRUE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+  root_model_b.reset();
+  EXPECT_FALSE(OperatorFactoryImpl::IsExistOp(kFakeConflictOpType));
+  EXPECT_FALSE(HasLedgerEntryForUt(kFakeConflictOpType));
   OpProtoLedger::ResetForFinalize();
 }
 
