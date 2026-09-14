@@ -32,7 +32,8 @@ Status LabelSetOp::Init() {
 
   uint32_t labelIndex = 0U;
   if (!AttrUtils::GetInt(op_desc_, ATTR_NAME_LABEL_SWITCH_INDEX, labelIndex)) {
-    RTS_REPORT_CALL_ERROR("LabelSetOp: %s attr [%s] not exist!", name_.c_str(), ATTR_NAME_LABEL_SWITCH_INDEX.c_str());
+    RTS_REPORT_CALL_ERROR("LabelSetOp: %s attr [%s] does not exist!", name_.c_str(),
+                          ATTR_NAME_LABEL_SWITCH_INDEX.c_str());
     return FAILED;
   }
   labelIndex_ = labelIndex;

@@ -105,7 +105,7 @@ Status RtsOpsKernelBuilder::CalcOpRunningParam(Node &geNode) {
     }
     if (outputMemSize < 0) {
       RTS_REPORT_CALL_ERROR(
-          "Got op[%s:%s] out[%zu] memory size is negative(not support), "
+          "The memory size of op[%s:%s] out[%zu] is negative, which is not supported, "
           "format=%s, dataType=%s, outputMemSize=%" PRId64,
           nodeName.c_str(), nodeType.c_str(), i, TypeUtils::FormatToAscendString(format).GetString(),
           TypeUtils::DataTypeToAscendString(dataType).GetString(), outputMemSize);
