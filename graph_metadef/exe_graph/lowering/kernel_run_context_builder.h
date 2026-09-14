@@ -52,7 +52,7 @@ class KernelContextHolder {
   std::vector<Chain> value_holder_;
   std::unique_ptr<uint8_t[]> compute_node_extend_holder_;
   bg::BufferPool buffer_pool_;
-  KernelContext *context_;
+  KernelContext *context_{nullptr};
 };
 class KernelRunContextBuilder {
  public:

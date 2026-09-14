@@ -102,6 +102,46 @@ TEST_F(BgIrAttrsUT, CreateAttrBufferSuccessOpLossAttr) {
   EXPECT_EQ(base[1], 0U);  // todo 原始用例，没加预留字段之前，base[1]为啥能取到值
 }
 
+TEST_F(BgIrAttrsUT, CreateAttrBufferFailedWhenRequiredIrAttrLoss) {
+  auto op_desc = std::make_shared<ge::OpDesc>("foo", "Foo");
+  op_desc->AppendIrAttrName("n");
+  EXPECT_EQ(op_desc->AddRequiredAttr("n"), ge::GRAPH_SUCCESS);
+  auto node = ge::NodeUtils::CreatNodeWithoutGraph(op_desc);
+  size_t attr_size;
+  auto attr_buffer = bg::CreateAttrBuffer(node, attr_size);
+  EXPECT_EQ(attr_buffer, nullptr);
+}
+
+TEST_F(BgIrAttrsUT, CreateAttrBufferSuccessWhenRequiredIrAttrHasValue) {
+  auto op_desc = std::make_shared<ge::OpDesc>("foo", "Foo");
+  op_desc->AppendIrAttrName("n");
+  EXPECT_EQ(op_desc->AddRequiredAttr("n"), ge::GRAPH_SUCCESS);
+  ge::AttrUtils::SetInt(op_desc, "n", 5);
+  auto node = ge::NodeUtils::CreatNodeWithoutGraph(op_desc);
+  size_t attr_size;
+  auto attr_buffer = bg::CreateAttrBuffer(node, attr_size);
+  auto rt_attr_def = reinterpret_cast<RuntimeAttrsDef *>(attr_buffer.get());
+  ASSERT_NE(rt_attr_def, nullptr);
+  EXPECT_EQ(rt_attr_def->attr_num, 1U);
+  auto base = reinterpret_cast<uint8_t *>(rt_attr_def);
+  EXPECT_EQ(*reinterpret_cast<int64_t *>(base + rt_attr_def->offset[0]), 5);
+}
+
+TEST_F(BgIrAttrsUT, CreateAttrBufferSkipLossOptionalIrAttr) {
+  auto op_desc = std::make_shared<ge::OpDesc>("foo", "Foo");
+  op_desc->AppendIrAttrName("a");
+  ge::AttrUtils::SetInt(op_desc, "a", 1);
+  op_desc->AppendIrAttrName("b");
+  auto node = ge::NodeUtils::CreatNodeWithoutGraph(op_desc);
+  size_t attr_size;
+  auto attr_buffer = bg::CreateAttrBuffer(node, attr_size);
+  auto rt_attr_def = reinterpret_cast<RuntimeAttrsDef *>(attr_buffer.get());
+  ASSERT_NE(rt_attr_def, nullptr);
+  EXPECT_EQ(rt_attr_def->attr_num, 1U);
+  auto base = reinterpret_cast<uint8_t *>(rt_attr_def);
+  EXPECT_EQ(*reinterpret_cast<int64_t *>(base + rt_attr_def->offset[0]), 1);
+}
+
 TEST_F(BgIrAttrsUT, CreateListListIntAttrBuffer_Int64Ok) {
   auto op_desc = std::make_shared<ge::OpDesc>("foo", "Foo");
   op_desc->AppendIrAttrName("axes");

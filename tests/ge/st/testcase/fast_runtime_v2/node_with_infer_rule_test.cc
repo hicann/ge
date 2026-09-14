@@ -97,6 +97,7 @@ ComputeGraphPtr ShapeRuleOpGraph(const std::string &rule, const bool &with_binar
   std::vector<uint8_t> binary;
   ShapeInferenceRule::CompileJsonString(rule, binary);
   AttrUtils::SetStr(rule_op->GetOpDesc(), "_inference_rule", rule);
+  AttrUtils::SetInt(rule_op->GetOpDesc(), "N", static_cast<int64_t>(num_outputs));
   if (with_binary) {
     AttrUtils::SetBytes(rule_op->GetOpDesc(), "_inference_rule_binary", Buffer::CopyFrom(binary.data(), binary.size()));
   }
