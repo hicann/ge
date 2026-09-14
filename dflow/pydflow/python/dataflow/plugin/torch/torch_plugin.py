@@ -211,7 +211,7 @@ def _serialize_with_torch_tensor(torch_tensor):
 
     if torch_tensor.device != torch.device("cpu"):
         raise TypeError(
-            f"torch tensor device:{torch_tensor.device} is not support when df use @npu_model, please to cpu."
+            f"torch tensor device:{torch_tensor.device} is not supported when df use @npu_model, please to cpu."
         )
     if not torch_tensor.is_contiguous():
         torch_tensor = torch_tensor.contiguous()
@@ -251,7 +251,7 @@ class NpuActorProcessPoint(PyActorProcessPoint):
     def check_options_supported(cls, node_options):
         for key in node_options.keys():
             if key not in _npu_actor_model_support_args_:
-                raise TypeError(f"param:{key} is not support in @npu_model.")
+                raise TypeError(f"param:{key} is not supported in @npu_model.")
 
     @classmethod
     def add_process_point(cls, flow_node, class_ins):
@@ -277,7 +277,7 @@ class NpuActorProcessPoint(PyActorProcessPoint):
             )
         else:
             raise TypeError(
-                f"optimize_level:{optimize_level} is not support in @npu_model."
+                f"optimize_level:{optimize_level} is not supported in @npu_model."
             )
         flow_node.add_process_point(pp)
         flow_node.set_attr("_npu_sched_model", 1)
@@ -371,7 +371,7 @@ class NpuFunctionProcessPoint(PyFunctionProcessPoint):
         for key in node_options.keys():
             if key not in _npu_model_support_args_:
                 raise TypeError(
-                    f"param:{key} is not support in @npu_model when applied to a function."
+                    f"param:{key} is not supported in @npu_model when applied to a function."
                 )
 
     def add_process_point(self, flow_node):

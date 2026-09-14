@@ -283,7 +283,8 @@ Status FlowModelBuilder::UpdateTensorDescByOption(std::vector<GeTensorDesc> &inp
     return PARAM_INVALID;
   }
   if (range_vec.size() != input_tensor_descs.size()) {
-    GELOGE(PARAM_INVALID, "[Check][Param] Dynamic input shape range size is %zu, inputs size is %zu. Not match.",
+    GELOGE(PARAM_INVALID,
+           "[Check][Param] Dynamic input shape range size is %zu, inputs size is %zu. They do not match.",
            range_vec.size(), input_tensor_descs.size());
     return PARAM_INVALID;
   }

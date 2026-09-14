@@ -94,7 +94,7 @@ _dwrapper_dtype_to_python_dtype = {
 def get_python_dtype_from_dwrapper_dtype(dwrapper_dtype):
     dtype = _dwrapper_dtype_to_python_dtype.get(dwrapper_dtype, None)
     if not dtype:
-        raise ValueError(f"The data type {dwrapper_dtype} is not support.")
+        raise ValueError(f"The data type {dwrapper_dtype} is not supported.")
     return dtype
 
 

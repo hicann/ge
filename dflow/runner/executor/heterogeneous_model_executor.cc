@@ -223,8 +223,8 @@ Status HeterogeneousModelExecutor::DynamicSchedQueueInitialize(const bool is_dyn
                            "DynamicSched, can't find sched app output indices=%u record.",
                            sched_input_queue_attrs_[i].global_logic_id);
     datagw_rqt_to_rsp_[iter->second] = sched_input_queue_attrs_[i];  // 获得datagw逻辑input queue到app物理queueid映射
-    GELOGI("DynamicSched, scheding request, find datagw input indices=%d to sched app output queueid=%u.", iter->second,
-           sched_input_queue_attrs_[i].queue_id);
+    GELOGI("DynamicSched, scheduling request, find datagw input indices=%d to sched app output queueid=%u.",
+           iter->second, sched_input_queue_attrs_[i].queue_id);
   }
 
   for (auto id : sched_input_queue_attrs_) {
@@ -1094,7 +1094,7 @@ Status HeterogeneousModelExecutor::FlowgwResponseEnqueue(int32_t device_id, int3
   };
   GE_CHK_STATUS_RET(exchange_service_->Enqueue(device_id, out_queue_id, rsp_size, fill_func, control_info),
                     "DynamicSched Failed to enqueue flowgw_response");
-  GELOGI("DynamicSched, sent scheding response, datagw_input_index=%d, datagw_input_cnt=%d.", datagw_input_index,
+  GELOGI("DynamicSched, sent scheduling response, datagw_input_index=%d, datagw_input_cnt=%d.", datagw_input_index,
          sched_input_cnt_[datagw_input_index]++);
   return SUCCESS;
 }
@@ -1133,7 +1133,7 @@ Status HeterogeneousModelExecutor::SchedRun(uint32_t index) {
 
     DynamicSchedDurationStart();
     int32_t datagw_input_index = flowgw_request.input_index();
-    GELOGI("DynamicSched receive scheding request, datagw_input_index=%d, datagw_input_cnt=%d.", datagw_input_index,
+    GELOGI("DynamicSched receive scheduling request, datagw_input_index=%d, datagw_input_cnt=%d.", datagw_input_index,
            sched_input_cnt_[datagw_input_index]);
     domi::FlowgwResponse flowgw_response;
     for (int32_t i = 0; i < flowgw_request.queue_infos_size(); ++i) {

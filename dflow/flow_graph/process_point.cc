@@ -349,7 +349,7 @@ class FunctionPpImpl {
     }
 
     if (pp.GetProcessPointType() != ProcessPointType::INNER) {
-      GELOGE(GRAPH_PARAM_INVALID, "AddInvokedClosure failed, as ProcessPointType=%d is not support.",
+      GELOGE(GRAPH_PARAM_INVALID, "AddInvokedClosure failed, as ProcessPointType=%d is not supported.",
              static_cast<int32_t>(pp.GetProcessPointType()));
       return GRAPH_PARAM_INVALID;
     }

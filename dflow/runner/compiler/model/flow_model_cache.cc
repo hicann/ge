@@ -679,13 +679,13 @@ Status FlowModelCache::TryMatchCacheForSubGraph(bool &is_match) const {
   if (cache_manual_check_) {
     if (((!cache_graph_info.empty()) && (!graph_info.empty()) && (cache_graph_info != graph_info)) ||
         ((!cache_build_options.empty()) && (!build_options.empty()) && (cache_build_options != build_options))) {
-      GELOGI("The cache is not match for graph[%s], graph_info or buildinfo is not equal in cache manual check mode.",
+      GELOGI("The cache does not match graph[%s], graph_info or buildinfo is not equal in cache manual check mode.",
              root_graph_->GetName().c_str());
       return SUCCESS;
     }
   } else {
     if (cache_graph_info != graph_info || cache_build_options != build_options) {
-      GELOGI("The cache is not match for graph[%s], graph_info or buildinfo is not equal in simple cache mode.",
+      GELOGI("The cache does not match graph[%s], graph_info or buildinfo is not equal in simple cache mode.",
              root_graph_->GetName().c_str());
       return SUCCESS;
     }

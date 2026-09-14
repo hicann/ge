@@ -46,7 +46,7 @@ EntityPtr LlmCommEntityMgr::GetEntityByConn(HcclConn conn) {
   if (iter != server_entity_map_.end()) {
     return iter->second;
   }
-  UDF_LOG_INFO("Not exist entity, conn:%p.", conn);
+  UDF_LOG_INFO("Entity does not exist, conn:%p.", conn);
   return nullptr;
 }
 
@@ -56,7 +56,7 @@ HcclConn LlmCommEntityMgr::GetEntityByIp(uint32_t ip) {
   if (iter != ip_to_conns_.end()) {
     return iter->second;
   }
-  UDF_RUN_LOG_WARN("Entity is not exist for remote ip:%u.", ip);
+  UDF_RUN_LOG_WARN("Entity does not exist for remote ip:%u.", ip);
   return nullptr;
 }
 
@@ -75,7 +75,7 @@ EntityPtr LlmCommEntityMgr::GetEntityByRemoteClusterId(uint64_t remote_cluster_i
   if ((iter != client_entity_map_.end()) && (iter->second->GetCurState() != FsmState::kFsmDestroyState)) {
     return iter->second;
   }
-  UDF_RUN_LOG_WARN("Not exist entity, remote_cluster_id:%lu.", remote_cluster_id);
+  UDF_RUN_LOG_WARN("Entity does not exist, remote_cluster_id:%lu.", remote_cluster_id);
   return nullptr;
 }
 
@@ -115,7 +115,7 @@ FsmStatus LlmCommEntityMgr::DeleteEntityByRemoteClusterId(uint64_t remote_cluste
   std::lock_guard<std::mutex> lock(entity_mutex_);
   auto iter = client_entity_map_.find(remote_cluster_id);
   if (iter == client_entity_map_.end()) {
-    UDF_LOG_INFO("Not exist remote_cluster_id:%lu.", remote_cluster_id);
+    UDF_LOG_INFO("remote_cluster_id:%lu does not exist.", remote_cluster_id);
     return FsmStatus::kFsmSuccess;
   }
   UDF_LOG_INFO("Delete entity:%s.", iter->second->GetDesc().c_str());

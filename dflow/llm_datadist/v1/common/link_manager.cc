@@ -61,7 +61,7 @@ ge::Status LinkManager::CheckClusterInfo(const std::vector<ClusterInfo> &cluster
                             "local ip infos size:%zu, remote ip infos:%zu", cluster.local_ip_infos.size(),
                             cluster.remote_ip_infos.size());
     LLM_CHK_BOOL_RET_STATUS(cluster.local_ip_infos.size() == sliced_num, ge::LLM_PARAM_INVALID,
-                            "cluster ip info size:%zu not match sliced_num:%zu", cluster.local_ip_infos.size(),
+                            "cluster ip info size:%zu does not match sliced_num:%zu", cluster.local_ip_infos.size(),
                             sliced_num);
     LLM_CHK_BOOL_RET_STATUS(cluster.local_ip_infos == local_ip_infos, ge::LLM_PARAM_INVALID,
                             "local_ip_infos should be same");

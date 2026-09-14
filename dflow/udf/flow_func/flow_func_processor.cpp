@@ -78,8 +78,8 @@ int32_t FlowFuncProcessor::SetOutput(uint32_t out_idx, const std::shared_ptr<Flo
 
   auto mbuf_flow_msg = std::dynamic_pointer_cast<MbufFlowMsg>(out_msg);
   if (mbuf_flow_msg == nullptr) {
-    UDF_LOG_ERROR("not support custom define flow msg now, flow_func_info=%s, out_idx=%u.", flow_func_info_.c_str(),
-                  out_idx);
+    UDF_LOG_ERROR("does not support custom define flow msg now, flow_func_info=%s, out_idx=%u.",
+                  flow_func_info_.c_str(), out_idx);
     return FLOW_FUNC_ERR_PARAM_INVALID;
   }
 
@@ -386,7 +386,7 @@ void FlowFuncProcessor::DumpOutputData(const std::string &op_name, uint32_t out_
 void FlowFuncProcessor::SetInputData(std::vector<Mbuf *> &data) {
   UDF_LOG_DEBUG("SetInputData, flow_func_info=%s, input num=%zu.", flow_func_info_.c_str(), data.size());
   if (data.size() != input_queue_infos_.size()) {
-    UDF_LOG_ERROR("call back data vector size=%zu is not match inputQueueIds_ size=%zu, flow_func_info=%s.",
+    UDF_LOG_ERROR("call back data vector size=%zu does not match inputQueueIds_ size=%zu, flow_func_info=%s.",
                   data.size(), input_queue_infos_.size(), flow_func_info_.c_str());
     return;
   }
@@ -1040,7 +1040,7 @@ int32_t FlowFuncProcessor::WriteStatusOutputQueue(uint64_t trans_id,
   }
   // mbuf header cannot be got while input is empty
   if (input_queue_infos_.empty()) {
-    UDF_LOG_ERROR("Current udf is not allowed raising exception result of inputs is empty.");
+    UDF_LOG_ERROR("Current udf is not allowed to raise exception as inputs are empty.");
     return FLOW_FUNC_FAILED;
   }
   UdfExceptionInfo exception_info{};

@@ -220,7 +220,7 @@ rtMbufPtr_t FlowMsgBase::MbufCopyRef() const {
 }
 
 Status FlowMsgBase::SetUserData(const void *data, size_t size, size_t offset) {
-  GE_CHK_STATUS_RET(CheckParamsForUserData(data, size, offset), "Failed to set user data, the params is invalid.");
+  GE_CHK_STATUS_RET(CheckParamsForUserData(data, size, offset), "Failed to set user data, the params are invalid.");
   const auto cpy_ret = memcpy_s((user_data_ + offset), (user_data_size_ - offset), data, size);
   GE_ASSERT_EOK(cpy_ret, "Failed to set user data, memcpy_s error, size[%zu], offset[%zu], ret[%d].", size, offset,
                 cpy_ret);
@@ -229,7 +229,7 @@ Status FlowMsgBase::SetUserData(const void *data, size_t size, size_t offset) {
 }
 
 Status FlowMsgBase::GetUserData(void *data, size_t size, size_t offset) const {
-  GE_CHK_STATUS_RET(CheckParamsForUserData(data, size, offset), "Failed to get user data, the params is invalid.");
+  GE_CHK_STATUS_RET(CheckParamsForUserData(data, size, offset), "Failed to get user data, the params are invalid.");
   const auto cpy_ret = memcpy_s(data, size, (user_data_ + offset), size);
   GE_ASSERT_EOK(cpy_ret, "Failed to get user data, memcpy_s error, size[%zu], offset[%zu], ret[%d].", size, offset,
                 cpy_ret);

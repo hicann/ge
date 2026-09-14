@@ -210,7 +210,8 @@ FsmStatus LinkReqHandler::TransClusterInfo(const ClusterInfo &cluster_info, Link
   }
   if (req_type == LinkReqType::kUnlink) {
     if (iter == nullptr) {
-      UDF_RUN_LOG_WARN("Param invalid for unlink, link not exist, remote_cluster_id:%lu.", cluster.remote_cluster_id);
+      UDF_RUN_LOG_WARN("Param invalid for unlink, link does not exist, remote_cluster_id:%lu.",
+                       cluster.remote_cluster_id);
       stat_info.unlink_succ_times++;
       return FsmStatus::kFsmNotLink;
     } else if ((iter->GetRemoteIp() != cluster_info.ip_infos[device_index_].remote_ip) ||

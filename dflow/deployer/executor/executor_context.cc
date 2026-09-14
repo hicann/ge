@@ -672,7 +672,7 @@ Status ExecutorContext::ModelHandle::DoLoadModelWithQ(const ModelData &model_dat
   } else {
     GeExecutor executor;
     if (IsEnableExceptionCatch()) {
-      GE_CHK_STATUS_RET(CpuTasks::CheckSupportExceptionNotify(), "aicpu not support exception catch.");
+      GE_CHK_STATUS_RET(CpuTasks::CheckSupportExceptionNotify(), "aicpu does not support exception catch.");
     }
     GE_CHK_STATUS_RET(CpuTasks::ExecuteModelEschedPriorityTask(esched_process_priority_, esched_event_priority_));
     GE_CHK_STATUS_RET(CheckAicpuAlignTask(model_queue_param.input_align_attrs), "[Check][Align] attrs failed.");

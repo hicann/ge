@@ -31,7 +31,7 @@ int64_t GetThread() {
 bool CheckDetailRecordInvalid(const std::map<uint32_t, std::vector<uint64_t>> &check_data, const size_t expect_size) {
   for (const auto &data : check_data) {
     if (data.second.size() != expect_size) {
-      GEEVENT("Current scenario not support calculate total duration");
+      GEEVENT("Current scenario does not support calculating total duration");
       return false;
     }
   }

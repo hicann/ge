@@ -601,7 +601,7 @@ int32_t MbufFlowMsg::InitMbufTensorList() {
     // make sure ptr is not out of range
     if ((total_len + sizeof(RuntimeTensorDesc) > mbuf_info_.mbuf_len)) {
       UDF_LOG_ERROR(
-          "Tensor list data is invalid. total len=%lu add RuntimeDesc=%zu"
+          "Tensor list data is invalid. total len=%lu add RuntimeDesc=%zu "
           "is bigger than mbuf length=%lu.",
           total_len, sizeof(RuntimeTensorDesc), mbuf_info_.mbuf_len);
       return FLOW_FUNC_FAILED;

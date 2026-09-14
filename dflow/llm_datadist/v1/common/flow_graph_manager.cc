@@ -104,7 +104,7 @@ ge::Status DeployInfo::ParserDeployInfo(const std::map<ge::AscendString, ge::Asc
   }
 
   iter = options.find(LLM_OPTION_ROLE);
-  LLM_ASSERT_TRUE(iter != options.end(), "[DeployInfo] not find %s.", LLM_OPTION_ROLE);
+  LLM_ASSERT_TRUE(iter != options.end(), "[DeployInfo] %s is not found.", LLM_OPTION_ROLE);
   const std::string &role = iter->second.GetString();
   if (json.find(kListenIpInfo) != json.cend()) {
     LLM_CHK_BOOL_RET_STATUS(json[kListenIpInfo].is_array(), ge::LLM_PARAM_INVALID, "%s must be array.", kListenIpInfo);
@@ -116,8 +116,8 @@ ge::Status DeployInfo::ParserDeployInfo(const std::map<ge::AscendString, ge::Asc
       listen_ips_info_.emplace_back(std::make_pair(ip_info[kIp], ip_info[kPort]));
     }
     LLM_CHK_BOOL_RET_STATUS(logical_device_ids_.size() == listen_ips_info_.size(), ge::LLM_PARAM_INVALID,
-                            "logical_device_ids num:%zu not match listen_ips_info num:%zu", logical_device_ids_.size(),
-                            listen_ips_info_.size());
+                            "logical_device_ids num:%zu does not match listen_ips_info num:%zu",
+                            logical_device_ids_.size(), listen_ips_info_.size());
   } else {
     LLM_CHK_BOOL_RET_STATUS(role != kPrompt, ge::LLM_PARAM_INVALID, "prompt engine must set listen ip info.");
   }

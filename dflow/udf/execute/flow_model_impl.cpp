@@ -147,7 +147,7 @@ int32_t FlowModelImpl::Feed(size_t input_idx, const std::shared_ptr<FlowMsg> &fl
   UDF_LOG_DEBUG("feed flow msg, input_idx=%zu, qid=%u, timeout=%d(ms).", input_idx, input_queue_info.queue_id, timeout);
   auto mbuf_flow_msg = std::dynamic_pointer_cast<MbufFlowMsg>(flow_msg);
   if (mbuf_flow_msg == nullptr) {
-    UDF_LOG_ERROR("not support custom define flow msg now, input_idx=%zu, qid=%u.", input_idx,
+    UDF_LOG_ERROR("does not support custom define flow msg now, input_idx=%zu, qid=%u.", input_idx,
                   input_queue_info.queue_id);
     return FLOW_FUNC_ERR_PARAM_INVALID;
   }

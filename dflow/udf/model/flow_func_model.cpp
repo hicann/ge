@@ -424,7 +424,7 @@ std::vector<std::unique_ptr<FlowFuncModel>> FlowFuncModel::ParseModels(const std
 
   int32_t model_num = batch_load_model_req.models_size();
   if (model_num == 0) {
-    UDF_LOG_ERROR("models is not exist, file=%s.", batch_model_path.c_str());
+    UDF_LOG_ERROR("models do not exist, file=%s.", batch_model_path.c_str());
     return {};
   }
 
@@ -525,7 +525,7 @@ int32_t FlowFuncModel::GetVisibleDeviceEnableFromAttr(bool &visible_device_enabl
       return ret;
     }
     if (visible_device_enable && GlobalConfig::Instance().GetPhyDeviceId() < 0) {
-      UDF_LOG_ERROR("attr %s not support enable when PhyDeviceId < 0, funcName=%s, name=%s.",
+      UDF_LOG_ERROR("attr %s cannot be enabled when PhyDeviceId < 0, funcName=%s, name=%s.",
                     kAttrNameDataFlowVisibleDeviceEnable, flow_func_name_.c_str(), name_.c_str());
       return FLOW_FUNC_ERR_PARAM_INVALID;
     }

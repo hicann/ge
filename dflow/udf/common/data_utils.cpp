@@ -85,7 +85,7 @@ int64_t CalcElementCnt(const std::vector<int64_t> &shape) {
   int64_t element_cnt = 1;
   for (int64_t dim : shape) {
     if (dim < 0) {
-      UDF_LOG_ERROR("dim is negative, not support now, dim=%ld.", dim);
+      UDF_LOG_ERROR("dim is negative, not supported now, dim=%ld.", dim);
       return -1;
     }
     if (CheckMultiplyOverflowInt64(element_cnt, dim)) {
@@ -100,7 +100,7 @@ int64_t CalcElementCnt(const std::vector<int64_t> &shape) {
 int64_t CalcDataSize(const std::vector<int64_t> &shape, TensorDataType data_type) {
   int32_t type_size = GetSizeByDataType(data_type);
   if (type_size < 0) {
-    UDF_LOG_ERROR("data_type=%d is not support.", static_cast<int32_t>(data_type));
+    UDF_LOG_ERROR("data_type=%d is not supported.", static_cast<int32_t>(data_type));
     return -1;
   }
   int64_t element_cnt = CalcElementCnt(shape);
