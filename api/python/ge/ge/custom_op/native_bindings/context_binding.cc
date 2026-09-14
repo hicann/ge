@@ -644,13 +644,13 @@ void BindEagerOpExecutionContext(py::module_ &m) {
 
   py::class_<BorrowedEagerOpExecutionContext>(m, "EagerOpExecutionContext",
                                               "Borrowed view of gert::EagerOpExecutionContext")
-      .def("get_input_tensor", &BorrowedEagerOpExecutionContext::GetInputTensor, py::arg("index"))
-      .def("get_input_num", &BorrowedEagerOpExecutionContext::GetInputNum)
-      .def("get_dynamic_input_num", &BorrowedEagerOpExecutionContext::GetDynamicInputNum, py::arg("ir_index"))
-      .def("get_attrs", &BorrowedEagerOpExecutionContext::GetAttrs)
-      .def("get_required_input_tensor", &BorrowedEagerOpExecutionContext::GetRequiredInputTensor, py::arg("ir_index"))
-      .def("get_optional_input_tensor", &BorrowedEagerOpExecutionContext::GetOptionalInputTensor, py::arg("ir_index"))
-      .def("get_dynamic_input_tensor", &BorrowedEagerOpExecutionContext::GetDynamicInputTensor, py::arg("ir_index"),
+      .def("_get_input_tensor", &BorrowedEagerOpExecutionContext::GetInputTensor, py::arg("index"))
+      .def("_get_input_num", &BorrowedEagerOpExecutionContext::GetInputNum)
+      .def("_get_dynamic_input_num", &BorrowedEagerOpExecutionContext::GetDynamicInputNum, py::arg("ir_index"))
+      .def("_get_attrs", &BorrowedEagerOpExecutionContext::GetAttrs)
+      .def("_get_required_input_tensor", &BorrowedEagerOpExecutionContext::GetRequiredInputTensor, py::arg("ir_index"))
+      .def("_get_optional_input_tensor", &BorrowedEagerOpExecutionContext::GetOptionalInputTensor, py::arg("ir_index"))
+      .def("_get_dynamic_input_tensor", &BorrowedEagerOpExecutionContext::GetDynamicInputTensor, py::arg("ir_index"),
            py::arg("relative_index"))
       .def("malloc_output_tensor", &BorrowedEagerOpExecutionContext::MallocOutputTensor, py::arg("index"),
            py::arg("shape"), py::arg("format"), py::arg("dtype"))

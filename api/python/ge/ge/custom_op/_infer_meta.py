@@ -24,14 +24,14 @@ def _build_infer_inputs(ctx, ir_inputs: list) -> list:
     for ir_index, item in enumerate(ir_inputs):
         kind = item["kind"]
         if kind == InputType.REQUIRED:
-            args.append(ctx.get_required_input_tensor(ir_index))
+            args.append(ctx._get_required_input_tensor(ir_index))
         elif kind == InputType.OPTIONAL:
-            args.append(ctx.get_optional_input_tensor(ir_index))
+            args.append(ctx._get_optional_input_tensor(ir_index))
         elif kind == InputType.DYNAMIC:
-            instance_num = ctx.get_dynamic_input_num(ir_index)
+            instance_num = ctx._get_dynamic_input_num(ir_index)
             descs = []
             for relative_index in range(instance_num):
-                descs.append(ctx.get_dynamic_input_tensor(ir_index, relative_index))
+                descs.append(ctx._get_dynamic_input_tensor(ir_index, relative_index))
             args.append(descs)
     return args
 
@@ -44,7 +44,7 @@ def _read_infer_attr(attrs, index: int, ir_type: str):
 def _build_infer_attrs(ctx, ir_attrs: list) -> dict:
     if not ir_attrs:
         return {}
-    attrs = ctx.get_attrs()
+    attrs = ctx._get_attrs()
     return {
         item["name"]: _read_infer_attr(attrs, index, item["type"])
         for index, item in enumerate(ir_attrs)
@@ -121,7 +121,7 @@ def call_infer_meta(op_type: str, ir_meta: Optional[dict], ctx) -> list:
         for ir_index, item in enumerate(ir_meta["outputs"]):
             kind = item["kind"]
             if kind == OutputType.DYNAMIC:
-                instance_num = ctx.get_dynamic_output_num(ir_index)
+                instance_num = ctx._get_dynamic_output_num(ir_index)
                 actual_num = slot_sizes[ir_index]
                 if instance_num != actual_num:
                     raise TypeError(

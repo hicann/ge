@@ -164,13 +164,13 @@ BorrowedInferMetaContext BorrowInferMetaContext(const py::capsule &ctx_handle) {
 
 void BindInferMetaContext(py::module_ &m) {
   py::class_<BorrowedInferMetaContext>(m, "InferMetaContext", "Borrowed context for Python infer_meta")
-      .def("get_required_input_tensor", &BorrowedInferMetaContext::GetRequiredInputTensor, py::arg("ir_index"))
-      .def("get_optional_input_tensor", &BorrowedInferMetaContext::GetOptionalInputTensor, py::arg("ir_index"))
-      .def("get_dynamic_input_num", &BorrowedInferMetaContext::GetDynamicInputNum, py::arg("ir_index"))
-      .def("get_dynamic_input_tensor", &BorrowedInferMetaContext::GetDynamicInputTensor, py::arg("ir_index"),
+      .def("_get_required_input_tensor", &BorrowedInferMetaContext::GetRequiredInputTensor, py::arg("ir_index"))
+      .def("_get_optional_input_tensor", &BorrowedInferMetaContext::GetOptionalInputTensor, py::arg("ir_index"))
+      .def("_get_dynamic_input_num", &BorrowedInferMetaContext::GetDynamicInputNum, py::arg("ir_index"))
+      .def("_get_dynamic_input_tensor", &BorrowedInferMetaContext::GetDynamicInputTensor, py::arg("ir_index"),
            py::arg("relative_index"))
-      .def("get_attrs", &BorrowedInferMetaContext::GetAttrs)
-      .def("get_dynamic_output_num", &BorrowedInferMetaContext::GetDynamicOutputNum, py::arg("ir_index"))
+      .def("_get_attrs", &BorrowedInferMetaContext::GetAttrs)
+      .def("_get_dynamic_output_num", &BorrowedInferMetaContext::GetDynamicOutputNum, py::arg("ir_index"))
       .def("_invalidate", &BorrowedInferMetaContext::Invalidate);
   m.def("_borrow_infer_meta_context", &BorrowInferMetaContext, py::arg("ctx_handle"));
 }

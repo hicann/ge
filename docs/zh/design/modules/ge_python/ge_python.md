@@ -741,7 +741,7 @@ custom_op/
 └── native_bindings/         # _ge_custom_op_native.so 的 pybind11 绑定实现
 ```
 注：下划线开头的为 Python 风格下的对内模块。
-注：`EagerOpExecutionContext`、`OpCompileContext`、`CompilePlatformInfo`、`AnnotatedArgsContext` 和 `InferShapeContext` 由 `_ge_custom_op_native.so` 提供 native-backed 实现；执行期、编译期或 `infer_meta` 回调中返回、接收的 `Tensor`、`TensorDesc`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构由 `ge.runtime` 模块提供。
+注：`EagerOpExecutionContext`、`OpCompileContext`、`CompilePlatformInfo` 和 `AnnotatedArgsContext` 由 `_ge_custom_op_native.so` 提供 native-backed 实现；执行期、编译期或 `infer_meta` 回调中返回、接收的 `Tensor`、`TensorDesc`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构由 `ge.runtime` 模块提供。
 
 #### 模块定位
 
@@ -768,13 +768,6 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_cus
 **功能**: Python 侧的自定义算子执行上下文视图。
 
 **主要方法**:
-- `get_input_tensor(index)` - 根据输入 index 获取输入 `Tensor`
-- `get_input_num()` - 获取当前计算节点的运行时输入 tensor 数量
-- `get_dynamic_input_num(ir_index)` - 获取动态输入 IR 槽位的运行时实例数
-- `get_attrs()` - 获取当前节点的 `RuntimeAttrs` borrowed view
-- `get_required_input_tensor(ir_index)` - 基于算子 IR 原型定义获取 `REQUIRED_INPUT` 类型的输入 `Tensor`
-- `get_optional_input_tensor(ir_index)` - 基于算子 IR 原型定义获取 `OPTIONAL_INPUT` 类型的输入 `Tensor`
-- `get_dynamic_input_tensor(ir_index, relative_index)` - 基于算子 IR 原型定义获取 `DYNAMIC_INPUT` 类型的输入 `Tensor`
 - `malloc_output_tensor(index, shape, format, dtype)` - 为某个输出 tensor 申请 device 内存，并初始化输出 tensor 的基本信息
 - `make_output_ref_input(output_index, input_index)` - 指定某输出的内存地址引用自某个输入
 - `malloc_workspace(size)` - 分配 workspace 内存，placement 为 device，返回地址整数
@@ -783,9 +776,9 @@ ge/custom_op/python_custom_op_artifacts/<python_tag>-<platform>/libge_python_cus
 
 ##### 2. RuntimeAttrs native-backed wrapper
 
-**文件位置**: `_ge_custom_op_native.pyi`
+**文件位置**: `native_bindings/runtime_attrs_binding.h`
 
-**功能**: 当前执行回调的运行时属性 borrowed view。schema-bound 调用由 bridge 根据 canonical IR 属性类型选择对应的 typed reader。
+**功能**: 桥接层内部的运行时属性 borrowed view，不通过 `ge.custom_op` 对外导出。schema-bound 调用由 bridge 根据 canonical IR 属性类型选择对应的 typed reader，将属性物化为 Python 值后传给回调。
 
 **主要方法**:
 - 标量：`get_int`、`get_float`、`get_bool`、`get_str`、`get_data_type`、`get_tensor`

@@ -817,7 +817,7 @@ custom_op/
 ```
 
 Note: Files prefixed with underscores are internal modules in the Python style.
-Note: `EagerOpExecutionContext`, `OpCompileContext`, `CompilePlatformInfo`, `AnnotatedArgsContext`, and `InferShapeContext` are provided by `_ge_custom_op_native.so` as native-backed implementations. Runtime data structures such as `Tensor`, `TensorDesc`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement` returned or received during execution, compilation, or an `infer_meta` callback are provided by the `ge.runtime` module.
+Note: `EagerOpExecutionContext`, `OpCompileContext`, `CompilePlatformInfo`, and `AnnotatedArgsContext` are provided by `_ge_custom_op_native.so` as native-backed implementations. Runtime data structures such as `Tensor`, `TensorDesc`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement` returned or received during execution, compilation, or an `infer_meta` callback are provided by the `ge.runtime` module.
 
 #### Module Positioning
 
@@ -845,13 +845,6 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 
 **Main methods**:
 
-- `get_input_tensor(index)` - Obtains an input `Tensor` by input index
-- `get_input_num()` - Obtains the number of runtime input tensors of the current compute node
-- `get_dynamic_input_num(ir_index)` - Obtains the runtime instance count of a dynamic input IR slot
-- `get_attrs()` - Obtains the `RuntimeAttrs` borrowed view of the current node
-- `get_required_input_tensor(ir_index)` - Obtains a `REQUIRED_INPUT` type input `Tensor` based on the operator IR prototype definition
-- `get_optional_input_tensor(ir_index)` - Obtains an `OPTIONAL_INPUT` type input `Tensor` based on the operator IR prototype definition
-- `get_dynamic_input_tensor(ir_index, relative_index)` - Obtains a `DYNAMIC_INPUT` type input `Tensor` based on the operator IR prototype definition
 - `malloc_output_tensor(index, shape, format, dtype)` - Allocates device memory for an output tensor and initializes the basic information of the output tensor
 - `make_output_ref_input(output_index, input_index)` - Specifies that the memory address of an output references an input
 - `malloc_workspace(size)` - Allocates workspace memory with device placement and returns the address as an integer
@@ -860,9 +853,9 @@ At runtime, the matching artifact is selected based on the loaded Python interpr
 
 ##### 2. RuntimeAttrs Native-Backed Wrapper
 
-**File location**: `_ge_custom_op_native.pyi`
+**File location**: `native_bindings/runtime_attrs_binding.h`
 
-**Function**: Borrowed runtime attribute view for the current execution callback. For schema-bound invocation, the bridge selects a typed reader according to each canonical IR attribute type.
+**Function**: Bridge-internal runtime attribute borrowed view. It is not exported through `ge.custom_op` and is not shown in the public stub `_ge_custom_op_native.pyi`. For schema-bound invocation, the bridge selects a typed reader according to each canonical IR attribute type and materializes attributes into Python values before invoking the callback.
 
 **Main methods**:
 - Scalars: `get_int`, `get_float`, `get_bool`, `get_str`, `get_data_type`, and `get_tensor`

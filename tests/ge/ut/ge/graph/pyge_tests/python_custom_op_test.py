@@ -74,30 +74,30 @@ class _FakeEagerContext:
         self.runtime_attrs = _FakeRuntimeAttrs()
         self.attrs_requested = False
 
-    def get_required_input_tensor(self, ir_index):
+    def _get_required_input_tensor(self, ir_index):
         self.input_calls.append(("required", ir_index))
         return ("required", ir_index)
 
-    def get_optional_input_tensor(self, ir_index):
+    def _get_optional_input_tensor(self, ir_index):
         self.input_calls.append(("optional", ir_index))
         return ("optional", ir_index)
 
-    def get_dynamic_input_num(self, ir_index):
+    def _get_dynamic_input_num(self, ir_index):
         self.input_calls.append(("dynamic_num", ir_index))
         return 2
 
-    def get_dynamic_input_tensor(self, ir_index, relative_index):
+    def _get_dynamic_input_tensor(self, ir_index, relative_index):
         self.input_calls.append(("dynamic", ir_index, relative_index))
         return ("dynamic", ir_index, relative_index)
 
-    def get_attrs(self):
+    def _get_attrs(self):
         self.attrs_requested = True
         return self.runtime_attrs
 
-    def get_input_num(self):
+    def _get_input_num(self):
         return len(self.inputs)
 
-    def get_input_tensor(self, index):
+    def _get_input_tensor(self, index):
         return self.inputs[index]
 
     def get_stream(self):
@@ -801,8 +801,8 @@ def test_native_context_exposes_execute_binding_views():
         "get_attr_num",
     ):
         assert hasattr(native_module.RuntimeAttrs, method_name)
-    assert hasattr(native_module.EagerOpExecutionContext, "get_dynamic_input_num")
-    assert hasattr(native_module.EagerOpExecutionContext, "get_attrs")
+    assert hasattr(native_module.EagerOpExecutionContext, "_get_dynamic_input_num")
+    assert hasattr(native_module.EagerOpExecutionContext, "_get_attrs")
 
 
 def test_bridge_rejects_unknown_descriptor_key():
