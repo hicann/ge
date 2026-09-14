@@ -62,7 +62,7 @@ Run()
   │      │           └─ Unsupported → log and return false (node fails)
   │      ├─ Step1: Modify input/output format + shape (with shape dimension reordering)
   │      ├─ Step2: Propagate output format to directly connected NetOutput nodes
-  │      ├─ Step3: CheckOpSupported validation (skipped for Data/Reshape nodes)
+   │      ├─ Step3: CheckOpSupported validation (skipped for Data nodes)
   │      │           └─ On failure → log and return false
   │      └─ Step4: Detect and remove redundant Transpose nodes
   │                  ├─ Collection: IsTransposeNode → IsTransposePermConst → HasNoControlEdge → IsTransposeRedundant
@@ -114,7 +114,7 @@ Run()
      - Validate that the original format of ports to be modified is within the supported range (`FORMAT_NCHW` / `FORMAT_NHWC`); if not, log and skip the node.
      - Modify input/output format and shape, synchronously reordering shape dimensions when modifying format (e.g., NCHW→NHWC: `[N,C,H,W]`→`[N,H,W,C]`).
      - If an output is directly connected to a NetOutput node, propagate the format change to the corresponding NetOutput input port.
-     - Validate the modified format combination via `GeUtils::CheckNodeSupportOnAicore` (Data/Reshape nodes skip validation).
+      - Validate the modified format combination via `GeUtils::CheckNodeSupportOnAicore` (Data nodes skip validation).
      - On validation failure, log and return FAILED.
      - After successful validation, detect and remove Transpose nodes that have become redundant due to the format change.
      - Record successfully configured nodes into the `configured_nodes` set.
