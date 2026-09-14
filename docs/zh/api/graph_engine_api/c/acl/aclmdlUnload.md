@@ -20,9 +20,6 @@
 <!-- npu="910" id1047 -->
 - Atlas 训练系列产品：支持
 <!-- end id1047 -->
-<!-- npu="IPV350" id1048 -->
-- IPV350：支持
-<!-- end id1048 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlUnload_res.md#id1 -->
 
 ## 功能说明

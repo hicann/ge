@@ -8,10 +8,6 @@
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--dynamic_image_size_res.md#id1 -->
 
-<!-- npu="IPV350" id1 -->
-IPV350：不支持
-<!-- end id1 -->
-
 ## 功能说明
 
 设置输入图片的动态分辨率参数。适用于执行推理时，每次处理图片宽和高不固定的场景。

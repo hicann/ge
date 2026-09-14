@@ -20,9 +20,6 @@
 <!-- npu="910" id433 -->
 - Atlas 训练系列产品：支持
 <!-- end id433 -->
-<!-- npu="IPV350" id434 -->
-- IPV350：支持
-<!-- end id434 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlLoadWithConfig_res.md#id1 -->
 
 ## 功能说明
@@ -53,12 +50,6 @@ aclError aclmdlLoadWithConfig(const aclmdlConfigHandle *handle, uint32_t *modelI
 ## 返回值说明
 
 返回0表示成功，返回其他值表示失败，请参见[aclError](aclError.md)。
-
-<!-- npu="IPV350" id1 -->
-## 约束说明
-
-从Device内存加载模型时，从模型加载开始到调用aclmdlUnload接口卸载模型完成之前，不能修改或释放模型数据所在的Device内存。
-<!-- end id1 -->
 
 ## 参考资源
 

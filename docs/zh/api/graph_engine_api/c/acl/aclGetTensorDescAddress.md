@@ -20,9 +20,6 @@
 <!-- npu="910" id1131 -->
 - Atlas 训练系列产品：支持
 <!-- end id1131 -->
-<!-- npu="IPV350" id1132 -->
-- IPV350：不支持
-<!-- end id1132 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclGetTensorDescAddress_res.md#id1 -->
 
 ## 功能说明

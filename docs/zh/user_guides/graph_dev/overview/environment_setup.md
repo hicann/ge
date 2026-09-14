@@ -34,7 +34,7 @@
     export ASCEND_WORK_PATH=/repo/task001/172.16.1.12_01_03
     ```
 
-    关于环境变量ASCEND\_CACHE\_PATH与ASCEND\_WORK\_PATH的使用约束以及落盘文件说明，可参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
+    关于环境变量ASCEND\_CACHE\_PATH与ASCEND\_WORK\_PATH的使用约束以及落盘文件说明，可参见《[环境变量参考](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/env-vars/README.md)》。
 
 >[!NOTE]说明
 >

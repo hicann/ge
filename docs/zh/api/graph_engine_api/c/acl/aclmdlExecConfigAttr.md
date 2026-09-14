@@ -30,8 +30,4 @@ typedef enum {
 注意，当前仅支持ACL\_MDL\_STREAM\_SYNC\_TIMEOUT和ACL\_MDL\_EVENT\_SYNC\_TIMEOUT。
 <!-- end id1 -->
 
-<!-- npu="IPV350" id2 -->
-注意，当前仅支持ACL\_MDL\_WORK\_ADDR\_PTR和ACL\_MDL\_WORK\_SIZET。
-<!-- end id2 -->
-
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlExecConfigAttr_res.md#id1 -->

@@ -20,9 +20,6 @@
 <!-- npu="910" id27 -->
 - Atlas 训练系列产品：支持
 <!-- end id27 -->
-<!-- npu="IPV350" id28 -->
-- IPV350：不支持
-<!-- end id28 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclSetTensorDynamicInput_res.md#id1 -->
 
 ## 功能说明

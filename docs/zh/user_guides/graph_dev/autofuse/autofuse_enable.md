@@ -87,7 +87,7 @@
 >
 >关于ATC工具详细使用方法请参见《[ATC离线模型编译工具](../../atc_tools/README.md)》。
 >
->关于acl接口推理详细说明请参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理”。
+>关于acl接口推理详细说明请参见《[应用开发](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理”。
 
 ## AUTOFUSE\_FLAGS环境变量控制点
 

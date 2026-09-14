@@ -20,9 +20,6 @@
 <!-- npu="910" id949 -->
 - Atlas 训练系列产品：支持
 <!-- end id949 -->
-<!-- npu="IPV350" id950 -->
-- IPV350：不支持
-<!-- end id950 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclopSetKernelWorkspaceSizes_res.md#id1 -->
 
 ## 功能说明

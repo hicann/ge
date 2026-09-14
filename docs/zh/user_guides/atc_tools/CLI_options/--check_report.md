@@ -8,10 +8,6 @@
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--check_report_res.md#id1 -->
 
-<!-- npu="IPV350" id1 -->
-IPV350：不支持
-<!-- end id1 -->
-
 ## 功能说明
 
 用于配置预检结果保存文件路径和文件名。
@@ -45,4 +41,4 @@ atc --check_report=$HOME/module/out/check_result.json ...
 
 预检结果文件存储路径，除[--check\_report](--check_report.md)参数设置的方式外，还可以配置环境变量ASCEND\_WORK\_PATH，几种方式优先级为：配置参数“--check\_report”\>环境变量ASCEND\_WORK\_PATH\>默认存储路径（执行atc命令当前路径）。
 
-关于环境变量ASCEND\_WORK\_PATH的详细说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
+关于环境变量ASCEND\_WORK\_PATH的详细说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/env-vars/README.md)》。

@@ -20,9 +20,6 @@
 <!-- npu="910" id1222 -->
 - Atlas 训练系列产品：支持
 <!-- end id1222 -->
-<!-- npu="IPV350" id1223 -->
-- IPV350：不支持
-<!-- end id1223 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlSetAIPPDtcPixelMin_res.md#id1 -->
 
 ## 功能说明

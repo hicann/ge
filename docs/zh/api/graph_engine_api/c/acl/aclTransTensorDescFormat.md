@@ -22,9 +22,6 @@
 <!-- npu="910" id97 -->
 - Atlas 训练系列产品：支持
 <!-- end id97 -->
-<!-- npu="IPV350" id98 -->
-- IPV350：不支持
-<!-- end id98 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclTransTensorDescFormat_res.md#id1 -->
 
 ## 功能说明

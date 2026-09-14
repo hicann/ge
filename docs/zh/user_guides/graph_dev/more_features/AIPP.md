@@ -2,10 +2,6 @@
 
 本节介绍构图过程中如何开启AIPP特性。
 
-<!-- npu="IPV350" id1 -->
-IPV350不支持AIPP特性。
-<!-- end id1 -->
-
 <!-- @ref: ge/res/docs/zh/user_guides/graph_dev/AIPP_res.md#id1 -->
 
 ## 功能介绍

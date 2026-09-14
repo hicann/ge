@@ -101,10 +101,6 @@ typedef enum {
 当前版本设置无效。
 <!-- end id3 -->
 
-<!-- npu="IPV350" id4 -->
-当前版本设置无效。
-<!-- end id4 -->
-
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclCompileOpt_res.md#id1 -->
 
 ## ACL\_AUTO\_TUNE\_MODE取值说明
@@ -257,7 +253,7 @@ typedef enum {
 
 如果设置了ACL\_OP\_DEBUG\_LEVEL编译选项，则只有编译选项值为0才会启用编译缓存功能，其它取值禁用编译缓存功能。
 
-关于配置算子编译文件的缓存目录，除此处设置枚举值的方式，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式的优先级为：本节设置枚举值的方式 \> 设置环境变量 \> 默认路径。环境变量的详细配置说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
+关于配置算子编译文件的缓存目录，除此处设置枚举值的方式，还可以配置环境变量ASCEND\_CACHE\_PATH，几种方式的优先级为：本节设置枚举值的方式 \> 设置环境变量 \> 默认路径。环境变量的详细配置说明请参见《[环境变量参考](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/env-vars/README.md)》。
 
 ## ACL\_OP\_PERFORMANCE\_MODE取值说明
 

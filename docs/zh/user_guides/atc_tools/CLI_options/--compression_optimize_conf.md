@@ -26,10 +26,6 @@
 - Atlas 训练系列产品：支持
 <!-- end id7 -->
 
-<!-- npu="IPV350" id1 -->
-- IPV350：不支持
-<!-- end id1 -->
-
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--compression_optimize_conf_res.md#id1 -->
 
 ## 功能说明
@@ -84,7 +80,7 @@ calibration:
 
 - **calibration**：训练后量化，是指在模型训练结束之后进行的量化，对训练后模型中的权重由浮点数（当前支持float32/float16）量化到低比特整数（比如int8），并通过少量校准数据基于推理过程对数据（activation）进行校准量化，进而加速模型推理速度。训练后量化简单易用，只需少量校准数据，适用于追求高易用性和缺乏训练资源的场景。训练后量化的样例请单击[Link](https://gitee.com/ascend/samples/tree/master/python/level1_single_api/9_amct/atc)获取。
 
-    各参数说明如下，
+    各参数说明如下：
 
   - input\_data\_dir：必选配置，模型输入校准数据的bin文件路径。若模型有多个输入，则多个输入的bin数据文件以英文逗号分隔。校准数据集用来计算量化参数，获取校准集时应该具有代表性，推荐使用测试集的子集作为校准数据集。校准数据的bin文件的生成方式可以参考[链接](https://gitee.com/ascend/samples/blob/master/python/level1_single_api/9_amct/amct_caffe/cmd/src/process_data.py)。
 

@@ -20,9 +20,6 @@
 <!-- npu="910" id174 -->
 - Atlas 训练系列产品：支持
 <!-- end id174 -->
-<!-- npu="IPV350" id175 -->
-- IPV350：不支持
-<!-- end id175 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclmdlSetDynamicHWSize_res.md#id1 -->
 
 ## 功能说明

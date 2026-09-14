@@ -148,4 +148,4 @@
 
         上述每个文件对应模型编译过程中的一个步骤，每个文件中包括完成该步骤所涉及的所有算子，关于dump图的详细信息请参见[dump图详细信息](../references/dump_graph_details.md)。
 
-    4. **更多可选环境变量请参见**《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
+    4. **更多可选环境变量请参见**《[环境变量参考](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/env-vars/README.md)》。

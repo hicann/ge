@@ -8,10 +8,6 @@
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--singleop_res.md#id1 -->
 
-<!-- npu="IPV350" id1 -->
-IPV350：不支持
-<!-- end id1 -->
-
 ## 功能说明
 
 单算子描述文件，将单个算子描述文件（JSON格式）转换成适配AI处理器的离线模型，以便进行后续的单算子功能验证。
@@ -49,10 +45,6 @@ IPV350：不支持
 <!-- end id3 -->
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--singleop_res.md#id2 -->
-
-<!-- npu="IPV350" id8 -->
-- IPV350：不支持
-<!-- end id8 -->
 
 ## 关联参数
 

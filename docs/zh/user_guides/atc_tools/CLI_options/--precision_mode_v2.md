@@ -82,10 +82,6 @@
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--precision_mode_v2_res.md#id1 -->
 
-<!-- npu="IPV350" id9 -->
-- **IPV350不支持bfloat16、hif8类型，对应选项也不支持。**
-<!-- end id9 -->
-
 <!-- npu="950,A3,910b,310b" id8 -->
 - **bfloat16数据类型仅支持以下产品型号**：
 
@@ -112,7 +108,7 @@
     Ascend 950PR/Ascend 950DT
 
 <!-- end id5 -->
-- 该参数默认为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
+- 该参数默认为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
 - 如果用户聚焦精度问题，可以修改为其他取值，比如**origin。**
 
 ## 推荐配置及收益

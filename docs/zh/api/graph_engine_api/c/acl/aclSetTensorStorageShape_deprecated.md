@@ -22,9 +22,6 @@
 <!-- npu="910" id544 -->
 - Atlas 训练系列产品：不支持
 <!-- end id544 -->
-<!-- npu="IPV350" id545 -->
-- IPV350：不支持
-<!-- end id545 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/c/acl/aclSetTensorStorageShape_deprecated_res.md#id1 -->
 
 ## 功能说明

@@ -20,9 +20,6 @@
 <!-- npu="910" id6 -->
 - Atlas 训练系列产品：支持
 <!-- end id6 -->
-<!-- npu="IPV350" id7 -->
-- IPV350：不支持
-<!-- end id7 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/options_params/overall_constraints_res.md#id1 -->
 
 **本章节列出GEInitialize、Session构造函数、AddGraph接口传入的配置参数，分别在全局、session、graph级别生效**。

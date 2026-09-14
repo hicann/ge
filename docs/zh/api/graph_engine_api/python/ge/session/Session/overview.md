@@ -16,7 +16,6 @@ config = {
 }
 GeApi.ge_initialize(config)
 
-
 # 创建会话
 session = Session()
 
@@ -53,8 +52,5 @@ GeApi.ge_finalize()
 <!-- npu="910" id6 -->
 - Atlas 训练系列产品：支持
 <!-- end id6 -->
-<!-- npu="IPV350" id7 -->
-- IPV350：不支持
-<!-- end id7 -->
 
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/python/ge/session/Session/overview_res.md#id1 -->

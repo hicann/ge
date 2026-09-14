@@ -46,9 +46,6 @@
 <!-- npu="910" id6 -->
 - Atlas 训练系列产品：支持
 <!-- end id6 -->
-<!-- npu="IPV350" id7 -->
-- IPV350：不支持
-<!-- end id7 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/AOE_res.md#id1 -->
 
 ## OP\_BANK\_PATH
@@ -93,7 +90,4 @@
 <!-- npu="910" id13 -->
 - Atlas 训练系列产品：支持
 <!-- end id13 -->
-<!-- npu="IPV350" id14 -->
-- IPV350：不支持
-<!-- end id14 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/AOE_res.md#id2 -->

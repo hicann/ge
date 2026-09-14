@@ -26,15 +26,11 @@
 - Atlas 训练系列产品：支持
 <!-- end id7 -->
 
-<!-- npu="IPV350" id1 -->
-- IPV350：不支持
-<!-- end id1 -->
-
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--ac_parallel_enable_res.md#id1 -->
 
 ## 功能说明
 
-<!-- npu="950,A3,910b,910,310p,310b,IPV350" id8 -->
+<!-- npu="950,A3,910b,910,310p,310b" id8 -->
 动态shape图中，是否允许AI CPU算子和AI Core算子并行运行。
 
 动态shape图中，开关开启时，系统自动识别图中可以和AI Core并发的AI CPU算子，不同引擎的算子下发到不同流上，实现多引擎间的并行，从而提升资源利用效率和动态shape执行性能。
@@ -44,7 +40,7 @@
 
 ## 参数取值
 
-<!-- npu="950,A3,910b,910,310p,310b,IPV350" id9 -->
+<!-- npu="950,A3,910b,910,310p,310b" id9 -->
 - 1：允许AI CPU和AI Core算子间的并行运行。
 <!-- end id9 -->
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--ac_parallel_enable_res.md#id3 -->

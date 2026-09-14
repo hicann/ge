@@ -36,7 +36,7 @@
 
 关于参数的详细解释请参见[参数说明](../CLI_options/README.md)。若提示如下信息，则说明转换成功。
 <!-- npu="950,A3,910b,910,310p,310b" id2 -->
-若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/master/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
+若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
 
 <!-- end id2 -->
 ```console
@@ -89,10 +89,6 @@ ATC run success, welcome to the next use.
 
 ## 离线模型支持动态batch\_size/动态分辨率
 
-<!-- npu="IPV350" id1 -->
-**IPV350不支持动态batch\_size和动态分辨率特性。**
-<!-- end id1 -->
-
 ### 场景介绍
 
 某些推理场景，如检测出目标后再执行目标识别网络，由于目标个数不固定导致目标识别网络输入batch\_size不固定。如果每次推理都按照最大的batch\_size或最大分辨率进行计算，会造成计算资源浪费。
@@ -128,7 +124,7 @@ ATC run success, welcome to the next use.
 
     关于参数的详细解释请参见[参数说明](../CLI_options/README.md)。若提示如下信息，则说明模型转换成功。
     <!-- npu="950,A3,910b,910,310p,310b" id3 -->
-    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/master/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
     <!-- end id3 -->
 
     ```console
@@ -169,7 +165,7 @@ ATC run success, welcome to the next use.
 
     关于参数的详细解释请参见[参数说明](../CLI_options/README.md)。若提示如下信息，则说明模型转换成功。
     <!-- npu="950,A3,910b,910,310p,310b" id4 -->
-    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/master/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
     <!-- end id4 -->
 
     ```console
@@ -212,7 +208,7 @@ ATC run success, welcome to the next use.
 
     关于参数的详细解释请参见[参数说明](../CLI_options/README.md)。若提示如下信息，则说明模型转换成功。
     <!-- npu="950,A3,910b,910,310p,310b" id5 -->
-    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/master/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
+    若模型转换失败，请参见《[故障处理](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/troubleshooting/00_troubleshooting.md)》\>“错误码参考”章节进行辅助定位。
     <!-- end id5 -->
 
     ```console
