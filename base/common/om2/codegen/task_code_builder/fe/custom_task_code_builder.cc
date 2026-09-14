@@ -135,7 +135,7 @@ void CustomTaskCodeBuilder::InitArgsTableEntry(const TaskSemanticContributeConte
 }
 
 Status CustomTaskCodeBuilder::RenderDispatchCustomKernel(const VarRef &op, const VarRef &ctx,
-                                                         std::vector<DeclNode *> &items) {
+                                                         std::vector<DeclNode *> &items) const {
   std::vector<BodyItem> body;
   auto setup = RenderDispatchSetup(op, ctx);
   (void)body.insert(body.end(), setup.begin(), setup.end());
