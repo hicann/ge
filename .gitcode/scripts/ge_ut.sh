@@ -16,10 +16,6 @@
 source "${WORKSPACE}/common.sh"
 
 function GE_ENV(){
-    # Delete driver link
-    echo "Delete driver link."
-    sudo sh ${WORKSPACE}/.gitcode/scripts/set_link.sh
-
     # Uninstall package
     sh ${WORKSPACE}/.gitcode/scripts/uninstall_package.sh
 
