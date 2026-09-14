@@ -905,6 +905,10 @@ class UTEST_split_c_to_n_optimize : public testing::Test {
     for (auto *op : {quant1.get(), const1.get(), const2.get()}) {
       (void)ge::AttrUtils::SetInt(op, ge::ATTR_NAME_IMPLY_TYPE, static_cast<int>(domi::ImplyType::TVM));
     }
+    int32_t split_dim_val = 1;
+    GeTensorPtr split_dim_tensor =
+        std::make_shared<GeTensor>(const2_out, reinterpret_cast<uint8_t *>(&split_dim_val), sizeof(int32_t));
+    (void)ge::OpDescUtils::SetWeights(const2, split_dim_tensor);
     quant1->AddOutputDesc(quant1_out);
     const1->AddOutputDesc(const1_out);
     const2->AddOutputDesc(const2_out);
