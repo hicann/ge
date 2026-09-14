@@ -24,10 +24,7 @@ enum AippType { OLD_TYPE, NEW_TYPE };
 
 class InsertAippOpUtil {
  public:
-  static InsertAippOpUtil &Instance() {
-    thread_local InsertAippOpUtil instance;
-    return instance;
-  }
+  static InsertAippOpUtil &Instance();
 
   Status Init();
 

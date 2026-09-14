@@ -11,6 +11,8 @@
 #ifndef INC_OM2_REGISTER_REGISTER_FORMAT_TRANSFER_H_
 #define INC_OM2_REGISTER_REGISTER_FORMAT_TRANSFER_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include <functional>

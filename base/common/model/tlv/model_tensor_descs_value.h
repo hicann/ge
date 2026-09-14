@@ -36,7 +36,7 @@ class ModelTensorDescsValue : public BaseTlvBlock {
   size_t Size() override;
   bool Serilize(uint8_t **const addr, size_t &left_size) override;
   bool NeedSave() override;
-  virtual ~ModelTensorDescsValue() = default;
+  ~ModelTensorDescsValue() override = default;
 
  private:
   uint32_t tensor_desc_size = 0U;

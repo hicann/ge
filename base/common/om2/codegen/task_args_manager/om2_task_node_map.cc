@@ -50,7 +50,7 @@ Status TaskNodeMap::AddRelation(size_t task_index, int64_t node_id) {
            task_index, node_id, iter->second->GetName().c_str());
     return PARAM_INVALID;
   }
-  node_ids_to_task_indexes_[node_id].emplace_back(task_index);
+  (void)node_ids_to_task_indexes_[node_id].emplace_back(task_index);
 
   task_indexes_to_node_[task_index] = {node_id, iter->second};
   return SUCCESS;

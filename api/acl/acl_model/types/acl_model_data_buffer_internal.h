@@ -11,7 +11,7 @@
 #ifndef ACL_TYPES_DATA_BUFFER_INTERNAL_H
 #define ACL_TYPES_DATA_BUFFER_INTERNAL_H
 
-#include <stdint.h>
+#include <cstdint>
 
 struct aclDataBuffer {
   aclDataBuffer(void *const dataIn, const uint64_t len) : data(dataIn), length(len) {}

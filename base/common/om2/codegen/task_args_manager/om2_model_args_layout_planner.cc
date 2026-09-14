@@ -200,15 +200,15 @@ Status ModelArgsLayoutPlanner::PlanTasks(
 }
 Status ModelArgsLayoutPlanner::LogPartitionLengths(
     const PlacementsToPartitionsToLenType &placements_to_partitions_to_len, const char_t *desc) {
-  for (size_t i = 0u; i < static_cast<size_t>(ArgsPlacement::kEnd); ++i) {
+  for (size_t i = 0U; i < static_cast<size_t>(ArgsPlacement::kEnd); ++i) {
     std::stringstream ss;
     ss << desc << "Model args placement " << GetArgsPlacementStr(static_cast<ArgsPlacement>(i));
     int64_t total_len = 0;
-    for (size_t j = 0u; j < static_cast<size_t>(UpdateTriggerType::kEnd); ++j) {
+    for (size_t j = 0U; j < static_cast<size_t>(UpdateTriggerType::kEnd); ++j) {
       GE_ASSERT_TRUE(!AddOverflow(total_len, placements_to_partitions_to_len[i][j], total_len));
     }
     ss << " total length " << total_len << ", partition lengths ";
-    for (size_t j = 0u; j < static_cast<size_t>(UpdateTriggerType::kEnd); ++j) {
+    for (size_t j = 0U; j < static_cast<size_t>(UpdateTriggerType::kEnd); ++j) {
       ss << placements_to_partitions_to_len[i][j] << '/';
     }
     GELOGD("[OM2] %s", ss.str().c_str());

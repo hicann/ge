@@ -530,7 +530,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &
 }
 
 Status KernelExTaskCodeBuilder::RenderDispatchFuncTaskInfo(std::vector<BodyItem> &body, const VarRef &op,
-                                                           const VarRef &ctx) {
+                                                           const VarRef &ctx) const {
   auto io_tensors = ast_.Var("std::vector<gert::Tensor>", "io_tensors");
   (void)body.emplace_back(ast_.VarDecl(io_tensors));
   (void)body.emplace_back(io_tensors.Attr("reserve")(ast_.Var("", "num_io")));

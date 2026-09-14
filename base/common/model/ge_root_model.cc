@@ -424,8 +424,8 @@ Status GeRootModel::CollectCustomOpTypesForRootModel(std::set<std::string> &used
   return SUCCESS;
 }
 
-Status GeRootModel::CollectPortableCustomOpSo(const std::set<std::string> &used_custom_op_types,
-                                              const bool is_cross_compile, bool &has_portable_custom_op) {
+Status GeRootModel::CollectPortableCustomOpSo(const std::set<std::string> &used_custom_op_types, bool is_cross_compile,
+                                              bool &has_portable_custom_op) {
   for (const auto &op_type : used_custom_op_types) {
     auto *portable_op = CustomOpCast<PortableOp>(
         custom_op_registry_->GetCustomOpCommonCapability(AscendString(op_type.c_str()), CustomOpCapability::kPortable));

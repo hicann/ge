@@ -144,7 +144,7 @@ Status SerializeVarResource(const gert::Om2ModelData &model_data, const std::sha
     if (!entry.init_data.empty()) {
       init_data_offset = weight_buffer.size();
       init_data_size = entry.init_data.size();
-      weight_buffer.insert(weight_buffer.end(), entry.init_data.begin(), entry.init_data.end());
+      (void)weight_buffer.insert(weight_buffer.end(), entry.init_data.begin(), entry.init_data.end());
     }
     (void)entry_json.Set("init_data_offset", init_data_offset);
     (void)entry_json.Set("init_data_size", init_data_size);
@@ -244,7 +244,7 @@ void SerializeAippMeta(const gert::Om2ModelMeta &model_meta, JsonFile &model_met
     const std::string fmt_str = ge::TypeUtils::FormatToSerialString(meta.orig_input_info.format);
     const std::string dt_str = ge::TypeUtils::DataTypeToSerialString(meta.orig_input_info.data_type);
     JsonFile entry;
-    entry.Set("index", i)
+    (void)entry.Set("index", i)
         .Set("aipp_type", static_cast<int32_t>(meta.aipp_type))
         .Set("aipp_data_index", meta.aipp_data_index)
         .Set("aipp_mode", static_cast<int32_t>(meta.aipp_config_info.aipp_mode))
@@ -449,7 +449,7 @@ Status SerializeManifest(const gert::Om2ModelData &model_data, const std::shared
 
 }  // namespace
 
-Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &model, const bool is_offline,
+Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &model, bool is_offline,
                          const std::string &writer_path) {
   GELOGI(
       "[OM2] Begin to serialize Om2ModelData to ZIP, model_name:%s, "

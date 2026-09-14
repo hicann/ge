@@ -55,6 +55,11 @@ static void ConvertShape2Nhwc(Format &format, std::vector<int64_t> &shape_vec) {
   return;
 }
 
+InsertAippOpUtil &InsertAippOpUtil::Instance() {
+  thread_local InsertAippOpUtil instance;
+  return instance;
+}
+
 Status InsertAippOpUtil::Init() {
   insert_op_conf_.reset((new (std::nothrow) domi::InsertNewOps()));
   GE_CHECK_NOTNULL(insert_op_conf_);

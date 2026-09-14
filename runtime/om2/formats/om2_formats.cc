@@ -13,7 +13,6 @@
 #include <securec.h>
 
 #include <cmath>
-#include <cstring>
 #include <functional>
 #include <sstream>
 #include <string>

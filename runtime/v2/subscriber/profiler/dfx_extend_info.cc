@@ -274,7 +274,7 @@ const uint32_t *DfxExtendInfo::GetWbackCmoCtxIdAddr(size_t index) {
 }
 
 //  获取集合的尺寸，后续根据尺寸获取属性值, 对空集合，返回0
-size_t DfxExtendInfo::GetCtxIdsNum() {
+size_t DfxExtendInfo::GetCtxIdsNum() const {
   if (GetCtxSizeAddr() == nullptr) {
     return 0U;
   }

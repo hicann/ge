@@ -255,7 +255,7 @@ Status AddGeneratedMakefileOption(const std::string &makefile_path, std::string 
   // command 已通过 CheckBuildConfigValue 校验，白名单中唯一允许的空白字符是空格，不含 tab，因此用 find(' ') 即可
   const auto first_space = command.find(' ');
   const auto insert_pos = (first_space == std::string::npos) ? command.size() : first_space;
-  command.insert(insert_pos, " -f " + makefile_path);
+  (void)command.insert(insert_pos, " -f " + makefile_path);
   return SUCCESS;
 }
 

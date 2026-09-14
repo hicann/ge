@@ -138,8 +138,8 @@ def generate_stub_file(
 
 def generate_function(header_files, inc_dir):
     includes = []
-    includes.append("#include <stdio.h>\n")
-    includes.append("#include <stdint.h>\n")
+    includes.append("#include <cstdio>\n")
+    includes.append("#include <cstdint>\n")
     # generate includes
     for header in header_files:
         if not header.endswith(".h"):

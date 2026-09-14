@@ -150,8 +150,8 @@ void ResourcesFileCodeGenerator::BuildInitStreamResources(std::vector<BodyItem> 
   std::vector<BodyItem> create_items;
   for (uint32_t i = 0U; i < runtime.stream_num; ++i) {
     const auto stream_flag = ast_.Var("uint32_t", "stream" + std::to_string(i) + "_flag");
-    create_items.emplace_back(ast_.VarDecl(stream_flag, runtime.stream_flag_values[i]));
-    create_items.emplace_back(ChkRt(RtStreamCreateWithFlags(stream_list_[i].Addr(), priority_, stream_flag)));
+    (void)create_items.emplace_back(ast_.VarDecl(stream_flag, runtime.stream_flag_values[i]));
+    (void)create_items.emplace_back(ChkRt(RtStreamCreateWithFlags(stream_list_[i].Addr(), priority_, stream_flag)));
   }
   (void)body.emplace_back(ast_.If(ext_stream_num != ast_.UInt(0U), ext_items, create_items));
   for (uint32_t i = 0U; i < runtime.stream_num; ++i) {

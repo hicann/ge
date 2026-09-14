@@ -11,7 +11,9 @@
 #ifndef GE_GRAPH_COMMON_OPTION_SUPPORTION_CHECKER_H_
 #define GE_GRAPH_COMMON_OPTION_SUPPORTION_CHECKER_H_
 
+#include <cstdint>
 #include <map>
+#include <string>
 #include <unordered_set>
 #include "graph/types.h"
 

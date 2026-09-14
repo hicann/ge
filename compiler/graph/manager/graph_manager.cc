@@ -3230,7 +3230,7 @@ bool GraphManager::IsBroadCastOpData(const ge::NodePtr &var_node) const {
   return false;
 }
 
-void GraphManager::SetAttrForHcomBroadCastOp(ge::ComputeGraphPtr &compute_graph) {
+void GraphManager::SetAttrForHcomBroadCastOp(ge::ComputeGraphPtr &compute_graph) const {
   GE_RT_VOID_CHECK_NOTNULL(compute_graph);
   // add variable attr for hccl broadcast,need to be removed after variable pass online
   for (const ge::NodePtr &node : compute_graph->GetDirectNode()) {

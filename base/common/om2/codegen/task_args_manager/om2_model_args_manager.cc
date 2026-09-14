@@ -125,14 +125,15 @@ ModelArgsManager::ModelArgsManager() = default;
 
 ModelArgsManager::~ModelArgsManager() noexcept = default;
 
-Status ModelArgsManager::Init(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> *task_list_ptr) {
+Status ModelArgsManager::Init(const GeModelPtr &model,
+                              const std::vector<TaskCodeBuilderPtr> *task_code_builder_list_ptr) {
   logLevel_ = dlog_getlevel(GE_MODULE_NAME, nullptr);
   GE_ASSERT_NOTNULL(model);
   const auto &model_task_def = model->GetModelTaskDefPtr();
   GE_ASSERT_NOTNULL(model_task_def);
 
-  GE_ASSERT_NOTNULL(task_list_ptr);
-  task_list_ptr_ = task_list_ptr;
+  GE_ASSERT_NOTNULL(task_code_builder_list_ptr);
+  task_list_ptr_ = task_code_builder_list_ptr;
   if (static_cast<size_t>(model_task_def->task_size()) != task_list_ptr_->size()) {
     GELOGE(INTERNAL_ERROR, "[OM2] mode_task_def size do not match task_list size");
     return FAILED;
@@ -167,11 +168,11 @@ Status ModelArgsManager::GenModelArgsRefreshInfosForTask(std::vector<TaskArgsRef
         PtrToValue(pls_to_args[pls].host_addr), pls_to_args[pls].dev_addr, info.ToString().c_str(),
         m_info.ToString().c_str());
     if (info.args_format_policy == ArgsFormatPolicy::kAddrAll) {
-      allocation_ids_to_model_args_refresh_infos_addr_all[m_info.id].emplace_back(std::move(m_info));
+      (void)allocation_ids_to_model_args_refresh_infos_addr_all[m_info.id].emplace_back(std::move(m_info));
     } else if (info.args_format_policy == ArgsFormatPolicy::kAddrLow32Bit) {
-      allocation_ids_to_model_args_refresh_infos_addr_low_32bit[m_info.id].emplace_back(std::move(m_info));
+      (void)allocation_ids_to_model_args_refresh_infos_addr_low_32bit[m_info.id].emplace_back(std::move(m_info));
     } else if (info.args_format_policy == ArgsFormatPolicy::kAddrHigh32Bit) {
-      allocation_ids_to_model_args_refresh_infos_addr_high_32bit[m_info.id].emplace_back(std::move(m_info));
+      (void)allocation_ids_to_model_args_refresh_infos_addr_high_32bit[m_info.id].emplace_back(std::move(m_info));
     }
   }
   return SUCCESS;
@@ -298,8 +299,8 @@ Status ModelArgsManager::AllocModelArgs(const ModelArgsLayoutPlannedResult &layo
     GELOGI("[OM2] Alloc model args built_in=%zu, reserved=%zu, placement=%s, addr=0x%llx for model_name=%s",
            built_in_len, reserved_len, GetArgsPlacementStr(placed_model_args.placement),
            placed_model_args.model_args_device_addr, model_adapter_.GetOmName().c_str());
-    model_args.emplace_back(std::move(placed_model_args));
-    model_args_len.emplace_back(static_cast<size_t>(len));
+    (void)model_args.emplace_back(std::move(placed_model_args));
+    (void)model_args_len.emplace_back(static_cast<size_t>(len));
     pls = placed_model_args.placement;
   }
   return SUCCESS;
@@ -393,7 +394,8 @@ Status ModelArgsManager::ConstructOneTaskUpdateData(
       offset = static_cast<uint64_t>(task_arg_ret.offset);
     }
 
-    task_update_data.update_data.host_args.emplace_back(HostArg{host_addr, args_desc.args_len, require_placement});
+    (void)task_update_data.update_data.host_args.emplace_back(
+        HostArg{host_addr, args_desc.args_len, require_placement});
     (*task_update_data.task_indexes_to_args)[task_index][static_cast<size_t>(require_placement)] = {
         device_addr, host_addr, args_desc.args_len, offset};
 
@@ -424,7 +426,7 @@ Status ModelArgsManager::AddToTaskUpdateDataToPolicies(
       GE_ASSERT_NOTNULL(update_policies_to_model_data_[upi]);
     }
     auto model_update_data = update_policies_to_model_data_[upi].get();
-    model_update_data->update_datas.emplace_back(one_task_update_data.update_data);
+    (void)model_update_data->update_datas.emplace_back(one_task_update_data.update_data);
   }
   return SUCCESS;
 }
@@ -542,7 +544,7 @@ Status ModelArgsManager::ConstructTaskInitParams(
       addr.memory_type = static_cast<uint64_t>(
           logical_addrs_to_mem_app_type.at(std::pair<uint64_t, uint64_t>(addr.memory_type, addr.logic_addr)));
     }
-    task_indexes_to_init_param.emplace_back(std::move(init_param));
+    (void)task_indexes_to_init_param.emplace_back(std::move(init_param));
   }
 
   for (const auto &fap : fixed_addr_bulk_.pieces) {
@@ -632,7 +634,7 @@ Status ModelArgsManager::GenerateArgsDataForProgramGenerator(Om2CodegenModel &co
   model_args_semantic.clear();
   model_args_semantic.reserve(model_args_.size());
   for (size_t i = 0UL; i < model_args_.size(); ++i) {
-    model_args_semantic.emplace_back(
+    (void)model_args_semantic.emplace_back(
         ModelArgsSemantic{model_args_[i].placement, model_args_len_[i], model_args_[i].model_args_partitions});
   }
 

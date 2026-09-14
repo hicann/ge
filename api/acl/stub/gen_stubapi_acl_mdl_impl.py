@@ -77,8 +77,8 @@ def generate_stub_file(acl_mdl_headers):
 
 def generate_function(header_files):
     includes = []
-    includes.append("#include <stdio.h>\n")
-    includes.append("#include <stdint.h>\n")
+    includes.append("#include <cstdio>\n")
+    includes.append("#include <cstdint>\n")
     includes.append('#include "model/acl_model_impl.h"\n')
 
     content = includes
