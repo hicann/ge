@@ -27,7 +27,7 @@
     export ASCEND_SLOG_PRINT_TO_STDOUT=1 #是否开启日志打印。1表示开启日志打印。
     ```
 
-    具体说明请参考《[环境变量参考](https://gitcode.com/cann/docs/blob/master/docs/zh/env-vars/README.md)》。
+    具体说明请参考《[环境变量参考](https://gitcode.com/cann/docs/blob/9.2.0/docs/zh/env-vars/README.md)》。
 
 上述环境变量只在当前窗口生效，用户可以将上述命令写入\~/.bashrc文件，使其永久生效，方法如下：
 
