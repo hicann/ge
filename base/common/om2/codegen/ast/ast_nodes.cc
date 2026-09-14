@@ -506,6 +506,7 @@ Status BreakStmt::Accept(CodeEmitter &emitter, std::string &output) const {
 }
 
 SwitchStmt *SwitchStmt::Create(AstContext &ctx, Expr *cond, BlockStmt *body) {
+  GE_ASSERT_NOTNULL(cond);
   return AllocateNode<SwitchStmt>(ctx, cond, body);
 }
 Status SwitchStmt::Accept(CodeEmitter &emitter, std::string &output) const {

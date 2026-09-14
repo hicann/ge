@@ -42,7 +42,7 @@ class MemcpyAsyncTaskCodeBuilder : public TaskCodeBuilder {
  private:
   MemcpyAsyncBuildData build_data_;
   void ResolveInternalIndex(TaskSemanticContributeContext &context);
-  void CheckIoRefresh(TaskSemanticContributeContext &context);
+  void CheckIoRefresh(const TaskSemanticContributeContext &context);
   void SetupIoAddrRefresh(TaskSemanticContributeContext &context);
   DeclNode *RenderMemcpyAsyncDistribute();
   BodyItem RenderIoRefreshDispatch(const VarRef &op, const VarRef &ctx);

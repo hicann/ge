@@ -20,7 +20,7 @@
 #include "graph/manager/graph_manager_utils.h"
 
 namespace ge {
-enum AippType { OLD_TYPE, NEW_TYPE };
+enum class AippType { OLD_TYPE, NEW_TYPE };
 
 class InsertAippOpUtil {
  public:
