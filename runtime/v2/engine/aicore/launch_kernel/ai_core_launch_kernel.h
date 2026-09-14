@@ -14,40 +14,27 @@
 namespace gert {
 namespace kernel {
 enum class InputCommon {
-  kStream,  //
-  kBinHandle,
+  kStream,
+  kKernelBinId,
+  kMagic,
+  kKernelBin,
   kBlockDim,
   kWorkspaceAddr,
   kShapeBufferAddr,
+  kCfgAttrs,
   kCfg,
   kIoNum,
   kScheduleMode,
   kDfxArgs,
   kRtArg,
   kLocalMemSize,
+  kTilingKey,
+  kKernelName,
+  kWithHandleFlag,
   kNum
 };
-enum class WithHandle {
-  kTilingKey = static_cast<int32_t>(InputCommon::kNum),  //
-  kNodeInfo,
-  kIoAddrs,
-  kNum
-};
-enum class WithArgs {
-  kIoAddrs = static_cast<int32_t>(InputCommon::kNum),  //
-  kNum
-};
-enum class WithAtomic {
-  kWorkspaceIndex = static_cast<int32_t>(InputCommon::kNum),  //
-  kIoAddrs,
-  kNum
-};
-enum class WithAtomicHandle {
-  kTilingKey = static_cast<int32_t>(InputCommon::kNum),  //
-  kWorkspaceIndex,                                       //
-  kIoAddrs,
-  kNum
-};
+enum class WithArgs { kIoAddrs = static_cast<int32_t>(InputCommon::kNum), kNum };
+enum class WithAtomic { kWorkspaceIndex = static_cast<int32_t>(InputCommon::kNum), kIoAddrs, kNum };
 constexpr uint64_t kAssertWorkFlag = 4U;
 constexpr uint16_t kDumpTypeBitNum = 56U;
 constexpr uint64_t kDumpSkipAddrNum = 1U;

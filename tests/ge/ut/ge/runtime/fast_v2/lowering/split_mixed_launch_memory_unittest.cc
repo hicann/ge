@@ -150,12 +150,15 @@ std::vector<ValueHolderPtr> CreateTiling() {
   return ValueHolder::CreateDataOutput("Tiling", inputs, static_cast<size_t>(kernel::TilingExOutputIndex::kNum));
 }
 
-std::vector<ValueHolderPtr> CreateLaunchKernelWithFlagCommonInputs() {
+std::vector<ValueHolderPtr> CreateLaunchKernelV2CommonInputs() {
   auto tiling_out = CreateTiling();
   std::vector<ValueHolderPtr> inputs = {
       ValueHolder::CreateFeed(0),
       ValueHolder::CreateSingleDataOutput("InnerData", {}),
+      ValueHolder::CreateSingleDataOutput("InnerData", {}),
+      ValueHolder::CreateSingleDataOutput("InnerData", {}),
       tiling_out[TilingContext::kOutputBlockDim],
+      ValueHolder::CreateSingleDataOutput("InnerData", {}),
       ValueHolder::CreateSingleDataOutput("InnerData", {}),
       ValueHolder::CreateSingleDataOutput("InnerData", {}),
       ValueHolder::CreateSingleDataOutput("InnerData", {}),
@@ -165,11 +168,13 @@ std::vector<ValueHolderPtr> CreateLaunchKernelWithFlagCommonInputs() {
       tiling_out[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)],
       ValueHolder::CreateFeed(0),
       ValueHolder::CreateSingleDataOutput("InnerData", {}),
+      ValueHolder::CreateSingleDataOutput("InnerData", {}),
+      ValueHolder::CreateSingleDataOutput("InnerData", {}),
   };
   return inputs;
 }
 
-std::vector<ValueHolderPtr> CreateLaunchKernelWithFlagCommonFeedInputs() {
+std::vector<ValueHolderPtr> CreateLaunchKernelV2CommonFeedInputs() {
   std::vector<ValueHolderPtr> tiling_inputs(6U);
   std::generate(tiling_inputs.begin(), tiling_inputs.end(), []() { return ValueHolder::CreateFeed(0); });
   auto tiling_out =
@@ -177,7 +182,10 @@ std::vector<ValueHolderPtr> CreateLaunchKernelWithFlagCommonFeedInputs() {
   std::vector<ValueHolderPtr> inputs = {
       ValueHolder::CreateFeed(0),
       ValueHolder::CreateFeed(0),
+      ValueHolder::CreateFeed(0),
+      ValueHolder::CreateFeed(0),
       tiling_out[TilingContext::kOutputBlockDim],
+      ValueHolder::CreateFeed(0),
       ValueHolder::CreateFeed(0),
       ValueHolder::CreateFeed(0),
       ValueHolder::CreateFeed(0),
@@ -185,6 +193,8 @@ std::vector<ValueHolderPtr> CreateLaunchKernelWithFlagCommonFeedInputs() {
       tiling_out[TilingContext::kOutputScheduleMode],
       ValueHolder::CreateFeed(0),
       tiling_out[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)],
+      ValueHolder::CreateFeed(0),
+      ValueHolder::CreateFeed(0),
       ValueHolder::CreateFeed(0),
       ValueHolder::CreateFeed(0),
   };
@@ -209,14 +219,13 @@ ValueHolderPtr CreateCopyH2D(const bool use_feed_inputs = false) {
 }
 
 ge::ExecuteGraphPtr BuildCopyToLaunchGraph(const size_t copy_count = 1U, const bool use_feed_inputs = false) {
-  auto launch_inputs =
-      use_feed_inputs ? CreateLaunchKernelWithFlagCommonFeedInputs() : CreateLaunchKernelWithFlagCommonInputs();
+  auto launch_inputs = use_feed_inputs ? CreateLaunchKernelV2CommonFeedInputs() : CreateLaunchKernelV2CommonInputs();
   for (size_t i = 0U; i < copy_count; ++i) {
     launch_inputs.emplace_back(CreateCopyH2D(use_feed_inputs));
   }
   launch_inputs.emplace_back(
       ValueHolder::CreateSingleDataOutput("AllocBatchHbm", {ValueHolder::CreateFeed(0), ValueHolder::CreateFeed(0)}));
-  auto launch = ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", launch_inputs);
+  auto launch = ValueHolder::CreateSingleDataOutput("LaunchKernelV2", launch_inputs);
   auto frame = ValueHolder::PopGraphFrame({launch}, {});
   EXPECT_NE(frame, nullptr);
   return frame->GetExecuteGraph();
@@ -242,12 +251,11 @@ ge::ExecuteGraphPtr BuildTwoOutputCopyToTwoLaunchesGraph(
 
   std::vector<ValueHolderPtr> launches;
   for (size_t i = 0U; i < copy_outputs.size(); ++i) {
-    auto launch_inputs =
-        use_feed_inputs ? CreateLaunchKernelWithFlagCommonFeedInputs() : CreateLaunchKernelWithFlagCommonInputs();
+    auto launch_inputs = use_feed_inputs ? CreateLaunchKernelV2CommonFeedInputs() : CreateLaunchKernelV2CommonInputs();
     launch_inputs.emplace_back(copy_outputs[i]);
     launch_inputs.emplace_back(
         ValueHolder::CreateSingleDataOutput("AllocBatchHbm", {ValueHolder::CreateFeed(0), ValueHolder::CreateFeed(0)}));
-    auto launch = ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", launch_inputs);
+    auto launch = ValueHolder::CreateSingleDataOutput("LaunchKernelV2", launch_inputs);
     if (consumer_launch_names != nullptr) {
       consumer_launch_names->emplace_back(launch->GetFastNode()->GetName());
     }
@@ -369,15 +377,14 @@ ge::ExecuteGraphPtr BuildTwoOutputCopyToSingleLaunchGraph(
   ValueHolder::CreateVoidGuarder("FreeMemory", copy_outputs[0], {});
   ValueHolder::CreateVoidGuarder("FreeMemory", copy_outputs[1], {});
 
-  auto launch_inputs =
-      use_feed_inputs ? CreateLaunchKernelWithFlagCommonFeedInputs() : CreateLaunchKernelWithFlagCommonInputs();
+  auto launch_inputs = use_feed_inputs ? CreateLaunchKernelV2CommonFeedInputs() : CreateLaunchKernelV2CommonInputs();
   launch_inputs.insert(launch_inputs.end(), copy_outputs.cbegin(), copy_outputs.cend());
   if (repeat_first_output) {
     launch_inputs.emplace_back(copy_outputs[0U]);
   }
   launch_inputs.emplace_back(
       ValueHolder::CreateSingleDataOutput("AllocBatchHbm", {ValueHolder::CreateFeed(0), ValueHolder::CreateFeed(0)}));
-  auto launch = ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", launch_inputs);
+  auto launch = ValueHolder::CreateSingleDataOutput("LaunchKernelV2", launch_inputs);
   auto frame = ValueHolder::PopGraphFrame({launch}, {});
   EXPECT_NE(frame, nullptr);
   return frame->GetExecuteGraph();
@@ -667,10 +674,8 @@ TEST_F(SplitMixedLaunchMemoryUT, SplitLegacyCopyFlowLaunchWhenPassRuns) {
             "success");
   EXPECT_EQ(FastNodeTopoChecker(alloc_nodes[0]).OutChecker().DataToByType("PrepareCopyFlowResult").Result(), "success");
   EXPECT_EQ(FastNodeTopoChecker(prepare_nodes[0]).OutChecker().CtrlToByType("LaunchCopyFlowH2D").Result(), "success");
-  EXPECT_EQ(FastNodeTopoChecker(prepare_nodes[0]).OutChecker().DataToByType("LaunchKernelWithFlag").Result(),
-            "success");
-  EXPECT_EQ(FastNodeTopoChecker(launch_copy_nodes[0]).OutChecker().CtrlToByType("LaunchKernelWithFlag").Result(),
-            "success");
+  EXPECT_EQ(FastNodeTopoChecker(prepare_nodes[0]).OutChecker().DataToByType("LaunchKernelV2").Result(), "success");
+  EXPECT_EQ(FastNodeTopoChecker(launch_copy_nodes[0]).OutChecker().CtrlToByType("LaunchKernelV2").Result(), "success");
   EXPECT_EQ(launch_copy_nodes[0]->GetDataOutNum(), 0U);
 }
 
@@ -693,8 +698,7 @@ TEST_F(SplitMixedLaunchMemoryUT, OfflineOptimizerPropagatesComputeNodeIndexThrou
 
   auto main_graph = BuildTwoOutputCopyToSingleLaunchGraph(true, true);
   ASSERT_NE(main_graph, nullptr);
-  const auto consumer_nodes =
-      ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(main_graph.get(), "LaunchKernelWithFlag");
+  const auto consumer_nodes = ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(main_graph.get(), "LaunchKernelV2");
   ASSERT_EQ(consumer_nodes.size(), 1UL);
   int64_t source_compute_index = -1;
   ASSERT_TRUE(ge::AttrUtils::GetInt(consumer_nodes[0]->GetOpDescBarePtr(), kComputeNodeIndex, source_compute_index));
@@ -1139,9 +1143,9 @@ TEST_F(SplitMixedLaunchMemoryUT, OfflineOptimizerKeepsFusedMultiOutputCopyFlowRu
   const auto second_output_index_data = reinterpret_cast<const int32_t *>(second_output_indexes->GetData());
   ASSERT_NE(first_output_index_data, nullptr);
   ASSERT_NE(second_output_index_data, nullptr);
-  EXPECT_EQ(first_output_index_data[0U], 1);
-  EXPECT_EQ(first_output_index_data[1U], 3);
-  EXPECT_EQ(second_output_index_data[0U], 2);
+  EXPECT_EQ(first_output_index_data[0U], 0);
+  EXPECT_EQ(first_output_index_data[1U], 2);
+  EXPECT_EQ(second_output_index_data[0U], 1);
 
   const auto allocated_addrs_edge =
       launch_nodes[0]->GetInDataEdgeByIndex(static_cast<int32_t>(kernel::LaunchCopyFlowH2DInputs::kAllocatedAddrs));
@@ -1150,7 +1154,7 @@ TEST_F(SplitMixedLaunchMemoryUT, OfflineOptimizerKeepsFusedMultiOutputCopyFlowRu
   EXPECT_EQ(allocated_addrs_edge->src_output, 0);
 
   const auto consumer_launch_nodes =
-      ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(root_graph.get(), "LaunchKernelWithFlag");
+      ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(root_graph.get(), "LaunchKernelV2");
   const auto free_nodes = ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(root_graph.get(), "FreeMemory");
   const auto free_hold_addr_nodes =
       ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(root_graph.get(), "FreeMemoryHoldAddr");
@@ -1158,8 +1162,7 @@ TEST_F(SplitMixedLaunchMemoryUT, OfflineOptimizerKeepsFusedMultiOutputCopyFlowRu
   EXPECT_EQ(free_nodes.size(), 0UL);
   ASSERT_EQ(free_hold_addr_nodes.size(), 2UL);
   EXPECT_EQ(launch_nodes[0]->GetDataOutNum(), 0U);
-  EXPECT_EQ(FastNodeTopoChecker(prepare_nodes[0]).OutChecker().DataToByType("LaunchKernelWithFlag").Result(),
-            "success");
+  EXPECT_EQ(FastNodeTopoChecker(prepare_nodes[0]).OutChecker().DataToByType("LaunchKernelV2").Result(), "success");
   EXPECT_FALSE(HasControlEdge(consumer_launch_nodes[0], free_hold_addr_nodes[0]));
   EXPECT_FALSE(HasControlEdge(consumer_launch_nodes[0], free_hold_addr_nodes[1]));
   for (const auto free_hold_addr_node : free_hold_addr_nodes) {
@@ -1205,8 +1208,7 @@ TEST_F(SplitMixedLaunchMemoryUT, OfflineOptimizerKeepsSeventeenCopyFlowOutputsAn
       ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(root_graph.get(), kernel::kPrepareCopyFlowResult);
   const auto launch_copy_nodes =
       ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(root_graph.get(), kernel::kLaunchCopyFlowH2D);
-  const auto consumer_nodes =
-      ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(root_graph.get(), "LaunchKernelWithFlag");
+  const auto consumer_nodes = ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(root_graph.get(), "LaunchKernelV2");
   const auto free_hold_addr_nodes =
       ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(root_graph.get(), "FreeMemoryHoldAddr");
   ASSERT_EQ(prepare_nodes.size(), 1U);
@@ -1264,7 +1266,7 @@ TEST_F(SplitMixedLaunchMemoryUT, OfflineOptimizerMapsLegacyCopyOutputsToSurvivin
   const auto original_copy_op_desc = original_copy_outputs[0U]->GetFastNode()->GetOpDescPtr();
   ASSERT_NE(original_copy_op_desc, nullptr);
   const auto consumer_launch_nodes =
-      ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(main_graph.get(), "LaunchKernelWithFlag");
+      ge::ExecuteGraphUtils::FindNodesByTypeFromAllNodes(main_graph.get(), "LaunchKernelV2");
   ASSERT_EQ(consumer_launch_nodes.size(), 1UL);
   const auto consumer_launch_name = consumer_launch_nodes[0U]->GetName();
 
@@ -1745,7 +1747,7 @@ TEST_F(SplitMixedLaunchMemoryUT, OfflineOptimizerInternalCopyHelpersDoNotAdvance
                               .NodeName(ordinary_compute_name)
                               .NodeType("Compute")
                               .KernelName("ordinary_launch")
-                              .KernelType("LaunchKernelWithHandle")
+                              .KernelType("LaunchKernelV2")
                               .KernelIONum(0U, 0U)
                               .Build();
   Node ordinary_launch{};

@@ -1261,12 +1261,12 @@ TEST_F(Om2CodegenModelBuilderUt, BuildKernelRegistry_Aicore_Ok) {
   ASSERT_EQ(doc.kernel_registry.binaries.size(), 1U);
   EXPECT_EQ(doc.runtime.kernel_bin_num, 1U);
   ASSERT_EQ(doc.kernel_registry.func_handle_indices.size(), 1U);
-  EXPECT_EQ(doc.kernel_registry.func_handle_indices.at("add1_faked_kernel"), 0U);
+  EXPECT_EQ(doc.kernel_registry.func_handle_indices.at("te_Add_12345_AicoreKernel"), 0U);
 
   const auto &binary = doc.kernel_registry.binaries[0];
   EXPECT_EQ(binary.kind, KernelBinaryKind::kAicore);
-  EXPECT_EQ(binary.kernel_name, "add1_faked_kernel");
-  EXPECT_EQ(binary.file_name, "add1_faked_kernel.o");
+  EXPECT_EQ(binary.kernel_name, "te_Add_12345_AicoreKernel");
+  EXPECT_EQ(binary.file_name, "te_Add_12345_AicoreKernel.o");
   EXPECT_EQ(binary.magic, "ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE");
   EXPECT_EQ(binary.func_handle_index, 0U);
 }
@@ -1286,8 +1286,8 @@ TEST_F(Om2CodegenModelBuilderUt, BuildKernelRegistryAndLaunch_AicoreAtomic_Ok) {
   Om2ConstMetas const_metas;
   ASSERT_EQ(builder.Build(ge_model, task_builders, doc, const_metas), SUCCESS);
 
-  const std::string kernel_name = "add1_faked_kernel";
-  const std::string atomic_kernel_name = "add1_faked_atomic_kernel";
+  const std::string kernel_name = "te_Add_12345_AicoreKernel";
+  const std::string atomic_kernel_name = "te_Add_12345_atomic_AicoreKernel";
   const std::string atomic_func_handle_key = atomic_kernel_name + "_atomic";
   ASSERT_EQ(doc.kernel_registry.binaries.size(), 2U);
   EXPECT_EQ(doc.runtime.kernel_bin_num, 2U);
@@ -1303,7 +1303,7 @@ TEST_F(Om2CodegenModelBuilderUt, BuildKernelRegistryAndLaunch_AicoreAtomic_Ok) {
       [&atomic_kernel_name](const KernelBinaryRecord &binary) { return binary.kernel_name == atomic_kernel_name; });
   ASSERT_NE(atomic_binary_it, doc.kernel_registry.binaries.end());
   EXPECT_EQ(atomic_binary_it->kind, KernelBinaryKind::kAicore);
-  EXPECT_EQ(atomic_binary_it->file_name, "add1_faked_atomic_kernel.o");
+  EXPECT_EQ(atomic_binary_it->file_name, "te_Add_12345_atomic_AicoreKernel.o");
   EXPECT_EQ(atomic_binary_it->magic, "ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE");
   EXPECT_EQ(atomic_binary_it->func_handle_index, atomic_func_idx);
 

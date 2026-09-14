@@ -371,6 +371,43 @@ gert::kernel::MIX_KERNEL_REQ_TYPE GetMixAiCoreKernelType(const ge::OpDescPtr &op
 }
 }  // namespace
 
+ge::OpKernelBinPtr GetTbeKernelBin(const ge::OpDescPtr &op_desc, bool is_atomic_node) {
+  std::string kernel_key = is_atomic_node ? ge::EXT_ATTR_ATOMIC_TBE_KERNEL : ge::OP_EXTATTR_NAME_TBE_KERNEL;
+  return op_desc->TryGetExtAttr(kernel_key, ge::OpKernelBinPtr());
+}
+
+ge::Status GetBinaryMagic(const ge::OpDescPtr &op_desc, bool is_atomic_node, uint32_t &binary_magic) {
+  static const std::unordered_map<std::string, uint32_t> binary_magics = {
+      {"RT_DEV_BINARY_MAGIC_ELF_AICPU", RT_DEV_BINARY_MAGIC_ELF_AICPU},
+      {"RT_DEV_BINARY_MAGIC_ELF", RT_DEV_BINARY_MAGIC_ELF},
+      {"RT_DEV_BINARY_MAGIC_ELF_AIVEC", RT_DEV_BINARY_MAGIC_ELF_AIVEC},
+      {"RT_DEV_BINARY_MAGIC_ELF_AICUBE", RT_DEV_BINARY_MAGIC_ELF_AICUBE},
+  };
+  std::string tvm_magic_key = is_atomic_node ? ge::ATOMIC_ATTR_TVM_MAGIC : ge::TVM_ATTR_NAME_MAGIC;
+  auto tvm_magic_str = ge::AttrUtils::GetStr(op_desc, tvm_magic_key);
+  if (tvm_magic_str == nullptr) {
+    GELOGE(ge::FAILED, "Failed to get tvm magic by key %s on node %s.", tvm_magic_key.c_str(),
+           op_desc->GetName().c_str());
+    return ge::FAILED;
+  }
+  auto iter = binary_magics.find(*tvm_magic_str);
+  if (iter == binary_magics.end()) {
+    GELOGE(ge::FAILED, "[Check][JsonStr]Unexpected tvm magic %s, magic key %s", tvm_magic_str->c_str(),
+           tvm_magic_key.c_str());
+    return ge::FAILED;
+  }
+  binary_magic = iter->second;
+  return ge::SUCCESS;
+}
+
+ge::Status GetTbeKernelId(const ge::OpDescPtr &op_desc, bool is_atomic_node, std::string &kernel_bin_id) {
+  std::string kernel_id_attr = is_atomic_node ? kAttrMemsetKernelBinId : kAttrKernelBinId;
+  GE_ASSERT_TRUE(ge::AttrUtils::GetStr(op_desc, kernel_id_attr, kernel_bin_id),
+                 "[%s][%s] Get kernel id from attr %s failed.", op_desc->GetNamePtr(), op_desc->GetTypePtr(),
+                 kernel_id_attr.c_str());
+  return ge::SUCCESS;
+}
+
 bg::ValueHolderPtr SinkBinForAicore(const ge::NodePtr &node,
                                     const LoweringGlobalData::NodeCompileResult *compile_result) {
   auto task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);

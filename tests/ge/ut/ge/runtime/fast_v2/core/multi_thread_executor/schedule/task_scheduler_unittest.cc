@@ -499,7 +499,7 @@ TEST_F(TaskSchedulerUnitTest, GenerationOverflowAbortsWithoutWraparound) {
 
 TEST_F(TaskSchedulerUnitTest, SuccessfulExecutionReportsRelationEventsByNodeIdAndResetsEveryEpoch) {
   FakeExecutionData execution_data(8U);
-  execution_data.KernelAttr({{3U, {"free", "FreeMemoryHoldAddr"}}, {7U, {"launch", "LaunchKernelWithHandle"}}})
+  execution_data.KernelAttr({{3U, {"free", "FreeMemoryHoldAddr"}}, {7U, {"launch", "LaunchKernelV2"}}})
       .Chain({3U, 7U})
       .StartNodes({3U});
   const auto offsets = MakeOneRelationOffsets(8U, 3U);
@@ -534,7 +534,7 @@ TEST_F(TaskSchedulerUnitTest, MixedNodeTasksReportOnlyActualRelationLaunchForEve
     execution_data
         .KernelAttr({{0U, {"mixed_op", "FreeMemoryHoldAddr"}},
                      {1U, {"mixed_op", "Tiling"}},
-                     {2U, {"mixed_op", "LaunchKernelWithHandle"}},
+                     {2U, {"mixed_op", "LaunchKernelV2"}},
                      {3U, {"mixed_op", "Tiling"}}})
         .Chain({0U, 1U, 2U, 3U})
         .StartNodes({0U});
@@ -556,7 +556,7 @@ TEST_F(TaskSchedulerUnitTest, MixedNodeTasksReportOnlyActualRelationLaunchForEve
 
 TEST_F(TaskSchedulerUnitTest, CallbackExecutionUsesSameSuccessfulRelationEvents) {
   FakeExecutionData execution_data(8U);
-  execution_data.KernelAttr({{3U, {"free", "FreeMemoryHoldAddr"}}, {7U, {"launch", "LaunchKernelWithHandle"}}})
+  execution_data.KernelAttr({{3U, {"free", "FreeMemoryHoldAddr"}}, {7U, {"launch", "LaunchKernelV2"}}})
       .Chain({3U, 7U})
       .StartNodes({3U});
   const auto offsets = MakeOneRelationOffsets(8U, 3U);
@@ -579,7 +579,7 @@ TEST_F(TaskSchedulerUnitTest, FailedAndEosLaunchDoNotAdvanceSubmissionAndAbortWa
   for (const auto terminal_status : {static_cast<ge::Status>(kStatusFailed), ge::END_OF_SEQUENCE}) {
     SCOPED_TRACE(terminal_status);
     FakeExecutionData execution_data(2U);
-    execution_data.KernelAttr({{1U, {"launch", "LaunchKernelWithHandle"}}}).StartNodes({1U});
+    execution_data.KernelAttr({{1U, {"launch", "LaunchKernelV2"}}}).StartNodes({1U});
     if (terminal_status == ge::END_OF_SEQUENCE) {
       execution_data.FuncEndOfSequence(1U, terminal_status);
     } else {
@@ -622,9 +622,7 @@ TEST_F(TaskSchedulerUnitTest, FailedAndEosFreeDoNotActivateRelation) {
 
 TEST_F(TaskSchedulerUnitTest, ScheduleAfterFailureStartsCleanEpoch) {
   FakeExecutionData execution_data(2U);
-  execution_data.KernelAttr({{1U, {"launch", "LaunchKernelWithHandle"}}})
-      .FuncFailed(1U, kStatusFailed)
-      .StartNodes({1U});
+  execution_data.KernelAttr({{1U, {"launch", "LaunchKernelV2"}}}).FuncFailed(1U, kStatusFailed).StartNodes({1U});
   const auto offsets = MakeOneRelationOffsets(2U, 0U);
   const NodeIdentity launch_ids[] = {1U};
   const FreeLaunchRelationCsr relation_csr{offsets.data(), launch_ids, 2U, 1U};
@@ -643,7 +641,7 @@ TEST_F(TaskSchedulerUnitTest, ScheduleAfterFailureStartsCleanEpoch) {
 
 TEST_F(TaskSchedulerUnitTest, ExecutionEpochOverflowAbortsWithoutWraparound) {
   FakeExecutionData execution_data(2U);
-  execution_data.KernelAttr({{1U, {"launch", "LaunchKernelWithHandle"}}}).StartNodes({1U});
+  execution_data.KernelAttr({{1U, {"launch", "LaunchKernelV2"}}}).StartNodes({1U});
   const auto offsets = MakeOneRelationOffsets(2U, 0U);
   const NodeIdentity launch_ids[] = {1U};
   const FreeLaunchRelationCsr relation_csr{offsets.data(), launch_ids, 2U, 1U};

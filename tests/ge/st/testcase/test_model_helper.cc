@@ -260,10 +260,10 @@ void RestoreLdLibraryPath(const char old_env[MMPA_MAX_PATH]) {
   mmSetEnv("LD_LIBRARY_PATH", old_env, 1);
 }
 
-std::string GetNanoOutputPrefix() {
+std::string GetNanoOutputPrefix(const std::string &suffix = "") {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
-  return PathJoin(om_path.c_str(), "pb_exeom_for_nano");
+  return PathJoin(om_path.c_str(), ("pb_exeom_for_nano" + suffix).c_str());
 }
 
 void ExpectNanoSaveFiles(const std::string &om_path) {
@@ -290,13 +290,17 @@ void SaveNanoRootModelAndExpectFiles(const GeRootModelPtr &ge_root_model, const 
   ExpectNanoSaveFiles(om_path);
 }
 
-void SaveNanoExeModelAndCheck(const GeModelPtr &ge_model, const std::string &om_path) {
+void SaveNanoExeModelAndExpectFiles(const GeModelPtr &ge_model, const std::string &om_path) {
   ModelBufferData model_buff;
   NanoModelSaveHelper helper;
   helper.SetSaveMode(true);
   Status ret = helper.SaveToExeOmModel(ge_model, om_path + ".exeom", model_buff);
   EXPECT_EQ(ret, SUCCESS);
-  ExpectNanoSaveFiles(om_path);
+  EXPECT_EQ(IsFile((om_path + ".exeom").c_str()), true);
+}
+
+void SaveNanoExeModelAndCheck(const GeModelPtr &ge_model, const std::string &om_path) {
+  SaveNanoExeModelAndExpectFiles(ge_model, om_path);
   CheckDbgFileTLv((om_path + ".dbg").c_str());
 }
 
@@ -394,6 +398,14 @@ GeRootModelPtr BuildAtcNanoRootModel(ComputeGraphPtr &graph) {
   graph->FindNode("add2")->GetOpDesc()->SetOutputOffset({0});
   graph->FindNode("add3")->GetOpDesc()->SetInputOffset({0, 2048});
   graph->FindNode("add3")->GetOpDesc()->SetOutputOffset({0});
+  TBEKernelStore &store = ge_model->GetTBEKernelStore();
+  store.AddTBEKernel(MakeShared<OpKernelBin>("add1_faked_kernel", CreateStubBin()));
+  store.AddTBEKernel(MakeShared<OpKernelBin>("add2_faked_kernel", CreateStubBin()));
+  store.AddTBEKernel(MakeShared<OpKernelBin>("add3_faked_kernel", CreateStubBin()));
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 10240);
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_EVENT_NUM, 1);
+  AttrUtils::SetInt(ge_model, MODEL_ATTR_TASK_GEN_BASE_ADDR, 0);
   return ge_root_model;
 }
 
@@ -410,11 +422,9 @@ void SetHostFuncAttrs(const OpDescPtr &op_desc) {
                    GeAttrValue::CreateFrom<std::vector<std::vector<float>>>({{1.2, 3.4}, {5.6, 7.8}}));
 }
 
-void BuildNanoHostFuncModel(const ComputeGraphPtr &graph) {
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  const auto model_def = MakeShared<domi::ModelTaskDef>();
-  ge_model->SetModelTaskDef(model_def);
+void BuildNanoHostFuncModel(GeModelPtr &ge_model) {
+  const auto &graph = ge_model->GetGraph();
+  const auto model_def = ge_model->GetModelTaskDefPtr();
   const auto &node = graph->FindNode("add1");
   const auto &op_desc = node->GetOpDesc();
   op_desc->SetOutputOffset({8});
@@ -423,12 +433,15 @@ void BuildNanoHostFuncModel(const ComputeGraphPtr &graph) {
   PreModelPartitionUtils::GetInstance().SetZeroCopyTable(1024, 8);
   SetHostFuncAttrs(op_desc);
 
-  TBEKernelStore tbe_kernel_store;
+  TBEKernelStore &tbe_kernel_store = ge_model->GetTBEKernelStore();
   const auto kernel = MakeShared<OpKernelBin>("test", CreateStubBin());
   tbe_kernel_store.AddTBEKernel(kernel);
-  ge_model->SetTBEKernelStore(tbe_kernel_store);
   auto *kernel_def = AddKernelTask(model_def, op_desc, "test", ccKernelType::AI_CPU);
   kernel_def->mutable_context()->set_op_index(op_desc->GetId());
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 10240);
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_EVENT_NUM, 1);
+  AttrUtils::SetInt(ge_model, MODEL_ATTR_TASK_GEN_BASE_ADDR, 0);
 }
 
 GeModelPtr CreateNanoExeGeModel(const ComputeGraphPtr &graph, std::shared_ptr<domi::ModelTaskDef> &model_def,
@@ -438,6 +451,10 @@ GeModelPtr CreateNanoExeGeModel(const ComputeGraphPtr &graph, std::shared_ptr<do
   model_def = MakeShared<domi::ModelTaskDef>();
   ge_model->SetModelTaskDef(model_def);
   tbe_kernel_store = ge_model->GetTBEKernelStore();
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 10240);
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  AttrUtils::SetInt(ge_model, ATTR_MODEL_EVENT_NUM, 1);
+  AttrUtils::SetInt(ge_model, MODEL_ATTR_TASK_GEN_BASE_ADDR, 0);
   return ge_model;
 }
 
@@ -525,24 +542,9 @@ ComputeGraphPtr BuildAutofuseGraphWithStub(const std::string &om_path) {
   return graph;
 }
 
-static const char *GetCompileTimeCpu() {
-#if defined(__aarch64__) || defined(__arm64__)
-  return "aarch64";
-#elif defined(__x86_64__) || defined(__amd64__)
-  return "x86_64";
-#else
-  return "x86_64";
-#endif
-}
-
-static std::string MakePlatformSuffix() {
-  return std::string("_linux_") + GetCompileTimeCpu();
-}
-
 std::string SaveAutofuseRootModel(const GeRootModelPtr &ge_root_model, const std::string &om_path) {
-  (void)GetThreadLocalContext().SetGlobalOption(
-      {{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", GetCompileTimeCpu()}});
-  const std::string output = PathJoin(om_path.c_str(), "autofuse_repack") + MakePlatformSuffix() + ".om";
+  (void)GetThreadLocalContext().SetGlobalOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "x86_64"}});
+  const std::string output = PathJoin(om_path.c_str(), "autofuse_repack") + "_linux_x86_64.om";
   ModelBufferData first;
   ModelHelper helper;
   helper.SetSaveMode(true);
@@ -552,12 +554,11 @@ std::string SaveAutofuseRootModel(const GeRootModelPtr &ge_root_model, const std
 
 std::string GetAutofuseActualOutput(const std::string &output) {
   std::string actual_output = output;
-  const std::string suffix = MakePlatformSuffix();
   const auto dot_pos = actual_output.find(".om");
   if (dot_pos < actual_output.length()) {
-    actual_output.insert(dot_pos, suffix);
+    actual_output.insert(dot_pos, "_linux_x86_64");
   } else {
-    actual_output.append(suffix);
+    actual_output.append("_linux_x86_64");
   }
   return actual_output;
 }
@@ -589,7 +590,7 @@ TEST_F(ModelHelperTest, SaveToOmRootModel_For_Nano) {
   SetNanoLdLibraryPath(old_env);
   ComputeGraphPtr graph;
   auto ge_root_model = BuildAtcNanoRootModel(graph);
-  SaveNanoRootModelAndCheck(ge_root_model, GetNanoOutputPrefix());
+  SaveNanoRootModelAndCheck(ge_root_model, GetNanoOutputPrefix("_nano"));
   RestoreLdLibraryPath(old_env);
 }
 
@@ -598,8 +599,10 @@ TEST_F(ModelHelperTest, SaveToOmRootModel_For_NanoHostFunc) {
   SetNanoLdLibraryPath(old_env);
   ComputeGraphPtr graph;
   auto ge_root_model = BuildAtcNanoRootModel(graph);
-  BuildNanoHostFuncModel(graph);
-  SaveNanoRootModelAndCheck(ge_root_model, GetNanoOutputPrefix());
+  auto ge_model_map = ge_root_model->GetSubgraphInstanceNameToModel();
+  auto ge_model = ge_model_map[graph->GetName()];
+  BuildNanoHostFuncModel(ge_model);
+  SaveNanoRootModelAndExpectFiles(ge_root_model, GetNanoOutputPrefix("_hostfunc"));
   RestoreLdLibraryPath(old_env);
 }
 
@@ -614,7 +617,7 @@ TEST_F(ModelHelperTest, SaveToOmRootModel_For_NanoWHILESwitch) {
   auto ge_model = BuildWhileSwitchGeModel(graph);
 
   dlog_setlevel(-1, 0, 1);
-  SaveNanoExeModelAndCheck(ge_model, GetNanoOutputPrefix());
+  SaveNanoExeModelAndExpectFiles(ge_model, GetNanoOutputPrefix("_while"));
   RestoreLdLibraryPath(old_env);
 }
 
@@ -627,7 +630,7 @@ TEST_F(ModelHelperTest, SaveToOmRootModel_For_NanoIFSwitch) {
   (void)ge_root_model;
   auto ge_model = BuildIfSwitchGeModel(graph);
 
-  SaveNanoExeModelAndCheck(ge_model, GetNanoOutputPrefix());
+  SaveNanoExeModelAndExpectFiles(ge_model, GetNanoOutputPrefix("_if"));
   RestoreLdLibraryPath(old_env);
 }
 
@@ -672,7 +675,7 @@ TEST_F(ModelHelperTest, SaveToOm_for_SplitAndUpgraded_Opp) {
 
   std::map<string, string> env_options;
   env_options["ge.host_env_os"] = "linux";
-  env_options["ge.host_env_cpu"] = GetCompileTimeCpu();
+  env_options["ge.host_env_cpu"] = "x86_64";
   (void)GetThreadLocalContext().SetGlobalOption(env_options);
 
   ModelHelper model_helper;

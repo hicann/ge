@@ -287,9 +287,9 @@ TEST_F(ModelV2ExecutorBuilderUT, ExecuteUnbindsStreamCoreNumLimitsWhenMainGraphF
   ge::GetThreadLocalContext() = ge::GEThreadLocalContext();
 
   GertRuntimeStub stub;
-  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const", "LaunchKernelWithHandle"});
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess({"GetPlatformInfo", "Const", "LaunchKernelV2"});
   stub.GetKernelStub().SetUp("GetPlatformInfo", CaptureCoreNumOptions);
-  stub.GetKernelStub().SetUp("LaunchKernelWithHandle", FailKernel);
+  stub.GetKernelStub().SetUp("LaunchKernelV2", FailKernel);
   auto model_executor = BuildModelExecutorWithCoreNumOptions("8", "16", true);
   ASSERT_NE(model_executor, nullptr);
   ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
@@ -433,7 +433,7 @@ TEST_F(ModelV2ExecutorBuilderUT, RefsHasTheSameAddr) {
   ASSERT_EQ(tiling_nodes.size(), 1);
   auto tiling_node = tiling_nodes[0];
 
-  auto launch_nodes = ModelV2ExecutorTestHelper::GetNodesByKernelType(execution_data, "LaunchKernelWithHandle");
+  auto launch_nodes = ModelV2ExecutorTestHelper::GetNodesByKernelType(execution_data, "LaunchKernelV2");
   ASSERT_EQ(launch_nodes.size(), 1);
 
   // zero copy tiling-data

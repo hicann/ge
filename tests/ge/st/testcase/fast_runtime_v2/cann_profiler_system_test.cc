@@ -792,7 +792,7 @@ class CannProfilerST : public bg::BgTest {
       std::string kernel_type =
           reinterpret_cast<const KernelExtendInfo *>(execution_data->base_ed.nodes[i]->context.kernel_extend_info)
               ->GetKernelType();
-      if (kernel_type == "LaunchKernelWithHandle") {
+      if (kernel_type == "LaunchKernelV2") {
         const_cast<KernelExtendInfo *>(
             reinterpret_cast<const KernelExtendInfo *>(execution_data->base_ed.nodes[i]->context.kernel_extend_info))
             ->SetKernelType("AicpuHostCompute");

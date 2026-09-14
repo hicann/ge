@@ -12,6 +12,7 @@
 #define AIR_CXX_RUNTIME_V2_NODE_CONVERTER_AICORE_COMPILE_RESULTS_H_
 #include "exe_graph/lowering/value_holder.h"
 #include "exe_graph/lowering/lowering_global_data.h"
+#include "graph/op_kernel_bin.h"
 namespace gert {
 bg::ValueHolderPtr SinkBinForAicore(const ge::NodePtr &node,
                                     const LoweringGlobalData::NodeCompileResult *compile_result);
@@ -24,5 +25,11 @@ bg::ValueHolderPtr SinkBinForFFTSAicore(const ge::NodePtr &node, std::vector<bg:
 bg::ValueHolderPtr SinkBinForMixAiCore(const ge::NodePtr &node, std::vector<bg::ValueHolderPtr> &tiling_ret);
 
 bg::ValueHolderPtr SinkFFTSStaAutoNodeBin(const ge::NodePtr &node);
+
+ge::OpKernelBinPtr GetTbeKernelBin(const ge::OpDescPtr &op_desc, bool is_atomic_node);
+
+ge::Status GetBinaryMagic(const ge::OpDescPtr &op_desc, bool is_atomic_node, uint32_t &binary_magic);
+
+ge::Status GetTbeKernelId(const ge::OpDescPtr &op_desc, bool is_atomic_node, std::string &kernel_bin_id);
 }  // namespace gert
 #endif  // AIR_CXX_RUNTIME_V2_NODE_CONVERTER_AICORE_COMPILE_RESULTS_H_

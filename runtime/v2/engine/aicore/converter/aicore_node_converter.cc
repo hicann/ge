@@ -10,6 +10,8 @@
 
 #include "aicore_node_converter.h"
 #include <cinttypes>
+#include <map>
+#include <optional>
 #include "common/checker.h"
 #include "base/err_msg.h"
 #include "graph_builder/bg_infer_shape.h"
@@ -47,13 +49,20 @@
 #include "common/opskernel/ops_kernel_info_types.h"
 
 namespace gert {
+std::mutex g_kernel_bin_store_lock;
+std::map<std::string, ge::OpKernelBinPtr> g_kernel_bin_store;
+
 namespace {
+constexpr const size_t max_launch_cfg_num = 4UL;
+constexpr size_t const AtomicTaskdefMinNum = 2;
+
 struct ProcArgs {
   std::vector<bg::ValueHolderPtr> tiling_ret;
   std::vector<bg::ValueHolderPtr> launch_arg;
   std::vector<bg::ValueHolderPtr> ordered_holders;
   bg::ValueHolderPtr atomic_launch{nullptr};
 };
+
 struct RunCfg {
   bg::ValueHolderPtr block_dim = nullptr;
   bg::ValueHolderPtr schedule_mode = nullptr;
@@ -61,12 +70,164 @@ struct RunCfg {
   bg::ValueHolderPtr tiling_input_launch_arg = nullptr;
   bg::ValueHolderPtr workspaces_size = nullptr;
 };
+
+struct AtomicLaunchContext {
+  ge::ComputeGraphPtr tmp_graph;
+  ge::NodePtr atomic_node;
+  std::vector<bg::ValueHolderPtr> output_clean_sizes;
+  std::vector<bg::DevMemValueHolderPtr> output_clean_addrs;
+  std::unique_ptr<bg::ValueHolder::CurrentComputeNodeGuarder> current_node_guarder;
+  const domi::TaskDef *task_def;
+};
+
+struct AicoreProcContext {
+  bg::DevMemValueHolderPtr workspaces_addr;
+  bg::DevMemValueHolderPtr shapebuffer_addr;
+  std::vector<bg::ValueHolderPtr> output_sizes;
+  std::vector<bg::DevMemValueHolderPtr> output_addrs;
+  bg::ValueHolderPtr atomic_launch_holder;
+  bg::ValueHolderPtr kernel_bin_id_holder;
+  bg::ValueHolderPtr magic_holder;
+  bg::ValueHolderPtr kernel_bin_holder;
+  std::pair<bg::ValueHolderPtr, bg::ValueHolderPtr> qos_pair;
+};
+
+struct LaunchKernelParams {
+  bg::ValueHolderPtr tiling_key;
+  bg::ValueHolderPtr kernel_name_holder;
+  bg::ValueHolderPtr with_handle_flag_holder;
+};
+
+static std::vector<bg::DevMemValueHolderPtr> LaunchAicoreKernelAndProcess(
+    const ge::NodePtr &node, const LowerInput &lower_input, const AicoreProcContext &ctx,
+    std::vector<bg::ValueHolderPtr> &output_shapes, ProcArgs &proc_arg, const LaunchKernelParams &params) {
+  DfxExeArg dfx_exe_arg = GetOpDfxExeArg(node);
+  auto dfx_holder = bg::ValueHolder::CreateConst(&dfx_exe_arg, sizeof(dfx_exe_arg));
+
+  auto launch_holder = bg::LaunchKernelV2(
+      {
+          lower_input.global_data->GetStream(),
+          ctx.kernel_bin_id_holder,
+          ctx.magic_holder,
+          ctx.kernel_bin_holder,
+          proc_arg.tiling_ret[TilingContext::kOutputBlockDim],
+          proc_arg.tiling_ret[TilingContext::kOutputScheduleMode],
+          proc_arg.tiling_ret[TilingContext::kOutputLocalMemorySize],
+          ctx.workspaces_addr,
+          ctx.shapebuffer_addr,
+          ctx.qos_pair.first,
+          ctx.qos_pair.second,
+          lower_input.input_shapes,
+          output_shapes,
+          node,
+          lower_input.global_data,
+          dfx_holder,
+          proc_arg.tiling_ret[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)],
+          params.tiling_key,
+          params.kernel_name_holder,
+          params.with_handle_flag_holder,
+      },
+      lower_input.input_addrs, ctx.output_addrs);
+  FE_ASSERT_NOTNULL(launch_holder);
+  proc_arg.ordered_holders.emplace_back(launch_holder);
+
+  auto ref_out_shapes =
+      SetOutputShape(node, ctx.shapebuffer_addr, launch_holder, lower_input.global_data->GetStream(), output_shapes);
+  if (!ref_out_shapes.empty()) {
+    output_shapes = ref_out_shapes;
+    proc_arg.ordered_holders.insert(proc_arg.ordered_holders.end(), ref_out_shapes.begin(), ref_out_shapes.end());
+  }
+
+  auto free_holder = bg::FreeWorkspaceMem(kOnDeviceHbm, ctx.workspaces_addr);
+  if (ctx.atomic_launch_holder != nullptr) {
+    bg::ValueHolder::AddDependency(ctx.atomic_launch_holder, launch_holder);
+    proc_arg.atomic_launch = ctx.atomic_launch_holder;
+  }
+  bg::ValueHolder::AddDependency(launch_holder, free_holder);
+  return ctx.output_addrs;
+}
+
+static std::unique_ptr<AtomicLaunchContext> InitAtomicLaunchContext(
+    const ge::NodePtr &node, const LoweringGlobalData::NodeCompileResult *compile_result,
+    const bg::AtomicLoweringArg &atomic_lowering_arg) {
+  if (compile_result == nullptr || compile_result->task_defs.size() < AtomicTaskdefMinNum) {
+    return nullptr;
+  }
+  ge::ComputeGraphPtr tmp_graph = nullptr;
+  GE_MAKE_SHARED(tmp_graph = std::make_shared<ge::ComputeGraph>("tmp-graph"), return nullptr);
+  if (tmp_graph == nullptr) {
+    return nullptr;
+  }
+  auto ctx = std::make_unique<AtomicLaunchContext>();
+  ctx->tmp_graph = tmp_graph;
+  ctx->atomic_node =
+      BuildAtomicNode(node, atomic_lowering_arg, ctx->output_clean_sizes, ctx->output_clean_addrs, tmp_graph);
+  FE_ASSERT_NOTNULL(ctx->atomic_node);
+  ctx->current_node_guarder = bg::ValueHolder::SetScopedCurrentComputeNode(ctx->atomic_node);
+  ctx->task_def = GetTaskDef(node, compile_result, TaskDefType::kAtomicClean);
+  return ctx;
+}
+
 constexpr char const *kUbOriginGraphAttrKey = "_original_fusion_graph";
 constexpr char const *kMemSetAttrKey = "tbe_op_atomic_dtypes";
 constexpr char const *kAtomicCoreTypeKey = "_atomic_cube_vector_core_type";
 constexpr char const *kTbeOpAtomicInt64Values = "tbe_op_atomic_int64_values";
 constexpr char const *kTbeOpAtomicFloatValues = "tbe_op_atomic_float_values";
-constexpr size_t const AtomicTaskdefMinNum = 2;
+constexpr char const *kRawKernelNameKey = "_kernelname";
+constexpr char const *kRawAtomicKernelNameKey = "_atomic_kernelname";
+
+bg::ValueHolderPtr CreateKernelBinIdHolder(const ge::NodePtr &node, const bool is_atomic_node) {
+  auto op_desc = node->GetOpDesc();
+  std::string kernel_bin_id;
+  GE_ASSERT_SUCCESS(GetTbeKernelId(op_desc, is_atomic_node, kernel_bin_id));
+  return bg::ValueHolder::CreateConst(kernel_bin_id.c_str(), kernel_bin_id.size() + 1, true);
+}
+
+bg::ValueHolderPtr CreateMagicHolder(const ge::NodePtr &node, const bool is_atomic_node) {
+  auto op_desc = node->GetOpDesc();
+  uint32_t magic{0};
+  GE_ASSERT_SUCCESS(GetBinaryMagic(op_desc, is_atomic_node, magic));
+  return bg::ValueHolder::CreateConst(&magic, sizeof(magic), false);
+}
+
+bg::ValueHolderPtr CreateKernelBinHolder(const ge::NodePtr &node, const bool is_atomic_node) {
+  auto op_desc = node->GetOpDesc();
+  auto kernel_bin = GetTbeKernelBin(op_desc, is_atomic_node);
+  GE_ASSERT_NOTNULL(kernel_bin, "Node[%s] kernel_bin is nullptr, is_atomic_node=%d", node->GetNamePtr(),
+                    is_atomic_node);
+  std::string kernel_bin_id;
+  GE_ASSERT_SUCCESS(GetTbeKernelId(op_desc, is_atomic_node, kernel_bin_id));
+  std::unique_lock<std::mutex> lk(g_kernel_bin_store_lock);
+  auto emplace_result = g_kernel_bin_store.emplace(kernel_bin_id, kernel_bin);
+  ge::KernelBinPtr *kernel_bin_ptr = &(emplace_result.first->second);
+  return bg::ValueHolder::CreateConst(&kernel_bin_ptr, sizeof(kernel_bin_ptr));
+}
+
+bg::ValueHolderPtr CreateKernelNameHolder(const ge::NodePtr &node, const std::string &key_suffix) {
+  std::string kernel_name_str;
+  if (!ge::AttrUtils::GetStr(node->GetOpDesc(), node->GetName() + key_suffix, key_suffix, kernel_name_str)) {
+    GELOGD("Kernel name is empty for node: %s, unable to retrieve.", node->GetName().c_str());
+  }
+  return bg::ValueHolder::CreateConst(kernel_name_str.c_str(), kernel_name_str.size() + 1, true);
+}
+
+bg::ValueHolderPtr CreateTilingKeyHolder() {
+  uint64_t value = 0UL;
+  return bg::ValueHolder::CreateConst(&value, sizeof(value), false);
+}
+
+bg::ValueHolderPtr CreateWithHandleFlagHolder(uint32_t with_handle_flag) {
+  return bg::ValueHolder::CreateConst(&with_handle_flag, sizeof(with_handle_flag), false);
+}
+
+std::pair<bg::ValueHolderPtr, bg::ValueHolderPtr> PrepareQosPair(const domi::TaskDef *task_def,
+                                                                 const ge::NodePtr &node) {
+  bg::ValueHolderPtr cfg_attrs = nullptr;
+  size_t actual_cfg_num = GetLaunchKernelV2Attr(cfg_attrs, task_def, node);
+  bg::ValueHolderPtr qos = nullptr;
+  (void)GetQosInfo(qos, actual_cfg_num);
+  return {cfg_attrs, qos};
+}
 
 ge::ComputeGraphPtr GetOriginGraphFromUbNode(const ge::NodePtr &node) {
   ge::ComputeGraphPtr graph_ptr = nullptr;
@@ -266,12 +427,44 @@ std::vector<bg::ValueHolderPtr> SetOutputShape(const ge::NodePtr &node,
   return ref_output_shapes;
 }
 
-ge::Status GetQosInfo(bg::ValueHolderPtr &qos) {
-  rtTaskCfgInfo_t qos_info = {};
-  qos_info.qos = 0;
-  qos_info.partId = 0;
+ge::Status GetQosInfo(bg::ValueHolderPtr &qos, size_t actual_cfg_num) {
+  aclrtLaunchKernelCfg qos_info = {};
+  qos_info.numAttrs = actual_cfg_num;
   qos = bg::ValueHolder::CreateConst(&qos_info, sizeof(qos_info));
   return ge::SUCCESS;
+}
+
+bool IsVectorTask(const ge::NodePtr &node) {
+  std::string core_type;
+  (void)ge::AttrUtils::GetStr(node->GetOpDesc(), ge::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, core_type);
+  if (core_type == kCoreTypeAIV) {
+    return true;
+  }
+  return false;
+}
+
+size_t GetLaunchKernelV2Attr(bg::ValueHolderPtr &cfg_attrs, const domi::TaskDef *task_def, const ge::NodePtr &node) {
+  aclrtLaunchKernelAttr attrs[max_launch_cfg_num];
+  size_t actual_cfg_num = 0UL;
+  attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_SCHEM_MODE;
+  attrs[actual_cfg_num].value.schemMode = 0U;
+  actual_cfg_num++;
+  attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DYN_UBUF_SIZE;
+  attrs[actual_cfg_num].value.dynUBufSize = 0U;
+  actual_cfg_num++;
+  attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENGINE_TYPE;
+  attrs[actual_cfg_num].value.engineType = IsVectorTask(node) ? ACL_RT_ENGINE_TYPE_AIV : ACL_RT_ENGINE_TYPE_AIC;
+  actual_cfg_num++;
+  attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_BLOCKDIM_OFFSET;
+  if (static_cast<ge::ModelTaskType>(task_def->type()) == ge::ModelTaskType::MODEL_TASK_ALL_KERNEL ||
+      static_cast<ge::ModelTaskType>(task_def->type()) == ge::ModelTaskType::MODEL_TASK_VECTOR_ALL_KERNEL) {
+    attrs[actual_cfg_num].value.blockDimOffset = task_def->kernel_with_handle().block_dim_offset();
+  } else {
+    attrs[actual_cfg_num].value.blockDimOffset = task_def->kernel().block_dim_offset();
+  }
+  actual_cfg_num++;
+  cfg_attrs = bg::ValueHolder::CreateConst(&attrs, sizeof(attrs));
+  return actual_cfg_num;
 }
 
 std::vector<bg::ValueHolderPtr> InferAiCoreStorageShape(const ge::NodePtr &node,
@@ -492,38 +685,27 @@ ge::NodePtr BuildAtomicNode(const ge::NodePtr &origin_node, const bg::AtomicLowe
 static bg::ValueHolderPtr LaunchAtomic(const ge::NodePtr &node, const LowerInput &lower_input,
                                        const LoweringGlobalData::NodeCompileResult *compile_result,
                                        const bg::AtomicLoweringArg &atomic_lowering_arg) {
-  if (compile_result == nullptr || compile_result->task_defs.size() < AtomicTaskdefMinNum) {
+  auto ctx = InitAtomicLaunchContext(node, compile_result, atomic_lowering_arg);
+  if (ctx == nullptr) {
     return nullptr;
   }
-  ge::ComputeGraphPtr tmp_graph = nullptr;
-  GE_MAKE_SHARED(tmp_graph = std::make_shared<ge::ComputeGraph>("tmp-graph"), return nullptr);
-  if (tmp_graph == nullptr) {
-    return nullptr;
-  }
-  std::vector<bg::ValueHolderPtr> output_clean_sizes;
-  std::vector<bg::DevMemValueHolderPtr> output_clean_addrs;
-  auto atomic_node = BuildAtomicNode(node, atomic_lowering_arg, output_clean_sizes, output_clean_addrs, tmp_graph);
-  FE_ASSERT_NOTNULL(atomic_node);
-
-  auto current_node_guarder = bg::ValueHolder::SetScopedCurrentComputeNode(atomic_node);
-  const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAtomicClean);
-  if (task_def == nullptr) {
+  if (ctx->task_def == nullptr) {
     GELOGD("Atomic task definition not found, stopping atomic lowering process.");
     return nullptr;
   }
-
+  uint32_t with_handle_flag = 0U;
   std::vector<bg::ValueHolderPtr> rt_arg;
-  if (static_cast<ge::ModelTaskType>(task_def->type()) == ge::ModelTaskType::MODEL_TASK_ALL_KERNEL) {
+  if (static_cast<ge::ModelTaskType>(ctx->task_def->type()) == ge::ModelTaskType::MODEL_TASK_ALL_KERNEL) {
     GELOGD("Node %s executed AllocRtArg with all kernels.", node->GetName().c_str());
-    rt_arg = bg::AllocRtArg(node, task_def->kernel_with_handle(), bg::kMaxAtomicCleanTilingSize);
+    with_handle_flag = 1U;
+    rt_arg = bg::AllocRtArg(node, ctx->task_def->kernel_with_handle(), bg::kMaxAtomicCleanTilingSize);
   } else {
     GELOGD("Node %s: AllocRtArg with single kernel.", node->GetNamePtr());
-    rt_arg = bg::AllocRtArg(node, task_def->kernel(), bg::kMaxAtomicCleanTilingSize);
+    rt_arg = bg::AllocRtArg(node, ctx->task_def->kernel(), bg::kMaxAtomicCleanTilingSize);
   }
   CHECK_HOLDERS_ALL_OK_RET(rt_arg, static_cast<size_t>(AllocLaunchArgOutputs::kNum), return nullptr);
 
-  // 1. tiling
-  auto atomic_op_desc = atomic_node->GetOpDesc();
+  auto atomic_op_desc = ctx->atomic_node->GetOpDesc();
   auto origin_op_desc = node->GetOpDesc();
   std::string op_compile_info_json;
   if (!ge::AttrUtils::GetStr(origin_op_desc, optiling::ATOMIC_COMPILE_INFO_JSON, op_compile_info_json)) {
@@ -537,68 +719,50 @@ static bg::ValueHolderPtr LaunchAtomic(const ge::NodePtr &node, const LowerInput
     return nullptr;
   }
   std::vector<bg::ValueHolderPtr> atomic_tiling_ret =
-      bg::TilingForAtomic(atomic_node, atomic_lowering_arg.workspaces_size, output_clean_sizes,
+      bg::TilingForAtomic(ctx->atomic_node, atomic_lowering_arg.workspaces_size, ctx->output_clean_sizes,
                           rt_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)], *(lower_input.global_data));
 
-  // 2. alloc memory
   auto atomic_workspaces_addr = bg::AllocWorkspaceMem(kOnDeviceHbm, atomic_tiling_ret[TilingContext::kOutputWorkspace],
                                                       *(lower_input.global_data));
   gert::GertTensorData *tensor_data = nullptr;
   auto shapebuffer_addr = bg::ValueHolder::CreateConst(&tensor_data, sizeof(gert::GertTensorData *));
-
-  // 3. sink bin
-  auto atomic_bin = SinkAtomicBin(node, compile_result);
-  FE_ASSERT_NOTNULL(atomic_bin);
-
-  // 4. get qos info
-  bg::ValueHolderPtr qos = nullptr;
-  if (GetQosInfo(qos) != ge::SUCCESS) {
+  auto kernel_bin_id_holder = CreateKernelBinIdHolder(node, true);
+  auto magic_holder = CreateMagicHolder(node, true);
+  auto kernel_bin_holder = CreateKernelBinHolder(node, true);
+  auto qos_pair = PrepareQosPair(ctx->task_def, ctx->atomic_node);
+  if (qos_pair.second == nullptr) {
     return nullptr;
   }
-
-  // 5. launch
+  auto kernel_name_holder = CreateKernelNameHolder(node, kRawAtomicKernelNameKey);
+  auto with_handle_flag_holder = CreateWithHandleFlagHolder(with_handle_flag);
   std::vector<int64_t> workspace_indexes;
   ge::AttrUtils::GetListInt(atomic_op_desc, "WorkspaceIndexes", workspace_indexes);
-  DfxExeArg dfx_exe_arg = GetOpDfxExeArg(atomic_node);
+  DfxExeArg dfx_exe_arg = GetOpDfxExeArg(ctx->atomic_node);
   auto dfx_holder = bg::ValueHolder::CreateConst(&dfx_exe_arg, sizeof(dfx_exe_arg));
-  bg::ValueHolderPtr launch_arg = nullptr;
-  if (static_cast<ge::ModelTaskType>(task_def->type()) == ge::ModelTaskType::MODEL_TASK_ALL_KERNEL) {
-    launch_arg = bg::AtomicLaunchKernelWithHandle(
-        {lower_input.global_data->GetStream(),
-         atomic_bin,
-         atomic_tiling_ret[TilingContext::kOutputBlockDim],
-         atomic_tiling_ret[TilingContext::kOutputScheduleMode],
-         atomic_tiling_ret[TilingContext::kOutputLocalMemorySize],
-         atomic_workspaces_addr,
-         shapebuffer_addr,
-         qos,
-         {},
-         {},
-         atomic_node,
-         lower_input.global_data,
-         dfx_holder,
-         atomic_tiling_ret[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)]},
-        atomic_tiling_ret[TilingContext::kOutputTilingKey], CreateVectorHolder(workspace_indexes), output_clean_addrs,
-        atomic_lowering_arg.workspaces_addrs);
-  } else {
-    launch_arg = bg::AtomicLaunchKernelWithFlag(
-        {lower_input.global_data->GetStream(),
-         atomic_bin,
-         atomic_tiling_ret[TilingContext::kOutputBlockDim],
-         atomic_tiling_ret[TilingContext::kOutputScheduleMode],
-         atomic_tiling_ret[TilingContext::kOutputLocalMemorySize],
-         atomic_workspaces_addr,
-         shapebuffer_addr,
-         qos,
-         {},
-         {},
-         atomic_node,
-         lower_input.global_data,
-         dfx_holder,
-         atomic_tiling_ret[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)]},
-        CreateVectorHolder(workspace_indexes), output_clean_addrs, atomic_lowering_arg.workspaces_addrs);
-  }
-  // 6. free memory, add dependency
+  auto launch_arg = bg::AtomicLaunchKernelV2(
+      {
+          lower_input.global_data->GetStream(),
+          kernel_bin_id_holder,
+          magic_holder,
+          kernel_bin_holder,
+          atomic_tiling_ret[TilingContext::kOutputBlockDim],
+          atomic_tiling_ret[TilingContext::kOutputScheduleMode],
+          atomic_tiling_ret[TilingContext::kOutputLocalMemorySize],
+          atomic_workspaces_addr,
+          shapebuffer_addr,
+          qos_pair.first,
+          qos_pair.second,
+          {},
+          {},
+          ctx->atomic_node,
+          lower_input.global_data,
+          dfx_holder,
+          atomic_tiling_ret[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)],
+          atomic_tiling_ret[TilingContext::kOutputTilingKey],
+          kernel_name_holder,
+          with_handle_flag_holder,
+      },
+      CreateVectorHolder(workspace_indexes), ctx->output_clean_addrs, atomic_lowering_arg.workspaces_addrs);
   auto free_holder = bg::FreeWorkspaceMem(kOnDeviceHbm, atomic_workspaces_addr);
   bg::ValueHolder::AddDependency(launch_arg, free_holder);
 
@@ -608,34 +772,23 @@ static bg::ValueHolderPtr LaunchAtomic(const ge::NodePtr &node, const LowerInput
 static bg::ValueHolderPtr LaunchStaticAtomic(const ge::NodePtr &node, const LowerInput &lower_input,
                                              const LoweringGlobalData::NodeCompileResult *compile_result,
                                              const bg::AtomicLoweringArg &atomic_lowering_arg) {
-  if (compile_result == nullptr || compile_result->task_defs.size() < AtomicTaskdefMinNum) {
+  auto ctx = InitAtomicLaunchContext(node, compile_result, atomic_lowering_arg);
+  if (ctx == nullptr) {
     return nullptr;
   }
-  // 0. build atomic node & alloc rt arg
-  ge::ComputeGraphPtr tmp_graph = nullptr;
-  GE_MAKE_SHARED(tmp_graph = std::make_shared<ge::ComputeGraph>("tmp-graph"), return nullptr);
-  if (tmp_graph == nullptr) {
-    return nullptr;
-  }
-  std::vector<bg::ValueHolderPtr> output_clean_sizes;
-  std::vector<bg::DevMemValueHolderPtr> output_clean_addrs;
-  auto atomic_node = BuildAtomicNode(node, atomic_lowering_arg, output_clean_sizes, output_clean_addrs, tmp_graph);
-  FE_ASSERT_NOTNULL(atomic_node);
-  auto current_node_guarder = bg::ValueHolder::SetScopedCurrentComputeNode(atomic_node);
-  const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAtomicClean);
-  if (task_def == nullptr) {
+  if (ctx->task_def == nullptr) {
     GELOGD("No static atomic task definition found, stopping atomic lowering.");
     return nullptr;
   }
-  auto rt_arg = bg::AllocRtArg(node, task_def->kernel(), bg::kMaxAtomicCleanTilingSize);
+  auto rt_arg = bg::AllocRtArg(node, ctx->task_def->kernel(), bg::kMaxAtomicCleanTilingSize);
   CHECK_HOLDERS_ALL_OK_RET(rt_arg, static_cast<size_t>(AllocLaunchArgOutputs::kNum), return nullptr);
-  // 1. sink bin and get block dim
-  auto atomic_bin = SinkAtomicBin(node, compile_result);
-  auto block_dim_value = task_def->kernel().block_dim();
+  auto kernel_bin_id_holder = CreateKernelBinIdHolder(node, true);
+  auto magic_holder = CreateMagicHolder(node, true);
+  auto kernel_bin_holder = CreateKernelBinHolder(node, true);
+  auto block_dim_value = ctx->task_def->kernel().block_dim();
   auto block_dim = bg::ValueHolder::CreateConst(&block_dim_value, sizeof(block_dim_value));
-  auto schedule_mode_value = task_def->kernel().schedule_mode();
+  auto schedule_mode_value = ctx->task_def->kernel().schedule_mode();
   auto schedule_mode = bg::ValueHolder::CreateConst(&schedule_mode_value, sizeof(schedule_mode_value));
-
   uint32_t local_mem = 0;
   (void)ge::AttrUtils::GetInt(node->GetOpDesc(), kLocalMemorySize, local_mem);
   auto local_mem_size = bg::ValueHolder::CreateConst(&local_mem, sizeof(local_mem));
@@ -646,35 +799,42 @@ static bg::ValueHolderPtr LaunchStaticAtomic(const ge::NodePtr &node, const Lowe
   gert::GertTensorData *tensor_data = nullptr;
   auto shapebuffer_addr = bg::ValueHolder::CreateConst(&tensor_data, sizeof(gert::GertTensorData *));
 
-  // 3. get qos info
-  bg::ValueHolderPtr qos = nullptr;
-  if (GetQosInfo(qos) != ge::SUCCESS) {
+  auto qos_pair = PrepareQosPair(ctx->task_def, ctx->atomic_node);
+  if (qos_pair.second == nullptr) {
     return nullptr;
   }
 
-  // 4. launch
+  auto tiling_key_holder = CreateTilingKeyHolder();
+  auto kernel_name_holder = CreateKernelNameHolder(node, kRawAtomicKernelNameKey);
+  auto with_handle_flag_holder = CreateWithHandleFlagHolder(0U);
+
   std::vector<int64_t> workspace_indexes;
-  ge::AttrUtils::GetListInt(atomic_node->GetOpDesc(), "WorkspaceIndexes", workspace_indexes);
+  ge::AttrUtils::GetListInt(ctx->atomic_node->GetOpDesc(), "WorkspaceIndexes", workspace_indexes);
   const bg::ValueHolderPtr &stream = lower_input.global_data->GetStream();
-  DfxExeArg dfx_exe_arg = GetOpDfxExeArg(atomic_node);
+  DfxExeArg dfx_exe_arg = GetOpDfxExeArg(ctx->atomic_node);
   auto dfx_holder = bg::ValueHolder::CreateConst(&dfx_exe_arg, sizeof(dfx_exe_arg));
-  // todo 看着没有Tiling, 暂时先传rt_arg
-  auto launch_arg = bg::AtomicLaunchKernelWithFlag({stream,
-                                                    atomic_bin,
-                                                    block_dim,
-                                                    schedule_mode,
-                                                    local_mem_size,
-                                                    workspaces_addr,
-                                                    shapebuffer_addr,
-                                                    qos,
-                                                    {},
-                                                    {},
-                                                    atomic_node,
-                                                    lower_input.global_data,
-                                                    dfx_holder,
-                                                    rt_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]},
-                                                   CreateVectorHolder(workspace_indexes), output_clean_addrs,
-                                                   atomic_lowering_arg.workspaces_addrs);
+  auto launch_arg = bg::AtomicLaunchKernelV2({stream,
+                                              kernel_bin_id_holder,
+                                              magic_holder,
+                                              kernel_bin_holder,
+                                              block_dim,
+                                              schedule_mode,
+                                              local_mem_size,
+                                              workspaces_addr,
+                                              shapebuffer_addr,
+                                              qos_pair.first,
+                                              qos_pair.second,
+                                              {},
+                                              {},
+                                              ctx->atomic_node,
+                                              lower_input.global_data,
+                                              dfx_holder,
+                                              rt_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)],
+                                              tiling_key_holder,
+                                              kernel_name_holder,
+                                              with_handle_flag_holder},
+                                             CreateVectorHolder(workspace_indexes), ctx->output_clean_addrs,
+                                             atomic_lowering_arg.workspaces_addrs);
   return launch_arg;
 }
 
@@ -685,13 +845,38 @@ bg::ValueHolderPtr LaunchAtomicByType(const ge::NodePtr &node, const LowerInput 
   std::shared_ptr<optiling::utils::OpRunInfo> tiling_info = nullptr;
   tiling_info = node->GetOpDesc()->TryGetExtAttr(ge::ATTR_NAME_OP_RUN_INFO, tiling_info);
   if (!ge::AttrUtils::HasAttr(node->GetOpDesc(), optiling::ATOMIC_COMPILE_INFO_JSON) && tiling_info != nullptr) {
-    GELOGD("Node %s has no ATOMIC_COMPILE_INFO_JSON", node->GetName().c_str());
+    GELOGD("Node %s has no ATOMIC_COMPILE_INFO_JSON.", node->GetName().c_str());
     atomic_launch_holder = LaunchStaticAtomic(node, lower_input, compile_result, atomic_lowering_arg);
   } else {
-    GELOGD("Node %s has an ATOMIC_COMPILE_INFO_JSON", node->GetNamePtr());
+    GELOGD("Node %s has an ATOMIC_COMPILE_INFO_JSON.", node->GetNamePtr());
     atomic_launch_holder = LaunchAtomic(node, lower_input, compile_result, atomic_lowering_arg);
   }
   return atomic_launch_holder;
+}
+
+static std::optional<AicoreProcContext> PrepareAicoreProcContext(const ge::NodePtr &node, const LowerInput &lower_input,
+                                                                 const domi::TaskDef *task_def,
+                                                                 std::vector<bg::ValueHolderPtr> &output_shapes,
+                                                                 ProcArgs &proc_arg) {
+  AicoreProcContext ctx;
+  ctx.workspaces_addr = bg::AllocAiCoreWorkspaceMem(
+      node, kOnDeviceHbm, proc_arg.tiling_ret[TilingContext::kOutputWorkspace], *(lower_input.global_data));
+  ctx.shapebuffer_addr = bg::AllocShapeBufferMem(kOnDeviceHbm, node, *(lower_input.global_data));
+  ctx.output_sizes = bg::CalcTensorSize(node, output_shapes);
+  ctx.output_addrs =
+      bg::AllocOutputMemory(kOnDeviceHbm, node, ctx.output_sizes, lower_input.input_addrs, *(lower_input.global_data));
+  auto compile_result = lower_input.global_data->FindCompiledResult(node);
+  ctx.atomic_launch_holder = LaunchAtomicByType(
+      node, lower_input, compile_result,
+      {proc_arg.tiling_ret[TilingContext::kOutputWorkspace], ctx.workspaces_addr, ctx.output_sizes, ctx.output_addrs});
+  ctx.kernel_bin_id_holder = CreateKernelBinIdHolder(node, false);
+  ctx.magic_holder = CreateMagicHolder(node, false);
+  ctx.kernel_bin_holder = CreateKernelBinHolder(node, false);
+  ctx.qos_pair = PrepareQosPair(task_def, node);
+  if (ctx.qos_pair.second == nullptr) {
+    return std::nullopt;
+  }
+  return ctx;
 }
 
 bg::ValueHolderPtr ReportErrInRunning(const LowerInput &lower_input) {
@@ -738,71 +923,17 @@ static std::vector<bg::DevMemValueHolderPtr> AicoreProcWithHandle(const ge::Node
   if (task_def == nullptr) {
     return {};
   }
-  // 3. alloc memory
-  bg::DevMemValueHolderPtr workspaces_addr = bg::AllocAiCoreWorkspaceMem(
-      node, kOnDeviceHbm, proc_arg.tiling_ret[TilingContext::kOutputWorkspace], *(lower_input.global_data));
-  auto shapebuffer_addr = bg::AllocShapeBufferMem(kOnDeviceHbm, node, *(lower_input.global_data));
-  auto output_sizes = bg::CalcTensorSize(node, output_shapes);
-  auto output_addrs =
-      bg::AllocOutputMemory(kOnDeviceHbm, node, output_sizes, lower_input.input_addrs, *(lower_input.global_data));
-
-  // 4. memset or atomic clean
-  bg::ValueHolderPtr atomic_launch_holder = LaunchAtomicByType(
-      node, lower_input, compile_result,
-      {proc_arg.tiling_ret[TilingContext::kOutputWorkspace], workspaces_addr, output_sizes, output_addrs});
-  // 5. sink bin
-  auto node_bin = SinkBinForAicore(node, compile_result);
-
-  // 6. get qos info
-  bg::ValueHolderPtr qos = nullptr;
-  if (GetQosInfo(qos) != ge::SUCCESS) {
+  auto ctx = PrepareAicoreProcContext(node, lower_input, task_def, output_shapes, proc_arg);
+  if (!ctx.has_value()) {
     return {};
   }
 
-  // 7. launch
-  auto node_info = task_def->kernel_with_handle().node_info() + "/";
-  auto node_info_holder = bg::ValueHolder::CreateConst(node_info.c_str(), node_info.size() + 1, true);
-  DfxExeArg dfx_exe_arg = GetOpDfxExeArg(node);
-  auto dfx_holder = bg::ValueHolder::CreateConst(&dfx_exe_arg, sizeof(dfx_exe_arg));
-  auto launch_arg_ref = bg::LaunchKernelWithHandle(
-      {
-          lower_input.global_data->GetStream(),
-          node_bin,
-          proc_arg.tiling_ret[TilingContext::kOutputBlockDim],
-          proc_arg.tiling_ret[TilingContext::kOutputScheduleMode],
-          proc_arg.tiling_ret[TilingContext::kOutputLocalMemorySize],
-          workspaces_addr,
-          shapebuffer_addr,
-          qos,
-          lower_input.input_shapes,
-          output_shapes,
-          node,
-          lower_input.global_data,
-          dfx_holder,
-          proc_arg.tiling_ret[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)],
-      },
-      proc_arg.tiling_ret[TilingContext::kOutputTilingKey], node_info_holder, lower_input.input_addrs, output_addrs);
-  FE_ASSERT_NOTNULL(launch_arg_ref);
-  proc_arg.ordered_holders.emplace_back(launch_arg_ref);
+  LaunchKernelParams params;
+  params.tiling_key = proc_arg.tiling_ret[TilingContext::kOutputTilingKey];
+  params.kernel_name_holder = CreateKernelNameHolder(node, kRawKernelNameKey);
+  params.with_handle_flag_holder = CreateWithHandleFlagHolder(1U);
 
-  // 8. Set output shape from shape buffer for third class op, and add dependency
-  auto ref_out_shapes =
-      SetOutputShape(node, shapebuffer_addr, launch_arg_ref, lower_input.global_data->GetStream(), output_shapes);
-  if (!ref_out_shapes.empty()) {
-    /* If "SetOutputShape" in bg::If subgraph, ref_out_shapes connect to next node will across graph.
-     * So we do not add bg::If if this node is third class op. */
-    output_shapes = ref_out_shapes;
-    proc_arg.ordered_holders.insert(proc_arg.ordered_holders.end(), ref_out_shapes.begin(), ref_out_shapes.end());
-  }
-
-  // 9. free memory, add dependency
-  auto free_holder = bg::FreeWorkspaceMem(kOnDeviceHbm, workspaces_addr);
-  if (atomic_launch_holder != nullptr) {
-    bg::ValueHolder::AddDependency(atomic_launch_holder, launch_arg_ref);
-    proc_arg.atomic_launch = atomic_launch_holder;
-  }
-  bg::ValueHolder::AddDependency(launch_arg_ref, free_holder);
-  return output_addrs;
+  return LaunchAicoreKernelAndProcess(node, lower_input, *ctx, output_shapes, proc_arg, params);
 }
 
 static std::vector<bg::DevMemValueHolderPtr> LoweringWithHandleProc(const ge::NodePtr &node,
@@ -861,25 +992,15 @@ static std::vector<bg::DevMemValueHolderPtr> LoweringWithHandleProc(const ge::No
   return output_addrs;
 }
 
-static LowerResult LoweringAiCoreNodeWithHandle(const ge::NodePtr &node, const LowerInput &lower_input) {
-  GELOGD("Lowering node[%s] with handle begin.", node->GetNamePtr());
-  auto compile_result = lower_input.global_data->FindCompiledResult(node);
-  // 0. alloc rt arg
-  const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);
-  if (task_def == nullptr) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI core task def")), {}, {}, {}};
-  }
-  ProcArgs proc_arg;
-  proc_arg.launch_arg = bg::AllocRtArg(node, task_def->kernel_with_handle(), bg::kMaxTilingSize);
-  CONVERTER_CHECK_HOLDERS_ALL_OK(proc_arg.launch_arg, static_cast<size_t>(AllocLaunchArgOutputs::kNum));
-  // 1. infer shape
-  auto output_shapes = InferAiCoreStorageShape(node, lower_input.input_shapes, *(lower_input.global_data));
+template <typename LoweringProc>
+static LowerResult LoweringAiCoreNodeCommon(const ge::NodePtr &node, const LowerInput &lower_input, ProcArgs &proc_arg,
+                                            std::vector<bg::ValueHolderPtr> &output_shapes, const char *error_msg,
+                                            LoweringProc lowering_proc) {
   if (!NeedCheckEmptyOutput(node)) {
-    std::vector<bg::DevMemValueHolderPtr> output_addrs =
-        LoweringWithHandleProc(node, lower_input, proc_arg, output_shapes);
+    auto output_addrs = lowering_proc(node, lower_input, proc_arg, output_shapes);
     if (output_addrs.empty()) {
       if (node == nullptr || node->GetOpDesc() == nullptr || node->GetOpDesc()->GetOutputsSize() != 0) {
-        return {HyperStatus::ErrorStatus(static_cast<const char *>("Lowering with handle failed")), {}, {}, {}};
+        return {HyperStatus::ErrorStatus(error_msg), {}, {}, {}};
       }
     }
     if (proc_arg.atomic_launch != nullptr) {
@@ -900,70 +1021,53 @@ static LowerResult LoweringAiCoreNodeWithHandle(const ge::NodePtr &node, const L
         std::vector<bg::ValueHolderPtr> ret(result.begin(), result.end());
         return ret;
       },
-      [&node, &lower_input, &proc_arg, &output_shapes]() -> std::vector<bg::ValueHolderPtr> {
-        auto result = LoweringWithHandleProc(node, lower_input, proc_arg, output_shapes);
+      [&]() -> std::vector<bg::ValueHolderPtr> {
+        auto result = lowering_proc(node, lower_input, proc_arg, output_shapes);
         std::vector<bg::ValueHolderPtr> ret(result.begin(), result.end());
         return ret;
       },
       node->GetOpDesc()->GetStreamId());
   if (if_outputs.size() != output_shapes.size() || if_outputs.empty()) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Lowering with handle failed")), {}, {}, {}};
+    return {HyperStatus::ErrorStatus(error_msg), {}, {}, {}};
   }
   return {HyperStatus::Success(), {if_outputs[0]}, output_shapes, if_outputs};
+}
+
+static LowerResult LoweringAiCoreNodeWithHandle(const ge::NodePtr &node, const LowerInput &lower_input) {
+  GELOGD("Lowering node[%s] with handle begin.", node->GetNamePtr());
+  auto compile_result = lower_input.global_data->FindCompiledResult(node);
+  // 0. alloc rt arg
+  const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);
+  if (task_def == nullptr) {
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI core task def")), {}, {}, {}};
+  }
+  ProcArgs proc_arg;
+  proc_arg.launch_arg = bg::AllocRtArg(node, task_def->kernel_with_handle(), bg::kMaxTilingSize);
+  CONVERTER_CHECK_HOLDERS_ALL_OK(proc_arg.launch_arg, static_cast<size_t>(AllocLaunchArgOutputs::kNum));
+  auto output_shapes = InferAiCoreStorageShape(node, lower_input.input_shapes, *(lower_input.global_data));
+  return LoweringAiCoreNodeCommon(node, lower_input, proc_arg, output_shapes, "Lowering with handle failed",
+                                  LoweringWithHandleProc);
 }
 
 static std::vector<bg::DevMemValueHolderPtr> AicoreProcWithFlag(const ge::NodePtr &node, const LowerInput &lower_input,
                                                                 std::vector<bg::ValueHolderPtr> &output_shapes,
                                                                 ProcArgs &proc_arg) {
   auto compile_result = lower_input.global_data->FindCompiledResult(node);
-  // 3. alloc memory
-  bg::DevMemValueHolderPtr workspaces_addr = bg::AllocAiCoreWorkspaceMem(
-      node, kOnDeviceHbm, proc_arg.tiling_ret[TilingContext::kOutputWorkspace], *(lower_input.global_data));
-  auto shapebuffer_addr = bg::AllocShapeBufferMem(kOnDeviceHbm, node, *(lower_input.global_data));
-  auto output_sizes = bg::CalcTensorSize(node, output_shapes);
-  auto output_addrs =
-      bg::AllocOutputMemory(kOnDeviceHbm, node, output_sizes, lower_input.input_addrs, *(lower_input.global_data));
-
-  // 4. memset or atomic clean
-  bg::ValueHolderPtr atomic_launch_holder = LaunchAtomicByType(
-      node, lower_input, compile_result,
-      {proc_arg.tiling_ret[TilingContext::kOutputWorkspace], workspaces_addr, output_sizes, output_addrs});
-  // 5. sink bin
-  auto bin = SinkBinForAicore(node, compile_result);
-
-  // 6. get qos info
-  bg::ValueHolderPtr qos = nullptr;
-  if (GetQosInfo(qos) != ge::SUCCESS) {
+  const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);
+  if (task_def == nullptr) {
     return {};
   }
-  DfxExeArg dfx_exe_arg = GetOpDfxExeArg(node);
-  auto dfx_holder = bg::ValueHolder::CreateConst(&dfx_exe_arg, sizeof(dfx_exe_arg));
-  // 7. launch
-  auto launch_holder = bg::LaunchKernelWithFlag(
-      {lower_input.global_data->GetStream(), bin, proc_arg.tiling_ret[TilingContext::kOutputBlockDim],
-       proc_arg.tiling_ret[TilingContext::kOutputScheduleMode],
-       proc_arg.tiling_ret[TilingContext::kOutputLocalMemorySize], workspaces_addr, shapebuffer_addr, qos,
-       lower_input.input_shapes, output_shapes, node, lower_input.global_data, dfx_holder,
-       proc_arg.tiling_ret[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)]},
-      lower_input.input_addrs, output_addrs);
-  FE_ASSERT_NOTNULL(launch_holder);
-  proc_arg.ordered_holders.emplace_back(launch_holder);
+  auto ctx = PrepareAicoreProcContext(node, lower_input, task_def, output_shapes, proc_arg);
+  if (!ctx.has_value()) {
+    return {};
+  }
 
-  // 8. Set output shape from shape buffer for third class op, and add dependency
-  auto ref_out_shapes =
-      SetOutputShape(node, shapebuffer_addr, launch_holder, lower_input.global_data->GetStream(), output_shapes);
-  if (!ref_out_shapes.empty()) {
-    output_shapes = ref_out_shapes;
-    proc_arg.ordered_holders.insert(proc_arg.ordered_holders.end(), ref_out_shapes.begin(), ref_out_shapes.end());
-  }
-  // 9. free memory, add dependency
-  auto free_holder = bg::FreeWorkspaceMem(kOnDeviceHbm, workspaces_addr);
-  if (atomic_launch_holder != nullptr) {
-    bg::ValueHolder::AddDependency(atomic_launch_holder, launch_holder);
-    proc_arg.atomic_launch = atomic_launch_holder;
-  }
-  bg::ValueHolder::AddDependency(launch_holder, free_holder);
-  return output_addrs;
+  LaunchKernelParams params;
+  params.tiling_key = CreateTilingKeyHolder();
+  params.kernel_name_holder = CreateKernelNameHolder(node, kRawKernelNameKey);
+  params.with_handle_flag_holder = CreateWithHandleFlagHolder(0U);
+
+  return LaunchAicoreKernelAndProcess(node, lower_input, *ctx, output_shapes, proc_arg, params);
 }
 
 static std::vector<bg::ValueHolderPtr> WithFlagTilingProc(const ge::NodePtr &node, const LowerInput &lower_input,
@@ -1066,111 +1170,113 @@ static LowerResult LoweringAiCoreNodeWithFlag(const ge::NodePtr &node, const Low
   ProcArgs proc_arg;
   proc_arg.launch_arg = bg::AllocRtArg(node, task_def->kernel(), bg::kMaxTilingSize);
   CONVERTER_CHECK_HOLDERS_ALL_OK(proc_arg.launch_arg, static_cast<size_t>(AllocLaunchArgOutputs::kNum));
-  // 1. infer shape
   auto output_shapes = InferAiCoreStorageShape(node, lower_input.input_shapes, *(lower_input.global_data));
-  if (!NeedCheckEmptyOutput(node)) {
-    std::vector<bg::DevMemValueHolderPtr> output_addrs =
-        LoweringWithFlagProc(node, lower_input, proc_arg, output_shapes);
-    if (output_addrs.empty()) {
-      if (node == nullptr || node->GetOpDesc() == nullptr || node->GetOpDesc()->GetOutputsSize() != 0) {
-        return {HyperStatus::ErrorStatus(static_cast<const char *>("Lowering with flag failed")), {}, {}, {}};
-      }
-    }
-    if (proc_arg.atomic_launch != nullptr) {
-      GELOGD("Node [%s] has added an atomic launch to the order holders.", node->GetName().c_str());
-      proc_arg.ordered_holders.emplace_back(proc_arg.atomic_launch);
-    }
-    return {HyperStatus::Success(), proc_arg.ordered_holders, output_shapes, output_addrs};
-  }
-
-  bg::ValueHolderPtr cond = bg::ValueHolder::CreateSingleDataOutput("CheckOutputShapesEmpty", output_shapes);
-  auto if_outputs = bg::If<bg::DevMemValueHolder>(
-      cond,
-      [&node, &output_shapes, &lower_input]() -> std::vector<bg::ValueHolderPtr> {
-        auto output_sizes = bg::CalcTensorSize(node, output_shapes);
-        auto result = bg::AllocOutputMemory(kOnDeviceHbm, node, output_sizes, lower_input.input_addrs,
-                                            *(lower_input.global_data));
-        std::vector<bg::ValueHolderPtr> ret(result.begin(), result.end());
-        return ret;
-      },
-      [&node, &lower_input, &proc_arg, &output_shapes]() -> std::vector<bg::ValueHolderPtr> {
-        auto result = LoweringWithFlagProc(node, lower_input, proc_arg, output_shapes);
-        std::vector<bg::ValueHolderPtr> ret(result.begin(), result.end());
-        return ret;
-      },
-      node->GetOpDesc()->GetStreamId());
-  if (if_outputs.size() != output_shapes.size() || if_outputs.empty()) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Lowering with flag failed")), {}, {}, {}};
-  }
-  return {HyperStatus::Success(), {if_outputs[0]}, output_shapes, if_outputs};
+  return LoweringAiCoreNodeCommon(node, lower_input, proc_arg, output_shapes, "Lowering with flag failed",
+                                  LoweringWithFlagProc);
 }
 
-LowerResult LoweringStaticAicoreNode(const ge::NodePtr &node, const LowerInput &lower_input) {
-  auto compile_result = lower_input.global_data->FindCompiledResult(node);
-  // 0. alloc rt arg
-  const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);
-  if (task_def == nullptr) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI core task def")), {}, {}, {}};
-  }
-  auto launch_arg = bg::AllocRtArg(node, task_def->kernel(), bg::kMaxTilingSize);
-  CONVERTER_CHECK_HOLDERS_ALL_OK(launch_arg, static_cast<size_t>(AllocLaunchArgOutputs::kNum));
-  // 1. infer shape and alloc output mem
+struct StaticAicoreContext {
+  std::vector<bg::ValueHolderPtr> launch_arg;
+  std::vector<bg::ValueHolderPtr> output_shapes;
+  std::vector<bg::ValueHolderPtr> output_sizes;
+  std::vector<bg::DevMemValueHolderPtr> output_addrs;
+  bg::ValueHolderPtr bin_handle;
+  bg::ValueHolderPtr shapebuffer_addr;
+  bg::DevMemValueHolderPtr workspaces_addr;
+  RunCfg run_cfg;
+  bg::ValueHolderPtr atomic_launch_holder;
+  bg::ValueHolderPtr kernel_bin_id_holder;
+  bg::ValueHolderPtr magic_holder;
+  bg::ValueHolderPtr kernel_bin_holder;
+  std::pair<bg::ValueHolderPtr, bg::ValueHolderPtr> qos_pair;
+};
+
+static std::optional<StaticAicoreContext> InitStaticAicoreContext(
+    const ge::NodePtr &node, const LowerInput &lower_input, const domi::TaskDef *task_def,
+    const LoweringGlobalData::NodeCompileResult *compile_result) {
+  StaticAicoreContext ctx;
+  ctx.launch_arg = bg::AllocRtArg(node, task_def->kernel(), bg::kMaxTilingSize);
+  CHECK_HOLDERS_ALL_OK_RET(ctx.launch_arg, static_cast<size_t>(AllocLaunchArgOutputs::kNum), return std::nullopt);
   const auto &op_desc = node->GetOpDesc();
-  auto output_shapes = CreateOutputShapes(op_desc);
-  auto output_sizes = bg::CalcTensorSize(node, output_shapes);
-  auto output_addrs =
-      bg::AllocOutputMemory(kOnDeviceHbm, node, output_sizes, lower_input.input_addrs, *(lower_input.global_data));
-
-  // 2. init bin and block_dim
-  auto bin = SinkBinForAicore(node, compile_result);
-
-  // 3. get workspace
+  ctx.output_shapes = CreateOutputShapes(op_desc);
+  ctx.output_sizes = bg::CalcTensorSize(node, ctx.output_shapes);
+  ctx.output_addrs =
+      bg::AllocOutputMemory(kOnDeviceHbm, node, ctx.output_sizes, lower_input.input_addrs, *(lower_input.global_data));
+  ctx.kernel_bin_id_holder = CreateKernelBinIdHolder(node, false);
+  ctx.magic_holder = CreateMagicHolder(node, false);
+  ctx.kernel_bin_holder = CreateKernelBinHolder(node, false);
   gert::GertTensorData *tensor_data = nullptr;
-  auto shapebuffer_addr = bg::ValueHolder::CreateConst(&tensor_data, sizeof(gert::GertTensorData *));
-
-  RunCfg run_cfg = CollectRunConfig(node, lower_input, task_def, output_shapes, launch_arg);
-  if (run_cfg.block_dim == nullptr || run_cfg.schedule_mode == nullptr || run_cfg.local_mem_size == nullptr ||
-      run_cfg.workspaces_size == nullptr) {
-    return {
-        HyperStatus::ErrorStatus(static_cast<const char *>("CollectRunConfig failed, invalid run_cfg.")), {}, {}, {}};
+  ctx.shapebuffer_addr = bg::ValueHolder::CreateConst(&tensor_data, sizeof(gert::GertTensorData *));
+  ctx.run_cfg = CollectRunConfig(node, lower_input, task_def, ctx.output_shapes, ctx.launch_arg);
+  if (ctx.run_cfg.block_dim == nullptr || ctx.run_cfg.schedule_mode == nullptr ||
+      ctx.run_cfg.local_mem_size == nullptr || ctx.run_cfg.workspaces_size == nullptr) {
+    return std::nullopt;
   }
-  auto workspaces_size = run_cfg.workspaces_size;
-  auto workspaces_addr = bg::AllocAiCoreWorkspaceMem(node, kOnDeviceHbm, workspaces_size, *(lower_input.global_data));
-
-  // 4. memset or atomic clean
-  bg::ValueHolderPtr atomic_launch_holder = nullptr;
+  ctx.workspaces_addr =
+      bg::AllocAiCoreWorkspaceMem(node, kOnDeviceHbm, ctx.run_cfg.workspaces_size, *(lower_input.global_data));
   if (op_desc->HasAttr(optiling::ATOMIC_COMPILE_INFO_JSON)) {
-    atomic_launch_holder =
-        LaunchAtomic(node, lower_input, compile_result, {workspaces_size, workspaces_addr, output_sizes, output_addrs});
+    ctx.atomic_launch_holder =
+        LaunchAtomic(node, lower_input, compile_result,
+                     {ctx.run_cfg.workspaces_size, ctx.workspaces_addr, ctx.output_sizes, ctx.output_addrs});
   } else {
-    GELOGD("Node %s has no ATOMIC_COMPILE_INFO_JSON.", op_desc->GetName().c_str());
-    atomic_launch_holder = LaunchStaticAtomic(node, lower_input, compile_result,
-                                              {workspaces_size, workspaces_addr, output_sizes, output_addrs});
+    ctx.atomic_launch_holder =
+        LaunchStaticAtomic(node, lower_input, compile_result,
+                           {ctx.run_cfg.workspaces_size, ctx.workspaces_addr, ctx.output_sizes, ctx.output_addrs});
   }
+  return ctx;
+}
 
-  // 5. get qos info
-  bg::ValueHolderPtr qos = nullptr;
-  if (GetQosInfo(qos) != ge::SUCCESS) {
+static LowerResult LaunchStaticAicoreKernel(const ge::NodePtr &node, const LowerInput &lower_input,
+                                            const StaticAicoreContext &ctx, const domi::TaskDef *task_def) {
+  auto qos_pair = PrepareQosPair(task_def, node);
+  if (qos_pair.second == nullptr) {
     return {HyperStatus::ErrorStatus(static_cast<const char *>("Get qos info failed.")), {}, {}, {}};
   }
   DfxExeArg dfx_exe_arg = GetOpDfxExeArg(node);
   auto dfx_holder = bg::ValueHolder::CreateConst(&dfx_exe_arg, sizeof(dfx_exe_arg));
-  // 6. launch
-  auto launch_holder = bg::LaunchKernelWithFlag(
-      {lower_input.global_data->GetStream(), bin, run_cfg.block_dim, run_cfg.schedule_mode, run_cfg.local_mem_size,
-       workspaces_addr, shapebuffer_addr, qos, lower_input.input_shapes, output_shapes, node, lower_input.global_data,
-       dfx_holder, run_cfg.tiling_input_launch_arg},
-      lower_input.input_addrs, output_addrs);
+  auto launch_holder = bg::LaunchKernelV2({lower_input.global_data->GetStream(),
+                                           ctx.kernel_bin_id_holder,
+                                           ctx.magic_holder,
+                                           ctx.kernel_bin_holder,
+                                           ctx.run_cfg.block_dim,
+                                           ctx.run_cfg.schedule_mode,
+                                           ctx.run_cfg.local_mem_size,
+                                           ctx.workspaces_addr,
+                                           ctx.shapebuffer_addr,
+                                           qos_pair.first,
+                                           qos_pair.second,
+                                           lower_input.input_shapes,
+                                           ctx.output_shapes,
+                                           node,
+                                           lower_input.global_data,
+                                           dfx_holder,
+                                           ctx.run_cfg.tiling_input_launch_arg,
+                                           CreateTilingKeyHolder(),
+                                           CreateKernelNameHolder(node, kRawKernelNameKey),
+                                           CreateWithHandleFlagHolder(0U)},
+                                          lower_input.input_addrs, ctx.output_addrs);
   std::vector<bg::ValueHolderPtr> order_holders = {launch_holder};
-  // 7. free memory, add dependency
-  auto free_holder = bg::FreeWorkspaceMem(kOnDeviceHbm, workspaces_addr);
-  if (atomic_launch_holder != nullptr) {
-    bg::ValueHolder::AddDependency(atomic_launch_holder, launch_holder);
-    order_holders.emplace_back(atomic_launch_holder);
+  auto free_holder = bg::FreeWorkspaceMem(kOnDeviceHbm, ctx.workspaces_addr);
+  if (ctx.atomic_launch_holder != nullptr) {
+    bg::ValueHolder::AddDependency(ctx.atomic_launch_holder, launch_holder);
+    order_holders.emplace_back(ctx.atomic_launch_holder);
   }
   bg::ValueHolder::AddDependency(launch_holder, free_holder);
+  return {HyperStatus::Success(), order_holders, ctx.output_shapes, ctx.output_addrs};
+}
 
-  return {HyperStatus::Success(), order_holders, output_shapes, output_addrs};
+LowerResult LoweringStaticAicoreNode(const ge::NodePtr &node, const LowerInput &lower_input) {
+  GELOGD("Lowering node[%s] with static aicore begin.", node->GetNamePtr());
+  auto compile_result = lower_input.global_data->FindCompiledResult(node);
+  const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);
+  if (task_def == nullptr) {
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI core task def")), {}, {}, {}};
+  }
+  auto ctx = InitStaticAicoreContext(node, lower_input, task_def, compile_result);
+  if (!ctx.has_value()) {
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Init static context failed")), {}, {}, {}};
+  }
+  return LaunchStaticAicoreKernel(node, lower_input, *ctx, task_def);
 }
 
 LowerResult LoweringAiCoreNode(const ge::NodePtr &node, const LowerInput &lower_input) {
@@ -1215,7 +1321,6 @@ LowerResult LoweringAiCoreNode(const ge::NodePtr &node, const LowerInput &lower_
     if (bg::IsUnkownShape(op_desc) || tiling_info != nullptr) {
       lower_ret = LoweringAiCoreNodeWithFlag(node, lower_input);
     } else {
-      GELOGD("Lowering node[%s] with static aicore begin.", node->GetNamePtr());
       lower_ret = LoweringStaticAicoreNode(node, lower_input);
     }
   }

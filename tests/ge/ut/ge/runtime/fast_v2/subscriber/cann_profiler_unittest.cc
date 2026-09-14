@@ -30,6 +30,7 @@
 #include "lowering/model_converter.h"
 #include "subscriber/profiler/cann_host_profiler.h"
 #include "subscriber/profiler/cann_profiler_v2.h"
+#include "aicore/launch_kernel/ai_core_launch_kernel.h"
 #include "subscriber/profiler/cann_memory_profiler.h"
 #include "kernel/memory/caching_mem_allocator.h"
 #include "exe_graph/runtime/gert_mem_allocator.h"
@@ -100,16 +101,19 @@ void TestReportNodeBasicInfo() {
   auto context = KernelRunContextFaker()
                      .NodeName("test1")
                      .NodeType("test1")
-                     .KernelType("LaunchKernelWithHandle")
-                     .KernelName("LaunchKernelWithHandle")
-                     .KernelIONum(3, 1)
+                     .KernelType("LaunchKernelV2")
+                     .KernelName("LaunchKernelV2")
+                     .KernelIONum(static_cast<size_t>(kernel::InputCommon::kBlockDim) + 1, 1)
                      .Build();
 
-  size_t size = sizeof(Node) + sizeof(AsyncAnyValue *) * 4;
+  size_t size = sizeof(Node) + sizeof(AsyncAnyValue *) * (static_cast<size_t>(kernel::InputCommon::kBlockDim) + 2);
   Node *launch_node = (Node *)malloc(size);
   launch_node->node_id = 0;
-  context.value_holder[2].Set(reinterpret_cast<void *>(block_dims), nullptr);
-  memcpy(&launch_node->context, context.context, sizeof(KernelRunContext) + 4 * sizeof(AsyncAnyValue *));
+  context.value_holder[static_cast<size_t>(kernel::InputCommon::kBlockDim)].Set(
+      reinterpret_cast<void *>(static_cast<uintptr_t>(block_dims)), nullptr);
+  memcpy(
+      &launch_node->context, context.context,
+      sizeof(KernelRunContext) + (static_cast<size_t>(kernel::InputCommon::kBlockDim) + 2) * sizeof(AsyncAnyValue *));
   // build fake execution data with 2 exe nodes
   execution_data->base_ed.node_num = 2;
   std::vector<Node *> nodes{&infer_shape_node.node, launch_node};
@@ -349,7 +353,7 @@ TEST_F(CannProfilerUT, InitProfiler_InitTaskAndTensorInfoOk_WithEmptyComputeNode
     std::string kernel_type =
         reinterpret_cast<const KernelExtendInfo *>(execution_data->base_ed.nodes[i]->context.kernel_extend_info)
             ->GetKernelType();
-    if (kernel_type == "LaunchKernelWithHandle") {
+    if (kernel_type == "LaunchKernelV2") {
       const_cast<KernelRunContext *>(&execution_data->base_ed.nodes[i]->context)->compute_node_info = nullptr;
     }
   }
@@ -1076,7 +1080,7 @@ TEST_F(CannProfilerUT, InitProfiler_Aiv_SetEngineType) {
   auto dfx_extend_info = std::unique_ptr<uint8_t[]>(new (std::nothrow) uint8_t[100]);
   *const_cast<uint32_t *>(reinterpret_cast<DfxExtendInfo *>(dfx_extend_info.get())->GetTaskTypeAddr()) =
       static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_AIV);
-  profiler.SetEngineType(node_id, "LaunchKernelWithHandle", reinterpret_cast<DfxExtendInfo *>(dfx_extend_info.get()));
+  profiler.SetEngineType(node_id, "LaunchKernelV2", reinterpret_cast<DfxExtendInfo *>(dfx_extend_info.get()));
   EXPECT_EQ(profiler.prof_extend_infos_[node_id].engine_type, static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_AIV));
 }
 

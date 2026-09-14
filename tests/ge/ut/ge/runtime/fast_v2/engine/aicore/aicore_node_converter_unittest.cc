@@ -127,7 +127,7 @@ ge::ComputeGraphPtr BuildGraphWithUBfusion() {
                           .Attr("_original_fusion_graph", fuse_origin_graph)
                           .Build("conv2d_fused");
   conv2d_fused->SetOpEngineName("AIcoreEngine");
-  conv2d_fused->SetOpKernelLibName("AIcoreEngine");  // fake op cannot do that?
+  conv2d_fused->SetOpKernelLibName("AIcoreEngine");  // fake op can not do that?
 
   DEF_GRAPH(g1) {
     CHAIN(NODE(data_a)->NODE(conv2d_fused)->NODE("netoutput", "NetOutput"));
@@ -440,7 +440,7 @@ TEST_F(AicoreNodeConverterUT, ConvertStaticNode) {
   EXPECT_EQ(checker.StrictConnectFrom(
                 std::vector<FastSrcNode>({{"SelectL2Allocator", 0}, {"CalcTensorSizeFromStorage", 0}}), true),
             "success");
-  EXPECT_EQ(checker.StrictConnectTo(0, std::vector<FastSrcNode>({{"FreeMemory", 0}, {"LaunchKernelWithFlag", 13}})),
+  EXPECT_EQ(checker.StrictConnectTo(0, std::vector<FastSrcNode>({{"FreeMemory", 0}, {"LaunchKernelV2", 19}})),
             "success");
   EXPECT_EQ(checker.InChecker().DataFromByType("CalcTensorSizeFromStorage").DataFromByType("Const").Result(),
             "success");
@@ -450,7 +450,7 @@ TEST_F(AicoreNodeConverterUT, ConvertStaticNode) {
 
   auto exe_graph = add_ret.out_addrs[0]->GetFastNode()->GetExtendInfo()->GetOwnerGraphBarePtr();
   ASSERT_NE(exe_graph, nullptr);
-  auto launch_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "LaunchKernelWithFlag");
+  auto launch_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "LaunchKernelV2");
   ASSERT_NE(launch_node, nullptr);
   FastNodeTopoChecker launch_checker(launch_node);
   EXPECT_EQ(launch_checker.InChecker().DataFromByType("Const").Result(), "success");
@@ -473,6 +473,9 @@ TEST_F(AicoreNodeConverterUT, ConvertStaticNode) {
 
 TEST_F(AicoreNodeConverterUT, ConstructUbFusionNodeInferShapeOk) {
   auto graph = BuildGraphWithUBfusion();
+  for (auto &node : graph->GetAllNodes()) {
+    (void)ge::AttrUtils::SetStr(node->GetOpDesc(), ge::ATTR_NAME_KERNEL_BIN_ID, "te_" + node->GetName() + "_12345");
+  }
   auto ub_fusion_node = graph->FindNode("conv2d_fused");
   auto root_model = GeModelBuilder(graph).BuildGeRootModel();
   auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("Conv2d", false).Build();
@@ -646,7 +649,7 @@ TEST_F(AicoreNodeConverterUT, ConvertPartSupportAicoreNode1) {
   FastNode *aicore_launch_node = nullptr;
   FastNode *cpu_launch_node = nullptr;
   for (auto &node : exe_graph->GetAllNodes()) {
-    if (node->GetType() == "LaunchKernelWithHandle") {
+    if (node->GetType() == "LaunchKernelV2") {
       aicore_launch_node = node;
     } else if (node->GetType() == "AicpuLaunchTfKernel") {
       cpu_launch_node = node;
@@ -692,7 +695,7 @@ TEST_F(AicoreNodeConverterUT, ConvertPartSupportAicoreNode2) {
   FastNode *aicore_launch_node = nullptr;
   FastNode *cpu_launch_node = nullptr;
   for (auto &node : exe_graph->GetAllNodes()) {
-    if (node->GetType() == "LaunchKernelWithFlag") {
+    if (node->GetType() == "LaunchKernelV2") {
       aicore_launch_node = node;
     } else if (node->GetType() == "AicpuLaunchTfKernel") {
       cpu_launch_node = node;
@@ -737,7 +740,7 @@ TEST_F(AicoreNodeConverterUT, ConvertPartSupportAicoreNode3) {
   FastNode *aicore_launch_node = nullptr;
   FastNode *cpu_launch_node = nullptr;
   for (auto &node : exe_graph->GetAllNodes()) {
-    if (node->GetType() == "LaunchKernelWithHandle") {
+    if (node->GetType() == "LaunchKernelV2") {
       aicore_launch_node = node;
     } else if (node->GetType() == "AicpuLaunchTfKernel") {
       cpu_launch_node = node;
@@ -787,7 +790,7 @@ TEST_F(AicoreNodeConverterUT, ConvertPartSupportAicoreNode4) {
   FastNode *aicore_launch_node = nullptr;
   FastNode *cpu_launch_node = nullptr;
   for (auto &node : exe_graph->GetAllNodes()) {
-    if (node->GetType() == "LaunchKernelWithHandle") {
+    if (node->GetType() == "LaunchKernelV2") {
       aicore_launch_node = node;
     } else if (node->GetType() == "AicpuLaunchTfKernel") {
       cpu_launch_node = node;
@@ -834,7 +837,7 @@ TEST_F(AicoreNodeConverterUT, ConvertPartSupportAicoreNode5) {
   FastNode *aicore_launch_node = nullptr;
   FastNode *cpu_launch_node = nullptr;
   for (auto &node : exe_graph->GetAllNodes()) {
-    if (node->GetType() == "LaunchKernelWithFlag") {
+    if (node->GetType() == "LaunchKernelV2") {
       aicore_launch_node = node;
     } else if (node->GetType() == "AicpuLaunchTfKernel") {
       cpu_launch_node = node;
@@ -1219,7 +1222,7 @@ TEST_F(AicoreNodeConverterUT, ConvertStaticNodeReuseBinary) {
   EXPECT_EQ(checker.StrictConnectFrom(
                 std::vector<FastSrcNode>({{"SelectL2Allocator", 0}, {"CalcTensorSizeFromStorage", 0}}), true),
             "success");
-  EXPECT_EQ(checker.StrictConnectTo(0, std::vector<FastSrcNode>({{"FreeMemory", 0}, {"LaunchKernelWithFlag", 13}})),
+  EXPECT_EQ(checker.StrictConnectTo(0, std::vector<FastSrcNode>({{"FreeMemory", 0}, {"LaunchKernelV2", 19}})),
             "success");
   EXPECT_EQ(checker.InChecker().DataFromByType("CalcTensorSizeFromStorage").DataFromByType("Const").Result(),
             "success");

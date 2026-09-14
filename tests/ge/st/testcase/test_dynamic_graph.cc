@@ -929,7 +929,7 @@ Status GenerateTaskForAiCore(const Node &node, RunContext &context, std::vector<
 }
 
 Status GenerateTaskForTaskWithHandle(const Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) {
-  tasks.emplace_back(AiCoreTaskDefBuilder(node).BuildTaskWithHandle());
+  tasks.emplace_back(AiCoreTaskDefBuilder(node).BuildTask(true));
   return SUCCESS;
 }
 
