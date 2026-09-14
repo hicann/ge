@@ -533,6 +533,7 @@ ge::Status AddKernelBinToManager(const ge::GeModelPtr &ge_model, ge::mobile::Ker
   // -> <name, offset>
   const auto &graph = ge_model->GetGraph();
   GELOGI("[Mobile] convert kernel bin.");
+  std::set<std::string> added_kernels;
   for (const ge::NodePtr &node : graph->GetNodes(graph->GetGraphUnknownFlag())) {
     const std::string kernel_name_str = "_kernelname";
     std::string kernel_name = "";
@@ -548,16 +549,22 @@ ge::Status AddKernelBinToManager(const ge::GeModelPtr &ge_model, ge::mobile::Ker
       continue;
     }
     GELOGI("[Mobile] kernel bin data size: %d", kernel_bin->GetBinDataSize());
-    ge::mobile::KernelBin mobile_kernel_bin;
-    mobile_kernel_bin.kernel_info.func_mode = 0U;
-    mobile_kernel_bin.kernel_info.magic = MOBILE_RT_DEV_BINARY_MAGIC_ELF;
-    GE_ASSERT_TRUE(kernel_bin->GetBinDataSize() <= UINT32_MAX, "[Mobile] overflow, failed.");
-    mobile_kernel_bin.kernel_info.kernel_size = static_cast<uint32_t>(kernel_bin->GetBinDataSize());
-    mobile_kernel_bin.kernel_info.kernel_offset = 0U;
-    mobile_kernel_bin.stub_func = kernel_bin->GetBinData();
-    mobile_kernel_bin.stub_name = kernel_name;
-    GELOGI("[Mobile] stub_name: %s", kernel_name.c_str());
-    kernelbin_manager.AddKernelBin(mobile_kernel_bin);
+    if (added_kernels.count(kernel_name) == 0U) {
+      GELOGI("[Mobile] add kernel bin for kernel name: %s", kernel_name.c_str());
+      ge::mobile::KernelBin mobile_kernel_bin;
+      mobile_kernel_bin.kernel_info.func_mode = 0U;
+      mobile_kernel_bin.kernel_info.magic = MOBILE_RT_DEV_BINARY_MAGIC_ELF;
+      GE_ASSERT_TRUE(kernel_bin->GetBinDataSize() <= UINT32_MAX, "[Mobile] overflow, failed.");
+      mobile_kernel_bin.kernel_info.kernel_size = static_cast<uint32_t>(kernel_bin->GetBinDataSize());
+      mobile_kernel_bin.kernel_info.kernel_offset = 0U;
+      mobile_kernel_bin.stub_func = kernel_bin->GetBinData();
+      mobile_kernel_bin.stub_name = kernel_name;
+      GELOGI("[Mobile] stub_name: %s", kernel_name.c_str());
+      kernelbin_manager.AddKernelBin(mobile_kernel_bin);
+      (void)added_kernels.insert(kernel_name);
+    } else {
+      GELOGI("[Mobile] kernel bin already added, skip. kernel name: %s", kernel_name.c_str());
+    }
     // replace task->kernel->stub_func -> kernel_name
     for (int i = 0; i < mobile_model_task_def->task_size(); i++) {
       auto *task = mobile_model_task_def->mutable_task(i);
