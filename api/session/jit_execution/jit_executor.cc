@@ -515,8 +515,8 @@ Status JitExecutor::ProcessAndExecuteGraphAsync(UserGraphExecution &task, const 
   }
   // 非最后一张slice
   // graph以外的图需要尝试进行output内存的申请，因为子图间的output是jit内部给的，静态图场景且没有外置allocator时需要手动申请内存
-  JIT_ASSERT_SUCCESS(
-      graph_manager_.ExecuteGraphWithStreamAsync(execution_info.instance_id, stream, compile_inputs, outputs), task);
+  JIT_ASSERT_SUCCESS(graph_manager_.ExecuteGraphWithStreamAsync(execution_info.instance_id, stream, inputs, outputs),
+                     task);
   return SUCCESS;
 }
 
