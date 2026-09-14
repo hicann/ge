@@ -282,70 +282,60 @@ ExprRef TaskCodeBuilderUtil::BuildReportTaskPreprocessCall(
   }
   return ast.Call("ReportOm2TaskPreprocess", args);
 }
-Arg TaskCodeBuilderUtil::BuildAddrField(AstBuildContext &ast, const OpArgDesc &a) {
-  return ast.DesignatedInit(
-      std::vector<std::pair<std::string, Arg>>{
-          {"mem_src", a.mem_src},
-          {"index", a.index},
-          {"offset", static_cast<int64_t>(a.offset)},
-      },
-      true);
-}
-
-Arg TaskCodeBuilderUtil::BuildTensorDataField(AstBuildContext &ast, const OpArgDesc &a) {
-  if (!a.has_tensor_info) {
+Arg TaskCodeBuilderUtil::BuildTensorDataField(AstBuildContext &ast, const OpArgDesc &arg_desc) {
+  if (!arg_desc.has_tensor_info) {
     return Arg();
   }
   std::vector<int64_t> padded_shape(kShapeMaxDims, 0);
-  for (size_t i = 0; i < a.shape_dims.size() && i < kShapeMaxDims; ++i) {
-    padded_shape[i] = a.shape_dims[i];
+  for (size_t i = 0; i < arg_desc.shape_dims.size() && i < kShapeMaxDims; ++i) {
+    padded_shape[i] = arg_desc.shape_dims[i];
   }
   return ast.DesignatedInit(
       std::vector<std::pair<std::string, Arg>>{
           {"tensor", ast.DesignatedInit(
                          std::vector<std::pair<std::string, Arg>>{
-                             {"size", static_cast<int64_t>(a.size)},
-                             {"data_type", a.data_type},
-                             {"format", a.format},
+                             {"size", static_cast<int64_t>(arg_desc.size)},
+                             {"data_type", arg_desc.data_type},
+                             {"format", arg_desc.format},
                              {"shape", ast.InitList(std::vector<Arg>(padded_shape.begin(), padded_shape.end()))},
-                             {"shape_dims", static_cast<int64_t>(a.shape_dims.size())},
-                             {"args_offset", ast.UInt(a.args_offset)},
+                             {"shape_dims", static_cast<int64_t>(arg_desc.shape_dims.size())},
+                             {"args_offset", ast.UInt(arg_desc.args_offset)},
                          },
                          true)},
       },
       true);
 }
 
-Arg TaskCodeBuilderUtil::BuildWorkspaceDataField(AstBuildContext &ast, const OpArgDesc &a) {
+Arg TaskCodeBuilderUtil::BuildWorkspaceDataField(AstBuildContext &ast, const OpArgDesc &arg_desc) {
   return ast.DesignatedInit(
       std::vector<std::pair<std::string, Arg>>{
           {"tensor", ast.DesignatedInit(
                          std::vector<std::pair<std::string, Arg>>{
-                             {"size", static_cast<int64_t>(a.size)},
+                             {"size", static_cast<int64_t>(arg_desc.size)},
                          },
                          true)},
       },
       true);
 }
 
-Arg TaskCodeBuilderUtil::BuildCustomValueDataField(AstBuildContext &ast, const OpArgDesc &a) {
+Arg TaskCodeBuilderUtil::BuildCustomValueDataField(AstBuildContext &ast, const OpArgDesc &arg_desc) {
   return ast.DesignatedInit(
       std::vector<std::pair<std::string, Arg>>{
-          {"custom_value", static_cast<int64_t>(a.custom_value)},
+          {"custom_value", static_cast<int64_t>(arg_desc.custom_value)},
       },
       true);
 }
 
-Arg TaskCodeBuilderUtil::BuildTilingDataField(AstBuildContext &ast, const OpArgDesc &a) {
+Arg TaskCodeBuilderUtil::BuildTilingDataField(AstBuildContext &ast, const OpArgDesc &arg_desc) {
   Arg raw_data_arg(nullptr);
   uint32_t raw_data_len = 0U;
-  if (!a.raw_data.empty()) {
+  if (!arg_desc.raw_data.empty()) {
     std::ostringstream oss;
-    for (const auto byte : a.raw_data) {
+    for (const auto byte : arg_desc.raw_data) {
       oss << "\\" << std::oct << std::setw(kWidthPerChar) << std::setfill('0') << static_cast<int>(byte);
     }
     raw_data_arg = ast.ReinterpretCast("const uint8_t *", Arg::StringLiteral(oss.str()));
-    raw_data_len = static_cast<uint32_t>(a.raw_data.size());
+    raw_data_len = static_cast<uint32_t>(arg_desc.raw_data.size());
   }
   return ast.DesignatedInit(
       std::vector<std::pair<std::string, Arg>>{
@@ -359,11 +349,25 @@ Arg TaskCodeBuilderUtil::BuildTilingDataField(AstBuildContext &ast, const OpArgD
       true);
 }
 
-Arg TaskCodeBuilderUtil::RenderOpArgDesc(AstBuildContext &ast, const std::vector<OpArgDesc> &args) {
-  if (args.empty()) {
-    return Arg(nullptr);
+Arg TaskCodeBuilderUtil::RenderArgAddrField(AstBuildContext &ast, const OpArgDesc &arg_desc) {
+  const bool needs_addr =
+      (arg_desc.type == OP_ARG_INPUT || arg_desc.type == OP_ARG_OUTPUT || arg_desc.type == OP_ARG_WORKSPACE ||
+       arg_desc.type == OP_ARG_CONST_TENSOR || arg_desc.type == OP_ARG_VAR_TENSOR);
+  if (needs_addr) {
+    return ast.DesignatedInit(
+        std::vector<std::pair<std::string, Arg>>{
+            {"mem_src", arg_desc.mem_src},
+            {"index", arg_desc.index},
+            {"offset", static_cast<int64_t>(arg_desc.offset)},
+        },
+        true);
   }
+  // 不需要地址的参数填充默认值（全 0），保证生成的 OpArgInfo 初始化无缺省字段
+  return ast.DesignatedInit(std::vector<std::pair<std::string, Arg>>{{"mem_src", 0U}, {"index", 0U}, {"offset", 0U}},
+                            true);
+}
 
+Arg TaskCodeBuilderUtil::RenderArgDataField(AstBuildContext &ast, const OpArgDesc &arg_desc) {
   using DataBuilder = Arg (*)(AstBuildContext &, const OpArgDesc &);
   static const std::unordered_map<int32_t, DataBuilder> kDataBuilders = {
       {OP_ARG_INPUT, &TaskCodeBuilderUtil::BuildTensorDataField},
@@ -377,26 +381,29 @@ Arg TaskCodeBuilderUtil::RenderOpArgDesc(AstBuildContext &ast, const std::vector
       {OP_ARG_EVENT_ADDR, &TaskCodeBuilderUtil::BuildCustomValueDataField},
       {OP_ARG_TILING, &TaskCodeBuilderUtil::BuildTilingDataField},
   };
+  const auto it = kDataBuilders.find(arg_desc.type);
+  if (it != kDataBuilders.end()) {
+    auto data_arg = it->second(ast, arg_desc);
+    if (!data_arg.Empty()) {
+      return data_arg;
+    }
+  }
+  // 无对应数据的参数（PLACEHOLDER/OPTIONAL_EMPTY 等）填充默认值，保证生成的 OpArgInfo 初始化无缺省字段
+  return ast.DesignatedInit(std::vector<std::pair<std::string, Arg>>{{"custom_value", 0U}}, true);
+}
+
+Arg TaskCodeBuilderUtil::RenderOpArgDesc(AstBuildContext &ast, const std::vector<OpArgDesc> &args) {
+  if (args.empty()) {
+    return Arg(nullptr);
+  }
 
   std::vector<Arg> arg_entries;
   arg_entries.reserve(args.size());
-  for (const auto &a : args) {
+  for (const auto &arg_desc : args) {
     std::vector<std::pair<std::string, Arg>> fields;
-    fields.push_back({"type", OpArgTypeName(a.type)});
-
-    const bool needs_addr = (a.type == OP_ARG_INPUT || a.type == OP_ARG_OUTPUT || a.type == OP_ARG_WORKSPACE ||
-                             a.type == OP_ARG_CONST_TENSOR || a.type == OP_ARG_VAR_TENSOR);
-    if (needs_addr) {
-      fields.push_back({"addr", BuildAddrField(ast, a)});
-    }
-
-    const auto it = kDataBuilders.find(a.type);
-    if (it != kDataBuilders.end()) {
-      auto data_arg = it->second(ast, a);
-      if (!data_arg.Empty()) {
-        fields.push_back({"data", std::move(data_arg)});
-      }
-    }
+    fields.push_back({"type", OpArgTypeName(arg_desc.type)});
+    fields.push_back({"addr", RenderArgAddrField(ast, arg_desc)});
+    fields.push_back({"data", RenderArgDataField(ast, arg_desc)});
 
     arg_entries.push_back(ast.DesignatedInit(fields, true));
   }
