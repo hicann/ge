@@ -31,7 +31,8 @@ Status LabelGotoOp::Init() {
 
   uint32_t label_index = 0;
   if (!AttrUtils::GetInt(op_desc_, ATTR_NAME_LABEL_SWITCH_INDEX, label_index)) {
-    RTS_REPORT_CALL_ERROR("LabelGotoOp: %s attr [%s] not exist.", name_.c_str(), ATTR_NAME_LABEL_SWITCH_INDEX.c_str());
+    RTS_REPORT_CALL_ERROR("LabelGotoOp: %s attr [%s] does not exist.", name_.c_str(),
+                          ATTR_NAME_LABEL_SWITCH_INDEX.c_str());
     return FAILED;
   }
 
