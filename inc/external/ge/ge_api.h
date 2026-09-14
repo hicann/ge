@@ -427,6 +427,10 @@ ge::Status GeSessionExecuteGraphWithStreamAsync(ge::Session &session, uint32_t g
 ge::Status GeSessionGraphDebugJSONPrint(ge::Session &session, uint32_t graph_id, uint32_t flags,
                                         ge::AscendString &json_result);
 
+ATTRIBUTED_DEPRECATED(ge::Status GetRegisteredIrDefV2(const char *,
+                                                      std::vector<std::pair<ge::AscendString, ge::AscendString>> &,
+                                                      std::vector<std::pair<ge::AscendString, ge::AscendString>> &,
+                                                      std::vector<std::pair<ge::AscendString, ge::AscendString>> &))
 ge::Status GetRegisteredIrDef(const char *op_type, std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs);
