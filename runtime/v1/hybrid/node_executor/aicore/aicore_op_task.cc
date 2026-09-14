@@ -213,7 +213,7 @@ Status AiCoreOpTask::InitWithKernelDef(const OpDesc &op_desc, const domi::TaskDe
            "arg size = %u , op:%s op_type:%s",
            GetName().c_str(), offset_, args_size_without_tiling_, op_desc.GetName().c_str(), op_desc.GetType().c_str());
     REPORT_INNER_ERR_MSG("E19999",
-                         "[%s] Arg offset out of range. offset = %u, arg size = %u"
+                         "[%s] Arg offset out of range. offset = %u, arg size = %u "
                          "op:%s op_type:%s",
                          GetName().c_str(), offset_, args_size_without_tiling_, op_desc.GetName().c_str(),
                          op_desc.GetType().c_str());
@@ -268,11 +268,11 @@ Status AiCoreOpTask::InitWithKernelDefWithHandle(const OpDesc &op_desc, const do
 
   if (context.args_offset().size() < sizeof(uint16_t)) {
     GELOGE(INTERNAL_ERROR,
-           "[Check][Size]Invalid args_offset, size:%zu is smaller"
+           "[Check][Size]Invalid args_offset, size:%zu is smaller "
            "than size of uint16_t. op:%s op_type:%s",
            context.args_offset().size(), op_desc.GetName().c_str(), op_desc.GetType().c_str());
     REPORT_INNER_ERR_MSG("E19999",
-                         "Invalid args_offset, size:%zu is smaller"
+                         "Invalid args_offset, size:%zu is smaller "
                          "than size of uint16_t. op:%s op_type:%s",
                          context.args_offset().size(), op_desc.GetName().c_str(), op_desc.GetType().c_str());
     return INTERNAL_ERROR;
@@ -282,11 +282,11 @@ Status AiCoreOpTask::InitWithKernelDefWithHandle(const OpDesc &op_desc, const do
   offset_ = *args_offset_buffer;
   if (offset_ > args_size_without_tiling_) {
     GELOGE(INTERNAL_ERROR,
-           "[Check][Offset][%s] Arg offset out of range. offset = %u, arg size = %u"
+           "[Check][Offset][%s] Arg offset out of range. offset = %u, arg size = %u "
            "op:%s op_type:%s",
            GetName().c_str(), offset_, args_size_without_tiling_, op_desc.GetName().c_str(), op_desc.GetType().c_str());
     REPORT_INNER_ERR_MSG("E19999",
-                         "[%s] Arg offset out of range. offset = %u, arg size = %u"
+                         "[%s] Arg offset out of range. offset = %u, arg size = %u "
                          "op:%s op_type:%s",
                          GetName().c_str(), offset_, args_size_without_tiling_, op_desc.GetName().c_str(),
                          op_desc.GetType().c_str());

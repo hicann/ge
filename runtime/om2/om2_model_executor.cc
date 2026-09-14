@@ -1004,7 +1004,7 @@ class Om2ModelExecutor::Impl {
         CloseMemFd(so_info.so_fd);
         const char_t *error = mmDlerror();
         error = (error == nullptr) ? "" : error;
-        GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to  load so, path = [%s], error = [%s]",
+        GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to load so, path = [%s], error = [%s]",
                so_info.so_file.c_str(), error);
         return ge::FAILED;
       }
@@ -1095,7 +1095,7 @@ class Om2ModelExecutor::Impl {
     if (run_model_info_.so_handle == nullptr) {
       const char_t *error = mmDlerror();
       error = (error == nullptr) ? "" : error;
-      GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to  load so, path = [%s], error = [%s]",
+      GELOGE(ge::FAILED, "[OM2][Invoke][DlOpen] Failed to load so, path = [%s], error = [%s]",
              run_model_info_.so_file.c_str(), error);
       return ge::FAILED;
     }
@@ -1392,7 +1392,7 @@ class Om2ModelExecutor::Impl {
                            ge::OpDescInfo &op_desc_info) const {
     GE_ASSERT_TRUE(has_model_);
     if (device_id_ != static_cast<int32_t>(device_id)) {
-      GELOGD("[OM2][Get][OpDescInfo] Device id not match, input=%u, model=%d.", device_id, device_id_);
+      GELOGD("[OM2][Get][OpDescInfo] Device id does not match, input=%u, model=%d.", device_id, device_id_);
       return ge::FAILED;
     }
     GE_ASSERT_NOTNULL(dump_manager_);

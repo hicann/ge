@@ -15,7 +15,8 @@ import json
 import os
 import unittest
 
-from llm_datadist_v1 import *
+from llm_datadist_v1 import LLMConfig, LLMDataDist, LLMException, LLMRole
+from llm_datadist_v1.data_type import get_python_dtype_from_wrapper_dtype
 from llm_datadist_v1.llm_datadist import _shutdown_handler
 
 _INVALID_ID = 2**64 - 1
@@ -34,7 +35,9 @@ class LlmEngineV2Ut(unittest.TestCase):
         print("End ", self._testMethodName)
 
     @staticmethod
-    def _engine_options(is_prompt: bool, cluster_id: int = 0, rank_id: int = -1, resource_path: str = ""):
+    def _engine_options(
+        is_prompt: bool, cluster_id: int = 0, rank_id: int = -1, resource_path: str = ""
+    ):
         cluster_info = {
             "cluster_id": cluster_id,
             "logic_device_id": ["0:0:0:0", "0:0:1:0", "0:0:2:0", "0:0:3:0"],
@@ -95,3 +98,9 @@ class LlmEngineV2Ut(unittest.TestCase):
         except LLMException:
             has_err = True
         self.assertEqual(has_err, False)
+
+    def test_get_python_dtype_invalid(self):
+        with self.assertRaises(ValueError):
+            get_python_dtype_from_wrapper_dtype(-1)
+        with self.assertRaises(ValueError):
+            get_python_dtype_from_wrapper_dtype(999)

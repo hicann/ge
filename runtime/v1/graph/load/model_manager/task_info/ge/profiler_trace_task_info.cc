@@ -48,7 +48,9 @@ Status ProfilerTraceTaskInfo::Distribute() {
          static_cast<int32_t>(notify_));
   is_support_redistribute_ = true;
   if (((log_id_ > kProfilingMaxLogid) && (log_id_ < kProfilingArStartLogid)) || (log_id_ > kProfilingArMaxLogid)) {
-    GELOGD("ProfilerTraceTaskInfo logid:%" PRIu64 " is out of range.", log_id_);
+    GELOGD("ProfilerTraceTaskInfo logid:%" PRIu64 " is out of range, valid range [0, %" PRIu64 "] or [%" PRIu64
+           ", %" PRIu64 "].",
+           log_id_, kProfilingMaxLogid, kProfilingArStartLogid, kProfilingArMaxLogid);
     return SUCCESS;
   }
   if ((davinci_model_ != nullptr) && (!davinci_model_->CheckModelNoInputAndOutput())) {

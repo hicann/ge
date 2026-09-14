@@ -33,7 +33,8 @@ graphStatus GetInputSymbolsValue(const gert::InferSymbolComputeContext *context,
     }
     if (!input_symbols_value.empty() && input_symbols_value[0].size() != symbolic_value->size()) {
       GELOGW(
-          "SymbolicKernel compute unsupported, reason: Get input symbolic value failed, node %s[%s], size not match "
+          "SymbolicKernel compute is not supported, reason: Get input symbolic value failed, node %s[%s], size not "
+          "match "
           "%zu vs %zu",
           context->GetNodeName(), context->GetNodeType(), input_symbols_value[0].size(), symbolic_value->size());
       return UNSUPPORTED;

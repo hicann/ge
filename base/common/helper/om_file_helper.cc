@@ -281,7 +281,7 @@ Status OmFileLoadHelper::CheckModelCompatibility(const Model &model) const {
     (void)REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>({"soc_version", model_soc_version.c_str(), reason.c_str()}));
-    GELOGE(PARAM_INVALID, "Model soc version[%s] is not support in this device", model_soc_version.c_str());
+    GELOGE(PARAM_INVALID, "Model soc version[%s] is not supported in this device", model_soc_version.c_str());
     return PARAM_INVALID;
   }
   return SUCCESS;

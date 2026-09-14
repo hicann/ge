@@ -82,7 +82,7 @@ ge::Status ConvertToMobileTensorDescriptor(const ge::proto::TensorDescriptor &td
   mobile_td->set_name(td.name());
   mobile_td->set_dtype(ConvertToMobileDataType(td.dtype()));
   if (td.shape().dim().size() > 0) {
-    GE_ASSERT_TRUE(mobile_td->dtype() != ge::mobile::proto::DataType::DT_UNDEFINED, "[Mobile] dtype is not support.");
+    GE_ASSERT_TRUE(mobile_td->dtype() != ge::mobile::proto::DataType::DT_UNDEFINED, "[Mobile] dtype is not supported.");
   } else {
     GELOGD("[Mobile] desc shape is null, should not check dtype.");
   }
@@ -400,7 +400,7 @@ ge::Status MobileModel::ConvertToMobileModelDef(const ge::proto::ModelDef &model
   mobile_model_def.set_name(model_def.name());
   mobile_model_def.set_version(model_def.version());
   mobile_model_def.set_custom_version(model_def.custom_version());
-  GELOGI("[Mobile] name: %s  version: %d  custom_version: %s", mobile_model_def.name().c_str(),
+  GELOGI("[Mobile] name: %s version: %d custom_version: %s", mobile_model_def.name().c_str(),
          mobile_model_def.version(), mobile_model_def.custom_version().c_str());
 
   // repeated GraphDef graph

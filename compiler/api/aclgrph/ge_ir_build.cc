@@ -1143,7 +1143,7 @@ graphStatus Impl::InitDomiOmgContext(const std::string &input_shape, const std::
       omg_context_.format = iter->second;
     } else {
       GELOGE(GRAPH_PARAM_INVALID,
-             "[Check][Param:InputFormat] %s not support , expect ND/NCHW/NHWC/CHWN/NC1HWC0/NHWC1C0.",
+             "[Check][Param:InputFormat] %s is not supported, expect ND/NCHW/NHWC/CHWN/NC1HWC0/NHWC1C0.",
              input_format.c_str());
       return GRAPH_PARAM_INVALID;
     }
@@ -1859,7 +1859,7 @@ static std::string AttrTypeToSerialString(aclgrphAttrType attr_type) {
     const std::string reason = "aclgrphAttrType " + std::to_string(attr_type) + " is not supported";
     REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char_t *>({"reason"}),
                               std::vector<const char_t *>({reason.c_str()}));
-    GELOGE(GRAPH_FAILED, "[Check][AclgrphAttrType] attr_type not support %u", attr_type);
+    GELOGE(GRAPH_FAILED, "[Check][AclgrphAttrType] attr_type is not supported %u", attr_type);
     return "UNDEFINED";
   }
 }

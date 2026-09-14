@@ -38,7 +38,7 @@ Status NanoModelSaveHelper::SaveToOmRootModel(const GeRootModelPtr &ge_root_mode
         "E10055", std::vector<const char *>({"reason"}),
         std::vector<const char *>(
             {"Dynamic shape is not supported when the ATC tool is used for model conversion on a nano chip"}));
-    GELOGE(FAILED, "[Save][Model] Unknown shape not support.");
+    GELOGE(FAILED, "[Save][Model] Unknown shape is not supported.");
     return PARAM_INVALID;
   }
 

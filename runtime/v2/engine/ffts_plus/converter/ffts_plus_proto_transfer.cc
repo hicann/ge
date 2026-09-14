@@ -893,7 +893,7 @@ ge::Status FftsPlusProtoTransfer::InitAicpuCtxUserData(const ge::OpDescPtr &op_d
 ge::Status FftsPlusProtoTransfer::InitAicpuInfo(const ge::OpDescPtr &op_desc, const domi::FftsPlusAicpuCtxDef &ctx_def,
                                                 void *&addr) const {
   if (ctx_def.kernel_type() == kCustomAicpuKernelType) {
-    GELOGE(ge::FAILED, "Not support custom aicpu op.");
+    GELOGE(ge::FAILED, "Does not support custom aicpu op.");
     // load custom aicpu so need move to other position
     return ge::FAILED;
   }

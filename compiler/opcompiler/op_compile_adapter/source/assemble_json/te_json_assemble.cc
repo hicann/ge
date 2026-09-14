@@ -425,7 +425,7 @@ void TeJsonAssemble::GenBuildinOutdescJson(const InOutToJsonParam &outputPara,
   auto all_output_desc = current_node_desc->GetAllOutputsDesc();
   auto all_output_anchors = outputPara.node->GetAllOutDataAnchors();
   if (all_output_desc.size() != all_output_anchors.size()) {
-    TE_FUSION_LOG_EXEC(TE_FUSION_LOG_WARNING, "Output description and out anchor size not match: %zu %zu",
+    TE_FUSION_LOG_EXEC(TE_FUSION_LOG_WARNING, "Output description and out anchor size do not match: %zu %zu",
                        all_output_desc.size(), all_output_anchors.size());
   }
 

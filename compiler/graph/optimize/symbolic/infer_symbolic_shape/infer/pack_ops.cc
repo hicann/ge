@@ -67,7 +67,7 @@ graphStatus InferShape4Pack(gert::InferSymbolShapeContext *context) {
   }
   size_t output_dim_size = out_shape->GetDimNum() + 1;
   if (!SymbolicInferUtil::IsDimValid(output_dim_size, axis)) {
-    GELOGE(PARAM_INVALID, "axis=%d  but output_dim_size is %d", axis, output_dim_size);
+    GELOGE(PARAM_INVALID, "axis=%d but output_dim_size is %d", axis, output_dim_size);
     return PARAM_INVALID;
   }
   if (axis < 0) {

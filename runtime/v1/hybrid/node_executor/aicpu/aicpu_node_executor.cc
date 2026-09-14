@@ -323,7 +323,7 @@ Status AicpuNodeTaskBase::UpdateEventIdForBlockingAicpuOp() {
     return FAILED;
   }
   if (!is_support) {
-    GELOGD("Device not support blocking aicpu op process");
+    GELOGD("Device does not support blocking aicpu op process");
     return SUCCESS;
   }
   uint32_t event_id = 0U;
@@ -370,7 +370,7 @@ Status AicpuNodeTaskBase::DistributeWaitTaskForAicpuBlockingOp(rtStream_t stream
     return FAILED;
   }
   if (!is_support) {
-    GELOGD("Device not support blocking aicpu op process.");
+    GELOGD("Device does not support blocking aicpu op process.");
     return SUCCESS;
   }
   GELOGD("Distribute queue task begin");

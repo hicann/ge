@@ -391,7 +391,7 @@ class AscOverrides final : public OpOverrides {
           SET_MATMUL_ATTRS(MatMulOffset, mm, matmul_attr);
         }
       } else {
-        GE_WARN_ASSERT(false, "Matmul attr info not match, input=3, bias=false, offset=false.");
+        GE_WARN_ASSERT(false, "Matmul attr info does not match, input=3, bias=false, offset=false.");
       }
     } else if (inputs.size() == 4U) {
       if (matmul_attr.is_batch) {
@@ -427,7 +427,7 @@ class AscOverrides final : public OpOverrides {
           conv = MakeAscVar<ascir_op::ExtendConv2DScale>(explicit_output_dtypes, inputs[0], inputs[1], inputs[2]);
           SET_EXTEND_CONV2D_ATTRS(ExtendConv2DScale, conv, conv2d_attr);
         } else {
-          GE_WARN_ASSERT(false, "ExtendConv2D attr info not match, input=3, bias=false, scale0=false.");
+          GE_WARN_ASSERT(false, "ExtendConv2D attr info does not match, input=3, bias=false, scale0=false.");
         }
       } else if (inputs.size() == 4U) {
         if (conv2d_attr.has_bias && conv2d_attr.has_scale0) {
@@ -435,7 +435,7 @@ class AscOverrides final : public OpOverrides {
                                                              inputs[3]);
           SET_EXTEND_CONV2D_ATTRS(ExtendConv2DBiasScale, conv, conv2d_attr);
         } else {
-          GE_WARN_ASSERT(false, "ExtendConv2D attr info not match, input=4, bias or scale0 is false.");
+          GE_WARN_ASSERT(false, "ExtendConv2D attr info does not match, input=4, bias or scale0 is false.");
         }
       }
     } else if (inputs.size() == 2U) {
@@ -449,7 +449,7 @@ class AscOverrides final : public OpOverrides {
         conv = MakeAscVar<ascir_op::Conv2DOffset>(explicit_output_dtypes, inputs[0], inputs[1], inputs[2]);
         SET_CONV2D_ATTRS(Conv2DOffset, conv, conv2d_attr);
       } else {
-        GE_WARN_ASSERT(false, "Conv2D attr info not match, input=3, bias=false, offset=false.");
+        GE_WARN_ASSERT(false, "Conv2D attr info does not match, input=3, bias=false, offset=false.");
       }
     } else if (inputs.size() == 4U) {
       if (conv2d_attr.has_bias && conv2d_attr.has_offset_w) {
@@ -457,7 +457,7 @@ class AscOverrides final : public OpOverrides {
             MakeAscVar<ascir_op::Conv2DOffsetBias>(explicit_output_dtypes, inputs[0], inputs[1], inputs[2], inputs[3]);
         SET_CONV2D_ATTRS(Conv2DOffsetBias, conv, conv2d_attr);
       } else {
-        GE_WARN_ASSERT(false, "Conv2D attr info not match, input=4, bias or offset is false.");
+        GE_WARN_ASSERT(false, "Conv2D attr info does not match, input=4, bias or offset is false.");
       }
     }
     conv.SetTensorLoop(asc_axis_, loop_desc.repeats, loop_desc.strides);

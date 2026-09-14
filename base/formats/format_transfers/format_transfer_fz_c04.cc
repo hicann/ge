@@ -46,7 +46,7 @@ Status CheckGroupsSupport(const int32_t groups) {
   if (groups == 0 || groups == 1) {
     return SUCCESS;
   }
-  GELOGW("Currently groups %ld not support, should be 1 on fzc04 format transfer.", groups);
+  GELOGW("The current group count is %ld; only 1 is supported for FZC04 format transfer.", groups);
   return ACL_ERROR_GE_PARAM_INVALID;
 }
 
@@ -150,7 +150,7 @@ Status TransFormatNchwToFzC04(const TransArgs &args, TransResult &result) {
   const size_t expect_size = static_cast<size_t>(sum_size);
   if (trans_result_1.length != expect_size) {
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
-           "[Check][Shape]size %zu is not match expect size %zu "
+           "[Check][Shape]size %zu does not match expect size %zu "
            "after transpose",
            trans_result_1.length, expect_size);
     return ACL_ERROR_GE_PARAM_INVALID;
@@ -392,7 +392,7 @@ Status FormatTransfer4DToFZC04::BuildTransArgsNchwToFzC04(const ge::formats::Tra
       static_cast<Format>(GetFormatFromSub(FORMAT_NCHW, GetSubFormat(src_dst_args.dst_sub_format)));
   src_to_nchw_args.dst_primary_format = FORMAT_NCHW;
   if (!ge::formats::IsTransFormatSupport(src_to_nchw_args)) {
-    GELOGE(ACL_ERROR_GE_FORMAT_INVALID, "Not support trans format from %s to %s.",
+    GELOGE(ACL_ERROR_GE_FORMAT_INVALID, "Format conversion from %s to %s is not supported.",
            TypeUtils::FormatToSerialString(src_dst_args.src_format).c_str(),
            TypeUtils::FormatToSerialString(src_to_nchw_args.dst_format).c_str());
     return ACL_ERROR_GE_FORMAT_INVALID;
@@ -431,7 +431,7 @@ Status FormatTransfer4DToFZC04::TransShapeFromSrcToNchw(const Format src_format,
                               FORMAT_NCHW, FORMAT_RESERVED, FORMAT_RESERVED, kC0Size,
                               kC0Size,     src_shape,       nchw_shape,      data_type};
   if (!ge::formats::IsTransFormatSupport(args)) {
-    GELOGE(ACL_ERROR_GE_FORMAT_INVALID, "Not support trans shape from %s to %s",
+    GELOGE(ACL_ERROR_GE_FORMAT_INVALID, "Shape conversion from %s to %s is not supported.",
            ge::TypeUtils::FormatToSerialString(src_format).c_str(),
            ge::TypeUtils::FormatToSerialString(FORMAT_NCHW).c_str());
     return ACL_ERROR_GE_FORMAT_INVALID;
@@ -507,7 +507,8 @@ Status FormatTransferFZC04To4D::TransFormat(const TransArgs &args, TransResult &
          TypeUtils::FormatToSerialString(args.dst_format).c_str(), ShapeToString(args.src_shape).c_str(),
          TypeUtils::DataTypeToSerialString(args.src_data_type).c_str(), ShapeToString(args.dst_shape).c_str());
   if (args.src_primary_format != FORMAT_FRACTAL_Z_C04 || args.dst_primary_format != FORMAT_HWCN) {
-    GELOGE(ACL_ERROR_GE_FORMAT_INVALID, "Src format is %s, dst format is %s, Not support.",
+    GELOGE(ACL_ERROR_GE_FORMAT_INVALID,
+           "The conversion from source format %s to destination format %s is not supported.",
            TypeUtils::FormatToSerialString(args.src_primary_format).c_str(),
            TypeUtils::FormatToSerialString(args.dst_primary_format).c_str());
     return ACL_ERROR_GE_FORMAT_INVALID;

@@ -104,7 +104,8 @@ bool OpDescUtils::ClearInputDesc(const NodePtr &node) {
     if (iter < node->GetOpDesc()->impl_->inputs_desc_.end()) {
       (void)node->GetOpDesc()->impl_->inputs_desc_.erase(iter);
     } else {
-      GELOGW("[Clear][InputDesc] inputs_desc_ iterator out of range.");
+      GELOGW("[Clear][InputDesc] index %d out of range [0, %zu)", index_list[i],
+             node->GetOpDesc()->impl_->inputs_desc_.size());
     }
   }
 
@@ -146,7 +147,8 @@ bool OpDescUtils::ClearOutputDesc(const NodePtr &node) {
     if (iter < node->GetOpDesc()->impl_->outputs_desc_.end()) {
       (void)node->GetOpDesc()->impl_->outputs_desc_.erase(iter);
     } else {
-      GELOGW("[Clear][OutputDesc] outputs_desc_ iterator out of range.");
+      GELOGW("[Clear][OutputDesc] index %d out of range [0, %zu)", index_list[i],
+             node->GetOpDesc()->impl_->outputs_desc_.size());
     }
   }
 

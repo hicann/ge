@@ -607,7 +607,7 @@ Status ModifyTensorDescStorageFormatAndShape(const OpDescPtr &op_desc, Idx2Tenso
         "The user defined storage format " + TypeUtils::FormatToSerialString(storage_format) + " is not supported";
     REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char *>({"reason"}),
                               std::vector<const char *>({reason.c_str()}));
-    GELOGE(PARAM_INVALID, "Not support user define storage format %s",
+    GELOGE(PARAM_INVALID, "User defined storage format %s is not supported",
            TypeUtils::FormatToSerialString(storage_format).c_str());
     return FAILED;
   }
@@ -1176,7 +1176,7 @@ Status UpdateDynamicInputShapeRange(const int64_t index,
              "The origin shape size does not match the current dynamic input shape range size."}));
     GELOGE(PARAM_INVALID,
            "[Check][Param] For node %s. Given shape_range dim num is %zu, current dim num is %zu, "
-           "not match. Please Check.",
+           "does not match. Please Check.",
            op->GetName().c_str(), current_shape_range_vec.size(), origin_shape.GetDimNum());
     return PARAM_INVALID;
   }
@@ -1194,7 +1194,7 @@ Status UpdateDynamicInputShapeRange(const int64_t index,
                                                              std::to_string(right_range).c_str(), reason.c_str()}));
         GELOGE(PARAM_INVALID,
                "[Check][Param] Given shape range is %ld, current dim shape is %ld, "
-               "not match. Please Check.",
+               "do not match. Please Check.",
                left_range, curr_dim);
         return PARAM_INVALID;
       }

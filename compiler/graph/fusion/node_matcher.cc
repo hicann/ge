@@ -85,13 +85,13 @@ bool IsAttrNamesMatch(const NodePtr &p_node, const NodePtr &t_node, const std::v
   const auto &t_attr_names = t_node->GetOpDesc()->GetIrAttrNames();
   GE_WARN_ASSERT(
       p_attr_names.size() == t_attr_names.size(),
-      "[AttrMiss] Ir attr num is not match. P node[%s][%s] attr names: %s attr num is %zu, T node [%s][%s] attr names"
+      "[AttrMiss] Ir attr num does not match. P node[%s][%s] attr names: %s attr num is %zu, T node [%s][%s] attr names"
       ":%s attr num is %zu.",
       p_node->GetNamePtr(), p_node->GetTypePtr(), AttrNamesToString(p_attr_names).c_str(), p_attr_names.size(),
       t_node->GetNamePtr(), t_node->GetTypePtr(), AttrNamesToString(t_attr_names).c_str(), t_attr_names.size());
   GE_WARN_ASSERT(
       std::is_permutation(p_attr_names.begin(), p_attr_names.end(), t_attr_names.begin()),
-      "[AttrMiss] Ir attr names is not match. P node[%s][%s] attr names: %s, T node [%s][%s] attr names: %s.",
+      "[AttrMiss] Ir attr names do not match. P node[%s][%s] attr names: %s, T node [%s][%s] attr names: %s.",
       p_node->GetNamePtr(), p_node->GetTypePtr(), AttrNamesToString(p_attr_names).c_str(), t_node->GetNamePtr(),
       t_node->GetTypePtr(), AttrNamesToString(t_attr_names).c_str());
   return true;
@@ -115,7 +115,7 @@ bool IsAttrValuesMatch(const NodePtr &p_node, const NodePtr &t_node, const std::
     const auto &t_attr_value_buf = t_attr_values[i];
     if (p_attr_value_buf.size() != t_attr_value_buf.size()) {
       GELOGD(
-          "[AttrMiss] Ir attr value size is not match. Attr name [%s], P node[%s][%s] attr value size: %zu, T node "
+          "[AttrMiss] Ir attr value size does not match. Attr name [%s], P node[%s][%s] attr value size: %zu, T node "
           "[%s][%s] attr value size: %zu.",
           attr_name.c_str(), p_node->GetNamePtr(), p_node->GetTypePtr(), p_attr_value_buf.size(), t_node->GetNamePtr(),
           t_node->GetTypePtr(), t_attr_value_buf.size());
@@ -123,7 +123,7 @@ bool IsAttrValuesMatch(const NodePtr &p_node, const NodePtr &t_node, const std::
     }
     if (memcmp(p_attr_value_buf.data(), t_attr_value_buf.data(), p_attr_value_buf.size()) != 0) {
       // todo better to print attr value
-      GELOGD("[AttrMiss] Ir attr value is not match. Attr name [%s], P node[%s][%s], T node [%s][%s].",
+      GELOGD("[AttrMiss] Ir attr value does not match. Attr name [%s], P node[%s][%s], T node [%s][%s].",
              attr_name.c_str(), p_node->GetNamePtr(), p_node->GetTypePtr(), t_node->GetNamePtr(), t_node->GetTypePtr());
       return false;
     }

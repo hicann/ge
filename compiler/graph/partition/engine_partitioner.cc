@@ -465,7 +465,7 @@ Status EnginePartitioner::InheritOriginalAttr(const ComputeGraphPtr &original_co
     output_merged_compute_graph->SetGraphUnknownFlag(true);
     for (const auto &node : output_merged_compute_graph->GetDirectNode()) {
       ge::AttrUtils::SetBool(node->GetOpDesc(), "OwnerGraphIsUnknown", true);
-      GELOGD("Set OwnerGraphIsUnknow attr to node[%s], graph [%s]", node->GetName().c_str(),
+      GELOGD("Set OwnerGraphIsUnknown attr to node[%s], graph [%s]", node->GetName().c_str(),
              output_merged_compute_graph->GetName().c_str());
     }
   }

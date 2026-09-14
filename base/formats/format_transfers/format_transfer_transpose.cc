@@ -82,9 +82,9 @@ bool IsTransposeArgValid(const uint8_t *const src, const std::vector<int64_t> &s
     return false;
   }
   if (GetSizeByDataType(src_data_type) < 0) {
-    GELOGE(ACL_ERROR_GE_DATATYPE_INVALID, "[Trans][Param]Failed, the data type %s is not support",
+    GELOGE(ACL_ERROR_GE_DATATYPE_INVALID, "[Trans][Param]Failed, the data type %s is not supported",
            TypeUtils::DataTypeToSerialString(src_data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to transpose, the data type %s is not support",
+    REPORT_INNER_ERR_MSG("E19999", "Failed to transpose, the data type %s is not supported",
                          TypeUtils::DataTypeToSerialString(src_data_type).c_str());
     return false;
   }

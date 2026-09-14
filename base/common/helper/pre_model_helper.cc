@@ -33,7 +33,7 @@ Status PreModelHelper::SaveToOmRootModel(const GeRootModelPtr &ge_root_model, co
   GE_ASSERT_TRUE(!(name_to_ge_model.empty()), "[Get][SubModel] ge_root_model has no sub model");
   GE_ASSERT_TRUE(!(output_file.empty()), "[Save][Model] GraphBuilder SaveModel received invalid file name prefix");
   if (is_unknown_shape) {
-    GELOGE(FAILED, "[Save][Model] Unknown shape not support.");
+    GELOGE(FAILED, "[Save][Model] Unknown shape is not supported.");
     return PARAM_INVALID;
   }
 

@@ -689,7 +689,7 @@ bool ShapeGeneralization::GenerateNormalizeFusionOutputTmpJson(const ge::Node *c
   auto allOutputDesc = nodeDesc->GetAllOutputsDesc();
   auto allOutputAnchors = currentNode->GetAllOutDataAnchors();
   if (allOutputDesc.size() != allOutputAnchors.size()) {
-    TE_FUSION_LOG_EXEC(TE_FUSION_LOG_WARNING, "Output description and out anchor size not match: %zu %zu",
+    TE_FUSION_LOG_EXEC(TE_FUSION_LOG_WARNING, "Output description and out anchor size do not match: %zu %zu",
                        allOutputDesc.size(), allOutputAnchors.size());
   }
 
@@ -834,7 +834,7 @@ bool ShapeGeneralization::GenerateNormalizeFusionAttrTmpJsonPart1(const ConstTbe
   ATTR_DTYPE attrType = item.GetType();
   std::map<ATTR_DTYPE, std::string>::const_iterator iter = g_attrDtypeToString.find(attrType);
   if (iter == g_attrDtypeToString.end()) {
-    TE_WARNLOG("Not support attr dtype: %u.", attrType);
+    TE_WARNLOG("Attr dtype %u is not supported.", attrType);
     return false;
   }
   std::string attrDtype = iter->second;

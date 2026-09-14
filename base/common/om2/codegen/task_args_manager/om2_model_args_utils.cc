@@ -588,7 +588,7 @@ Status ModelUtils::GetInputOutputDescAddrs(const RuntimeParam &model_param, cons
       return RT_ERROR_TO_GE_STATUS(rt_ret);
     }
     v_addrs[tensor_cnt] = mem_addr;
-    GELOGD("[OM2]Calc op[%s] tenser[%zu] desc addr[%p] ok", op_desc->GetName().c_str(), tensor_cnt, mem_addr);
+    GELOGD("[OM2]Calc op[%s] tensor[%zu] desc addr[%p] ok", op_desc->GetName().c_str(), tensor_cnt, mem_addr);
     tensor_cnt++;
   }
   return SUCCESS;

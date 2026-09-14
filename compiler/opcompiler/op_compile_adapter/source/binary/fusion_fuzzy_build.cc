@@ -56,7 +56,7 @@ void BinaryManager::ShapeLimitedGeneralize(int64_t &shapeValue, const int64_t &v
     if (item != rangeSection.end()) {
       newShapeRange.emplace_back(*item);
     } else {
-      TE_WARNLOGF("Not find range for %ld in rangeSection.", shapeValue);
+      TE_WARNLOGF("Did not find range for %ld in rangeSection.", shapeValue);
       return;
     }
   }

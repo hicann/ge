@@ -64,7 +64,7 @@ Status MarkGraphUnknownStatusPass::Run(ComputeGraphPtr graph) {
   }
 
   GE_CHK_BOOL_RET_STATUS(!(is_graph_no_tiling && is_unknown_shape), PARAM_INVALID,
-                         "No tiling graph[%s] not support unknown shape node", graph->GetName().c_str());
+                         "No tiling graph[%s] does not support unknown shape node", graph->GetName().c_str());
 
   const auto &node = graph->GetParentNode();
   if (!is_unknown_shape && !is_graph_no_tiling && node != nullptr && node->GetType() == PARTITIONEDCALL) {

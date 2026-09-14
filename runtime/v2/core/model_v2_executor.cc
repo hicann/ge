@@ -69,7 +69,7 @@ inline ge::graphStatus CheckModelInputsNum(const void *void_ed, size_t tensor_nu
                  "Check model input num failed, add overflow, input tensor num(%zu), append input num(%zu)", tensor_num,
                  append_num);
   GE_ASSERT_TRUE((total_num == ed->input_num),
-                 "Check model input num failed, input num not match, expect input num(%zu), "
+                 "Check model input num failed, input num does not match, expect input num(%zu), "
                  "current total inputs num(%zu) = input tensor num(%zu) + append input num(%zu)",
                  ed->input_num, total_num, tensor_num, append_num);
   return ge::GRAPH_SUCCESS;

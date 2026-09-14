@@ -101,13 +101,13 @@ Status HcomOmeUtil::GetHcclDataType(const ge::ConstOpDescPtr &op_desc,
     const auto iter = kConstOpHcclDataType.find(static_cast<int64_t>(src_data_type));
     if (iter == kConstOpHcclDataType.end()) {
       REPORT_INNER_ERR_MSG("E19999",
-                           "Attr:%s in op:%s(%s), value data_type:%s, not support in kConstOpHcclDataType now, "
+                           "Attr:%s in op:%s(%s), value data_type:%s, does not support in kConstOpHcclDataType now, "
                            "check invalid",
                            HCOM_ATTR_DATA_TYPE.c_str(), op_desc->GetName().c_str(), op_desc->GetType().c_str(),
                            ge::TypeUtils::DataTypeToSerialString(src_data_type).c_str());
       GELOGE(PARAM_INVALID,
              "[Check][Param] Attr:%s in op:%s(%s), value data_type:%s, "
-             "not support in kConstOpHcclDataType now",
+             "does not support in kConstOpHcclDataType now",
              HCOM_ATTR_DATA_TYPE.c_str(), op_desc->GetName().c_str(), op_desc->GetType().c_str(),
              ge::TypeUtils::DataTypeToSerialString(src_data_type).c_str());
       return PARAM_INVALID;

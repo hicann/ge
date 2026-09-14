@@ -45,7 +45,7 @@ Status ReshapeKernel::Compute(const ge::OpDescPtr op_desc_ptr, const std::vector
   auto out_shape_size = output_tensor_desc.GetShape().GetShapeSize();
   // check input_shape_size should equal with output_shape_size except scalar
   if ((in_shape_size != out_shape_size) && ((in_shape_size + out_shape_size) != 1)) {
-    GELOGW("Reshape %s input shape size %ld not match with output shape size %ld", op_desc_ptr->GetName().c_str(),
+    GELOGW("Reshape %s input shape size %ld does not match with output shape size %ld", op_desc_ptr->GetName().c_str(),
            in_shape_size, out_shape_size);
     return NOT_CHANGED;
   }

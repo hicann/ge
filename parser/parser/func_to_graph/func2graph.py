@@ -20,7 +20,12 @@ from ctypes import POINTER, c_char_p, c_int, c_size_t, c_uint8, c_void_p
 from pathlib import Path
 
 import tensorflow as tf
-from tensorflow.core.framework import graph_pb2, tensor_shape_pb2, types_pb2, versions_pb2
+from tensorflow.core.framework import (
+    graph_pb2,
+    tensor_shape_pb2,
+    types_pb2,
+    versions_pb2,
+)
 from tensorflow.python.eager import context
 from tensorflow.python.framework import ops, versions
 from tensorflow.python.framework.errors_impl import NotFoundError
@@ -72,7 +77,9 @@ def create_retval_for_output_nodes(fdef, graph_def, nested_to_flat_tensor_name):
         node_def.op = "_Retval"
         node_def.attr["T"].type = arg_def.type
         node_def.attr["index"].i = i
-        node_def.attr["op_def"].s = ops.get_default_graph()._get_op_def(node_def.op).SerializeToString()
+        node_def.attr["op_def"].s = (
+            ops.get_default_graph()._get_op_def(node_def.op).SerializeToString()
+        )
 
         ret_name = fdef.ret[arg_def.name]
         node_def.input.append(nested_to_flat_tensor_name[ret_name])
@@ -186,7 +193,9 @@ def convert_function_def_to_graph_def(fdef, input_shapes=None, copy_functions=Tr
     # Build the tensor name mapping then flatten the tensor names.
     # See comment on `FunctionDef.node_def` on how the tensor naming in
     # FunctionDefs is different from GraphDefs.
-    nested_to_flat_tensor_name = build_tensor_name(fdef, default_graph, copied_functions, graph_def)
+    nested_to_flat_tensor_name = build_tensor_name(
+        fdef, default_graph, copied_functions, graph_def
+    )
 
     # Update inputs of all nodes in graph.
     for node_def in graph_def.node:
@@ -207,7 +216,9 @@ def convert_graphs(filename):
             graph_def.ParseFromString(f.read())
             tf.import_graph_def(graph_def, name="")
             if len(graph_def.library.function) == 0:
-                print("INFO: The input model does not contain a functionDef and does not require conversion.")
+                print(
+                    "INFO: The input model does not contain a functionDef and does not require conversion."
+                )
                 return
             try:
                 convert_subgraphs(graph_def, filename)
@@ -298,7 +309,11 @@ def convert_subgraphs(graph_def, filename):
         return
     for i, fdef in enumerate(graph_def.library.function):
         sub_graph, _ = convert_function_def_to_graph_def(fdef, copy_functions=False)
-        print("INFO: Convert FunctionDef, index:{}, name:{}".format(str(i), fdef.signature.name))
+        print(
+            "INFO: Convert FunctionDef, index:{}, name:{}".format(
+                str(i), fdef.signature.name
+            )
+        )
         sub_graph_name = "{}.pb".format(fdef.signature.name)
         result_path = "{}/results".format(os.path.dirname(os.path.abspath(filename)))
         tf.io.write_graph(sub_graph, result_path, sub_graph_name, as_text=False)
@@ -315,10 +330,16 @@ def convert_subgraphs(graph_def, filename):
         lib.GeGraphDefSetGraph(ge_graph_def, data_buffer, data_len)
 
         lib.GraphDefLibAddGraphDef(graph_def_library, ge_graph_def)
-        print(lib.GeGraphDefToString(lib.GraphDefLibGetGraphDef(graph_def_library, i)).decode("utf-8"))
+        print(
+            lib.GeGraphDefToString(
+                lib.GraphDefLibGetGraphDef(graph_def_library, i)
+            ).decode("utf-8")
+        )
 
     # Write to prototxt
-    graph_def_file = "{}/graph_def_library.pbtxt".format(os.path.dirname(os.path.abspath(filename)))
+    graph_def_file = "{}/graph_def_library.pbtxt".format(
+        os.path.dirname(os.path.abspath(filename))
+    )
     print("graph_def_file: ", graph_def_file)
     try:
         with open(graph_def_file, "w") as f:
@@ -352,9 +373,11 @@ def usage():
 if __name__ == "__main__":
     model = ""
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "-v-h-m:", ["version", "help", "model="])
+        opts, args = getopt.getopt(
+            sys.argv[1:], "-v-h-m:", ["version", "help", "model="]
+        )
     except getopt.GetoptError:
-        print("ERROR: Input parameters is invalid, use '--help' to view the help.")
+        print("ERROR: Input parameters are invalid, use '--help' to view the help.")
         sys.exit()
     for opt_name, opt_value in opts:
         if opt_name in ("-m", "--model"):
@@ -368,4 +391,6 @@ if __name__ == "__main__":
             print("version 1.0.0")
             break
     if len(sys.argv) == 1:
-        print("INFO: Please specify the input parameters, and use '--help' to view the help.")
+        print(
+            "INFO: Please specify the input parameters, and use '--help' to view the help."
+        )

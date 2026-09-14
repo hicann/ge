@@ -100,7 +100,7 @@ void GetInOutStr(const GraphNodesInOut &in_out_map, const string &node_name, std
                  std::vector<std::string> &outputs) {
   const auto in_out_iter = in_out_map.find(node_name);
   if (in_out_iter == in_out_map.end()) {
-    GELOGI("Not find input or output info for node:%s.", node_name.c_str());
+    GELOGI("Not found input or output info for node:%s.", node_name.c_str());
     return;
   }
   const auto inputs_data = in_out_iter->second.first;

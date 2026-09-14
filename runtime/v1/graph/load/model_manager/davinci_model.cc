@@ -2479,17 +2479,19 @@ Status DavinciModel::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> 
         // id 0 indicates that the input address is within the feature map address range
         input_indexes_to_copy_info_[input_index] = {static_cast<uint32_t>(mem_allocation_and_offset.id),
                                                     mem_allocation_and_offset.offset, data_size};
-        GELOGW("[mem allocation][input] model_id %u, input_index %u, op_name %s op_type %s not support zero copy, %s.",
-               model_id_, input_index, item.second->GetName().c_str(), item.second->GetType().c_str(),
-               input_indexes_to_copy_info_[input_index].ToString().c_str());
+        GELOGW(
+            "[mem allocation][input] model_id %u, input_index %u, op_name %s op_type %s does not support zero copy, "
+            "%s.",
+            model_id_, input_index, item.second->GetName().c_str(), item.second->GetType().c_str(),
+            input_indexes_to_copy_info_[input_index].ToString().c_str());
         // RefData 被识别不能零拷贝的可定位手段
         GE_ASSERT_TRUE((item.second->GetType() != REFDATA),
-                       "model_id %u, input_index %u, op_name %s op_type %s not support zero copy", model_id_,
+                       "model_id %u, input_index %u, op_name %s op_type %s does not support zero copy", model_id_,
                        input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
 
         // host input index随路拷贝只支持零拷贝场景
         if (copy_host_input_indexes_.count(input_index) != 0U) {
-          GELOGW("model_id %u, host_input_index %u, op_name %s op_type %s not support zero copy", model_id_,
+          GELOGW("model_id %u, host_input_index %u, op_name %s op_type %s does not support zero copy", model_id_,
                  input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
         }
 
@@ -2526,8 +2528,8 @@ Status DavinciModel::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> 
       // 保存随路拷贝的io的索引以及长度，预留保存device地址的成员，只有支持零拷贝的走该流程
       if (copy_host_input_indexes_.count(input_index) > 0U) {
         GE_ASSERT_TRUE((item.second->GetType() != REFDATA),
-                       "model_id %u, input_index %u, op_name %s op_type %s not support host input index ", model_id_,
-                       input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
+                       "model_id %u, input_index %u, op_name %s op_type %s does not support host input index ",
+                       model_id_, input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
         CopyHostInputInfo copy_host_input = {};
         copy_host_input.input_index = input_index;
         copy_host_input.tensor_size = tensor_size;
@@ -2603,7 +2605,7 @@ Status DavinciModel::GenOutputMemAllocations(const std::vector<OpDescPtr> &outpu
         uint32_t id = 0xFFFFFFFFU;
         uint64_t offset = logical_addr;
         if (mem_types[i] != kVarMemType) {
-          GE_ASSERT_TRUE(ret == SUCCESS, "not find 0x%" PRIx64 " in allocating table", logical_addr);
+          GE_ASSERT_TRUE(ret == SUCCESS, "not found 0x%" PRIx64 " in allocating table", logical_addr);
           id = static_cast<uint32_t>(mem_allocation_and_offset.id);
           offset = mem_allocation_and_offset.offset;
         }
@@ -3025,7 +3027,7 @@ Status DavinciModel::GetDynamicDimsNodeInfo(const NodePtr &node) {
     netoutput_last_input_addr_ = ValueToPtr(input_addr[get_dynamic_dims_index]);
     netoutput_last_input_size_ = input_size[get_dynamic_dims_index];
     shape_of_cur_dynamic_dims_ = static_cast<size_t>(input_desc->GetShape().GetDims().at(0U));
-    GELOGD("Shape of cur dynamic dims is %zu, size is %" PRId64 ", addr is %p.", shape_of_cur_dynamic_dims_,
+    GELOGD("Shape of cur dynamic dims are %zu, size is %" PRId64 ", addr is %p.", shape_of_cur_dynamic_dims_,
            netoutput_last_input_size_, netoutput_last_input_addr_);
   }
   return SUCCESS;
@@ -3426,7 +3428,7 @@ Status DavinciModel::LoadWithQueue() {
                          input_queue_attrs_.size(), input_data_info_.size(), input_queue_attrs_.size(),
                          input_fusion_offsets_.size(), model_id_);
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_QUEUE_ID_INVALID,
-           "[Check][Param] Input queue ids not match model: "
+           "[Check][Param] Input queue ids do not match model: "
            "input_queue=%zu input_data=%zu, model_id:%u",
            input_queue_attrs_.size(), input_data_info_.size(), model_id_);
     return ACL_ERROR_GE_EXEC_MODEL_QUEUE_ID_INVALID;
@@ -3438,7 +3440,7 @@ Status DavinciModel::LoadWithQueue() {
                          "check invalid",
                          output_queue_attrs_.size(), output_data_info_.size(), model_id_);
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_QUEUE_ID_INVALID,
-           "[Check][Param] Output queue ids not match model: output_queue=%zu output_data=%zu, model_id:%u",
+           "[Check][Param] Output queue ids do not match model: output_queue=%zu output_data=%zu, model_id:%u",
            output_queue_attrs_.size(), output_data_info_.size(), model_id_);
     return ACL_ERROR_GE_EXEC_MODEL_QUEUE_ID_INVALID;
   }
@@ -3629,7 +3631,8 @@ Status DavinciModel::BindInputQueue() {
   for (size_t i = 0U; i < input_queue_attrs_.size(); ++i) {
     const auto it = input_data_info_.find(static_cast<uint32_t>(i));
     if (it == input_data_info_.end()) {
-      GELOGE(FAILED, "[Check][Param] Input not match: tensor num=%zu, Queue id index=%zu", input_data_info_.size(), i);
+      GELOGE(FAILED, "[Check][Param] Input does not match: tensor num=%zu, Queue id index=%zu", input_data_info_.size(),
+             i);
       return FAILED;
     }
 
@@ -4557,7 +4560,8 @@ Status DavinciModel::CopyInputData(const InputData &input_data) {
                                  std::to_string(blobs.size());
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                 std::vector<const char_t *>({reason.c_str()}));
-      GELOGE(FAILED, "[Check][Param] Blobs not match: blobs=%zu, model input num=%zu, required index=%u, op_name(%s)",
+      GELOGE(FAILED,
+             "[Check][Param] Blobs do not match: blobs=%zu, model input num=%zu, required index=%u, op_name(%s)",
              blobs.size(), input_data_info_.size(), data_idx, data_info.second.GetOpName().c_str());
       return FAILED;
     }
@@ -4619,7 +4623,8 @@ Status DavinciModel::CopyInputDataWithMergeH2D(const InputData &input_data) {
                                  std::to_string(blobs.size());
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                 std::vector<const char_t *>({reason.c_str()}));
-      GELOGE(FAILED, "[Check][Param] Blobs not match: blobs=%zu, model input num=%zu, required index=%zu, op_name(%s)",
+      GELOGE(FAILED,
+             "[Check][Param] Blobs do not match: blobs=%zu, model input num=%zu, required index=%zu, op_name(%s)",
              blobs.size(), input_data_info_.size(), data_idx, data_info.second.GetOpName().c_str());
       return FAILED;
     }
@@ -5456,7 +5461,7 @@ Status DavinciModel::GenOutputTensorInfo(OutputData &output_data, std::vector<ge
     gert::Tensor gert_tensor;
     GE_ASSERT_SUCCESS(TensorTransUtils::GeTensor2GertTensor(ge_tensor, gert_tensor));
     outputs.emplace_back(std::move(gert_tensor));
-    GELOGD("Output index:%zu, output dims is %s, data length:%" PRIu64 ".", i, ToString(output_shape_info[i]).c_str(),
+    GELOGD("Output index:%zu, output dims are %s, data length:%" PRIu64 ".", i, ToString(output_shape_info[i]).c_str(),
            output_size_info[i]);
   }
 
@@ -5492,7 +5497,7 @@ void DavinciModel::AssembleListenerOutput(const std::shared_ptr<RunArgs> &args, 
     GE_CHK_RT_EXEC(ret, return);
   }
   OutputData output_data;
-  GELOGD("Cur dynamic dims is %s.", ToString(cur_dynamic_dims_).c_str());
+  GELOGD("Cur dynamic dims are %s.", ToString(cur_dynamic_dims_).c_str());
   if (GenOutputTensorInfo(output_data, outputs) != SUCCESS) {
     return;
   }
@@ -7657,7 +7662,7 @@ Status DavinciModel::InitCase(const OpDescPtr &op_desc) {
 Status DavinciModel::InitModelStream(aclrtStream const stream) {
   const ExecuteMode curr_mode = is_async_mode_ ? ExecuteMode::ASYNCHRONIZATION : ExecuteMode::SYNCHRONIZATION;
   GE_CHK_BOOL_RET_STATUS((curr_mode == last_execute_mode_) || (last_execute_mode_ == ExecuteMode::INITIALIZATION),
-                         INTERNAL_ERROR, "[Check][Param] NnExecute not support mix execute.");
+                         INTERNAL_ERROR, "[Check][Param] NnExecute does not support mix execute.");
   last_execute_mode_ = curr_mode;
 
   // asynchronize mode, use user input stream.
@@ -8616,7 +8621,7 @@ Status DavinciModel::GetCurDynamicDims(const std::vector<std::vector<int64_t>> &
     }
   }
   if (logLevel_ <= DLOG_DEBUG) {
-    GELOGD("Cur dynamic dims is %s.", ToString(cur_dynamic_dims).c_str());
+    GELOGD("Cur dynamic dims are %s.", ToString(cur_dynamic_dims).c_str());
   }
 
   for (const auto &dynamic_dim : run_context_.dynamic_shape_dims) {
@@ -8629,7 +8634,7 @@ Status DavinciModel::GetCurDynamicDims(const std::vector<std::vector<int64_t>> &
                              " is not in the dynamic dimension list configured by dynamic_dims";
   REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                             std::vector<const char_t *>({reason.c_str()}));
-  GELOGE(INTERNAL_ERROR, "[Check][Param] Cur dynamic dims is %s, does not exist in options.",
+  GELOGE(INTERNAL_ERROR, "[Check][Param] Cur dynamic dims are %s, does not exist in options.",
          ToString(cur_dynamic_dims).c_str());
   return INTERNAL_ERROR;
 }
@@ -8638,7 +8643,7 @@ void DavinciModel::ParseInputsDimsForData(const std::vector<std::vector<int64_t>
                                           std::vector<std::vector<int64_t>> &real_input_dims) const {
   GELOGD("Start parse input dims from data.");
   for (const auto &shape_dims : tensor_input_dims) {
-    GELOGD("Input tensor dims is %s.", ToString(shape_dims).c_str());
+    GELOGD("Input tensor dims are %s.", ToString(shape_dims).c_str());
     real_input_dims.emplace_back(shape_dims);
   }
 }

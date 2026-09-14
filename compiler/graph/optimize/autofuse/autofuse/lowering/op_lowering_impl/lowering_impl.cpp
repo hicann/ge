@@ -323,7 +323,7 @@ graphStatus LowerTile(const NodePtr &node) {
 
   // 3. 如果in_dims长度小，则需要从前往后补轴
   LOWERING_WARN_RECORD_REASON(multiples.size() >= in_dims.size(), node,
-                              "Not support multiples.size=%zu < in_dims.size=%zu", multiples.size(), in_dims.size());
+                              "Not supported multiples.size=%zu < in_dims.size=%zu", multiples.size(), in_dims.size());
   auto new_axis_count = multiples.size() - in_dims.size();
   std::vector<loop::BroadcastOp::DimKind> brc_status{new_axis_count, loop::BroadcastOp::DimKind::NEW_AXIS};
   std::deque<size_t> concat_dims;
@@ -344,7 +344,7 @@ graphStatus LowerTile(const NodePtr &node) {
   }
 
   // 支持Lowering成单个concat
-  LOWERING_WARN_RECORD_REASON(concat_dims.size() == 1U, node, "Not support more than 1 axis to be tiled");
+  LOWERING_WARN_RECORD_REASON(concat_dims.size() == 1U, node, "Not supported more than 1 axis to be tiled");
   auto in_anchor = node->GetInDataAnchor(0);
   GE_ASSERT_NOTNULL(in_anchor);
   auto dim = concat_dims[0];
@@ -590,7 +590,7 @@ bool InputIsConditionNode(const NodePtr &node) {
     GE_ASSERT_NOTNULL(in_node);
     if (find(kControlOpTypes.begin(), kControlOpTypes.end(), in_node->GetType()) != kControlOpTypes.end()) {
       node_peerin_node_is_branch = true;
-      GELOGI("peerin nodes is branch type: %s", node->GetName().c_str());
+      GELOGI("peerin nodes are branch type: %s", node->GetName().c_str());
       break;
     }
   }
@@ -990,7 +990,7 @@ graphStatus LowerGather(const NodePtr &node) {
       negative_index_support == false || op_impl_mode != gather_mode_two, node,
       "Gather with negative_index_support must be in high_precision mode, not high_performance mode");
   LOWERING_WARN_RECORD_REASON(op_impl_mode != gather_mode_two, node, "Gather is in high_performance mode");
-  LOWERING_WARN_RECORD_REASON(batch_dims == 0, node, "Batch dims is not 0");
+  LOWERING_WARN_RECORD_REASON(batch_dims == 0, node, "Batch dims are not 0");
   std::vector<Expression> dims;
   for (auto &anchor : node->GetAllInDataAnchors()) {
     if (anchor == nullptr || anchor->GetPeerOutAnchor() == nullptr) {

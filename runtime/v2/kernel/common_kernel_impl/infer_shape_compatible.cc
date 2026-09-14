@@ -87,7 +87,7 @@ ge::graphStatus UpdateOutputShapeToContext(const ge::OpDescPtr &op_desc, KernelC
   auto output_num = context->GetOutputNum();
   auto output_num_on_op = op_desc->GetOutputsSize();
   if (output_num_on_op != output_num) {
-    GELOGE(ge::PARAM_INVALID, "Output num on op %s is %zu, output num on context is %zu, not match.",
+    GELOGE(ge::PARAM_INVALID, "Output num on op %s is %zu, output num on context is %zu, does not match.",
            op_desc->GetName().c_str(), output_num_on_op, output_num);
     return ge::PARAM_INVALID;
   }
@@ -112,7 +112,7 @@ ge::graphStatus UpdateInputShapeRangeToOpDesc(KernelContext *context, ge::OpDesc
   auto input_shapes_num = context->GetInputNum() - other_inputs_size;
   auto input_num_on_op = op_desc->GetInputsSize();
   if (input_num_on_op != input_shapes_num) {
-    GELOGE(ge::PARAM_INVALID, "Input num on op %s is %zu, input num on context is %zu, not match.",
+    GELOGE(ge::PARAM_INVALID, "Input num on op %s is %zu, input num on context is %zu, does not match.",
            op_desc->GetName().c_str(), input_num_on_op, input_shapes_num);
     return ge::PARAM_INVALID;
   }
@@ -145,7 +145,7 @@ ge::graphStatus UpdateOutputShapeRangeToContext(const ge::OpDescPtr &op_desc, Ke
   GE_ASSERT_TRUE(
       !ge::MulOverflow(static_cast<size_t>(op_desc->GetOutputsSize()), kShapeRangeOutputOfNode, size_of_output));
   if (size_of_output != output_num) {
-    GELOGE(ge::PARAM_INVALID, "Output num on op %s is %zu, output num on context is %zu, not match.",
+    GELOGE(ge::PARAM_INVALID, "Output num on op %s is %zu, output num on context is %zu, does not match.",
            op_desc->GetName().c_str(), size_of_output, output_num);
     return ge::PARAM_INVALID;
   }

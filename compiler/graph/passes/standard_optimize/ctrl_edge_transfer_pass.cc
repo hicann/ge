@@ -50,7 +50,7 @@ Status CtrlEdgeTransferPass::Run(ge::ComputeGraphPtr graph) {
     auto op_type = op_desc->GetType();
     if (op_type == CONSTANT || op_type == CONSTANTOP) {
       if (n->GetInAllNodes().empty()) {
-        GELOGD("[CtrlEdgeTransferPass] node [%s] in nodes is empty", n->GetName().c_str());
+        GELOGD("[CtrlEdgeTransferPass] node [%s] in nodes are empty", n->GetName().c_str());
         continue;
       }
 

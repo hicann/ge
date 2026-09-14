@@ -518,7 +518,7 @@ void GraphPassUtil::RecordOriginalOpAttrs(const std::vector<ge::NodePtr> &origin
       }
       for (const auto &pass_name_tmp : pass_names) {
         if (op_attrs_maps_tmp->find(pass_name_tmp) == op_attrs_maps_tmp->cend()) {
-          GELOGD("Not find pass_name[%s] in ATTR_NAME_ORIGIN_OP_ATTRS_MAP", pass_name_tmp.c_str());
+          GELOGD("Not found pass_name[%s] in ATTR_NAME_ORIGIN_OP_ATTRS_MAP", pass_name_tmp.c_str());
           continue;
         }
         (void)origin_op_attrs_map->insert(

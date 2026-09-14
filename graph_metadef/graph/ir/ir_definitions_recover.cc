@@ -145,7 +145,7 @@ ge::graphStatus ValidateIrInputOutputOrderCompatibility(const ge::OpDescPtr &des
   // 验证输入顺序兼容性
   GE_ASSERT_TRUE(ValidateIrOrderCompatibility(ir_inputs_in_node, ir_def.inputs),
                  "Compatibility failed: operator[%s][%s] input order or type has changed. "
-                 "ir_inputs_in_node is [%s], ir_def.inputs is [%s]",
+                 "ir_inputs_in_node are [%s], ir_def.inputs are [%s]",
                  desc->GetName().c_str(), desc->GetType().c_str(),
                  IrDefsToString<ge::RecoverIrUtils::InputIrDefs>(ir_inputs_in_node).c_str(),
                  IrDefsToString<ge::RecoverIrUtils::InputIrDefs>(ir_def.inputs).c_str());
@@ -157,7 +157,7 @@ ge::graphStatus ValidateIrInputOutputOrderCompatibility(const ge::OpDescPtr &des
                  desc->GetName().c_str(), desc->GetType().c_str(), ir_outputs_in_node.size(), ir_def.outputs.size());
   GE_ASSERT_TRUE(ValidateIrOrderCompatibility(ir_outputs_in_node, ir_def.outputs),
                  "Compatibility failed: operator[%s][%s] output order or type has changed. "
-                 "ir_outputs_in_node is [%s], ir_def.outputs is [%s]",
+                 "ir_outputs_in_node are [%s], ir_def.outputs are [%s]",
                  desc->GetName().c_str(), desc->GetType().c_str(),
                  IrDefsToString<ge::RecoverIrUtils::OutputIrDefs>(ir_outputs_in_node).c_str(),
                  IrDefsToString<ge::RecoverIrUtils::OutputIrDefs>(ir_def.outputs).c_str());

@@ -191,7 +191,7 @@ static aclError GetModelOriDimsOm2(const std::shared_ptr<gert::Om2ModelExecutor>
 
   // Parse NHW from input Dims when inputDims is not empty
   if (input_dims.empty()) {
-    ACL_LOG_INNER_ERROR("[Check][InputDims]get model origin input dims fail, origin input dims is empty");
+    ACL_LOG_INNER_ERROR("[Check][InputDims]get model origin input dims fail, origin input dims are empty");
     return ACL_ERROR_GE_FAILURE;
   }
   // Get the index of the maximum gear
@@ -289,7 +289,7 @@ static aclError GetAndCheckAippOutputShapeOm2(const std::shared_ptr<gert::Om2Mod
       return ACL_ERROR_INVALID_PARAM;
     }
   } else {
-    ACL_LOG_INFO("cant not get model H W N, current used model is old");
+    ACL_LOG_INFO("cannot get model H W N, current used model is old");
   }
   return ACL_SUCCESS;
 }
@@ -828,7 +828,7 @@ aclError aclmdlSetInputAIPPImplOm2(uint32_t modelId, aclmdlDataset *dataset, siz
 
   mdlRet = GetAndCheckAippParamsOm2(executor, modelId, index, aippParmsSet);
   if (mdlRet != ACL_SUCCESS) {
-    ACL_LOG_ERROR("[Check][AippParams]Dynamic AIPP parameters is invalid, parameters verification failed");
+    ACL_LOG_ERROR("[Check][AippParams]Dynamic AIPP parameters are invalid, parameters verification failed");
     acl::AclErrorLogManager::ReportInputError(
         acl::INVALID_AIPP_MSG, std::vector<const char *>({"param", "reason"}),
         std::vector<const char *>({"parameters", "parameters verification failed"}));

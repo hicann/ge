@@ -251,7 +251,7 @@ bool BinaryManager::IsSpecShapeAndRange(const OpBuildTaskPtr &opTask) {
   for (const auto &node : opTask->opNodes) {
     auto opDesc = node->GetOpDesc();
     if (!CheckIsSpecShape(opDesc)) {
-      TE_DBGLOG("Node(%s) is not spec shape[-2,] or all dims is -1", node->GetName().c_str());
+      TE_DBGLOG("Node(%s) is not spec shape[-2,] or all dims are -1", node->GetName().c_str());
       return false;
     }
   }
@@ -311,7 +311,7 @@ bool BinaryManager::GetJsonFilePathInBinList(const OpBuildTaskPtr &opTask, const
   try {
     binFilePath = iter.value().get<std::string>();
   } catch (const std::exception &e) {
-    TE_WARNLOG("Not get node(%s) binFilePath value. reason is %s.", opName.c_str(), e.what());
+    TE_WARNLOG("Did not get node(%s) binFilePath value. reason is %s.", opName.c_str(), e.what());
     return false;
   }
   TE_DBGLOG("Node(%s) get bin info file path:%s.", opName.c_str(), binFilePath.c_str());

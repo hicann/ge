@@ -3953,7 +3953,7 @@ TEST_F(SymbolicShapeComputeST, test_select_inputs_invalid) {
   ASSERT_NE(select_node, nullptr);
   SymbolicShapeInference ssi;
   ssi.Infer(cg);
-  ASSERT_NE(stub.GetSlogStub().FindLog(DLOG_WARN, "Select not support, inputs symbol value is empty."), -1);
+  ASSERT_NE(stub.GetSlogStub().FindLog(DLOG_WARN, "Select is not supported, inputs symbol value is empty."), -1);
   stub.GetSlogStub().Clear();
 }
 
@@ -3982,7 +3982,7 @@ TEST_F(SymbolicShapeComputeST, test_select_shape_invalid) {
   ASSERT_NE(select_node, nullptr);
   SymbolicShapeInference ssi;
   ssi.Infer(cg);
-  ASSERT_NE(stub.GetSlogStub().FindLog(DLOG_WARN, "Select not support, check inputs shape failed,"), -1);
+  ASSERT_NE(stub.GetSlogStub().FindLog(DLOG_WARN, "Select is not supported, check inputs shape failed,"), -1);
   stub.GetSlogStub().Clear();
 }
 
@@ -4012,7 +4012,7 @@ TEST_F(SymbolicShapeComputeST, test_select_broadcast_failed1) {
   SymbolicShapeInference ssi;
   ssi.Infer(cg);
 
-  ASSERT_NE(stub.GetSlogStub().FindLog(DLOG_WARN, "Select not support, broadcast failed."), -1);
+  ASSERT_NE(stub.GetSlogStub().FindLog(DLOG_WARN, "Select is not supported, broadcast failed."), -1);
   stub.GetSlogStub().Clear();
 }
 
@@ -4042,7 +4042,7 @@ TEST_F(SymbolicShapeComputeST, test_select_broadcast_failed2) {
   SymbolicShapeInference ssi;
   ssi.Infer(cg);
 
-  ASSERT_NE(stub.GetSlogStub().FindLog(DLOG_WARN, "Select not support, broadcast failed."), -1);
+  ASSERT_NE(stub.GetSlogStub().FindLog(DLOG_WARN, "Select is not supported, broadcast failed."), -1);
   stub.GetSlogStub().Clear();
 }
 

@@ -667,9 +667,9 @@ std::string DNNEngineManager::GetHostCpuEngineName(const std::vector<OpInfo> &op
       return kHostCpuEngineName;
     }
   }
-  GELOGE(FAILED, "[Get][HostCpuEngineName]Failed, HostCpuEngine not support [%s, %s]", op_desc->GetName().c_str(),
+  GELOGE(FAILED, "[Get][HostCpuEngineName]Failed, HostCpuEngine does not support [%s, %s]", op_desc->GetName().c_str(),
          op_desc->GetType().c_str());
-  REPORT_INNER_ERR_MSG("E19999", "Get HostCpuEngineName failed, HostCpuEngine not support [%s, %s]",
+  REPORT_INNER_ERR_MSG("E19999", "Get HostCpuEngineName failed, HostCpuEngine does not support [%s, %s]",
                        op_desc->GetName().c_str(), op_desc->GetType().c_str());
   return "";
 }
@@ -760,7 +760,7 @@ Status DNNEngineManager::ParserJsonFile() {
 
 Status DNNEngineManager::ParserEngineMessage(const json engines_json, const std::string &scheduler_mark,
                                              std::map<std::string, EngineConfPtr> &engines) const {
-  GELOGI("Begin to parser engine massage");
+  GELOGI("Begin to parse engine message");
   if (engines_json.is_null()) {
     GELOGE(FAILED, "[Check][Param]The message of cal_engines is null");
     REPORT_INNER_ERR_MSG("E19999", "The message of cal_engines is null");
@@ -818,7 +818,7 @@ Status DNNEngineManager::ParserEngineMessage(const json engines_json, const std:
                               std::vector<const char *>({"Parse engine config JSON", e.what()}));
     return FAILED;
   }
-  GELOGI("Parser engine massage success");
+  GELOGI("Parser engine message success");
   return SUCCESS;
 }
 

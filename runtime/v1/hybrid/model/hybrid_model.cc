@@ -367,9 +367,9 @@ Status HybridModel::GetOutputDescInfo(std::vector<InputOutputDescInfo> &output_d
 
   const auto out_size = static_cast<uint32_t>(op_desc->GetInputsSize());
   GE_IF_BOOL_EXEC(out_size != output_desc_list.size(),
-                  REPORT_INNER_ERR_MSG("E19999", "output size[%u] not match output_desc_list size[%zu]", out_size,
+                  REPORT_INNER_ERR_MSG("E19999", "output size[%u] does not match output_desc_list size[%zu]", out_size,
                                        output_desc_list.size());
-                  GELOGE(FAILED, "[Check][Size]output size[%u] not match output_desc_list size[%zu]", out_size,
+                  GELOGE(FAILED, "[Check][Size]output size[%u] does not match output_desc_list size[%zu]", out_size,
                          output_desc_list.size());
                   return FAILED;);
 
@@ -558,7 +558,7 @@ Status HybridModel::GetAippType(const uint32_t index, InputAippType &aipp_type, 
 
 bool HybridModel::CheckHostMemInputOptimization(const std::vector<NodePtr> &node_with_hostmem) const {
   if (node_with_hostmem.empty()) {
-    GELOGD("NOT support host memory input optimization because there is no host memory input node.");
+    GELOGD("Does not support host memory input optimization because there is no host memory input node.");
     return false;
   }
 
@@ -572,7 +572,7 @@ bool HybridModel::CheckHostMemInputOptimization(const std::vector<NodePtr> &node
       return false;
     }
     if ((!node_item_ptr->kernel_task->IsSupportHostMemInputOpt())) {
-      GELOGD("kernel_task[%s] not support host memory input optimization", node_ptr->GetName().c_str());
+      GELOGD("kernel_task[%s] does not support host memory input optimization", node_ptr->GetName().c_str());
       return false;
     }
   }

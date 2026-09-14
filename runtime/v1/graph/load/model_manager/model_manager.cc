@@ -1790,7 +1790,8 @@ Status ModelManager::ExecuteModel(const uint32_t model_id, const aclrtStream str
 
 Status ModelManager::UpdateFeatureMemoryBase(const uint32_t model_id, const uintptr_t mem_base, const size_t size) {
   const auto &hybrid_davinci_model = GetHybridModel(model_id);
-  GE_ASSERT_TRUE(hybrid_davinci_model == nullptr, "[Check][Model] Not support dynamic model, model_id:%u.", model_id);
+  GE_ASSERT_TRUE(hybrid_davinci_model == nullptr, "[Check][Model] Does not support dynamic model, model_id:%u.",
+                 model_id);
 
   const auto &davinci_model = GetModel(model_id);
   GE_ASSERT_NOTNULL(davinci_model, "[Get][Model] Invalid model id %u, please check model loaded.", model_id);
@@ -1806,7 +1807,7 @@ Status ModelManager::PaRemapped(const uint32_t model_id, const uint64_t va, cons
                                 std::vector<std::pair<uint64_t, uint64_t>> &cross_ranges) {
   const auto &hybrid_davinci_model = GetHybridModel(model_id);
   GE_IF_BOOL_EXEC(hybrid_davinci_model != nullptr,
-                  GELOGW("[Check][Model] Not support dynamic model, model_id:%u", model_id);
+                  GELOGW("[Check][Model] Does not support dynamic model, model_id:%u", model_id);
                   return FAILED);
 
   const auto &davinci_model = GetModel(model_id);
@@ -2620,7 +2621,7 @@ Status ModelManager::LaunchKernelCheckAicpuOp(const std::vector<std::string> &ai
     std::string fail_reason;
     for (uint64_t i = 0U; i < res_op_nums; i++) {
       const SysOpInfo &aicpu_info = res_aicpu_op_info_list.at(i);
-      GELOGI("Not support aicpu op type: %" PRIu64 ", kernel_type:%d, opLen:%" PRIu64 ", ret_code:%d",
+      GELOGI("Does not support aicpu op type: %" PRIu64 ", kernel_type:%d, opLen:%" PRIu64 ", ret_code:%d",
              aicpu_info.opType, aicpu_info.kernelsType, aicpu_info.opLen, res_ret_code_list.at(i));
       std::vector<char> op_name(kOpNameMaxSize);
       GE_CHK_RT(aclrtMemcpy(op_name.data(), kOpNameMaxSize, ValueToPtr(aicpu_info.opType), aicpu_info.opLen,

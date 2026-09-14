@@ -213,10 +213,10 @@ aclTensorDesc *aclCreateTensorDescImplOm2(aclDataType dataType, int numDims, con
     return nullptr;
   }
   if ((numDims > 0) && (dims == nullptr)) {
-    ACL_LOG_ERROR("[Check][Dims]dims is null while numDims[%d] > 0", numDims);
+    ACL_LOG_ERROR("[Check][Dims]dims are null while numDims[%d] > 0", numDims);
     acl::AclErrorLogManager::ReportInputError(
         acl::INVALID_PARAM_MSG, std::vector<const char *>({"param", "value", "reason"}),
-        std::vector<const char *>({"numDims", std::to_string(numDims).c_str(), "dims is null while numDims > 0"}));
+        std::vector<const char *>({"numDims", std::to_string(numDims).c_str(), "dims are null while numDims > 0"}));
     return nullptr;
   }
 

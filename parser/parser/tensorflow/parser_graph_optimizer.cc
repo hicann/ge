@@ -223,7 +223,7 @@ Status ParserGraphOptimizer::UpdateGraph(vector<NodePtr> &nodes) {
                   GELOGE(PARAM_INVALID, "Serialize func_def to string failed."); return PARAM_INVALID);
 
   if (nodes.size() == 0) {
-    GELOGE(FAILED, "nodes is empty.");
+    GELOGE(FAILED, "nodes are empty.");
     return PARAM_INVALID;
   }
 

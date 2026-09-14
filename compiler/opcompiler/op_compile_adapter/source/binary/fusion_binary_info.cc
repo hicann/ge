@@ -312,7 +312,7 @@ bool BinaryInfoBase::GenerateDtypeFormatMode(const std::string &opType, const nl
   DtypeFormatMode inputMode;
   DtypeFormatMode outputMode;
   if (binaryInfoParams.empty()) {
-    TE_ERRLOG("opType [%s], binaryInfo params is empty.", opType.c_str());
+    TE_ERRLOG("opType [%s], binaryInfo params are empty.", opType.c_str());
     return false;
   }
   GenerateInOutPutMode(opType, INPUTS, binaryInfoParams, inputMode);
@@ -404,7 +404,7 @@ bool BinaryInfoBase::ProcessSingleOpBinaryInfo(const std::string &opType, const 
   }
   nlohmann::json binaryInfoParams = iterJsonValue[BINARY_INFO_CONFIG_PARAMS];
   if (!GenerateDtypeFormatMode(opType, binaryInfoParams)) {
-    TE_ERRLOG("opType [%s], params is empty. return failed.", opType.c_str());
+    TE_ERRLOG("opType [%s], params are empty. return failed.", opType.c_str());
     return false;
   }
   if (iterJsonValue.find(OP_BINARY_LIST) == iterJsonValue.end()) {

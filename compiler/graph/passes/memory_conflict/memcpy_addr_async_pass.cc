@@ -45,7 +45,7 @@ Status MemcpyAddrAsyncPass::Run(ComputeGraphPtr graph) {
                          static_cast<uint32_t>(rt_ret));
 
   if (value == ACL_DEV_FEATURE_NOT_SUPPORT) {
-    GELOGW("Not support zero copy, skip it.");
+    GELOGW("Zero copy is not supported, skip it.");
     return SUCCESS;
   }
 
@@ -80,7 +80,7 @@ Status MemcpyAddrAsyncPass::Run(ComputeGraphPtr graph) {
     // Hccl tell ge through task def. In this stage, no way to
     // known this information, hard code to mark.
     if (OpUtils::IsHcomNodeNotSupportAddrRefresh(node->GetOpDesc())) {
-      GELOGD("hccl engine op[%s] not support zero copy, need insert identity", node->GetName().c_str());
+      GELOGD("hccl engine op[%s] does not support zero copy, need insert identity", node->GetName().c_str());
       auto sub_graph = node->GetOwnerComputeGraph();
       if (!IsFeatureMapRefreshable(graph, sub_graph)) {
         GE_ASSERT_SUCCESS(InsertMemAddrAsyncNodeBetweenHcclAndRefdata(sub_graph, node),

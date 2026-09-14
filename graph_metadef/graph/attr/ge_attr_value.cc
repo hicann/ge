@@ -1009,7 +1009,7 @@ std::string AttrUtils::ValueTypeToSerialString(const AnyValue::ValueType value_t
     return it->second;
   } else {
     REPORT_INNER_ERR_MSG("E18888", "value_type %d is not supported", value_type);
-    GELOGE(GRAPH_FAILED, "[Check][Param] value_type not support %d", value_type);
+    GELOGE(GRAPH_FAILED, "[Check][Param] value_type %d is not supported", value_type);
     return "";
   }
 }
@@ -1020,7 +1020,7 @@ AnyValue::ValueType AttrUtils::SerialStringToValueType(const string &value_type_
     return it->second;
   } else {
     REPORT_INNER_ERR_MSG("E18888", "value_type_string %s is not supported", value_type_string.c_str());
-    GELOGE(GRAPH_FAILED, "[Check][Param] value_type_string not support %s", value_type_string.c_str());
+    GELOGE(GRAPH_FAILED, "[Check][Param] value_type_string %s is not supported", value_type_string.c_str());
     return AnyValue::VT_NONE;
   }
 }

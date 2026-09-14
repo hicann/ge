@@ -123,7 +123,7 @@ ge::graphStatus GetConv2DWShapeDim(const gert::InferSymbolShapeContext *context,
   // Get w shape
   const auto w_shape = context->GetInputSymbolShape(kWIdxConv2d);
   GE_UNSUPPORTED_IF_NULL(w_shape);
-  GE_ASSERT_TRUE(w_shape->GetDimNum() == kSupportedDimNumConv2d, "Not support input x_shape dim num %lu.",
+  GE_ASSERT_TRUE(w_shape->GetDimNum() == kSupportedDimNumConv2d, "Not supported input x_shape dim num %lu.",
                  w_shape->GetDimNum());
   // Set shapes
   if (w_format == ge::Format::FORMAT_NCHW) {

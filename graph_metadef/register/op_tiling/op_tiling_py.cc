@@ -1401,7 +1401,7 @@ int TbeOpTilingPyInterfaceEx2BackUpInner(const char *const optype, const char *c
                                          size_t run_info_len, const char *const compile_info_hash, uint64_t *elapse,
                                          const OpTilingFunc &tiling_func) {
   if ((optype == nullptr) || (compile_info == nullptr) || (inputs == nullptr) || (outputs == nullptr)) {
-    REPORT_INNER_ERR_MSG("E19999", "optype/compile_info/inputs/outputs is null, %s, %s, %s, %s", optype, compile_info,
+    REPORT_INNER_ERR_MSG("E19999", "optype/compile_info/inputs/outputs are null, %s, %s, %s, %s", optype, compile_info,
                          inputs, outputs);
     return 0;
   }
@@ -1481,7 +1481,7 @@ int TbeOpTilingPyInterfaceEx2NewInner(const char *const optype, const char *cons
                                       size_t run_info_len, const char *const compile_info_hash, uint64_t *elapse,
                                       const OpTilingFuncV2 &tiling_func, const char *const attrs) {
   if ((optype == nullptr) || (compile_info == nullptr) || (inputs == nullptr) || (outputs == nullptr)) {
-    REPORT_INNER_ERR_MSG("E19999", "optype/compile_info/inputs/outputs is null, %s, %s, %s, %s", optype, compile_info,
+    REPORT_INNER_ERR_MSG("E19999", "optype/compile_info/inputs/outputs are null, %s, %s, %s, %s", optype, compile_info,
                          inputs, outputs);
     return 0;
   }
@@ -1541,7 +1541,7 @@ int TbeOpTilingPyInterfaceEx3Inner(const char *const optype, const char *const c
                                    const OpTilingFuncV3 &tiling_func, const OpParseFuncV3 &parse_func,
                                    const char *const attrs) {
   if ((optype == nullptr) || (compile_info == nullptr) || (inputs == nullptr) || (outputs == nullptr)) {
-    REPORT_INNER_ERR_MSG("E19999", "optype/compile_info/inputs/outputs is null, %s, %s, %s, %s", optype, compile_info,
+    REPORT_INNER_ERR_MSG("E19999", "optype/compile_info/inputs/outputs are null, %s, %s, %s, %s", optype, compile_info,
                          inputs, outputs);
     return 0;
   }
@@ -1600,7 +1600,7 @@ int TbeOpTilingPyInterfaceEx4Inner(const char *const optype, const char *const c
                                    const OpTilingFuncV4 &tiling_func, const OpParseFuncV4 &parse_func,
                                    const char *const attrs) {
   if ((optype == nullptr) || (compile_info == nullptr) || (inputs == nullptr) || (outputs == nullptr)) {
-    REPORT_INNER_ERR_MSG("E19999", "optype/compile_info/inputs/outputs is null, %s, %s, %s, %s", optype, compile_info,
+    REPORT_INNER_ERR_MSG("E19999", "optype/compile_info/inputs/outputs are null, %s, %s, %s, %s", optype, compile_info,
                          inputs, outputs);
     return 0;
   }
@@ -1869,8 +1869,8 @@ int TbeOptilingPyInterfaceNew(const char *const op_type, const char *const compi
                               const char *const outputs, char *run_info_json, size_t run_info_len, uint64_t *elapse,
                               const char *const attrs, const char *const extra_info) {
   if ((compile_info == nullptr) || (inputs == nullptr) || (outputs == nullptr)) {
-    GELOGE(ge::GRAPH_FAILED, "compile_info/inputs/outputs is null.");
-    REPORT_INNER_ERR_MSG("E19999", "compile_info/inputs/outputs is null.");
+    GELOGE(ge::GRAPH_FAILED, "compile_info/inputs/outputs are null.");
+    REPORT_INNER_ERR_MSG("E19999", "compile_info/inputs/outputs are null.");
     return 0;
   }
 

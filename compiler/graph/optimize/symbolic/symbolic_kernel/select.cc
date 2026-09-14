@@ -252,7 +252,7 @@ static graphStatus SelectSymbolicKernelCompute(gert::InferSymbolComputeContext *
   const std::vector<ge::Expression> *x1_value = GetInputSymbolicValue(context, 1);
   const std::vector<ge::Expression> *x2_value = GetInputSymbolicValue(context, 2);
   if (!CheckInputsValue(condition_value, x1_value, x2_value)) {
-    GELOGW("Select not support, inputs symbol value is empty.");
+    GELOGW("Select is not supported, inputs symbol value is empty.");
     return UNSUPPORTED;
   }
 
@@ -263,7 +263,7 @@ static graphStatus SelectSymbolicKernelCompute(gert::InferSymbolComputeContext *
   GE_UNSUPPORTED_IF_NULL(x1_shape);
   GE_UNSUPPORTED_IF_NULL(x2_shape);
   if (*x1_shape != *x2_shape) {
-    GELOGW("Select not support, check inputs shape failed, x1_shape: %s, x2_shape: %s.",
+    GELOGW("Select is not supported, check inputs shape failed, x1_shape: %s, x2_shape: %s.",
            SymbolicInferUtil::VectorExpressionToStr(x1_shape->GetDims()).c_str(),
            SymbolicInferUtil::VectorExpressionToStr(x2_shape->GetDims()).c_str());
     return UNSUPPORTED;
@@ -273,20 +273,20 @@ static graphStatus SelectSymbolicKernelCompute(gert::InferSymbolComputeContext *
   std::vector<int64_t> x1_shape_value;
   if (!(GetShapeValue(condition_shape->GetDims(), cond_shape_value)) ||
       !(GetShapeValue(x1_shape->GetDims(), x1_shape_value))) {
-    GELOGW("Select not support, get condition_shape value: %s or x1_shape value: %s failed.",
+    GELOGW("Select is not supported, get condition_shape value: %s or x1_shape value: %s failed.",
            SymbolicInferUtil::VectorExpressionToStr(condition_shape->GetDims()).c_str(),
            SymbolicInferUtil::VectorExpressionToStr(x1_shape->GetDims()).c_str());
     return UNSUPPORTED;
   }
   std::vector<Expression> after_bc_condition;
   if (!Broadcast(*condition_value, cond_shape_value, x1_shape_value, after_bc_condition)) {
-    GELOGW("Select not support, broadcast failed.");
+    GELOGW("Select is not supported, broadcast failed.");
     return UNSUPPORTED;
   }
 
   std::vector<Expression> output_value;
   if (!(CalOutputValue(after_bc_condition, *x1_value, *x2_value, output_value))) {
-    GELOGW("Select not support, cal output value failed.");
+    GELOGW("Select is not supported, cal output value failed.");
     return UNSUPPORTED;
   }
 

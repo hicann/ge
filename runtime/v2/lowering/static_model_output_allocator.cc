@@ -304,13 +304,13 @@ std::vector<bg::DevMemValueHolderPtr> StaticModelOutputAllocator::AllocAllOutput
     }
   }
   if (mem_base_types_offsets.empty()) {
-    GELOGI("ref outputs is empty");
+    GELOGI("ref outputs are empty");
     return {};
   }
 
   auto ref_output_addr_holders = GetRefOutputsAddress(mem_base_types_offsets);
   if (ref_output_addr_holders.size() != mem_base_types_offsets.size()) {
-    GELOGE(ge::FAILED, "size not match! ref_output_addr_holders size is %zu, mem_base_types_offsets size is %zu",
+    GELOGE(ge::FAILED, "size does not match! ref_output_addr_holders size is %zu, mem_base_types_offsets size is %zu",
            ref_output_addr_holders.size(), mem_base_types_offsets.size());
     return {};
   }
@@ -360,7 +360,7 @@ std::vector<bg::DevMemValueHolderPtr> StaticModelOutputAllocator::AllocAllOutput
   const auto size_holders = GetNoReuseOutputsSize(output_reuse_infos);
   auto alloc_mem_holders = bg::AllocMemoriesWithoutGuarder(kOnDeviceHbm, size_holders, global_data, bg::kMainStream);
   if (alloc_mem_holders.size() != size_holders.size()) {
-    GELOGE(ge::FAILED, "size not match! alloc_mem_holders size is %zu, size_holders size is %zu",
+    GELOGE(ge::FAILED, "size does not match! alloc_mem_holders size is %zu, size_holders size is %zu",
            alloc_mem_holders.size(), size_holders.size());
     return {};
   }

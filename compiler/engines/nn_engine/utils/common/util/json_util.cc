@@ -38,7 +38,7 @@ std::string RealPath(const std::string &path) {
   // pclint check，one param in stack can not exceed 1K bytes
   char *resoved_path = new (std::nothrow) char[PATH_MAX];
   if (resoved_path == nullptr) {
-    FE_LOGI("Failed to create resolved path.");
+    FE_LOGW("Failed to create resolved path.");
     return "";
   }
   (void)memset_s(resoved_path, PATH_MAX, 0, PATH_MAX);

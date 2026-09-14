@@ -292,7 +292,7 @@ CompiledGraphSummaryPtr UserGraphControl::GetCompiledGraphSummary() {
   GELOGI("GetCompiledGraphSummary USER_GRAPH[%u]", user_graph_id_);
   ExecutionPoint *ep = order_.GetFirstPoint();
   if (ep == nullptr) {
-    GELOGI("CompiledGraph is not exist. USER_GRAPH[%u]", user_graph_id_);
+    GELOGI("CompiledGraph does not exist. USER_GRAPH[%u]", user_graph_id_);
     return nullptr;
   }
   GELOGD("Get EP[%ld] of USER_GRAPH[%u] for GetCompiledGraphSummary", ep->GetId(), user_graph_id_);
@@ -303,7 +303,7 @@ CompiledGraphSummaryPtr UserGraphControl::GetCompiledGraphSummary() {
 
   auto gep = ep->FindGuarded(inputs);
   if (gep == nullptr || !gep->Compiled()) {
-    GELOGD("Guard is not exist or Compiled");
+    GELOGD("Guard does not exist or Compiled");
     return nullptr;
   }
   GELOGD("Get GEP[compiled_graph_id:%u] [compiled? %d] of EP[%ld] USER_GRAPH[%u].", gep->GetCompiledGraphId(),

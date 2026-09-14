@@ -51,7 +51,7 @@ ge::graphStatus GertTensorData::WanderFrom(const GertTensorData &other, int64_t 
   }
   if (NeedFree()) {
     GE_ASSERT_TRUE(dst_stream_id == GetStreamId(),
-                   "Failed to wandering tensor data %p, the dst data need free, but stream not match %" PRId64
+                   "Failed to wandering tensor data %p, the dst data need free, but stream does not match %" PRId64
                    ", %" PRId64,
                    other.GetAddr(), dst_stream_id, GetStreamId());
   }

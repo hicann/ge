@@ -2670,7 +2670,7 @@ Status GraphManager::ParseOptions(const std::map<std::string, std::string> &opti
   ParseOption(options, kDynamicDims, options_.dynamic_dims);
   ParseOption(options, DYNAMIC_NODE_TYPE, options_.dynamic_node_type);
   ParseOption(options, EVENT, options_.event);
-  GELOGD("Dynamic dims params: input shape is %s, dynamic dims is %s, dynamic node type is %d",
+  GELOGD("Dynamic dims params: input shape is %s, dynamic dims are %s, dynamic node type is %d",
          options_.input_shape.c_str(), options_.dynamic_dims.c_str(), options_.dynamic_node_type);
 
   return SUCCESS;
@@ -4778,7 +4778,7 @@ Status GraphManager::SetConstMemoryBase(uint32_t graph_id, const void *const mem
 
   const auto compute_graph = graph_node->GetComputeGraph();
   GE_ASSERT_NOTNULL(compute_graph, "graph_id:%u.", graph_id);
-  GE_ASSERT_TRUE(!compute_graph->GetGraphUnknownFlag(), "Not support for dynamic compiled graph.");
+  GE_ASSERT_TRUE(!compute_graph->GetGraphUnknownFlag(), "Not supported for dynamic compiled graph.");
 
   auto const_mem = graph_node->GetConstMemoryBase();
   if (const_mem.first != nullptr) {
@@ -4823,7 +4823,7 @@ Status GraphManager::UpdateFeatureMemoryBase(uint32_t graph_id, const void *cons
   GetThreadLocalContext().SetGraphOption(graph_node->GetOptions());
   const auto compute_graph = graph_node->GetComputeGraph();
   GE_ASSERT_NOTNULL(compute_graph, "graph_id:%u.", graph_id);
-  GE_ASSERT_TRUE(!compute_graph->GetGraphUnknownFlag(), "Not support for dynamic compiled graph.");
+  GE_ASSERT_TRUE(!compute_graph->GetGraphUnknownFlag(), "Not supported for dynamic compiled graph.");
 
   bool has_been_set = false;
   bool user_alloc = false;
@@ -4866,7 +4866,7 @@ Status GraphManager::UpdateFeatureMemoryBase(uint32_t graph_id, const void *cons
   GE_ASSERT_SUCCESS(summary->GetFeatureMemoryBaseRefreshable(is_refreshable));
   const auto queryed = graph_node->GetFeatureMemoryBase();
   if (graph_node->GetLoadFlag()) {
-    GE_ASSERT_TRUE(is_refreshable, "Not support for ge.featureBaseRefreshable disabled.");
+    GE_ASSERT_TRUE(is_refreshable, "Not supported for ge.featureBaseRefreshable disabled.");
     GE_ASSERT_SUCCESS(executor_->UpdateFeatureMemoryBase(graph_node, PtrToValue(memory), size), "update mem failed.");
   } else {
     if ((queryed.first != nullptr) && !is_refreshable) {
@@ -5035,7 +5035,7 @@ Status GraphManager::UpdateRefreshableFeatureMemoryBase(uint32_t graph_id, const
 
   const auto compute_graph = graph_node->GetComputeGraph();
   GE_ASSERT_NOTNULL(compute_graph, "graph_id:%u.", graph_id);
-  GE_ASSERT_TRUE(!compute_graph->GetGraphUnknownFlag(), "Not support for dynamic compiled graph.");
+  GE_ASSERT_TRUE(!compute_graph->GetGraphUnknownFlag(), "Not supported for dynamic compiled graph.");
 
   if (IsOm2OnlineMode()) {
     GELOGE(GE_GRAPH_UNSUPPORTED,
@@ -5086,7 +5086,7 @@ Status GraphManager::UpdateRefreshableFeatureMemoryBase(uint32_t graph_id, const
   GE_ASSERT_SUCCESS(summary->GetFeatureMemoryBaseRefreshable(is_refreshable));
   const auto queryed = graph_node->GetRefreshableFeatureMemoryBase();
   if (graph_node->GetLoadFlag()) {
-    GE_ASSERT_TRUE(is_refreshable, "Not support for ge.featureBaseRefreshable disabled.");
+    GE_ASSERT_TRUE(is_refreshable, "Not supported for ge.featureBaseRefreshable disabled.");
     // 加载状态下复用UpdateFeatureMemoryBase, update Refreshable Feature Memory
     GE_ASSERT_SUCCESS(executor_->UpdateFeatureMemoryBase(graph_node, PtrToValue(memory), size), "update mem failed.");
   } else {
@@ -5361,7 +5361,7 @@ Status GraphManager::PaRemapped(const GraphId graph_id, const uint64_t va, const
   const auto compute_graph = graph_node->GetComputeGraph();
   GE_ASSERT_NOTNULL(compute_graph, "graph_id:%u.", graph_id);
   if (compute_graph->GetGraphUnknownFlag()) {
-    GELOGW("[Check][PaRemapped] Not support for dynamic compiled graph, graph_id:%u.", graph_id);
+    GELOGW("[Check][PaRemapped] Not supported for dynamic compiled graph, graph_id:%u.", graph_id);
     return FAILED;
   }
 

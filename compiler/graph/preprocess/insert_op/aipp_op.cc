@@ -134,7 +134,7 @@ Status GetDataDimN(const ge::NodePtr &data_node, ge::Format format, int64_t &bat
                  ("Only format " + TypeUtils::FormatToSerialString(FORMAT_NCHW) + " and " +
                   TypeUtils::FormatToSerialString(FORMAT_NHWC) + " are supported when dynamic AIPP is linked.")
                      .c_str()}));
-        GELOGE(PARAM_INVALID, "[Check][Param] Not support data format:%s, node:%s",
+        GELOGE(PARAM_INVALID, "[Check][Param] Data format:%s is not supported, node:%s",
                TypeUtils::FormatToSerialString(format).c_str(), data_node->GetName().c_str());
         return PARAM_INVALID;
     }
@@ -626,7 +626,7 @@ Status AippOp::GetTargetPosition(ComputeGraphPtr graph, NodePtr &target_input,
     for (const auto &name : func_desc->GetSubgraphInstanceNames()) {
       const auto &subgraph = graph->GetSubgraph(name);
       if (subgraph == nullptr) {
-        REPORT_INNER_ERR_MSG("E19999", "Subgraph:%s of op:%s(%s) not find in graph:%s, check invalid", name.c_str(),
+        REPORT_INNER_ERR_MSG("E19999", "Subgraph:%s of op:%s(%s) not found in graph:%s, check invalid", name.c_str(),
                              func_desc->GetName().c_str(), func_desc->GetType().c_str(), graph->GetName().c_str());
         GELOGE(GE_GRAPH_EMPTY_SUBGRAPH, "[Get][Subgraph] failed, Subgraph:%s of op:%s(%s) is not found in graph:%s",
                name.c_str(), func_desc->GetName().c_str(), func_desc->GetType().c_str(), graph->GetName().c_str());

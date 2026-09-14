@@ -421,7 +421,7 @@ ge::Status CreateCompiledModelBuffer(OmFileSaveHelper &om_file_save_helper, ge::
     ret = SetCompiledPartionData(base_ptr, total_size, {weights_info_buffer}, offset, align_offset);
     GE_ASSERT_TRUE(ret == ge::SUCCESS, "[Mobile] set compiled partition data (weights info buffer) failed.");
   } else {
-    GELOGI("[Mobile] not support save weight info data.");
+    GELOGI("[Mobile] Saving weight info data is not supported.");
   }
   return ge::SUCCESS;
 }
@@ -456,7 +456,7 @@ Status ModelBufferSaver::SaveCompiledModelToBuffer(const ge::GeModelPtr &ge_mode
         SaveCompiledPartion(om_file_save_helper, ModelPartitionType::WEIGHT_INFO, {weights_info_buffer}, align_offset);
     GE_ASSERT_TRUE(ret == SUCCESS, "[Mobile] save compiled partition TASK_INFO failed.");
   } else {
-    GELOGI("[Mobile] not support save WEIGHT_INFO.");
+    GELOGI("[Mobile] Saving WEIGHT_INFO is not supported.");
   }
 
   ret = SaveModelFileHeader(om_file_save_helper, model_info);

@@ -145,7 +145,7 @@ TEST_F(UtestNormalNodeMatcher, EnableIrAttr_SingleAttr_ListIntAttr_IrNameNumMiss
   NormalNodeMatcher matcher(true);
 
   EXPECT_FALSE(matcher.IsMatch(NodeAdapter::GNode2Node(compress_tensor_miss->GetProducer()), target_node));
-  EXPECT_TRUE(ut::WarnLogContain(runtime_stub_, "Ir attr num is not match"));
+  EXPECT_TRUE(ut::WarnLogContain(runtime_stub_, "Ir attr num does not match"));
 }
 
 // compress找不到ir， ir recover自动返回成功了
@@ -170,7 +170,7 @@ TEST_F(UtestNormalNodeMatcher, EnableIrAttr_SingleAttr_ListIntAttr_IrNameWrongMi
   NormalNodeMatcher matcher(true);
   EXPECT_FALSE(matcher.IsMatch(NodeAdapter::GNode2Node(compress_tensor_miss->GetProducer()),
                                NodeAdapter::GNode2Node(compress_tensor_target->GetProducer())));
-  EXPECT_TRUE(ut::WarnLogContain(runtime_stub_, "Ir attr names is not match"));
+  EXPECT_TRUE(ut::WarnLogContain(runtime_stub_, "Ir attr names do not match"));
 }
 
 // compress找不到ir， ir recover自动返回成功了

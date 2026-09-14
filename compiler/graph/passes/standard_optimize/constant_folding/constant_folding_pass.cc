@@ -221,7 +221,7 @@ Status ConstantFoldingPass::ComputePotentialWeight(NodePtr &node, std::vector<Ge
   }
   auto inputs = OpDescUtils::GetWeightsFromNodes(input_nodes_2_out_anchors);
   if (inputs.size() != input_nodes_2_out_anchors.size()) {
-    GELOGW("Get weights from const_inputs size %zu, not match with inputs size %zu. Ignore pass.", inputs.size(),
+    GELOGW("Get weights from const_inputs size %zu, does not match with inputs size %zu. Ignore pass.", inputs.size(),
            input_nodes_2_out_anchors.size());
     return NOT_CHANGED;
   }

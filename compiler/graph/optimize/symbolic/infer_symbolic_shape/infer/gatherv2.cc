@@ -142,7 +142,7 @@ graphStatus InferShape4GatherNd(gert::InferSymbolShapeContext *context) {
   const auto k_symbol = indices_shape->GetDim(indices_dim - 1);
   int64_t k_value = -1;
   if (!k_symbol.GetConstValue<int64_t>(k_value)) {
-    GELOGW("Last indices is not const in node %s.", context->GetNodeName());
+    GELOGW("Last indices are not const in node %s.", context->GetNodeName());
     return UNSUPPORTED;
   }
   ASSERT_SYMBOL_GE(k_symbol, Symbol(0));

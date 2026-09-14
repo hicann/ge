@@ -104,7 +104,7 @@ bool CalcSliceUtils::Stratege2(std::vector<ge::NodePtr> &sorted_fusion_nodes, Op
     bool condition = (UbPassSliceInfoManager::CheckOpPatternSupport(op_pattern) &&
                       UpdateOpSliceInfoForSpecificOp(fusion_node, op_pattern));
     if (!condition) {
-      FE_LOGD("Not support op_pattern [%s], Strategy2 run unsuccessful.", op_pattern.c_str());
+      FE_LOGD("Not supported op_pattern [%s], Strategy2 run unsuccessful.", op_pattern.c_str());
       return false;
     }
   }

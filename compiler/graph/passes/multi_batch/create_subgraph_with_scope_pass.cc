@@ -59,7 +59,7 @@ Status UpdateTensorShape(GeTensorDescPtr &ge_tensor, const std::vector<int64_t> 
   }
   size_t origin_dim = shape.GetDimNum();
   if ((!shape.ToString().empty()) && (origin_dim != dims.size())) {
-    GELOGE(FAILED, "Original shape dim[%zu] and updated dim[%zu] not match", origin_dim, dims.size());
+    GELOGE(FAILED, "Original shape dim[%zu] and updated dim[%zu] do not match", origin_dim, dims.size());
     return FAILED;
   }
   ge_tensor->SetShape(GeShape(dims));
@@ -314,7 +314,7 @@ Status CreateSubGraphWithScopePass::UpdateDynamicConfigAttrs(const std::vector<N
   (void)GetContext().GetOption(DYNAMIC_NODE_TYPE, dynamic_node_type);
   const std::string node_type_str = (dynamic_node_type == "0" ? "dataset" : "placeholder");
   GE_CHK_BOOL_RET_STATUS(user_shape_map.size() == input_count, FAILED,
-                         "user_shape_map size %zu and input count %zu not match, node type is %s.",
+                         "user_shape_map size %zu and input count %zu do not match, node type is %s.",
                          user_shape_map.size(), input_count, node_type_str.c_str());
 
   std::vector<std::string> subgraph_multi_dims_input_shape;
@@ -340,7 +340,7 @@ Status CreateSubGraphWithScopePass::UpdateDynamicConfigAttrs(const std::vector<N
       (void)AttrUtils::GetStr(dst_node_desc, ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_SHAPE, pre_subgraph_input_shape);
       (void)AttrUtils::GetStr(dst_node_desc, ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_DIMS, pre_subgraph_input_dims);
       GE_CHK_BOOL_RET_STATUS((pre_subgraph_input_shape.empty()) == (pre_subgraph_input_dims.empty()), FAILED,
-                             "pre_subgraph_input_shape[%s] and pre_subgraph_input_dims[%s] not match",
+                             "pre_subgraph_input_shape[%s] and pre_subgraph_input_dims[%s] do not match",
                              pre_subgraph_input_shape.c_str(), pre_subgraph_input_dims.c_str());
       GE_CHK_BOOL_RET_STATUS((input_index < subgraph_multi_dims_input_shape.size()) &&
                                  (input_index < subgraph_multi_dims_input_dims.size()),
@@ -376,8 +376,8 @@ Status CreateSubGraphWithScopePass::UpdateSubgraphMultiDimsAttr(NodePtr node, co
   std::vector<std::string> pre_input_dims_vec = ge::StringUtils::Split(pre_input_dims, ';');
   std::vector<std::string> new_input_dims_vec = ge::StringUtils::Split(new_input_dims, ';');
   GE_CHK_BOOL_RET_STATUS(pre_input_dims_vec.size() == new_input_dims_vec.size(), FAILED,
-                         "pre_input_dims size[%zu] and new_input_dims size[%zu] not match", pre_input_dims_vec.size(),
-                         new_input_dims_vec.size());
+                         "pre_input_dims size[%zu] and new_input_dims size[%zu] do not match",
+                         pre_input_dims_vec.size(), new_input_dims_vec.size());
   std::string update_input_dims;
   for (size_t i = 0U; i < new_input_dims_vec.size(); ++i) {
     update_input_dims.append(pre_input_dims_vec[i]).append(",").append(new_input_dims_vec[i]).append(";");
@@ -443,8 +443,8 @@ Status CreateSubGraphWithScopePass::CollectScopeNodesByIndex(const ComputeGraphP
     int32_t node_index = -1;
     if (AttrUtils::GetInt(op_desc, ATTR_NAME_SUBGRAPH_MULTI_DIMS_INDEX, node_index) && node_index >= 0) {
       if (OpTypeUtils::IsDataNode(node->GetType()) || (node->GetType() == NETOUTPUT)) {
-        REPORT_INNER_ERR_MSG("E19999", "Not support DATA/NETOUTPUT node[%s] in scope.", node->GetName().c_str());
-        GELOGE(PARAM_INVALID, "Not support DATA/NETOUTPUT node[%s] in scope.", node->GetName().c_str());
+        REPORT_INNER_ERR_MSG("E19999", "DATA/NETOUTPUT node[%s] in scope is not supported.", node->GetName().c_str());
+        GELOGE(PARAM_INVALID, "DATA/NETOUTPUT node[%s] in scope is not supported.", node->GetName().c_str());
         return PARAM_INVALID;
       }
       scopes_[node_index].push_back(node);
@@ -722,7 +722,7 @@ Status CreateSubGraphWithScopePass::MergeNodesToSubgraph(const std::vector<NodeP
     }
     // if node has control anchor outside scope, return failed
     GE_CHK_STATUS_RET(CheckCtrlAnchorInvalid(node, scope_nodes),
-                      "[CHECK]Not support control edge cross scope, error node[%s].", node->GetName().c_str());
+                      "[CHECK]Control edge cross scope is not supported, error node[%s].", node->GetName().c_str());
     const auto &parent_graph = node->GetOwnerComputeGraph();
     GE_CHECK_NOTNULL(parent_graph);
     if (GraphUtils::RemoveJustNode(parent_graph, node) != GRAPH_SUCCESS) {

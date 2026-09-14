@@ -188,7 +188,7 @@ bool DumpManager::NeedDoDump(const DumpConfig &dump_config, DumpProperties &dump
     return false;
   }
   if ((dump_config.dump_status == kDumpOn) && (dump_config.dump_debug == kDumpOn)) {
-    GELOGW("Not support coexistence of dump debug and dump status.");
+    GELOGW("Does not support coexistence of dump debug and dump status.");
     return false;
   }
   return true;

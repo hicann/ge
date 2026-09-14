@@ -38,7 +38,8 @@ inline std::vector<int64_t> ShapeToDims(const gert::Shape &shape) {
 
 inline gert::Shape DimsToShape(const std::vector<int64_t> &dims) {
   if (dims.size() > gert::Shape::kMaxDimNum) {
-    throw std::invalid_argument("shape dimension number exceeds gert::Shape::kMaxDimNum");
+    throw std::invalid_argument("shape dimension number " + std::to_string(dims.size()) +
+                                " exceeds gert::Shape::kMaxDimNum");
   }
   gert::Shape shape;
   for (const auto dim : dims) {
@@ -161,7 +162,8 @@ class PYBIND11_EXPORT NativeShape : public NativeObjectBase<gert::Shape> {
   int64_t GetDim(size_t index) const {
     const auto dim_num = Get()->GetDimNum();
     if (index >= dim_num) {
-      throw std::invalid_argument("shape dimension index out of range");
+      throw std::invalid_argument("shape dimension index " + std::to_string(index) +
+                                  " out of range, dim_num=" + std::to_string(dim_num));
     }
     return Get()->GetDim(index);
   }
@@ -169,7 +171,8 @@ class PYBIND11_EXPORT NativeShape : public NativeObjectBase<gert::Shape> {
   void SetDim(size_t index, int64_t value) const {
     auto *shape = MutableGet();
     if (index >= shape->GetDimNum()) {
-      throw std::invalid_argument("shape dimension index out of range");
+      throw std::invalid_argument("shape dimension index " + std::to_string(index) +
+                                  " out of range, dim_num=" + std::to_string(shape->GetDimNum()));
     }
     shape->SetDim(index, value);
   }
@@ -292,7 +295,8 @@ class PYBIND11_EXPORT NativeTensorDesc : public NativeObjectBase<NativeTensorDes
 
     const auto dims_list = shape.cast<py::list>();
     if (dims_list.size() > gert::Shape::kMaxDimNum) {
-      throw std::invalid_argument("shape exceeds maximum dimension count");
+      throw std::invalid_argument("shape dimension number " + std::to_string(dims_list.size()) +
+                                  " exceeds maximum dimension count");
     }
     std::vector<int64_t> dims;
     dims.reserve(dims_list.size());

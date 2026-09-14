@@ -146,7 +146,7 @@ Status ScopeBasePass::ScopeBasePassImpl::Run(std::shared_ptr<ScopeGraph> &scope_
       return domi::SCOPE_NOT_CHANGED;
     }
   } else {
-    GELOGI("[scope_fusion] Scope pass %s not match any scope.", parent_->PassName().c_str());
+    GELOGI("[scope_fusion] Scope pass %s does not match any scope.", parent_->PassName().c_str());
   }
 
   ret = PrintFusionScopeInfo(scope_graph);

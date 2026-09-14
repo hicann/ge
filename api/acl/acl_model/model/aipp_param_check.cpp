@@ -46,7 +46,7 @@ static aclError AippInputFormatCheck(const enum CceAippInputFormat inputFormat, 
       return ACL_ERROR_INVALID_PARAM;
     }
   } else {
-    ACL_LOG_INNER_ERROR("[Check][Aipp]dynamic aipp not support arch[%s]", npuArch.c_str());
+    ACL_LOG_INNER_ERROR("[Check][Aipp]dynamic aipp does not support arch[%s]", npuArch.c_str());
     return ACL_ERROR_INVALID_PARAM;
   }
   return ACL_SUCCESS;
@@ -278,7 +278,7 @@ static aclError AippDynamicBatchParaCheck(const aclmdlAIPP *const aippParmsSet, 
   for (uint64_t i = 0UL; i < batchSize; i++) {
     scfSwitch = aippParmsSet->aippBatchPara[i].scfSwitch;
     if (scfSwitch == 1) {
-      ACL_LOG_INNER_ERROR("[Check][Params]Not support scf!");
+      ACL_LOG_INNER_ERROR("[Check][Params]Scf is not supported!");
       return ACL_ERROR_INVALID_PARAM;
     }
 
@@ -325,7 +325,7 @@ ACL_FUNC_VISIBILITY aclError AippParamsCheck(const aclmdlAIPP *const aippParmsSe
           (inputFormat == CCE_RAW16));
   if (flag) {
     if (cscSwitch == 1) {
-      ACL_LOG_INNER_ERROR("[Check][Params]YUV400 or raw not support csc switch!");
+      ACL_LOG_INNER_ERROR("[Check][Params]YUV400 or raw does not support csc switch!");
       return ACL_ERROR_INVALID_PARAM;
     }
   }

@@ -299,7 +299,7 @@ bool BinaryManager::GetBinaryVersionInfo(const std::string &verFilePath, std::st
 
   std::ifstream ifs(binVerFilePath);
   if (!ifs.is_open()) {
-    TE_WARNLOGF("Open binary version file(%s) failed, not exist or has been opened.", binVerFilePath.c_str());
+    TE_WARNLOGF("Open binary version file(%s) failed, does not exist or has been opened.", binVerFilePath.c_str());
     return false;
   }
   std::string line;
@@ -629,7 +629,7 @@ bool BinaryManager::MatchConstValue(const json &binValueJson) {
         "parameter.");
     return true;
   }
-  TE_WARNLOG("Binary json has const value. Not support match yet.");
+  TE_WARNLOG("Binary json has const value. Match is not supported yet.");
   return false;
 }
 
@@ -1144,7 +1144,7 @@ bool BinaryManager::MatchSingleAttr(const json &opAttr, const json &binAttr) {
   iter = opAttr.find(VALUE);
   if (iter == opAttr.end() || iter.value().is_null()) {
     // attr value may be erased by generalized parse, it means support all
-    TE_DBGLOGF("Op attr has no value or value is null, support all. But bin not support all.");
+    TE_DBGLOGF("Op attr has no value or value is null, support all. But bin does not support all.");
     return false;
   }
   const json &opValue = iter.value();
@@ -1219,19 +1219,19 @@ bool BinaryManager::MatchOpParams(const OpBuildTaskPtr &opTask, json &binListJso
   for (auto iter = binListJson.begin(); iter != binListJson.end(); ++iter) {
     const json binJson = *iter;
     if (!MatchDeterministic(generalizedResult.dynamicJson, binJson)) {
-      TE_DBGLOG("Node(%s) not match deterministic mode.", GetTaskNodeName(opTask).c_str());
+      TE_DBGLOG("Node(%s) does not match deterministic mode.", GetTaskNodeName(opTask).c_str());
       continue;
     }
 
     if (!MatchInputsOutputs(INPUTS, generalizedResult.dynamicJson, binJson, generalizedResult.optionalInputIdx)) {
-      TE_DBGLOG("Node(%s) not match inputs params", GetTaskNodeName(opTask).c_str());
+      TE_DBGLOG("Node(%s) does not match inputs params", GetTaskNodeName(opTask).c_str());
       continue;
     }
 
     // current not support optional output, in order to share functions, define an empty vector
     std::vector<uint32_t> optionalOutputIdx;
     if (!MatchInputsOutputs(OUTPUTS, generalizedResult.dynamicJson, binJson, optionalOutputIdx)) {
-      TE_DBGLOG("Node(%s) not match outputs params", GetTaskNodeName(opTask).c_str());
+      TE_DBGLOG("Node(%s) does not match outputs params", GetTaskNodeName(opTask).c_str());
       continue;
     }
 
@@ -1350,20 +1350,20 @@ bool BinaryManager::BinaryMatchWithStaticKeyAndDynInfo(const OpBuildTaskPtr &opT
     TE_DBGLOGF("Node(%s) optional input is %s.", opName.c_str(), tmp.dump().c_str());
     if (!generalizedResult.optionalInputIdx.empty()) {
       if (!MatchStaticKeyWithOptionalInputNull(opTask, binListJsonTmp, generalizedResult)) {
-        TE_DBGLOGF("Node(%s) static key(%s) with optional input null not match binJson(%s). Need to compile.",
+        TE_DBGLOGF("Node(%s) static key(%s) with optional input null does not match binJson(%s). Need to compile.",
                    opName.c_str(), generalizedResult.staticJson.dump().c_str(), binListJsonTmp.dump().c_str());
         return false;
       }
       binListJson = binListJsonTmp;
     } else {
-      TE_DBGLOGF("Node(%s) static key(%s) not match binJson(%s). Need to compile.", opName.c_str(),
+      TE_DBGLOGF("Node(%s) static key(%s) does not match binJson(%s). Need to compile.", opName.c_str(),
                  generalizedResult.staticJson.dump().c_str(), binListJson.dump().c_str());
       return false;
     }
   }
 
   if (!MatchOpParams(opTask, binListJson, generalizedResult)) {
-    TE_DBGLOGF("Node(%s) not match dynamic info(%s) binJson(%s). Need to compile", opName.c_str(),
+    TE_DBGLOGF("Node(%s) does not match dynamic info(%s) binJson(%s). Need to compile", opName.c_str(),
                generalizedResult.dynamicJson.dump().c_str(), binListJson.dump().c_str());
     return false;
   }
@@ -1417,7 +1417,7 @@ bool BinaryManager::GenerateAndMatchSimpleKey(ge::Node *opNode, const TbeOpInfoP
   const std::string &opImplMode = opInfo->GetOpImplMode();
   bool isUnknowShape = opInfo->GetIsUnknownShape();
   if (CheckMemoryL1MemoryL2(opType, inputs) || CheckMemoryL1MemoryL2(opType, outputs)) {
-    TE_INFOLOG("Node[%s], opType[%s] has memoryL1 or MemoryL2, Not support simpleKey binary.",
+    TE_INFOLOG("Node[%s], opType[%s] has memoryL1 or MemoryL2, does not support simpleKey binary.",
                opNode->GetName().c_str(), opType.c_str());
     return false;
   }
@@ -1506,7 +1506,7 @@ bool BinaryManager::ReuseKernelBinaryCompileRes(const OpBuildTaskPtr &opTask) {
   }
 
   if (!MatchFusionOpGraphPattern(opTask, binListJson)) {
-    TE_INFOLOG("Node(%s) graph pattern not match. Need to compile", GetTaskNodeName(opTask).c_str());
+    TE_INFOLOG("Node(%s) graph pattern does not match. Need to compile", GetTaskNodeName(opTask).c_str());
     return false;
   }
 
@@ -1517,7 +1517,7 @@ bool BinaryManager::ReuseKernelBinaryCompileRes(const OpBuildTaskPtr &opTask) {
   }
 
   if (!BinaryMatchWithStaticKeyAndDynInfo(opTask, generalizedResult, binListJson)) {
-    TE_INFOLOG("Node(%s) staticKey or dynInfo not match. Need to compile", GetTaskNodeName(opTask).c_str());
+    TE_INFOLOG("Node(%s) staticKey or dynInfo does not match. Need to compile", GetTaskNodeName(opTask).c_str());
     return false;
   }
 
@@ -1586,7 +1586,7 @@ bool BinaryManager::FusionOpReuseOmBinary(const OpBuildTaskPtr &opTask, json &bi
   }
 
   if (!CheckMatchInBinListByKey(opTask, BINARY_OM_KEY_ID, omKeyId, binListJson)) {
-    TE_DBGLOG("Node(%s) omKeyId(%s) not match in binary file. Not reuse om binary files",
+    TE_DBGLOG("Node(%s) omKeyId(%s) does not match in binary file. Not reuse om binary files",
               GetTaskNodeName(opTask).c_str(), omKeyId.c_str());
     return false;
   }
@@ -1823,7 +1823,7 @@ void BinaryManager::GetBinaryVersion(const OpBuildTaskPtr &opTask, bool isOm, st
               adkVrsion.c_str(), oppVersion.c_str());
     return;
   }
-  TE_DBGLOG("Not find op version!");
+  TE_DBGLOG("Did not find op version!");
   return;
 }
 }  // namespace fusion

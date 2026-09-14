@@ -68,7 +68,7 @@ Status GetSliceDataParams(const ConstGeTensorPtr &x_tensor, const std::vector<in
   const ge::GeShape &x_shape = x_tensor->GetTensorDesc().GetShape();
   const size_t dim_size = x_shape.GetDimNum();
   if (dim_size != orig_begin_vec.size() || dim_size != orig_size_vec.size()) {
-    GELOGW("Rank of x input %zu not match with offset_size(%zu) or size_input size (%zu)", dim_size,
+    GELOGW("Rank of x input %zu does not match with offset_size(%zu) or size_input size (%zu)", dim_size,
            orig_begin_vec.size(), orig_size_vec.size());
     return NOT_CHANGED;
   }

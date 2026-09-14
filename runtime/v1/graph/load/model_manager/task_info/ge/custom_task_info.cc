@@ -337,7 +337,7 @@ Status CustomTaskInfo::InsertDumpOp(const std::string &dump_mode) {
 
 Status CustomTaskInfo::ParseTaskRunParam(const domi::TaskDef &task_def, DavinciModel *const davinci_model,
                                          TaskRunParam &task_run_param) {
-  GELOGI("CustomTaskInfo  ParseTaskRunParam start");
+  GELOGI("CustomTaskInfo ParseTaskRunParam start");
   const domi::KernelDef &kernel_def = task_def.kernel();
   domi::KernelContext context = kernel_def.context();
 

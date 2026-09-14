@@ -176,7 +176,7 @@ Status DumpProperties::CheckEnableDump(const std::string &input) const {
         std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.enableDump").c_str(), input.c_str(),
                                    "The value must be 1 or 0."}));
     GELOGE(PARAM_INVALID,
-           "[Check][Param] Not support ge.exec.enableDump or ge.exec.enableDumpDebug format:%s, "
+           "[Check][Param] Does not support ge.exec.enableDump or ge.exec.enableDumpDebug format:%s, "
            "only support 1 or 0.",
            input.c_str());
     return PARAM_INVALID;

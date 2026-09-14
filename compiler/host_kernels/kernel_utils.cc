@@ -53,7 +53,7 @@ Status KernelUtils::ConstructTensorDescWithData(const GeTensorDesc &out_desc, co
   } else {
     REPORT_INNER_ERR_MSG("E19999", "Only DT_INT32 and DT_INT64 are supported. Input data_type:%s is not supported",
                          ToString(data).c_str());
-    GELOGE(PARAM_INVALID, "[Check][Param] Only support DT_INT32 and DT_INT64. data_type:%s not support",
+    GELOGE(PARAM_INVALID, "[Check][Param] Only supports DT_INT32 and DT_INT64. data_type:%s is not supported",
            TypeUtils::DataTypeToSerialString(data_type).c_str());
     return PARAM_INVALID;
   }

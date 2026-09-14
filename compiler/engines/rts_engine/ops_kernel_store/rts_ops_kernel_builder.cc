@@ -172,7 +172,7 @@ Status RtsOpsKernelBuilder::GenerateTask(const Node &geNode, RunContext &context
     RTS_LOGI("Generate ffts+ context def start.");
     ret = op->GenerateCtxDef(geNode);
     if (ret != SUCCESS) {
-      RTS_LOGI("Generate ffts+ context def failed.");
+      RTS_LOGW("Generate ffts+ context def failed.");
       return ret;
     }
     return SUCCESS;

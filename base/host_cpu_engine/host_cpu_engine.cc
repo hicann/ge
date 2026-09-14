@@ -180,7 +180,7 @@ Status HostCpuEngine::PrepareInputs(const ge::ConstOpDescPtr &op_desc, const std
 Status HostCpuEngine::PrepareOutputs(const ge::ConstOpDescPtr &op_desc, std::vector<GeTensorPtr> &outputs,
                                      std::map<std::string, Tensor> &named_outputs) {
   if ((!outputs.empty()) && (outputs.size() != op_desc->GetOutputsSize())) {
-    GELOGW("size of outputs not match, size of outputs = %zu, exactly output_num=%zu.", outputs.size(),
+    GELOGW("size of outputs does not match, size of outputs = %zu, exactly output_num=%zu.", outputs.size(),
            op_desc->GetOutputsSize());
     outputs.clear();
   }
@@ -195,7 +195,7 @@ Status HostCpuEngine::PrepareOutputs(const ge::ConstOpDescPtr &op_desc, std::vec
     const auto &out_desc = op_desc->GetOutputDesc(static_cast<uint32_t>(i));
     const std::set<DataType>::const_iterator &output_data_type_iter = output_data_type_set.find(out_desc.GetDataType());
     if (output_data_type_iter == output_data_type_set.cend()) {
-      GELOGW("data type %s not support.", TypeUtils::DataTypeToSerialString(out_desc.GetDataType()).c_str());
+      GELOGW("data type %s is not supported.", TypeUtils::DataTypeToSerialString(out_desc.GetDataType()).c_str());
       ret = NOT_CHANGED;
       break;
     }

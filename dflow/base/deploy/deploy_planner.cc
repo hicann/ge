@@ -766,7 +766,7 @@ bool DeployPlannerBase::CheckSkipBinding(const std::string &src_model_instance_n
   const auto &dst_model_location_it = model_deploy_locations_.find(dst_model_name);
   if (src_model_location_it == model_deploy_locations_.cend() ||
       dst_model_location_it == model_deploy_locations_.cend()) {
-    GELOGI("Failed to find model location, src model_name = %s, dst model_name = %s.", src_model_name.c_str(),
+    GELOGW("Failed to find model location, src model_name = %s, dst model_name = %s.", src_model_name.c_str(),
            dst_model_name.c_str());
     return false;
   }

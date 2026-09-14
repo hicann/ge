@@ -136,7 +136,7 @@ ge::graphStatus InnerCompatibleTilingLegacy(KernelContext *context, ge::graphSta
   } else if (tiling_version == static_cast<uint64_t>(TilingVersion::kV3)) {
     tiling_func_result = TilingV3Legacy(context, *op, op_run_info);
   } else {
-    GELOGE(ge::GRAPH_FAILED, "Failed to tiling parse, not support v3 or v4.");
+    GELOGE(ge::GRAPH_FAILED, "Failed to tiling parse, does not support v3 or v4.");
     return ge::GRAPH_FAILED;
   }
   optiling::RecoveryEmptyShapeOfTensorDesc(op_desc, indexes);

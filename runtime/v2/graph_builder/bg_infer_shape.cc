@@ -269,7 +269,8 @@ std::vector<ValueHolderPtr> InferStorageShape(const ge::NodePtr &node, const std
                                       global_data);
   }
   // To compatible with old version infer_fun, build different exe graph for infershape
-  GELOGW("Node %s type %s not support v2 infershape. Turns to v1 infershape.", node->GetName().c_str(), type.c_str());
+  GELOGW("Node %s type %s does not support v2 infershape. Turns to v1 infershape.", node->GetName().c_str(),
+         type.c_str());
   return BuildCompatibleInferShapeGraph(node, input_shapes, global_data);
 }
 

@@ -135,7 +135,7 @@ Status SubKernel::Compute(const ge::OpDescPtr op_desc_ptr, const std::vector<ge:
     SET_BCAST_COMPUTE_CASE(DT_FLOAT, float);
     SET_BCAST_COMPUTE_CASE(DT_DOUBLE, double);
     default:
-      GELOGI("Sub kernel data type %s not support.", TypeUtils::DataTypeToSerialString(data_type).c_str());
+      GELOGI("Sub kernel data type %s is not supported.", TypeUtils::DataTypeToSerialString(data_type).c_str());
       ret = NOT_CHANGED;
       break;
   }

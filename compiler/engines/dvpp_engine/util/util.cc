@@ -437,7 +437,7 @@ bool CheckAttrValueInt(const ge::OpDescPtr &op_desc_ptr, const std::string &attr
     SplitSequence(check_value, kTilde, result_vector);
     DVPP_CHECK_IF_THEN_DO(
         (result_vector.size() != kNum2),
-        DVPP_REPORT_INNER_ERR_MSG("ListListInt limit value num %zu should be 2,  op[%s] attr[%s]", result_vector.size(),
+        DVPP_REPORT_INNER_ERR_MSG("ListListInt limit value num %zu should be 2, op[%s] attr[%s]", result_vector.size(),
                                   op_desc_ptr->GetType().c_str(), attr_name.c_str());
         return false);
     return ((int_value >= result_vector[kNum0]) && (int_value <= result_vector[kNum1]));

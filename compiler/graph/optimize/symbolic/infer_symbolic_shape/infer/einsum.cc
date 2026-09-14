@@ -181,7 +181,7 @@ graphStatus InsertLabelToMap(const char label, const Expression &shape, std::map
 graphStatus MapInputWithoutEllipsis(const std::string &equation_part, const gert::SymbolShape *input_shape,
                                     std::map<char, Expression> &label_map) {
   if (input_shape->GetDimNum() != equation_part.size()) {
-    GELOGE(PARAM_INVALID, "Input dim num[%zu] not match equation[%s].", input_shape->GetDimNum(),
+    GELOGE(PARAM_INVALID, "Input dim num[%zu] does not match equation[%s].", input_shape->GetDimNum(),
            equation_part.c_str());
     return PARAM_INVALID;
   }

@@ -160,7 +160,7 @@ ShapeRangeInferenceResult InferShapeRange(const ge::NodePtr &node, const std::ve
   std::vector<ValueHolderPtr> infer_shape_range_ret;
   if (NeedInferShapeRangeCompatible(type, global_data.GetSpaceRegistryV2(static_cast<gert::OppImplVersionTag>(
                                               node->GetOpDesc()->GetOppImplVersion())))) {
-    GELOGD("Node %s type %s not support v2 infer_shape_range. Turns to v1 infer_shape_range.", node->GetNamePtr(),
+    GELOGD("Node %s type %s does not support v2 infer_shape_range. Turns to v1 infer_shape_range.", node->GetNamePtr(),
            type.c_str());
     infer_shape_range_ret = BuildCompatibleInferShapeRangeGraph(node, ranges);
   } else {

@@ -309,7 +309,7 @@ aclError OpExecutor::DoExecuteAsync(ge::DynamicSingleOp *const singleOp, const A
     for (size_t i = 0U; i < outputDesc->size(); ++i) {
       const ge::GeShape outputShape = (*outputDesc)[i].GetShape();
       const std::vector<int64_t> outputDims = outputShape.GetDims();
-      ACL_LOG_INFO("update outputDesc[%zu] dims is [%s]", i, StringUtils::VectorToString(outputDims).c_str());
+      ACL_LOG_INFO("update outputDesc[%zu] dims are [%s]", i, StringUtils::VectorToString(outputDims).c_str());
       ConvertVecToSvec(outputDims, const_cast<aclTensorDesc *>(aclOp.outputDesc[i])->dims);
     }
     ACL_LOG_INFO("update outputDesc successfully");
@@ -321,7 +321,7 @@ aclError OpExecutor::DoExecuteAsync(ge::DynamicSingleOp *const singleOp, const A
         "refresh origin shape of output");
     for (size_t i = 0U; i < outputDesc->size(); ++i) {
       const std::vector<int64_t> outputOriShape = (*outputDesc)[i].GetOriginShape().GetDims();
-      ACL_LOG_INFO("update outputDesc[%zu] dims is [%s]", i, StringUtils::VectorToString(outputOriShape).c_str());
+      ACL_LOG_INFO("update outputDesc[%zu] dims are [%s]", i, StringUtils::VectorToString(outputOriShape).c_str());
       ConvertVecToSvec(outputOriShape, const_cast<aclTensorDesc *>(aclOp.outputDesc[i])->dims);
     }
     ACL_LOG_INFO("update outputDesc origin shape successfully");

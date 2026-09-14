@@ -52,7 +52,8 @@ Status BuildDataSymbolizeInfo(const NodePtr &data_node, const std::vector<GeTens
   GE_ASSERT_NOTNULL(td);
   info.dataShape = td->GetOriginShape();
   if (!(info.dataShape == td->GetShape())) {
-    GELOGW("The origin/storage shape are different, not support symbolize yet, data node %s", op_desc->GetNamePtr());
+    GELOGW("The origin/storage shape are different, does not support symbolize yet, data node %s",
+           op_desc->GetNamePtr());
     return ge::UNSUPPORTED;
   }
 
@@ -152,7 +153,7 @@ Status SymbolizeInputValueForRepeat(const GeTensor &tensor, SymbolicDescAttr *at
       attr->symbolic_tensor.SetSymbolicValue(CreateSymbolValueSum<uint64_t>(shape_env_attr, tensor, data_index));
       break;
     default:
-      GELOGE(ge::PARAM_INVALID, "symbolic value generalize and compute not support data type %s",
+      GELOGE(ge::PARAM_INVALID, "symbolic value generalize and compute does not support data type %s",
              TypeUtils::DataTypeToSerialString(tensor.GetTensorDesc().GetDataType()).c_str());
       return FAILED;
   }
@@ -173,7 +174,7 @@ bool SupportSymbolizeValue(const GeTensor &ge_tensor) {
     return false;
   }
   if (kGeDType2CppDtype.find(tensor_desc.GetDataType()) == kGeDType2CppDtype.end()) {
-    GELOGI("symbolic value generalize and compute not support data type %s",
+    GELOGI("symbolic value generalize and compute does not support data type %s",
            TypeUtils::DataTypeToSerialString(tensor_desc.GetDataType()).c_str());
     return false;
   }
@@ -264,7 +265,8 @@ bool IsAippInput(const NodePtr &data_node) {
 
 bool IsSupportSymbolize(const NodePtr &data_node) {
   // data是aipp算子的输入暂不支持泛化
-  GE_WARN_ASSERT(!IsAippInput(data_node), "Data[%s] not support symbolize, output is aipp", data_node->GetNamePtr());
+  GE_WARN_ASSERT(!IsAippInput(data_node), "Data[%s] does not support symbolize, output is aipp",
+                 data_node->GetNamePtr());
   return true;
 }
 
