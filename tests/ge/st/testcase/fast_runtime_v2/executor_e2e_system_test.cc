@@ -663,6 +663,13 @@ TEST_F(GraphExecutorWithKernelUnitTest, ExecuteModel_HostInput) {
 TEST_F(GraphExecutorWithKernelUnitTest, ExecuteModel_BinaryKernel) {
   auto graph = ShareGraph::BinaryKernelTypicalGraph();
   for (auto &node : graph->GetAllNodes()) {
+    if (node->GetType() == "Data") {
+      auto data_desc = node->GetOpDesc()->MutableOutputDesc(0);
+      data_desc->SetShape(ge::GeShape());
+      data_desc->SetOriginShape(ge::GeShape());
+      data_desc->SetDataType(ge::DT_FLOAT16);
+      data_desc->SetOriginDataType(ge::DT_FLOAT16);
+    }
     if (node->GetType() == "Foo" || node->GetType() == "Bar") {
       MockLessImportantNodeKernel(node);
     } else if (node->GetType() == "ConditionCalc") {
@@ -723,6 +730,15 @@ TEST_F(GraphExecutorWithKernelUnitTest, ExecuteModel_BinaryKernel) {
 TEST_F(GraphExecutorWithKernelUnitTest, Lowering_Execute_Model_On_UB_fusion_node) {
   auto graph = ShareGraph::BuildGraphWithUBFusionNode();
   graph->TopologicalSorting();
+  const std::vector<const char_t *> data_names = {"data1", "data2", "data3"};
+  const std::vector<std::vector<int64_t>> input_shapes = {{2}, {2}, {3}};
+  for (size_t i = 0U; i < data_names.size(); ++i) {
+    auto data_desc = graph->FindNode(data_names[i])->GetOpDesc()->MutableOutputDesc(0);
+    data_desc->SetShape(ge::GeShape(input_shapes[i]));
+    data_desc->SetOriginShape(ge::GeShape(input_shapes[i]));
+    data_desc->SetDataType(ge::DT_FLOAT16);
+    data_desc->SetOriginDataType(ge::DT_FLOAT16);
+  }
 
   GeModelBuilder builder(graph);
   auto ge_root_model = builder.AddTaskDef("Add", AiCoreTaskDefFaker(AddStubName).WithHandle())
@@ -1500,6 +1516,9 @@ TEST_F(GraphExecutorWithKernelUnitTest, Cmo_ExecuteSuccess) {
   dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
   auto graph = ShareGraph::AicoreWithCmoGraph();
   graph->TopologicalSorting();
+  auto data1_desc = graph->FindNode("data1")->GetOpDesc()->MutableOutputDesc(0);
+  data1_desc->SetDataType(ge::DT_FLOAT16);
+  data1_desc->SetOriginDataType(ge::DT_FLOAT16);
   GeModelBuilder builder(graph);
   auto ge_root_model =
       builder.AddTaskDef("ReduceSum", AiCoreTaskDefFaker("ReduceSumStubBin").WithHandle()).BuildGeRootModel();
@@ -1707,6 +1726,12 @@ graphStatus LaunchKernelFailedByLaunchFlagFake(gert::KernelContext *context) {
 TEST_F(GraphExecutorWithKernelUnitTest, TopologicalExecuteFailThenSuccess) {
   auto graph = ShareGraph::IfCondByShapeGraph();
   graph->TopologicalSorting();
+  auto pred_data_desc = graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
+  auto input_data_desc = graph->FindNode("input")->GetOpDesc()->MutableOutputDesc(0);
+  input_data_desc->SetShape(ge::GeShape({2, 3, 4, 6}));
+  input_data_desc->SetOriginShape(ge::GeShape({2, 3, 4, 6}));
   const char *const Cast = "Cast";
   auto ge_root_model = GeModelBuilder(graph)
                            .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
@@ -1774,6 +1799,9 @@ TEST_F(GraphExecutorWithKernelUnitTest, PriorityTopologicalExecuteFailThenSucces
   auto compute_graph = ShareGraph::IfGraph4();
   ASSERT_NE(compute_graph, nullptr);
   compute_graph->TopologicalSorting();
+  auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
   GE_DUMP(compute_graph, "computegraph_IfGraph4");
 
   auto ge_root_model =

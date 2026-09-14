@@ -186,16 +186,15 @@ TEST_F(KernelTaskProducerUnitTest, kernel_while_graph_success) {
     auto model_executor = ModelV2Executor::Create(exe_graph, option, ge_root_model);
     ASSERT_NE(model_executor, nullptr);
 
-    int32_t output = 0;
     ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
-    auto outputs = FakeTensors({}, 1, &output);
+    auto outputs = FakeTensors({1, 1, 224, 224}, 1);
 
     rtStream_t stream;
     ASSERT_EQ(aclrtCreateStreamWithConfig(&stream, static_cast<uint32_t>(RT_STREAM_PRIORITY_DEFAULT), 0U),
               RT_ERROR_NONE);
     auto i1 = FakeValue<uint64_t>(reinterpret_cast<uint64_t>(stream));
 
-    auto inputs = FakeTensors({}, 1);
+    auto inputs = FakeTensors({1, 1, 224, 224}, 1);
     *static_cast<int32_t *>(inputs.data()[0].GetAddr()) = 0;
 
     ASSERT_EQ(model_executor->Execute({i1.value}, inputs.GetTensorList(), inputs.size(), outputs.GetTensorList(),

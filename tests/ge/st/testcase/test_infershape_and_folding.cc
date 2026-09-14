@@ -1107,6 +1107,7 @@ TEST_F(InferAndFoldingTest, test_If_InferShape_change_rank_in_branch) {
   TensorDesc input_tensor_desc(Shape({2, 3, 1, 3}), FORMAT_ND, DT_FLOAT);
   input_tensor_desc.SetPlacement(kPlacementDevice);
   Tensor input(input_tensor_desc);
+  input.SetData(std::vector<uint8_t>(72U, 0U));
   std::vector<int64_t> scaler_shape = {};
   Tensor pred{TensorDesc(Shape(scaler_shape), FORMAT_ND, DT_INT32)};
   Tensor output(input_tensor_desc);

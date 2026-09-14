@@ -55,6 +55,11 @@ class KnownShapeGraphUnitTest : public bg::BgTest {
 
 TEST_F(KnownShapeGraphUnitTest, ControlFlowNodeWithKnownShapeSubgraph) {
   auto graph = ShareGraph::IfWithKnownShapeSubGraph("main");
+  auto cond_data_desc = graph->FindNode("main/data_0")->GetOpDesc()->MutableOutputDesc(0);
+  cond_data_desc->SetShape(ge::GeShape());
+  cond_data_desc->SetOriginShape(ge::GeShape());
+  cond_data_desc->SetDataType(ge::DT_INT32);
+  cond_data_desc->SetOriginDataType(ge::DT_INT32);
   auto root_model = GeModelBuilder(graph).BuildGeRootModel();
   auto faker = GlobalDataFaker(root_model);
   auto global_data = faker.FakeWithHandleAiCore("StaticFoo", false).Build();

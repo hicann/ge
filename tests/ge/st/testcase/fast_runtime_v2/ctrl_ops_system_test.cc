@@ -52,6 +52,12 @@ REG_OP(If)
       auto compute_graph = ShareGraph::IfGraphShapeChangedOneBranch();
       ASSERT_NE(compute_graph, nullptr);
       compute_graph->TopologicalSorting();
+      auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+      pred_data_desc->SetShape(ge::GeShape());
+      pred_data_desc->SetOriginShape(ge::GeShape());
+      auto input_data_desc = compute_graph->FindNode("input")->GetOpDesc()->MutableOutputDesc(0);
+      input_data_desc->SetShape(ge::GeShape({8, 3, 16, 16}));
+      input_data_desc->SetOriginShape(ge::GeShape({8, 3, 16, 16}));
       ge::GraphUtils::DumpGEGraphToOnnx(*compute_graph, "ComputeGraphChainConflict");
       GeModelBuilder builder(compute_graph);
       auto ge_root_model = builder.BuildGeRootModel();
@@ -96,6 +102,9 @@ REG_OP(If)
       auto compute_graph = ShareGraph::IfGraph2();
       ASSERT_NE(compute_graph, nullptr);
       compute_graph->TopologicalSorting();
+      auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+      pred_data_desc->SetShape(ge::GeShape());
+      pred_data_desc->SetOriginShape(ge::GeShape());
       GeModelBuilder builder(compute_graph);
       auto ge_root_model = builder.BuildGeRootModel();
 
@@ -152,6 +161,9 @@ REG_OP(If)
       auto compute_graph = ShareGraph::IfGraph3();
       ASSERT_NE(compute_graph, nullptr);
       compute_graph->TopologicalSorting();
+      auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+      pred_data_desc->SetShape(ge::GeShape());
+      pred_data_desc->SetOriginShape(ge::GeShape());
       auto ge_root_model = GeModelBuilder(compute_graph)
                                .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
                                .BuildGeRootModel();
@@ -200,6 +212,9 @@ REG_OP(If)
       auto compute_graph = ShareGraph::CaseGraph();
       ASSERT_NE(compute_graph, nullptr);
       compute_graph->TopologicalSorting();
+      auto index_data_desc = compute_graph->FindNode("index")->GetOpDesc()->MutableOutputDesc(0);
+      index_data_desc->SetShape(ge::GeShape());
+      index_data_desc->SetOriginShape(ge::GeShape());
       GeModelBuilder builder(compute_graph);
       auto ge_root_model = builder.BuildGeRootModel();
 
@@ -337,16 +352,15 @@ REG_OP(If)
       auto model_executor = ModelV2Executor::Create(exe_graph, ge_root_model);
       ASSERT_NE(model_executor, nullptr);
 
-      int32_t output = 0;
       ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
-      auto outputs = FakeTensors({}, 1, &output);
+      auto outputs = FakeTensors({1, 1, 224, 224}, 1);
 
       rtStream_t stream;
       ASSERT_EQ(aclrtCreateStreamWithConfig(&stream, static_cast<uint32_t>(RT_STREAM_PRIORITY_DEFAULT), 0),
                 RT_ERROR_NONE);
       auto i1 = FakeValue<uint64_t>(reinterpret_cast<uint64_t>(stream));
 
-      auto inputs = FakeTensors({}, 1);
+      auto inputs = FakeTensors({1, 1, 224, 224}, 1);
       *static_cast<int32_t *>(inputs.data()[0].GetAddr()) = 0;
 
       ASSERT_EQ(model_executor->Execute({i1.value}, inputs.GetTensorList(), inputs.size(), outputs.GetTensorList(),
@@ -393,8 +407,8 @@ REG_OP(If)
 
       std::vector<TensorHolder> input_holders;
       std::vector<Tensor *> inputs;
-      input_holders.push_back(TensorFaker().Build());
-      input_holders.push_back(TensorFaker().Build());
+      input_holders.push_back(TensorFaker().Shape({1, 1, 224, 224}).Build());
+      input_holders.push_back(TensorFaker().Shape({1, 1, 224, 224}).Build());
       inputs.push_back(input_holders[0].GetTensor());
       inputs.push_back(input_holders[1].GetTensor());
 
@@ -403,8 +417,8 @@ REG_OP(If)
 
       std::vector<TensorHolder> output_holders;
       std::vector<Tensor *> outputs;
-      output_holders.push_back(TensorFaker().Build());
-      output_holders.push_back(TensorFaker().Build());
+      output_holders.push_back(TensorFaker().Shape({1, 1, 224, 224}).Build());
+      output_holders.push_back(TensorFaker().Shape({1, 1, 224, 224}).Build());
       outputs.push_back(output_holders[0].GetTensor());
       outputs.push_back(output_holders[1].GetTensor());
       ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
@@ -475,8 +489,8 @@ REG_OP(If)
 
         std::vector<TensorHolder> input_holders;
         std::vector<Tensor *> inputs;
-        input_holders.push_back(TensorFaker().Build());
-        input_holders.push_back(TensorFaker().Build());
+        input_holders.push_back(TensorFaker().Shape({1, 1, 224, 224}).Build());
+        input_holders.push_back(TensorFaker().Shape({1, 1, 224, 224}).Build());
         inputs.push_back(input_holders[0].GetTensor());
         inputs.push_back(input_holders[1].GetTensor());
 
@@ -485,8 +499,8 @@ REG_OP(If)
 
         std::vector<TensorHolder> output_holders;
         std::vector<Tensor *> outputs;
-        output_holders.push_back(TensorFaker().Build());
-        output_holders.push_back(TensorFaker().Build());
+        output_holders.push_back(TensorFaker().Shape({1, 1, 224, 224}).Build());
+        output_holders.push_back(TensorFaker().Shape({1, 1, 224, 224}).Build());
         outputs.push_back(output_holders[0].GetTensor());
         outputs.push_back(output_holders[1].GetTensor());
         ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);

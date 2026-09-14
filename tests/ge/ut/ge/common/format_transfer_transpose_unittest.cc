@@ -4985,7 +4985,7 @@ TEST_F(UtestFormatTranspose, transpose_with_shape_check_mismatch) {
   uint16_t data[6] = {1, 2, 3, 4, 5, 6};
   TransResult result;
   auto ret = TransposeWithShapeCheck(reinterpret_cast<uint8_t *>(data), {2, 3}, {2, 3}, DT_FLOAT16, {1, 0}, result);
-  EXPECT_TRUE((ret == SUCCESS) || (ret == ACL_ERROR_GE_SHAPE_INVALID));
+  EXPECT_EQ(ret, ACL_ERROR_GE_SHAPE_INVALID);
 }
 
 TEST_F(UtestFormatTranspose, get_perm_by_format_not_support_src) {

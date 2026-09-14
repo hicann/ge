@@ -147,6 +147,9 @@ void RunIfGraph(TensorHolder &pred_tensor, bool expect_branch, const TaskProduce
   auto compute_graph = ShareGraph::IfGraph2();
   ASSERT_NE(compute_graph, nullptr);
   compute_graph->TopologicalSorting();
+  auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
   GeModelBuilder builder(compute_graph);
   auto ge_root_model = builder.BuildGeRootModel();
 
@@ -229,16 +232,15 @@ void RunWhileGraph(const TaskProducerType &producer_type) {
     auto model_executor = ModelV2Executor::Create(exe_graph, option, ge_root_model);
     ASSERT_NE(model_executor, nullptr);
 
-    int32_t output = 0;
     ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
-    auto outputs = FakeTensors({}, 1, &output);
+    auto outputs = FakeTensors({1, 1, 224, 224}, 1);
 
     rtStream_t stream;
     ASSERT_EQ(aclrtCreateStreamWithConfig(&stream, static_cast<uint32_t>(RT_STREAM_PRIORITY_DEFAULT), 0),
               RT_ERROR_NONE);
     auto i1 = FakeValue<uint64_t>(reinterpret_cast<uint64_t>(stream));
 
-    auto inputs = FakeTensors({}, 1);
+    auto inputs = FakeTensors({1, 1, 224, 224}, 1);
     *static_cast<int32_t *>(inputs.data()[0].GetAddr()) = 0;
 
     ASSERT_EQ(model_executor->Execute({i1.value}, inputs.GetTensorList(), inputs.size(), outputs.GetTensorList(),
@@ -262,6 +264,9 @@ void RunCaseGraph(TensorHolder &index_tensor, const TaskProducerType &producer_t
   auto compute_graph = ShareGraph::CaseGraph();
   ASSERT_NE(compute_graph, nullptr);
   compute_graph->TopologicalSorting();
+  auto index_data_desc = compute_graph->FindNode("index")->GetOpDesc()->MutableOutputDesc(0);
+  index_data_desc->SetShape(ge::GeShape());
+  index_data_desc->SetOriginShape(ge::GeShape());
   GeModelBuilder builder(compute_graph);
   auto ge_root_model = builder.BuildGeRootModel();
 
@@ -299,6 +304,12 @@ void RunCaseGraph(TensorHolder &index_tensor, const TaskProducerType &producer_t
 void RunGraphFailThenSuccess(const TaskProducerType &producer_type) {
   auto graph = ShareGraph::IfCondByShapeGraph();
   graph->TopologicalSorting();
+  auto pred_data_desc = graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
+  auto input_data_desc = graph->FindNode("input")->GetOpDesc()->MutableOutputDesc(0);
+  input_data_desc->SetShape(ge::GeShape({2, 3, 4, 6}));
+  input_data_desc->SetOriginShape(ge::GeShape({2, 3, 4, 6}));
   const char *const Cast = "Cast";
   auto ge_root_model = GeModelBuilder(graph)
                            .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())

@@ -85,6 +85,8 @@ class TensorFaker {
 
   TensorFaker &Placement(TensorPlacement placement);
 
+  TensorFaker &Size(size_t size);
+
   template <typename T>
   TensorFaker &Value(const std::vector<T> &value) {
     tensor_value_.resize(sizeof(T) * value.size());
@@ -106,6 +108,8 @@ class TensorFaker {
       nullptr                              // address
   };
   bool alloc_tensor_data_ = true;
+  bool has_custom_size_ = false;
+  size_t custom_size_ = 0;
 };
 
 struct FakeTensors {

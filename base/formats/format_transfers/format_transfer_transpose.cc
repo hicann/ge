@@ -207,6 +207,7 @@ Status TransposeWithShapeCheck(const uint8_t *const src, const std::vector<int64
                               ", invalid dst shape" + FmtToStr(ShapeToString(dst_shape)) + ", expect" +
                               FmtToStr(ShapeToString(expected_shape));
     GE_ERRORLOG_AND_ERRORMSG(ACL_ERROR_GE_SHAPE_INVALID, error.c_str());
+    return ACL_ERROR_GE_SHAPE_INVALID;
   }
 
   return Transpose(src, src_shape, src_data_type, perm_arg, result);

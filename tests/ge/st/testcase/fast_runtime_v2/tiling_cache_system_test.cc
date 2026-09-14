@@ -149,6 +149,9 @@ TEST_F(TilingCacheSt, PriorityTopologicalExecute_Ok_EnableTilingCache) {
   auto compute_graph = ShareGraph::IfGraph4();
   ASSERT_NE(compute_graph, nullptr);
   compute_graph->TopologicalSorting();
+  auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
   GE_DUMP(compute_graph, "computegraph_IfGraph4");
 
   auto ge_root_model =
@@ -201,6 +204,9 @@ TEST_F(TilingCacheSt, PriorityTopologicalExecute_Ok_SameStorageShapeMissCache) {
   auto compute_graph = ShareGraph::IfGraph4();
   ASSERT_NE(compute_graph, nullptr);
   compute_graph->TopologicalSorting();
+  auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
   GE_DUMP(compute_graph, "computegraph_IfGraph4");
 
   auto ge_root_model =

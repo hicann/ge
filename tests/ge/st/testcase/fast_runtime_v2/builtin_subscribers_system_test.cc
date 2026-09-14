@@ -253,6 +253,9 @@ void RunIfGraphWithDataDump(TensorHolder &pred_tensor, bool expect_branch) {
   auto compute_graph = ShareGraph::IfGraph2();
   ASSERT_NE(compute_graph, nullptr);
   compute_graph->TopologicalSorting();
+  auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
   GeModelBuilder builder(compute_graph);
   auto ge_root_model = builder.BuildGeRootModel();
 
