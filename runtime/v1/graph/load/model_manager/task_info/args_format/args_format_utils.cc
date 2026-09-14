@@ -15,6 +15,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "register/hidden_inputs_func_registry.h"
 #include "graph/args_format_desc.h"
+#include "framework/common/debug/ge_log.h"
 #include "exe_graph/lowering/bg_kernel_context_extend.h"
 
 namespace ge {

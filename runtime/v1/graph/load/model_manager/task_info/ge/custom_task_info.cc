@@ -31,6 +31,7 @@
 #include "graph/utils/args_format_desc_utils.h"
 #include "graph/utils/math_util.h"
 #include "graph/args_format_desc.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/custom_op.h"

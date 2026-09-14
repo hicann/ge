@@ -189,6 +189,33 @@ Status BuildHostCpuOpContext(const NodePtr &node, const std::vector<ConstGeTenso
   }
   return SUCCESS;
 }
+
+Status ExecuteHostCpuCustomOp(const NodePtr &node, BaseCustomOp *base_custom_op,
+                              const std::vector<ConstGeTensorPtr> &inputs, std::vector<GeTensorPtr> &outputs) {
+  GE_ASSERT_NOTNULL(base_custom_op, "Host cpu custom op for node %s is null.", node->GetName().c_str());
+  auto *host_custom_op = CustomOpCast<HostCpuExecuteOp>(base_custom_op);
+  GE_ASSERT_NOTNULL(host_custom_op, "Host cpu custom op for node %s does not implement HostCpuExecuteOp.",
+                    node->GetName().c_str());
+
+  std::vector<gert::Tensor> input_tensors;
+  std::vector<gert::Tensor> output_tensors;
+  HostCpuConstFoldingMemGertAllocator allocator;
+  gert::KernelContextHolder context_holder;
+  GE_ASSERT_SUCCESS(BuildHostCpuOpContext(node, inputs, input_tensors, output_tensors, allocator, context_holder));
+  auto *host_context = reinterpret_cast<gert::HostCpuOpExecutionContext *>(context_holder.GetKernelContext());
+  GE_ASSERT_NOTNULL(host_context);
+  GE_ASSERT_SUCCESS(host_custom_op->Execute(host_context));
+
+  outputs.clear();
+  outputs.reserve(output_tensors.size());
+  for (const auto &output_tensor : output_tensors) {
+    GeTensorPtr output = MakeShared<GeTensor>();
+    GE_ASSERT_NOTNULL(output);
+    GE_ASSERT_SUCCESS(TensorTransUtils::GertTensor2GeTensor(output_tensor, *output));
+    outputs.emplace_back(std::move(output));
+  }
+  return SUCCESS;
+}
 }  // namespace
 
 bool ConstantFoldingPass::NeedIgnorePass(const NodePtr &node) {
@@ -276,29 +303,7 @@ Status ConstantFoldingPass::ComputeWithHostCpuCustomOp(const NodePtr &node, cons
   auto base_custom_op = CustomOpFactory::CreateOrGetCustomOp(op_type_str, OpBackend::kHostCPU);
   GE_ASSERT_NOTNULL(base_custom_op, "Op %s is registered as host cpu custom op but create instance failed.",
                     op_type.c_str());
-  auto *host_custom_op = CustomOpCast<HostCpuExecuteOp>(base_custom_op);
-  GE_ASSERT_NOTNULL(host_custom_op,
-                    "Op %s is registered as host cpu custom op but does not implement HostCpuExecuteOp.",
-                    op_type.c_str());
-
-  std::vector<gert::Tensor> input_tensors;
-  std::vector<gert::Tensor> output_tensors;
-  HostCpuConstFoldingMemGertAllocator allocator;
-  gert::KernelContextHolder context_holder;
-  GE_ASSERT_SUCCESS(BuildHostCpuOpContext(node, inputs, input_tensors, output_tensors, allocator, context_holder));
-  auto *host_context = reinterpret_cast<gert::HostCpuOpExecutionContext *>(context_holder.GetKernelContext());
-  GE_ASSERT_NOTNULL(host_context);
-  GE_ASSERT_SUCCESS(host_custom_op->Execute(host_context));
-
-  outputs.clear();
-  outputs.reserve(output_tensors.size());
-  for (const auto &output_tensor : output_tensors) {
-    GeTensorPtr output = MakeShared<GeTensor>();
-    GE_ASSERT_NOTNULL(output);
-    GE_ASSERT_SUCCESS(TensorTransUtils::GertTensor2GeTensor(output_tensor, *output));
-    outputs.emplace_back(std::move(output));
-  }
-  return SUCCESS;
+  return ExecuteHostCpuCustomOp(node, base_custom_op, inputs, outputs);
 }
 
 Status ConstantFoldingPass::ComputeWithBuiltInKernel(NodePtr &node, const vector<ConstGeTensorPtr> &inputs,
@@ -341,6 +346,20 @@ Status ConstantFoldingPass::ComputeWithHostCpuKernel(const NodePtr &node, const 
 Status ConstantFoldingPass::RunOpKernel(const NodePtr &node, const std::vector<ConstGeTensorPtr> &inputs,
                                         std::vector<GeTensorPtr> &outputs) {
   const std::string op_type = NodeUtils::GetNodeType(node);
+  const AscendString op_type_str(op_type.c_str());
+  if (CustomOpFactory::IsExistOp(op_type_str, OpBackend::kHostCPU, OpRegistrationPriority::kBottom,
+                                 OpEngine::kHostCpu)) {
+    GELOGD("Bottom priority host cpu op is registered. op type = %s, engine = %s.", op_type.c_str(), "HOST_CPU");
+    auto *bottom_op = CustomOpFactory::CreateOrGetCustomOp(op_type_str, OpBackend::kHostCPU,
+                                                           OpRegistrationPriority::kBottom, OpEngine::kHostCpu);
+    if (bottom_op == nullptr) {
+      GELOGE(GRAPH_FAILED, "Failed to create bottom priority host cpu op. op type = %s, engine = %s.", op_type.c_str(),
+             "HOST_CPU");
+      return UNSUPPORTED;
+    }
+    return ExecuteHostCpuCustomOp(node, bottom_op, inputs, outputs);
+  }
+
   auto kernel = OpKernelRegistry::GetInstance().CreateHostCpuOp(op_type);
   if (kernel == nullptr) {
     GELOGD("Op of type %s is not supported by host cpu engine", op_type.c_str());

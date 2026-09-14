@@ -30,6 +30,7 @@
 #include "common/utils/executor_utils.h"
 #include "runtime/subscriber/global_profiler.h"
 #include "graph/args_format_desc.h"
+#include "framework/common/debug/ge_log.h"
 #include "acl/acl_rt.h"
 
 namespace ge {

@@ -19,6 +19,7 @@
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/args_format_desc.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/graph_utils.h"
 // compatible tiling need
 #include "register/op_tiling_registry.h"

@@ -15,6 +15,7 @@
 #include "opskernel/ops_kernel_info_types.h"
 #include "graph/utils/args_format_desc_utils.h"
 #include "graph/args_format_desc.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 
 namespace ge {
