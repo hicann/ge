@@ -431,6 +431,11 @@ set(BASE_COMMON_TEST_FILES
     "om2/codegen/stream_switch_task_code_builder_unittest.cc"
 )
 
+set(OM2_COMPATIBILITY_TEST_FILES
+    "compatibility/om2/struct_layout_check.cpp"
+    "compatibility/om2/enum_value_check.cpp"
+)
+
 file(GLOB_RECURSE SYMBOL_SHAPE_INFER_FUNCS_TEST_SRCS CONFIGURE_DEPENDS "graph/optimize/symbolic/*.cc")
 list(APPEND SYMBOL_SHAPE_INFER_FUNCS_TEST_SRCS
      "${AIR_CODE_DIR}/tests/ge/st/testcase/autofuse/test_symbolic_shape_infer_coverage.cc")
@@ -925,6 +930,7 @@ set_tests_properties(ut_libge_symbol_infer_utest PROPERTIES LABELS "ut;ge_common
 add_executable(ut_libge_common_utest
     ${COMMON_TEST_FILES}
     ${BASE_COMMON_TEST_FILES}
+    ${OM2_COMPATIBILITY_TEST_FILES}
     ${AIR_CODE_DIR}/tests/ge/ut/ge/ffts_plus_proto_tools.cc
     ${CMAKE_BINARY_DIR}/proto/ge/proto/tensorflow/graph_library.pb.cc
 )

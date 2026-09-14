@@ -117,6 +117,12 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 **gitcode pr/issue/ci 操作**
 @.claude/skills/default-skills/SKILL.md
 
+### OM2 C ABI 兼容性
+
+**触发词**：`$om2-abi-compat`、OM2 SO 与 Executor C ABI、`om2_model_api.h`、`GertModel*` 导出 API 或回调、跨该边界的数据结构。
+
+**使用技能**：满足上述任一触发条件时，读取并遵循 `.claude/skills/om2-abi-compat/SKILL.md`。
+
 ### 代码检视检查项（Code Review Checklist）
 > **触发词**：检视代码，检视pr
 
