@@ -23,7 +23,8 @@ namespace hccl {
 namespace {
 // SOC -> 能力映射项. identity int 值与旧 DevType 枚举值保持一致 (跨版本兼容硬约束):
 //   DEV_TYPE_910 = 0, DEV_TYPE_310P3 = 1, DEV_TYPE_910B = 2, DEV_TYPE_310P1 = 3,
-//   DEV_TYPE_910_93 = 4, DEV_TYPE_NOSOC = 5, DEV_TYPE_950 = 6, DEV_TYPE_MC62 = 7
+//   DEV_TYPE_910_93 = 4, DEV_TYPE_NOSOC = 5, DEV_TYPE_950 = 6, DEV_TYPE_MC62 = 7,
+//   DEV_TYPE_960 = 8
 struct CapabilityFlags {
   bool v2Kernel;
   bool aicpuMc2Resource;  // SupportsAicpuMc2Resource() 返回值 (AICPU MC2 新流程)
@@ -61,6 +62,7 @@ const std::unordered_map<std::string, CapabilityFlags> kSocMap = {
     {"MC62", {false, false, true, false, false, 7}},              // DEV_TYPE_MC62
     {"Ascend950", {true, true, false, false, true, 6}},           // DEV_TYPE_950
     {"Ascend910_95", {true, true, false, false, true, 6}},        // DEV_TYPE_950
+    {"Ascend350_355e", {true, true, false, false, true, 6}},      // DEV_TYPE_950
     {"Ascend960", {true, true, false, false, true, 8}},           // DEV_TYPE_960
     {"ascend960", {true, true, false, false, true, 8}},           // DEV_TYPE_960
     {"Ascend910_96", {true, true, false, false, true, 8}},        // DEV_TYPE_960
