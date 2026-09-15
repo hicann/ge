@@ -87,7 +87,7 @@ Status MatMulEstimator::EstimateTime(PlatFormInfos &platform_info, const ge::OpD
   FE_MUL_OVERFLOW(cycle, cube_n, cycle);
   FE_MUL_OVERFLOW(cycle, batch, cycle);
   exec_time = BasicEstimator::CalcTimeByCycle(platform_info, cycle);
-  FE_LOGD("Matmul batch[%lu], cube_m[%lu], cube_k[%lu], cube_n[%lu], execution time and cycle are %lu and %lu.", batch,
+  FE_LOGD("Matmul batch[%lu], cube_m[%lu], cube_k[%lu], cube_n[%lu], execution time is %lu ns and cycle is %lu.", batch,
           cube_m, cube_k, cube_n, exec_time, cycle);
   return SUCCESS;
 }

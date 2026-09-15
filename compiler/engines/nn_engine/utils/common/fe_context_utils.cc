@@ -129,8 +129,8 @@ Status FEContextUtils::GetPrecisionMode(std::string &precision_mode) {
     }
     if (!enable_flag) {
       FE_LOGE("The AI core doesn't support allow_mix_precision_bf16 or allow_fp32_to_bf16.");
-      ErrorMessageDetail err_msg(EM_INPUT_OPTION_INVALID,
-                                 {precision_mode, ge::PRECISION_MODE, "Current soc not support dtype of BFloat16"});
+      ErrorMessageDetail err_msg(EM_INPUT_OPTION_INVALID, {precision_mode, ge::PRECISION_MODE,
+                                                           "Current soc does not support the BFloat16 dtype"});
       ReportErrorMessage(err_msg);
       return FAILED;
     }
@@ -177,8 +177,8 @@ Status FEContextUtils::GetPrecisionMode(fe::PrecisionMode &precision_mode) {
     }
     if (!enable_flag) {
       FE_LOGE("The AI core doesn't support mixed_bfloat16, allow_mix_precision_bf16 or allow_fp32_to_bf16.");
-      ErrorMessageDetail err_msg(EM_INPUT_OPTION_INVALID,
-                                 {precision_mode_str, ge::PRECISION_MODE, "Current soc not support dtype of BFloat16"});
+      ErrorMessageDetail err_msg(EM_INPUT_OPTION_INVALID, {precision_mode_str, ge::PRECISION_MODE,
+                                                           "Current soc does not support the BFloat16 dtype"});
       ReportErrorMessage(err_msg);
       return FAILED;
     }
