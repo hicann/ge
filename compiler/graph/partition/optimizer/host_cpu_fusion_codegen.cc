@@ -48,7 +48,7 @@ constexpr int kExecDupFailureExitCode = 126;
 constexpr int kExecFailureExitCode = 127;
 #endif
 
-std::string IntExpression(const int64_t value);
+std::string IntExpression(int64_t value);
 
 bool IsAsciiAlphaNumeric(const unsigned char ch) {
   return ((ch >= '0') && (ch <= '9')) || ((ch >= 'A') && (ch <= 'Z')) || ((ch >= 'a') && (ch <= 'z'));

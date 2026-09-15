@@ -23,7 +23,7 @@ class DeclNode;
 class CppEmitter final : public CodeEmitter {
  public:
   CppEmitter() = default;
-  explicit CppEmitter(std::string indent_unit) : indent_unit_(std::move(indent_unit)) {}
+  explicit CppEmitter(std::string indent_unit) : CodeEmitter(), indent_unit_(std::move(indent_unit)) {}
 
   Status Emit(const ParamDecl &node, std::string &output) override final;
   Status Emit(const TranslationUnit &node, std::string &output) override final;

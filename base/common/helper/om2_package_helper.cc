@@ -670,7 +670,7 @@ Status Om2PackageHelper::CollectUsedCustomOpTypes(const GeRootModelPtr &ge_root_
     for (const auto &node : graph->GetAllNodes()) {
       const std::string op_type = node->GetType();
       if (CustomOpFactory::IsExistOp(AscendString(op_type.c_str()))) {
-        used_custom_op_types.insert(op_type);
+        (void)used_custom_op_types.insert(op_type);
       }
     }
   }

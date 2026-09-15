@@ -38,7 +38,8 @@ class DataDumpImpl {
   // Overflow dump 相关信息
   void SetOpDebugInfo(uint32_t task_id, uint32_t stream_id, void *debug_addr);
 
-  Status BuildOpMappingBasicInfo(const ModelDumpInfo &model_info, toolkit::aicpu::dump::OpMappingInfo &op_mapping_info);
+  Status BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
+                                 toolkit::aicpu::dump::OpMappingInfo &dump_op_mapping_info);
 
  private:
   struct InnerTensorInfo {

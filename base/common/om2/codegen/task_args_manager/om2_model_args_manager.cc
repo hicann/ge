@@ -125,15 +125,14 @@ ModelArgsManager::ModelArgsManager() = default;
 
 ModelArgsManager::~ModelArgsManager() noexcept = default;
 
-Status ModelArgsManager::Init(const GeModelPtr &model,
-                              const std::vector<TaskCodeBuilderPtr> *task_code_builder_list_ptr) {
+Status ModelArgsManager::Init(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> *task_list_ptr) {
   logLevel_ = dlog_getlevel(GE_MODULE_NAME, nullptr);
   GE_ASSERT_NOTNULL(model);
   const auto &model_task_def = model->GetModelTaskDefPtr();
   GE_ASSERT_NOTNULL(model_task_def);
 
-  GE_ASSERT_NOTNULL(task_code_builder_list_ptr);
-  task_list_ptr_ = task_code_builder_list_ptr;
+  GE_ASSERT_NOTNULL(task_list_ptr);
+  task_list_ptr_ = task_list_ptr;
   if (static_cast<size_t>(model_task_def->task_size()) != task_list_ptr_->size()) {
     GELOGE(INTERNAL_ERROR, "[OM2] mode_task_def size do not match task_list size");
     return FAILED;
