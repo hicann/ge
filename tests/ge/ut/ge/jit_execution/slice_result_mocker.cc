@@ -19,6 +19,7 @@
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "framework/common/helper/model_save_helper.h"
 #include "graph/build/model_cache.h"
+#include "graph/custom_op_factory.h"
 #include "graph/utils/graph_utils_ex.h"
 #undef private
 #undef protected
@@ -77,6 +78,7 @@ void MakeAttrPattern2(ShapeEnvAttr &attr) {
 GeRootModelPtr BuildGeRootModel(const string &name, const ComputeGraphPtr &graph) {
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+  ge_root_model->SetCustomOpRegistry(CustomOpFactory::GetGlobalRegistryPtr());
   auto ge_model = MakeShared<ge::GeModel>();
   auto model_task_def = MakeShared<domi::ModelTaskDef>();
   model_task_def->set_version("test_v100_r001");

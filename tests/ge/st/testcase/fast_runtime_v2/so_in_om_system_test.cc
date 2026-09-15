@@ -38,10 +38,15 @@ const char *const kHomeEnvName = "HOME";
 const string kOpsProto = "libopsproto_rt2.0.so";
 const string kOpMaster = "libopmaster_rt2.0.so";
 const string kInner = "built-in";
-const string kx86OpsProtoPath = "/op_proto/lib/linux/x86_64/";
-const string kx86OpMasterPath = "/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/";
-const string kaarch64OpsProtoPath = "/op_proto/lib/linux/aarch64/";
-std::map<std::string, std::string> options{{ge::OPTION_HOST_ENV_CPU, "x86_64"}, {ge::OPTION_HOST_ENV_OS, "linux"}};
+#if defined(__aarch64__) || defined(__arm64__)
+const string kCurrentArch = "aarch64";
+#else
+const string kCurrentArch = "x86_64";
+#endif
+const string kOpsProtoPath = "/op_proto/lib/linux/" + kCurrentArch + "/";
+const string kOpMasterPath = "/op_impl/ai_core/tbe/op_tiling/lib/linux/" + kCurrentArch + "/";
+std::map<std::string, std::string> options{{ge::OPTION_HOST_ENV_CPU, kCurrentArch}, {ge::OPTION_HOST_ENV_OS, "linux"}};
+
 void FreeModelData(ge::ModelData &model_data) {
   delete[] static_cast<ge::char_t *>(model_data.model_data);
   model_data.model_data = nullptr;
@@ -84,18 +89,18 @@ void CreateOpmasterSo2EnvInfoFunc(std::string opp_path, bool env_initialized = f
   system(("mkdir -p " + path_vendors).c_str());
   system(("echo 'load_priority=customize' > " + path_config).c_str());
 
-  std::string inner_x86_op_master_path = opp_path + kInner + kx86OpMasterPath;
-  GELOGD("inner_x86_op_master_path:%s", inner_x86_op_master_path.c_str());
-  system(("mkdir -p " + inner_x86_op_master_path).c_str());
-  std::string opmaster_rt2_path = inner_x86_op_master_path + kOpMaster;
+  std::string inner_op_master_path = opp_path + kInner + kOpMasterPath;
+  GELOGD("inner_op_master_path:%s", inner_op_master_path.c_str());
+  system(("mkdir -p " + inner_op_master_path).c_str());
+  std::string opmaster_rt2_path = inner_op_master_path + kOpMaster;
   command = "cp " + op_impl_path + " " + opmaster_rt2_path;
   GELOGD("command: %s", command.c_str());
   system(command.c_str());
 
-  std::string inner_x86_ops_proto_path = opp_path + kInner + kx86OpsProtoPath;
-  GELOGD("inner_x86_ops_proto_path:%s", inner_x86_ops_proto_path.c_str());
-  system(("mkdir -p " + inner_x86_ops_proto_path).c_str());
-  std::string opsproto_rt2_path = inner_x86_ops_proto_path + kOpsProto;
+  std::string inner_ops_proto_path = opp_path + kInner + kOpsProtoPath;
+  GELOGD("inner_ops_proto_path:%s", inner_ops_proto_path.c_str());
+  system(("mkdir -p " + inner_ops_proto_path).c_str());
+  std::string opsproto_rt2_path = inner_ops_proto_path + kOpsProto;
   command = "cp " + op_impl_path + " " + opsproto_rt2_path;
   GELOGD("command: %s", command.c_str());
   system(command.c_str());
@@ -115,18 +120,18 @@ void CreateDlSymFaildEnvInfoFunc(std::string opp_path, bool env_initialized = fa
   system(("mkdir -p " + path_vendors).c_str());
   system(("echo 'load_priority=customize' > " + path_config).c_str());
 
-  std::string inner_x86_op_master_path = opp_path + kInner + kx86OpMasterPath;
-  GELOGD("inner_x86_op_master_path:%s", inner_x86_op_master_path.c_str());
-  system(("mkdir -p " + inner_x86_op_master_path).c_str());
-  std::string opmaster_rt2_path = inner_x86_op_master_path + kOpMaster;
+  std::string inner_op_master_path = opp_path + kInner + kOpMasterPath;
+  GELOGD("inner_op_master_path:%s", inner_op_master_path.c_str());
+  system(("mkdir -p " + inner_op_master_path).c_str());
+  std::string opmaster_rt2_path = inner_op_master_path + kOpMaster;
   command = "cp " + stub_op_impl_path + " " + opmaster_rt2_path;
   GELOGD("command: %s", command.c_str());
   system(command.c_str());
 
-  std::string inner_x86_ops_proto_path = opp_path + kInner + kx86OpsProtoPath;
-  GELOGD("inner_x86_ops_proto_path:%s", inner_x86_ops_proto_path.c_str());
-  system(("mkdir -p " + inner_x86_ops_proto_path).c_str());
-  std::string opsproto_rt2_path = inner_x86_ops_proto_path + kOpsProto;
+  std::string inner_ops_proto_path = opp_path + kInner + kOpsProtoPath;
+  GELOGD("inner_ops_proto_path:%s", inner_ops_proto_path.c_str());
+  system(("mkdir -p " + inner_ops_proto_path).c_str());
+  std::string opsproto_rt2_path = inner_ops_proto_path + kOpsProto;
   command = "cp " + stub_op_impl_path + " " + opsproto_rt2_path;
   GELOGD("command: %s", command.c_str());
   system(command.c_str());
@@ -342,7 +347,7 @@ TEST_F(SoInOmST, RunPackageSoLoad_0002) {
     ASSERT_NE(error_code, ge::GRAPH_SUCCESS);
   }
 
-  std::string expect_log = "Get path with op_tiling path [./xxxx/op_impl/built-in/ai_core/tbe/op_tiling/lib/linux/x86_64/] failed";
+  std::string expect_log = "Get path with op_tiling path [./xxxx/op_impl/built-in/ai_core/tbe/op_tiling/lib/linux/" + kCurrentArch + "/] failed";
   auto logs = stub.GetSlogStub().GetLogs(DLOG_WARN);
   EXPECT_EQ(HaveExpectLog(logs, expect_log), true);
   LoadDefaultSpaceRegistry();

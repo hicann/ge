@@ -273,6 +273,9 @@ TEST(HostCpuFusionCodegenST, CompilerHandlesMissingToolkitAndDiagnostics) {
 
 TEST(HostCpuFusionCodegenST, CommitsHostCpuFusionPassWithEmbeddedCustomOpSo) {
 #if defined(__linux__)
+#if defined(__aarch64__) || defined(__arm64__)
+  GTEST_SKIP() << "HostCPU fusion pass SO validation is x86_64-only on this test path.";
+#else
   const auto toolkit_home = GetToolkitHome();
   EnvGuard home("ASCEND_HOME_PATH", toolkit_home.c_str());
   EnvGuard opp("ASCEND_OPP_PATH", "");
@@ -286,6 +289,7 @@ TEST(HostCpuFusionCodegenST, CommitsHostCpuFusionPassWithEmbeddedCustomOpSo) {
   EXPECT_EQ(graph->GetDirectNodesSize(), 3U);
   EXPECT_EQ(atomic_map.size(), 1U);
   EXPECT_EQ(composite_map.size(), 1U);
+#endif
 #else
   GTEST_SKIP() << "HostCPU fusion JIT uses Linux memfd.";
 #endif

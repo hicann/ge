@@ -388,6 +388,12 @@ TEST_F(GuardCodeGenST, GuardCodegen_CrossCompileFail) {
   auto symbol1 = attr->CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
   EXPECT_SYMBOL_EQ(symbol0, symbol1);
 
+  const char *old_path = std::getenv("PATH");
+  const std::string old_path_value = old_path == nullptr ? std::string() : std::string(old_path);
+  const bool had_path = old_path != nullptr;
+  ASSERT_EQ(setenv("PATH", "/nonexistent", 1), 0);
+  auto restore_path = [&]() { had_path ? setenv("PATH", old_path_value.c_str(), 1) : unsetenv("PATH"); };
+
 #if defined(__x86_64__) || defined(__amd64__)
   ScopedHostEnv scoped_env("linux", "aarch64");
 #elif defined(__aarch64__) || defined(__arm64__)
@@ -397,5 +403,6 @@ TEST_F(GuardCodeGenST, GuardCodegen_CrossCompileFail) {
 #endif
 
   EXPECT_NE(codegen.GuardFuncCodegenAndCompile(compute_graph), ge::GRAPH_SUCCESS);
+  restore_path();
 }
 }  // namespace ge

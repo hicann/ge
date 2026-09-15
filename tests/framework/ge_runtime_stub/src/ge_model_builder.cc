@@ -283,7 +283,11 @@ ge::GeRootModelPtr GeModelBuilder::BuildGeRootModel() {
 
   ge::AttrUtils::SetStr(ge_model, ge::ATTR_MODEL_OPP_VERSION, "3.20.T100.0.B356");
   ge::AttrUtils::SetStr(ge_model, ge::ATTR_MODEL_HOST_ENV_OS, "linux");
+#if defined(__aarch64__) || defined(__arm64__)
+  ge::AttrUtils::SetStr(ge_model, ge::ATTR_MODEL_HOST_ENV_CPU, "aarch64");
+#else
   ge::AttrUtils::SetStr(ge_model, ge::ATTR_MODEL_HOST_ENV_CPU, "x86_64");
+#endif
   ge::AttrUtils::SetInt(ge_model, ge::ATTR_MODEL_STREAM_NUM, root_model_stream_num_);
   ge::AttrUtils::SetInt(ge_model, ge::ATTR_MODEL_EVENT_NUM, root_model_event_num_);
   ge::AttrUtils::SetInt(ge_model, ge::ATTR_MODEL_VAR_SIZE, 512 * 1024 * 1024);
