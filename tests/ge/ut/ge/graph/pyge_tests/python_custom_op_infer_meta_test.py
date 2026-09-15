@@ -66,36 +66,36 @@ class FakeInferMetaContext:
             self._dynamic_output_counts.append(0)
         self._dynamic_output_counts[ir_index] = count
 
-    def get_required_input_tensor(self, ir_index):
+    def _get_required_input_tensor(self, ir_index):
         return TensorDesc(
             self._input_shapes[ir_index], DataType(self._input_dtypes[ir_index])
         )
 
-    def get_optional_input_tensor(self, ir_index):
+    def _get_optional_input_tensor(self, ir_index):
         if ir_index >= len(self._input_shapes) or self._input_shapes[ir_index] is None:
             return None
         return TensorDesc(
             self._input_shapes[ir_index], DataType(self._input_dtypes[ir_index])
         )
 
-    def get_dynamic_input_num(self, ir_index):
+    def _get_dynamic_input_num(self, ir_index):
         return (
             self._dynamic_input_counts[ir_index]
             if ir_index < len(self._dynamic_input_counts)
             else 0
         )
 
-    def get_dynamic_input_tensor(self, ir_index, relative_index):
+    def _get_dynamic_input_tensor(self, ir_index, relative_index):
         start = sum(self._dynamic_input_counts[:ir_index]) if ir_index > 0 else 0
         return TensorDesc(
             self._input_shapes[start + relative_index],
             DataType(self._input_dtypes[start + relative_index]),
         )
 
-    def get_attrs(self):
+    def _get_attrs(self):
         return FakeRuntimeAttrs(self._ir_attrs)
 
-    def get_dynamic_output_num(self, ir_index):
+    def _get_dynamic_output_num(self, ir_index):
         return (
             self._dynamic_output_counts[ir_index]
             if ir_index < len(self._dynamic_output_counts)

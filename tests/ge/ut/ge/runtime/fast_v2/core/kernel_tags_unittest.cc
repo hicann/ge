@@ -62,10 +62,9 @@ TEST_F(KernelTagsUT, SyncStreamTaggedAsNormal) {
 
 TEST_F(KernelTagsUT, LaunchKernelsRegisterLaunchCriticalSection) {
   const std::vector<std::string> launch_kernels = {
-      "LaunchKernelWithHandle",       "LaunchMixKernelWithHandle",  "LaunchKernelWithFlag", "LaunchMixKernelWithFlag",
-      "AtomicLaunchKernelWithHandle", "AtomicLaunchKernelWithFlag", "LaunchFFTSPlusTask",   "LaunchFFTSPlusTaskNoCopy",
-      "StarsTaskLaunchKernel",        "AicpuLaunchTfKernel",        "AicpuLaunchCCKernel",  "ExecuteOpLaunch",
-      "DavinciModelExecute"};
+      "LaunchKernelV2",           "LaunchMixKernelV2",     "AtomicLaunchKernelV2", "LaunchFFTSPlusTask",
+      "LaunchFFTSPlusTaskNoCopy", "StarsTaskLaunchKernel", "AicpuLaunchTfKernel",  "AicpuLaunchCCKernel",
+      "ExecuteOpLaunch",          "DavinciModelExecute"};
 
   for (const auto &kernel_type : launch_kernels) {
     const auto kernel_info = KernelRegistry::GetInstance().FindKernelInfo(kernel_type.c_str());

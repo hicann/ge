@@ -1889,15 +1889,16 @@ TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_BuildReportTaskPreprocessCall_WithRawAd
   ExpectContainsAll(output, {"ReportOm2TaskPreprocess", "raw_pre_op"});
 }
 
-TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_BuildAddrField_Normal) {
+TEST_F(Om2CodegenUt, TaskCodeBuilderUtil_RenderArgAddrField_Normal) {
   AstContext ctx;
   AstBuildContext ast(ctx);
 
   OpArgDesc desc;
+  desc.type = OP_ARG_INPUT;
   desc.mem_src = 1U;
   desc.offset = 128U;
 
-  auto arg = TaskCodeBuilderUtil::BuildAddrField(ast, desc);
+  auto arg = TaskCodeBuilderUtil::RenderArgAddrField(ast, desc);
   auto *arg_expr = arg.Resolve(ctx);
   ASSERT_NE(arg_expr, nullptr);
   auto output = EmitNode(*arg_expr);

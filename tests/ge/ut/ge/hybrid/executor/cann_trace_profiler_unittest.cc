@@ -59,8 +59,8 @@ TEST_F(CannTraceProfilerUT, CannTracingProfiler_test_ok) {
   auto context = gert::KernelRunContextFaker()
                      .NodeName("test1")
                      .NodeType("test1")
-                     .KernelType("LaunchKernelWithHandle")
-                     .KernelName("LaunchKernelWithHandle")
+                     .KernelType("LaunchKernelV2")
+                     .KernelName("LaunchKernelV2")
                      .KernelIONum(3, 1)
                      .Build();
 
@@ -82,6 +82,7 @@ TEST_F(CannTraceProfilerUT, CannTracingProfiler_test_ok) {
   execution_data->base_ed.input_num = static_cast<std::size_t>(gert::ExecuteArgIndex::kNum);
 
   auto model_executor = gert::BuildExecutorTraningTrace();
+  ASSERT_NE(model_executor, nullptr);
   gert::ModelV2ExecutorTestHelper::SetExecutionData(execution_data, gert::kMainExeGraph, model_executor.get());
   gert::SubscriberExtendInfo extend_info;
   extend_info.executor = model_executor.get();
@@ -149,6 +150,7 @@ TEST_F(CannTraceProfilerUT, CannTracingProfiler_test_extend_info_null) {
   execution_data->base_ed.input_num = static_cast<std::size_t>(gert::ExecuteArgIndex::kNum);
 
   auto model_executor = gert::BuildExecutorTraningTrace();
+  ASSERT_NE(model_executor, nullptr);
   gert::ModelV2ExecutorTestHelper::SetExecutionData(execution_data, gert::kMainExeGraph, model_executor.get());
   gert::SubscriberExtendInfo extend_info;
   extend_info.executor = model_executor.get();

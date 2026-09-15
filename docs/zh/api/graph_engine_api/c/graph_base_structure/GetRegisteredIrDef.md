@@ -1,4 +1,6 @@
-# GetRegisteredIrDef
+# GetRegisteredIrDef（废弃）
+
+**须知：此接口后续版本会废弃，请使用[GetRegisteredIrDefV2](GetRegisteredIrDefV2.md)接口。**
 
 ## 产品支持情况
 

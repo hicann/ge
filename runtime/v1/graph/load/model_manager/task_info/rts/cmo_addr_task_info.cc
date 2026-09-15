@@ -14,6 +14,7 @@
 #include "graph/load/model_manager/davinci_model.h"
 #include "graph/load/model_manager/model_utils.h"
 #include "graph/args_format_desc.h"
+#include "framework/common/debug/ge_log.h"
 #include "rt_external_device.h"
 
 namespace ge {

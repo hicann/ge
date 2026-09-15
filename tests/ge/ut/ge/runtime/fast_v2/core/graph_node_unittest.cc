@@ -64,10 +64,10 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_Not_Same) {
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node1), "priority", 1);
   auto node2 = bg::ValueHolder::CreateSingleDataOutput("foo2", {data});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node2), "priority", 2);
-  auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node1});
+  auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node1});
   bg::ValueHolder::AddDependency(node2, node3);
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node3), "priority", 3);
-  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node2});
+  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node2});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node4), "priority", 4);
   auto main_frame = bg::ValueHolder::PopGraphFrame({node3, node4}, {}, "NetOutput");
   GraphNode graph_node;
@@ -94,15 +94,15 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_Not_Same) {
  *     node1(1)  node2(1)  node3(2)  node4(2)
  */
 TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Same1) {
-  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {});
+  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node1), "priority", 1);
-  auto node2 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {});
+  auto node2 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node2), "priority", 1);
-  auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {});
+  auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node3), "priority", 2);
-  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {});
+  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node4), "priority", 2);
-  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node1, node2, node3, node4});
+  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node1, node2, node3, node4});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node5), "priority", 3);
   auto main_frame = bg::ValueHolder::PopGraphFrame({node5}, {}, "NetOutput");
   GraphNode graph_node;
@@ -141,16 +141,16 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Same1) {
  */
 TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Same2) {
   auto data = bg::ValueHolder::CreateFeed(0);
-  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {data});
+  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {data});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node1), "priority", 1);
-  auto node2 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node1});
+  auto node2 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node1});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node2), "priority", 1);
-  auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node1});
+  auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node1});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node3), "priority", 1);
-  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node2});
+  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node2});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node4), "priority", 2);
   bg::ValueHolder::AddDependency(node3, node4);
-  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node3});
+  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node3});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node5), "priority", 2);
   auto main_frame = bg::ValueHolder::PopGraphFrame({node4, node5}, {}, "NetOutput");
   GraphNode graph_node;
@@ -184,15 +184,15 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Same2) {
  */
 TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Same3) {
   auto data = bg::ValueHolder::CreateFeed(0);
-  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {data});
+  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {data});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node1), "priority", 1);
-  auto node2 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node1});
+  auto node2 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node1});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node2), "priority", 1);
-  auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node1});
+  auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node1});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node3), "priority", 1);
-  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node2});
+  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node2});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node4), "priority", 2);
-  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node3, node4});
+  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node3, node4});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node5), "priority", 2);
   auto main_frame = bg::ValueHolder::PopGraphFrame({node4, node5}, {}, "NetOutput");
   GraphNode graph_node;
@@ -238,7 +238,7 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Same3) {
 // 测试If子图里的节点需要新增的控制关系
 TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Subgraph1) {
   auto data = bg::ValueHolder::CreateFeed(0);
-  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {data});
+  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {data});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node1), "priority", 0);
   auto if_outputs = bg::If<bg::ValueHolder>(
       node1,
@@ -255,7 +255,7 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Subgraph1) {
         return {node1, node4};
       });
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(if_outputs[0]), "priority", 1);
-  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", if_outputs);
+  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", if_outputs);
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node5), "priority", 5);
   auto main_frame = bg::ValueHolder::PopGraphFrame({node5}, {}, "NetOutput");
   auto root_graph = ge::ExecuteGraphUtils::FindRootGraph(main_frame->GetExecuteGraph().get());
@@ -314,22 +314,22 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Subgraph1) {
  */
 // 测试普通launch节点和If连接需要增加的控制关系
 TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Subgraph2) {
-  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {});
+  auto node1 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node1), "priority", 1);
-  auto node2 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {});
+  auto node2 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node2), "priority", 2);
   auto if_outputs = bg::If<bg::ValueHolder>(
       node1,
       [&]() -> std::vector<bg::ValueHolderPtr> {
-        auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node1});
+        auto node3 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node1});
         ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node3), "priority", 4);
         return {node3};
       },
       [&]() -> std::vector<bg::ValueHolderPtr> { return {node1}; });
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(if_outputs[0]), "priority", 3);
-  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {node2});
+  auto node4 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {node2});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node4), "priority", 5);
-  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {if_outputs[0], node4});
+  auto node5 = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {if_outputs[0], node4});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(node5), "priority", 6);
   auto main_frame = bg::ValueHolder::PopGraphFrame({node5}, {}, "NetOutput");
 
@@ -343,7 +343,7 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_Prioirty_With_Subgraph2) {
   ASSERT_NE(then_graph, nullptr);
   auto else_graph = ge::FastNodeUtils::GetSubgraphFromNode(if_node, 2U);
   ASSERT_NE(else_graph, nullptr);
-  auto node3Ptr = ge::ExecuteGraphUtils::FindFirstNodeMatchType(then_graph, "LaunchKernelWithFlag");
+  auto node3Ptr = ge::ExecuteGraphUtils::FindFirstNodeMatchType(then_graph, "LaunchKernelV2");
   ASSERT_NE(node3Ptr, nullptr);
   auto switchNotify = ge::ExecuteGraphUtils::FindFirstNodeMatchType(cond_graph, "SwitchNotify");
   ASSERT_NE(switchNotify, nullptr);
@@ -372,7 +372,7 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_RemoveLaunchFreeEdgeAlloc_UsesCopyD2D) 
   auto size = bg::ValueHolder::CreateFeed(0);
   auto allocator = bg::ValueHolder::CreateFeed(1);
   auto stream = bg::ValueHolder::CreateFeed(2);
-  auto previous_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {stream});
+  auto previous_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {stream});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(previous_launch), "priority", 1);
 
   auto alloc = bg::ValueHolder::CreateSingleDataOutput("AllocMemory", {size, allocator});
@@ -380,7 +380,7 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_RemoveLaunchFreeEdgeAlloc_UsesCopyD2D) 
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(alloc), "remove_launch_free_edge_alloc", 1);
   auto copy_d2d = bg::ValueHolder::CreateSingleDataOutput("CopyD2D", {alloc});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(copy_d2d), "priority", 2);
-  auto next_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {copy_d2d});
+  auto next_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {copy_d2d});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(next_launch), "priority", 2);
 
   auto main_frame = bg::ValueHolder::PopGraphFrame({previous_launch, next_launch}, {}, "NetOutput");
@@ -394,7 +394,7 @@ TEST_F(GraphNodeUT, EnsureNodeExeInOrder_RemoveLaunchFreeEdgeAlloc_UsesCopyD2D) 
 }
 
 TEST_F(GraphNodeUT, EnsureNodeExeInOrder_RegistryLaunchStartsNextPriorityGroup) {
-  auto previous_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelWithFlag", {});
+  auto previous_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchKernelV2", {});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(previous_launch), "priority", 1);
   auto copy_launch = bg::ValueHolder::CreateSingleDataOutput("LaunchH2DCopy", {});
   ge::AttrUtils::SetInt(bg::ValueHolderUtils::GetNodeOpDescBarePtr(copy_launch), "priority", 2);

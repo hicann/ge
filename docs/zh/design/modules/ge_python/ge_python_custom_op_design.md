@@ -15,7 +15,7 @@ Python 自定义算子的完整定位是支持用户用 Python 描述自定义�
 - Python 插件通过 `ASCEND_CUSTOM_OPP_PATH` 发现和导入。
 - GE 初始化、在线编译和执行前幂等加载 Python custom op。
 - C++ runtime 通过 `PythonCustomOpAdapter` 接入现有 `CustomOpFactory` / `CustomOpRegistry`。
-- Python native module `_ge_custom_op_native` 提供 `EagerOpExecutionContext` 和 `RuntimeAttrs` borrowed view。
+- Python native module `_ge_custom_op_native` 提供 `EagerOpExecutionContext` borrowed view；`RuntimeAttrs` 为桥接层内部视图，不对外导出。
 - Python 用户通过 `declare_launch_args` 实现 `AnnotatedArgsOp` 编译期回调，使用 `AnnotatedArgsContext`、`AnnotatedKernelArgs` 和 `AnnotatedKernelLaunchInfo` 声明 kernel 启动参数。
 - Python 用户通过 schema-bound `compile` 实现图编译期回调，并通过 `get_compile_ctx()` 和 `get_compile_platform_info()` 查询编译上下文及平台信息。
 - `ge.runtime` 提供 context 返回或入参所需的 `Tensor`、`StorageShape`、`StorageFormat`、`Shape`、`TensorPlacement` 等运行时数据结构。
@@ -96,7 +96,7 @@ V1 功能包括：
 - 不改变 AscendIR 图结构、op proto 格式和 OM 文件格式。
 - 不在 `graph_metadef/register` 中直接引入 Python runtime 或 pybind 依赖。
 - Python 入口失败只在实际存在 Python custom op 入口时影响加载；没有 Python 文件/包时直接跳过。
-- `EagerOpExecutionContext`、`AnnotatedArgsContext`、`RuntimeAttrs` 以及由它们返回的 `Tensor` 等 borrowed view 只能在当前回调内使用；`AnnotatedKernelArgs` 被 `add_launch` 消费后不可复用。
+- `EagerOpExecutionContext`、`AnnotatedArgsContext` 以及由它们返回的 `Tensor` 等 borrowed view 只能在当前回调内使用；`AnnotatedKernelArgs` 被 `add_launch` 消费后不可复用。
 - Python `execute` 的返回值当前不作为状态码使用；正常返回表示成功，抛出异常表示失败。
 - Python custom op 当前由 C++ adapter 声明 `EagerExecuteOp`、`CompilableOp` 和 `AnnotatedArgsOp` capability；其它 C++ 能力接口由 adapter 保留 override 但按不支持处理。
 - schema-bound 形式依赖已有算子原型的 canonical IR。bridge 加载 descriptor 时收集 canonical IR，并在创建 holder 和调用业务 callback 之前调用 `validate_op_impl_descriptor`，一次性校验 schema-bound 签名：`execute` 校验 IR 输入和属性，不把输出参数纳入签名；`compile` 和 `declare_launch_args` 校验输入、输出、属性并要求显式声明 `-> None`；三个 callback 的实际返回值也必须为`None`。runtime callback 只组装实参并调用业务方法，不再校验签名；校验结果属于 descriptor 加载阶段，不进入 holder 生命周期。
@@ -282,24 +282,15 @@ Python custom op 使用 `@register_op_impl(op_type=...)` 装饰器注册实现�
 
 | 方法 | 说明 |
 |------|------|
-| `get_input_tensor(index)` | 根据输入 index 获取输入 `Tensor` |
-| `get_input_num()` | 获取当前计算节点的运行时输入 tensor 数量 |
-| `get_dynamic_input_num(ir_index)` | 获取指定动态输入 IR 槽位的运行时实例数 |
-| `get_attrs()` | 获取当前节点的 `RuntimeAttrs` borrowed view |
-| `get_required_input_tensor(ir_index)` | 基于算子 IR 原型定义获取 `REQUIRED_INPUT` 类型的输入 `Tensor` |
-| `get_optional_input_tensor(ir_index)` | 基于算子 IR 原型定义获取 `OPTIONAL_INPUT` 类型的输入 `Tensor` |
-| `get_dynamic_input_tensor(ir_index, relative_index)` | 基于算子 IR 原型定义获取 `DYNAMIC_INPUT` 类型的输入 `Tensor` |
 | `malloc_output_tensor(index, shape, format, dtype)` | 为某个输出 tensor 申请 device 内存，并初始化输出 tensor 的基本信息 |
 | `make_output_ref_input(output_index, input_index)` | 指定某输出的内存地址引用自某个输入 |
 | `malloc_workspace(size)` | 分配 workspace 内存，placement 为 device，返回地址整数 |
 | `get_output_tensor(index)` | 获取 index 指定的输出 `Tensor` |
 | `get_stream()` | 获取所属执行流地址整数 |
 
-`InferShapeContext` 供 `register_op` 装饰函数执行 `infer_meta` 时使用：读取 required、optional、dynamic 输入的 shape 和 data type，读取 typed runtime attrs，并查询 dynamic output 实例数。该 context 只在当前 `infer_meta` 回调内有效；输出 shape 和 data type 由 `infer_meta` 返回的 `TensorDesc` 统一承载。
-
 `AnnotatedArgsContext` 暴露 workspace 申请、stream id 查询、kernel 参数 builder 创建和 launch 添加能力；输入输出 tensor 与属性查询由内部 schema-bound 组装逻辑使用。`AnnotatedKernelArgs` 暴露 `append_input`、`append_output`、`append_workspace` 和 `append_scalar`。
 
-`RuntimeAttrs` 按属性 IR index 提供以下 typed reader：
+`RuntimeAttrs` 为桥接层内部的运行时属性 borrowed view，按属性 IR index 提供以下 typed reader，由桥接层根据 canonical IR 属性类型选择，不通过 `ge.custom_op` 对外导出：
 
 | 属性类型 | 方法 |
 |----------|------|
@@ -314,7 +305,7 @@ Python custom op 使用 `@register_op_impl(op_type=...)` 装饰器注册实现�
 - shape/format 入参使用 `ge.runtime.StorageShape`、`ge.runtime.StorageFormat`。
 - dtype 使用 `ge.graph.DataType`。
 - stream、workspace 地址以 Python `int` 表示。
-- `RuntimeAttrs` 及其返回的 borrowed 对象随当前 context 一起失效。
+- 桥接层内部的 `RuntimeAttrs` 及其返回的 borrowed 对象随当前 context 一起失效。
 
 #### 3.2.6 C++ Adapter 与能力检测
 
@@ -433,8 +424,6 @@ Python 对外 API 见 `docs/zh/api/graph_engine_api/python/ge/custom_op/`。当�
 |------|------|
 | `execute` | 用户实现的 schema-bound 执行入口 |
 | `EagerOpExecutionContext` | 执行上下文 borrowed view |
-| `InferShapeContext` | `infer_meta` 回调的输入元信息读取上下文 |
-| `RuntimeAttrs` | `EagerOpExecutionContext.get_attrs()` 返回的属性 borrowed view |
 | `get_execute_ctx` | 获取当前 schema-bound 回调的执行上下文 |
 | `register_op` | 声明并收集 Python 自定义算子原型 |
 | `register_op_impl` | 注册实现类并反射其能力方法 |

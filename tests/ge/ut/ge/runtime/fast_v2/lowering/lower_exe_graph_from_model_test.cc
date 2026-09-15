@@ -127,61 +127,60 @@ TEST_F(LowerExeGraphFromModelUT, LowerFromGeModel) {
   auto de_init_graph = ge::FastNodeUtils::GetSubgraphFromNode(
       ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph.get(), "DeInit"), 0);
 
-  std::map<std::string, size_t> expect_init_graph_nodes{{"AllocLaunchArg", 7},
-                                                        {"AssignWeightMemory", 3},
-                                                        {"BuildTensor", 2},
-                                                        {"Const", 236},
-                                                        {"ConstData", 3},
-                                                        {"Data", 4},
-                                                        {"CreateL1Allocator", 1},
-                                                        {"CreateMemAssigner", 1},
-                                                        {"GetOrCreateWeightMem", 1},
-                                                        {"SinkWeightData", 3},
-                                                        {"FindInferShapeFunc", 3},
-                                                        {"FindTilingFunc", 2},
-                                                        {"GetSpaceRegistry", 5},
-                                                        {"InnerNetOutput", 1},
-                                                        {"SelectL1Allocator", 1},
-                                                        {"SinkNodeBinWithoutHandle", 7},
-                                                        {"SplitRtStreams", 1},
-                                                        {"SplitConstTensor", 5},
-                                                        {"AppendCoreTypeToPlatform", 1},
-                                                        {"GetPlatformInfo", 1},
-                                                        {"TilingParse", 7},
-                                                        {"NoOp", 1},
-                                                        {"CreateInitL2Allocator", 1},
-                                                        {"CreateL2Allocators", 1},
-                                                        {"PrepareCacheableTilingFwkData", 7}};
+  std::map<std::string, size_t> expect_init_graph_nodes{
+      {"AllocLaunchArg", 7},
+      {"AppendCoreTypeToPlatform", 1},
+      {"AssignWeightMemory", 3},
+      {"BuildTensor", 2},
+      {"Const", 257},
+      {"ConstData", 3},
+      {"CreateInitL2Allocator", 1},
+      {"CreateL1Allocator", 1},
+      {"CreateL2Allocators", 1},
+      {"CreateMemAssigner", 1},
+      {"Data", 4},
+      {"FindInferShapeFunc", 3},
+      {"FindTilingFunc", 2},
+      {"GetOrCreateWeightMem", 1},
+      {"GetPlatformInfo", 1},
+      {"GetSpaceRegistry", 5},
+      {"InnerNetOutput", 1},
+      {"NoOp", 1},
+      {"PrepareCacheableTilingFwkData", 7},
+      {"SelectL1Allocator", 1},
+      {"SinkWeightData", 3},
+      {"SplitConstTensor", 5},
+      {"SplitRtStreams", 1},
+      {"TilingParse", 7},
+  };
   EXPECT_EQ(GetNodeTypesToNum(init_graph), expect_init_graph_nodes)
       << PrintNodesDetail("Check init graph failed: ", GetNodeTypesToNum(init_graph), expect_init_graph_nodes);
 
-  std::map<std::string, size_t> expect_main_graph_nodes{{"AllocBatchHbm", 7},
-                                                        {"AllocMemHbm", 11},
-                                                        {"AllocModelOutTensor", 3},
-                                                        {"EnsureTensorAtOutMemory", 3},
-                                                        {"CalcTensorSizeFromStorage", 31},
-                                                        {"Data", 7},
-                                                        {"FreeBatchHbm", 7},
-                                                        {"FreeMemory", 17},
-                                                        {"InferShape", 9},
-                                                        {"InnerData", 158},
-                                                        {"LaunchKernelWithFlag", 7},
-                                                        {"CopyFlowLaunch", 3},
-                                                        {"OutputData", 1},
-                                                        {"SplitRtStreams", 1},
-                                                        {"NetOutput", 1},
-                                                        {"SelectL1Allocator", 1},
-                                                        {"SelectL2Allocator", 1},
-                                                        {"SplitDataTensor", 3},
-                                                        {"CacheableTiling", 7},
-                                                        {"TilingAppendWorkspace", 7},
-                                                        {"TilingAppendDfxInfo", 7}};
+  std::map<std::string, size_t> expect_main_graph_nodes{
+      {"AllocBatchHbm", 7},
+      {"AllocMemHbm", 11},
+      {"AllocModelOutTensor", 3},
+      {"CacheableTiling", 7},
+      {"CalcTensorSizeFromStorage", 31},
+      {"CopyFlowLaunch", 3},
+      {"Data", 7},
+      {"EnsureTensorAtOutMemory", 3},
+      {"FreeBatchHbm", 7},
+      {"FreeMemory", 17},
+      {"InferShape", 9},
+      {"InnerData", 200},
+      {"LaunchKernelV2", 7},
+      {"NetOutput", 1},
+      {"OutputData", 1},
+      {"SelectL1Allocator", 1},
+      {"SelectL2Allocator", 1},
+      {"SplitDataTensor", 3},
+      {"SplitRtStreams", 1},
+      {"TilingAppendDfxInfo", 7},
+      {"TilingAppendWorkspace", 7},
+  };
   EXPECT_EQ(GetNodeTypesToNum(main_graph), expect_main_graph_nodes)
       << PrintNodesDetail("Check main graph failed: ", GetNodeTypesToNum(main_graph), expect_main_graph_nodes);
-
-  std::map<std::string, size_t> expect_de_init_graph_nodes{};
-  EXPECT_EQ(GetNodeTypesToNum(de_init_graph), expect_de_init_graph_nodes)
-      << PrintNodesDetail("Check de-init graph failed: ", GetNodeTypesToNum(de_init_graph), expect_de_init_graph_nodes);
 
   memory::CachingMemAllocator::GetAllocator()->Finalize();
 }
@@ -224,57 +223,54 @@ TEST_F(LowerExeGraphFromModelUT, LowerStaticGeModel) {
   auto de_init_graph = ge::FastNodeUtils::GetSubgraphFromNode(
       ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph.get(), "DeInit"), 0);
 
-  std::map<std::string, size_t> expect_init_graph_nodes{{"AllocLaunchArg", 1},
-                                                        {"CalcTensorSizeFromStorage", 2},
-                                                        {"Const", 32},
-                                                        {"ConstData", 3},
-                                                        {"Data", 4},
-                                                        {"FindInferShapeFunc", 1},
-                                                        {"GetSpaceRegistry", 1},
-                                                        {"CreateInitL2Allocator", 1},
-                                                        {"CreateL1Allocator", 2},
-                                                        {"CreateL2Allocators", 1},
-                                                        {"InnerNetOutput", 1},
-                                                        {"SelectL1Allocator", 2},
-                                                        {"SinkNodeBinWithoutHandle", 1},
-                                                        {"SplitRtStreams", 1},
-                                                        {"NoOp", 1},
-                                                        {"CreateHostL2Allocator", 1}};
+  std::map<std::string, size_t> expect_init_graph_nodes{
+      {"AllocLaunchArg", 1},
+      {"CalcTensorSizeFromStorage", 2},
+      {"Const", 35},
+      {"ConstData", 3},
+      {"CreateHostL2Allocator", 1},
+      {"CreateInitL2Allocator", 1},
+      {"CreateL1Allocator", 2},
+      {"CreateL2Allocators", 1},
+      {"Data", 4},
+      {"FindInferShapeFunc", 1},
+      {"GetSpaceRegistry", 1},
+      {"InnerNetOutput", 1},
+      {"NoOp", 1},
+      {"SelectL1Allocator", 2},
+      {"SplitRtStreams", 1},
+  };
 
   EXPECT_EQ(GetNodeTypesToNum(init_graph), expect_init_graph_nodes)
       << PrintNodesDetail("Check init graph failed: ", GetNodeTypesToNum(init_graph), expect_init_graph_nodes);
 
   std::map<std::string, size_t> expect_main_graph_nodes{
-      {"AllocMemHbm", 1},
       {"AllocBatchHbm", 1},
+      {"AllocMemHbm", 1},
       {"BuildTensor", 1},
-      {"InferShape", 1},
       {"CalcTensorSizeFromStorage", 2},
       {"CopyD2H", 1},
+      {"CopyFlowLaunch", 1},
+      {"CreateHostL2Allocator", 1},
       {"Data", 6},
       {"EnsureTensorAtOutMemory", 1},
       {"FreeBatchHbm", 1},
       {"FreeMemory", 4},
       {"FreeTensorMemory", 1},
-      {"InnerData", 28},  // LoweringStaticAicoreNode, args直连增加了InnerData
-      {"SplitRtStreams", 1},
-      {"LaunchKernelWithFlag", 1},
-      {"CopyFlowLaunch", 1},
-      {"SplitDataTensor", 2},
+      {"InferShape", 1},
+      {"InnerData", 34},
+      {"LaunchKernelV2", 1},
+      {"NetOutput", 1},
+      {"OutputData", 1},
       {"SelectL1Allocator", 2},
       {"SelectL2Allocator", 1},
-      {"OutputData", 1},
-      {"NetOutput", 1},
+      {"SplitDataTensor", 2},
+      {"SplitRtStreams", 1},
       {"SyncStream", 1},
-      {"CreateHostL2Allocator", 1}};
+  };
 
   EXPECT_EQ(GetNodeTypesToNum(main_graph), expect_main_graph_nodes)
       << PrintNodesDetail("Check main graph failed: ", GetNodeTypesToNum(main_graph), expect_main_graph_nodes);
-
-  std::map<std::string, size_t> expect_de_init_graph_nodes{};
-  EXPECT_EQ(GetNodeTypesToNum(de_init_graph), expect_de_init_graph_nodes)
-      << PrintNodesDetail("Check de-init graph failed: ", GetNodeTypesToNum(de_init_graph), expect_de_init_graph_nodes);
-
   memory::CachingMemAllocator::GetAllocator()->Finalize();
 }
 

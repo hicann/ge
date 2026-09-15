@@ -383,7 +383,7 @@ LowerResult LoweringAdd(const ge::NodePtr &node, const LowerInput &lower_input) 
   auto size_holder = bg::ValueHolder::CreateConst(&output_size, sizeof(output_size));
   auto output_addrs = bg::AllocOutputMemory(kOnDeviceHbm, node, {size_holder}, *(lower_input.global_data));
   auto compute_holder = bg::ValueHolder::CreateVoid<bg::ValueHolder>(
-      "LaunchKernelWithHandle", {lower_input.input_addrs[1], output_addrs[0], lower_input.global_data->GetStream()});
+      "LaunchKernelV2", {lower_input.input_addrs[1], output_addrs[0], lower_input.global_data->GetStream()});
 
   return {HyperStatus::Success(), {compute_holder}, {lower_input.input_shapes[0]}, output_addrs};
 }
@@ -663,6 +663,13 @@ TEST_F(GraphExecutorWithKernelUnitTest, ExecuteModel_HostInput) {
 TEST_F(GraphExecutorWithKernelUnitTest, ExecuteModel_BinaryKernel) {
   auto graph = ShareGraph::BinaryKernelTypicalGraph();
   for (auto &node : graph->GetAllNodes()) {
+    if (node->GetType() == "Data") {
+      auto data_desc = node->GetOpDesc()->MutableOutputDesc(0);
+      data_desc->SetShape(ge::GeShape());
+      data_desc->SetOriginShape(ge::GeShape());
+      data_desc->SetDataType(ge::DT_FLOAT16);
+      data_desc->SetOriginDataType(ge::DT_FLOAT16);
+    }
     if (node->GetType() == "Foo" || node->GetType() == "Bar") {
       MockLessImportantNodeKernel(node);
     } else if (node->GetType() == "ConditionCalc") {
@@ -723,6 +730,15 @@ TEST_F(GraphExecutorWithKernelUnitTest, ExecuteModel_BinaryKernel) {
 TEST_F(GraphExecutorWithKernelUnitTest, Lowering_Execute_Model_On_UB_fusion_node) {
   auto graph = ShareGraph::BuildGraphWithUBFusionNode();
   graph->TopologicalSorting();
+  const std::vector<const char_t *> data_names = {"data1", "data2", "data3"};
+  const std::vector<std::vector<int64_t>> input_shapes = {{2}, {2}, {3}};
+  for (size_t i = 0U; i < data_names.size(); ++i) {
+    auto data_desc = graph->FindNode(data_names[i])->GetOpDesc()->MutableOutputDesc(0);
+    data_desc->SetShape(ge::GeShape(input_shapes[i]));
+    data_desc->SetOriginShape(ge::GeShape(input_shapes[i]));
+    data_desc->SetDataType(ge::DT_FLOAT16);
+    data_desc->SetOriginDataType(ge::DT_FLOAT16);
+  }
 
   GeModelBuilder builder(graph);
   auto ge_root_model = builder.AddTaskDef("Add", AiCoreTaskDefFaker(AddStubName).WithHandle())
@@ -1232,7 +1248,7 @@ TEST_F(GraphExecutorWithKernelUnitTest, Test_Control_Edge_Execute_Order_Success)
   ASSERT_EQ(model_executor->Execute({i3.value}, inputs.GetTensorList(), inputs.size(),
                                     reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
             ge::GRAPH_SUCCESS);
-  std::string kernel_type = "LaunchKernelWithHandle";
+  std::string kernel_type = "LaunchKernelV2";
   EXPECT_GT(ess->GetExecuteIndexByNodeNameAndKernelType("add1", kernel_type),
             ess->GetExecuteIndexByNodeNameAndKernelType("add2", kernel_type));
   ASSERT_EQ(model_executor->ExecuteSync(inputs.GetTensorList(), inputs.size(),
@@ -1500,6 +1516,9 @@ TEST_F(GraphExecutorWithKernelUnitTest, Cmo_ExecuteSuccess) {
   dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
   auto graph = ShareGraph::AicoreWithCmoGraph();
   graph->TopologicalSorting();
+  auto data1_desc = graph->FindNode("data1")->GetOpDesc()->MutableOutputDesc(0);
+  data1_desc->SetDataType(ge::DT_FLOAT16);
+  data1_desc->SetOriginDataType(ge::DT_FLOAT16);
   GeModelBuilder builder(graph);
   auto ge_root_model =
       builder.AddTaskDef("ReduceSum", AiCoreTaskDefFaker("ReduceSumStubBin").WithHandle()).BuildGeRootModel();
@@ -1707,6 +1726,12 @@ graphStatus LaunchKernelFailedByLaunchFlagFake(gert::KernelContext *context) {
 TEST_F(GraphExecutorWithKernelUnitTest, TopologicalExecuteFailThenSuccess) {
   auto graph = ShareGraph::IfCondByShapeGraph();
   graph->TopologicalSorting();
+  auto pred_data_desc = graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
+  auto input_data_desc = graph->FindNode("input")->GetOpDesc()->MutableOutputDesc(0);
+  input_data_desc->SetShape(ge::GeShape({2, 3, 4, 6}));
+  input_data_desc->SetOriginShape(ge::GeShape({2, 3, 4, 6}));
   const char *const Cast = "Cast";
   auto ge_root_model = GeModelBuilder(graph)
                            .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
@@ -1719,7 +1744,9 @@ TEST_F(GraphExecutorWithKernelUnitTest, TopologicalExecuteFailThenSuccess) {
   ge::DumpGraph(exe_graph.get(), "IfCondByShapeGraph");
 
   GertRuntimeStub runtime_stub;
-  runtime_stub.GetKernelStub().SetUp("LaunchKernelWithHandle", LaunchKernelFailedByLaunchFlagFake);
+  runtime_stub.GetKernelStub().AllKernelRegisteredAndSuccess({"LaunchKernelV2"});
+  runtime_stub.GetKernelStub().StubTiling();
+  runtime_stub.GetKernelStub().SetUp("LaunchKernelV2", LaunchKernelFailedByLaunchFlagFake);
 
   auto model_executor = ModelV2Executor::Create(exe_graph, ge_root_model);
   ASSERT_NE(model_executor, nullptr);
@@ -1744,16 +1771,16 @@ TEST_F(GraphExecutorWithKernelUnitTest, TopologicalExecuteFailThenSuccess) {
   ASSERT_NE(model_executor->Execute({i3.value}, inputs0.data(), inputs0.size(), outputs.data(), outputs.size()),
             ge::GRAPH_SUCCESS);
   // 执行失败，和失败结点关联的后续launch结点都不会执行
-  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add0", "LaunchKernelWithHandle"), 1);
-  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("cast0", "LaunchKernelWithFlag"), 0);
+  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add0", "LaunchKernelV2"), 1);
+  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("cast0", "LaunchKernelV2"), 0);
 
   // 第二次执行成功
   ess->Clear();
   ASSERT_EQ(model_executor->Execute({i3.value}, inputs0.data(), inputs0.size(), outputs.data(), outputs.size()),
             ge::GRAPH_SUCCESS);
   // 执行成功，所有launch结点都正常执行
-  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add0", "LaunchKernelWithHandle"), 1);
-  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("cast0", "LaunchKernelWithFlag"), 1);
+  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add0", "LaunchKernelV2"), 1);
+  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("cast0", "LaunchKernelV2"), 1);
 
   ASSERT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
   aclrtDestroyStream(stream);
@@ -1774,18 +1801,23 @@ TEST_F(GraphExecutorWithKernelUnitTest, PriorityTopologicalExecuteFailThenSucces
   auto compute_graph = ShareGraph::IfGraph4();
   ASSERT_NE(compute_graph, nullptr);
   compute_graph->TopologicalSorting();
+  auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
   GE_DUMP(compute_graph, "computegraph_IfGraph4");
 
   auto ge_root_model =
-      GeModelBuilder(compute_graph).AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle()).BuildGeRootModel();
+      GeModelBuilder(compute_graph).AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin")).BuildGeRootModel();
   auto exe_graph = ModelConverter().ConvertGeModelToExecuteGraph(ge_root_model);
   ASSERT_NE(exe_graph, nullptr);
   ge::DumpGraph(exe_graph.get(), "exe_graph_IfGraph4");
 
   GertRuntimeStub runtime_stub;
   runtime_stub.GetSlogStub().SetLevelInfo();
+  runtime_stub.GetKernelStub().AllKernelRegisteredAndSuccess({"LaunchKernelV2"});
+  runtime_stub.GetKernelStub().StubTiling();
   g_launch_flag = 0U;
-  runtime_stub.GetKernelStub().SetUp("LaunchKernelWithFlag", LaunchKernelFailedByLaunchFlagFake);
+  runtime_stub.GetKernelStub().SetUp("LaunchKernelV2", LaunchKernelFailedByLaunchFlagFake);
 
   auto model_executor = ModelV2Executor::Create(exe_graph, ge_root_model);
   ASSERT_NE(model_executor, nullptr);
@@ -1810,27 +1842,25 @@ TEST_F(GraphExecutorWithKernelUnitTest, PriorityTopologicalExecuteFailThenSucces
   ASSERT_NE(model_executor->Execute({stream_value.value}, inputs.data(), inputs.size(), outputs.data(), outputs.size()),
             ge::GRAPH_SUCCESS);
   // 执行失败，和失败结点关联的后续launch结点都不会执行
-  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add4", "LaunchKernelWithFlag"), 1);
-  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add2", "LaunchKernelWithHandle"), 0);
-  ASSERT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelWithHandle"), 2);
-  ASSERT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelWithFlag"), 1);
-  ASSERT_TRUE(runtime_stub.GetSlogStub().FindLogRegex(DLOG_ERROR, "KernelTrace") >= 0);
+  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add4", "LaunchKernelV2"), 0);
+  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add2", "LaunchKernelV2"), 0);
+  ASSERT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelV2"), 1);
+  ASSERT_FALSE(runtime_stub.GetSlogStub().FindLogRegex(DLOG_ERROR, "KernelTrace") >= 0);
   ASSERT_EQ(runtime_stub.GetSlogStub().FindLogRegex(DLOG_ERROR, "KernelTrace"),
-            runtime_stub.GetSlogStub().FindLogRegex(DLOG_ERROR, "LaunchKernelWithFlag"));
+            runtime_stub.GetSlogStub().FindLogRegex(DLOG_ERROR, "LaunchKernelV2"));
 
   // 第二次执行成功
   ess->Clear();
   ASSERT_EQ(model_executor->Execute({stream_value.value}, inputs.data(), inputs.size(), outputs.data(), outputs.size()),
             ge::GRAPH_SUCCESS);
   // 执行成功，所有launch结点都正常执行
-  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add4", "LaunchKernelWithFlag"), 1);
-  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add2", "LaunchKernelWithHandle"), 1);
-  ASSERT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelWithHandle"), 3);
-  ASSERT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelWithFlag"), 1);
+  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add4", "LaunchKernelV2"), 1);
+  ASSERT_EQ(ess->GetExecuteCountByNodeNameAndKernelType("add2", "LaunchKernelV2"), 1);
+  ASSERT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelV2"), 5);
 
   ASSERT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
-  ASSERT_TRUE(runtime_stub.GetSlogStub().FindInfoLogRegex("TilingData: ") != -1);
-  ASSERT_TRUE(runtime_stub.GetSlogStub().FindInfoLogRegex("Input/Output sizes:") != -1);
+  ASSERT_FALSE(runtime_stub.GetSlogStub().FindInfoLogRegex("TilingData: ") != -1);
+  ASSERT_FALSE(runtime_stub.GetSlogStub().FindInfoLogRegex("Input/Output sizes:") != -1);
   runtime_stub.Clear();
   aclrtDestroyStream(stream);
 }

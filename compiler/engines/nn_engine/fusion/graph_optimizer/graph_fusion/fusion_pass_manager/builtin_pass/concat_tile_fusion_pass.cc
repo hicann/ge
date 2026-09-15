@@ -515,7 +515,9 @@ Status ConcatTileFusionPass::AddConcatDim(const ge::OpDescPtr &replace_concat_no
                              replace_concat_node->GetTypePtr()),
              return FAILED);
   } else {
-    FE_LOGD("Concat node not find concat dim attr, replace concat node need to include constant node.");
+    FE_LOGD(
+        "The concat dim attr is not found for the concat node; the replacing concat node needs to include the "
+        "constant node.");
     auto constant_output_tensor = concat_dim_input_node_->GetOpDesc()->MutableOutputDesc(0);
     FE_CHECK(constant_output_tensor == nullptr, REPORT_FE_ERROR("constant_output_tensor is nullptr."), return FAILED);
     FE_CHECK(replace_concat_node->AddInputDesc("concat_dim", *constant_output_tensor) == ge::GRAPH_FAILED,
@@ -730,7 +732,7 @@ bool ConcatTileFusionPass::GetConcatV2ConstantNode(const ge::NodePtr &concat_nod
 Status ConcatTileFusionPass::ParseConcatNode(const ge::NodePtr &concat_node) {
   FE_CHECK(CheckControlEdge(concat_node), FE_LOGW("Concat node with control edge is not supported."),
            return NOT_CHANGED);
-  FE_CHECK(UnknownShapeUtils::IsUnknownShapeOp(*concat_node->GetOpDesc()), FE_LOGW("Not Support dynamic"),
+  FE_CHECK(UnknownShapeUtils::IsUnknownShapeOp(*concat_node->GetOpDesc()), FE_LOGW("Dynamic shape is not supported"),
            return NOT_CHANGED);
   ge::GeTensorDescPtr concat_output_tensor = concat_node->GetOpDesc()->MutableOutputDesc(0);
   FE_CHECK(concat_output_tensor == nullptr, REPORT_FE_ERROR("concat_output_tensor is nullptr."), return NOT_CHANGED);

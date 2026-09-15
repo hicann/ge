@@ -18,9 +18,9 @@ namespace bg {
  *             netoutput
  *               /
  *              /
- *  LaunchKernelWithHandle2
+ *  LaunchKernelV22
  *           \            ...  ...
- *            \          LaunchKernelWithHandle1
+ *            \          LaunchKernelV21
  *             \          /                \
  *          MakeSureTensorAtDevice  MakeSureTensorAtDevice
  *                      |                          |
@@ -34,9 +34,9 @@ namespace bg {
  *             netoutput
  *               /
  *              /
- *  LaunchKernelWithHandle2
+ *  LaunchKernelV22
  *           \            ...  ...
- *            \          LaunchKernelWithHandle1
+ *            \          LaunchKernelV21
  *             \          /                \
  *          MakeSureTensorAtDevice       CopyFlowLaunch
  *                      |                          |

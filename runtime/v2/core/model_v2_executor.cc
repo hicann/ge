@@ -11,6 +11,7 @@
 #include "runtime/model_v2_executor.h"
 #include "runtime/exe_graph_executor.h"
 
+#include <cinttypes>
 #include <utility>
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/util.h"
@@ -30,6 +31,7 @@
 #include "framework/runtime/model_rt_var_manager.h"
 #include "graph/manager/session_id_manager.h"
 #include "acl/acl_rt.h"
+#include "base/err_msg.h"
 #include "common/ge_rts_decl.h"
 #include "common/op_tiling/op_tiling_rt2.h"
 
@@ -48,6 +50,51 @@ ge::graphStatus CheckTensors(Tensor **const tensors, const size_t num, const cha
         GELOGE(ge::PARAM_INVALID, "Failed to execute, %s[%zu] is nullptr", desc, i);
         return ge::PARAM_INVALID;
       }
+    }
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+constexpr int64_t kDataMemAlignSizeCompare = 64;
+constexpr int64_t kOverflowUserSize = INT64_MAX - kDataMemAlignSizeCompare;
+
+ge::graphStatus CheckUserInputSize(const Tensor *const *const inputs, const size_t input_num,
+                                   const ModelDesc &model_desc) {
+  for (size_t i = 0U; i < input_num; ++i) {
+    const auto *desc = model_desc.GetInputDesc(i);
+    const int64_t expected_size = desc->GetSize();
+    if (expected_size == 0) {
+      GELOGW("Input[%zu] expected_size is 0 (dynamic shape), skip validation", i);
+      continue;
+    }
+    const size_t raw_user_size = inputs[i]->GetSize();
+    if (raw_user_size > static_cast<size_t>(INT64_MAX)) {
+      GELOGW("Input[%zu] user_size [%zu] exceeds INT64_MAX, skip validation", i, raw_user_size);
+      continue;
+    }
+    const int64_t user_size = static_cast<int64_t>(raw_user_size);
+    if (user_size > expected_size) {
+      GELOGW("User input[%zu] size(bytes) [%" PRId64 "] is bigger than model size [%" PRId64
+             "], may cause inference problem, please check model input",
+             i, user_size, expected_size);
+      continue;
+    }
+    if (user_size > kOverflowUserSize) {
+      GELOGW("Input[%zu] user_size [%" PRId64 "] is near INT64_MAX, skip validation to avoid overflow", i, user_size);
+      continue;
+    }
+    if (user_size + kDataMemAlignSizeCompare < expected_size) {
+      const std::string reason = "The input memory size set by the user is invalid. The provided " +
+                                 std::to_string(user_size) + " bytes of buffer size plus the aligned " +
+                                 std::to_string(kDataMemAlignSizeCompare) + " bytes is less than the tensor size " +
+                                 std::to_string(expected_size) + " bytes required by the model";
+      REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}),
+                                std::vector<const char *>({reason.c_str()}));
+      GELOGE(ge::PARAM_INVALID,
+             "[Check][Param] Input[%zu] size(bytes) [%" PRId64 "] from user add align [%" PRId64
+             "] is less than model size [%" PRId64 "]",
+             i, user_size, kDataMemAlignSizeCompare, expected_size);
+      return ge::PARAM_INVALID;
     }
   }
   return ge::GRAPH_SUCCESS;
@@ -268,6 +315,7 @@ ge::graphStatus ModelV2Executor::Execute(const ModelExecuteArg &arg, Tensor **in
   auto &graph_executor = graphs_[kMainExeGraph];
   GE_RETURN_IF_ERROR(CheckModelInputsNum(graph_executor.GetExecutionData(), input_num, kArgCount));
   GE_RETURN_IF_ERROR(CheckTensors(inputs, input_num, "inputs"));
+  GE_RETURN_IF_ERROR(CheckUserInputSize(inputs, input_num, GetModelDesc()));
   GE_RETURN_IF_ERROR(graph_executor.SpecifyInputs(reinterpret_cast<void *const *>(inputs), 0U, input_num));
   GE_RETURN_IF_ERROR(SpecifyArgsInputs(arg, input_num, graph_executor));
 

@@ -59,7 +59,7 @@ Run()
   │      │           └─ 不支持 → 记录日志，return false（该节点失败）
   │      ├─ Step1: 修改 input/output format + shape（联动转换 shape 维度）
   │      ├─ Step2: 传播 output format 到直连 NetOutput 节点
-  │      ├─ Step3: CheckOpSupported 校验算子是否支持（Data/Reshape 节点跳过）
+   │      ├─ Step3: CheckOpSupported 校验算子是否支持（Data 节点跳过）
   │      │           └─ 失败 → 记录日志，return false
   │      └─ Step4: 检查并删除前后变冗余的 Transpose 节点
   │                  ├─ 收集阶段：IsTransposeNode → IsTransposePermConst → HasNoControlEdge → IsTransposeRedundant
@@ -111,7 +111,7 @@ Run()
      - 校验待修改端口的原始 format 是否在支持范围内（`FORMAT_NCHW` / `FORMAT_NHWC`），不支持则记录日志并跳过该节点。
      - 修改 input/output format 和 shape，修改 format 时同步重排 shape 维度（如 NCHW→NHWC 时 `[N,C,H,W]`→`[N,H,W,C]`）。
      - 若输出直连 NetOutput 节点，同步修改 NetOutput 对应输入端口的 format 和 shape。
-     - 调用 `GeUtils::CheckNodeSupportOnAicore` 校验算子是否支持修改后的格式组合（Data/Reshape 节点跳过校验）。
+     - 调用 `GeUtils::CheckNodeSupportOnAicore` 校验算子是否支持修改后的格式组合（Data 节点跳过校验）。
      - 校验失败时记录日志并返回 FAILED。
      - 校验通过后检查并删除前后因 format 变更而变冗余的 Transpose 节点。
      - 配置成功的节点记入 `configured_nodes` 集合。

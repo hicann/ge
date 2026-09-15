@@ -144,6 +144,11 @@ TensorFaker &TensorFaker::Placement(TensorPlacement placement) {
   tensor_.SetPlacement(placement);
   return *this;
 }
+TensorFaker &TensorFaker::Size(size_t size) {
+  has_custom_size_ = true;
+  custom_size_ = size;
+  return *this;
+}
 TensorHolder TensorFaker::Build() const {
   TensorHolder th;
   if (tensor_.GetPlacement() == kFollowing) {
@@ -155,10 +160,18 @@ TensorHolder TensorFaker::Build() const {
         Tensor::CreateFollowing(tensor_.GetStorageShape().GetShapeSize(), tensor_.GetDataType(), total_size));
   } else {
     th.SetTensor(std::unique_ptr<Tensor>(new Tensor));
-    auto tensor_size = ge::GetSizeInBytes(tensor_.GetStorageShape().GetShapeSize(), tensor_.GetDataType());
-    tensor_size = ge::RoundUp(tensor_size, 32) + 32;
+    size_t tensor_size;
+    size_t alloc_size;
+    if (has_custom_size_) {
+      tensor_size = custom_size_;
+      alloc_size = 64;
+    } else {
+      tensor_size = ge::GetSizeInBytes(tensor_.GetStorageShape().GetShapeSize(), tensor_.GetDataType());
+      tensor_size = ge::RoundUp(tensor_size, 32) + 32;
+      alloc_size = tensor_size;
+    }
     if (alloc_tensor_data_) {
-      auto block = StubHostTensorHead::Create(tensor_size);
+      auto block = StubHostTensorHead::Create(alloc_size);
       th.SetBlock(block);
       TensorData td;
       td.SetAddr(block, HostTensorManager);
@@ -173,7 +186,7 @@ TensorHolder TensorFaker::Build() const {
   th.GetTensor()->SetDataType(tensor_.GetDataType());
   th.GetTensor()->SetPlacement(tensor_.GetPlacement());
 
-  if (alloc_tensor_data_) {
+  if (alloc_tensor_data_ && !has_custom_size_) {
     if (tensor_.GetPlacement() == kFollowing || tensor_.GetPlacement() == kOnHost) {
       if (tensor_value_.empty()) {
         auto shape_size = th.GetTensor()->GetStorageShape().GetShapeSize();

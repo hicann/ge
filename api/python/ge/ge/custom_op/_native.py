@@ -21,7 +21,6 @@ __all__ = [
     "EagerOpExecutionContext",
     "CompilePlatformInfo",
     "OpCompileContext",
-    "InferMetaContext",
     "WorkspaceAddr",
 ]
 
@@ -38,4 +37,3 @@ AnnotatedKernelArgs = _native.AnnotatedKernelArgs
 AnnotatedKernelLaunchInfo = _native.AnnotatedKernelLaunchInfo
 OpCompileContext = _native.OpCompileContext
 WorkspaceAddr = _native.WorkspaceAddr
-InferMetaContext = _native.InferMetaContext

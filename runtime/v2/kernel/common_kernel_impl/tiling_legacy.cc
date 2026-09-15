@@ -14,6 +14,7 @@
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "graph/utils/math_util.h"
 #include "graph/args_format_desc.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 #include "engine/node_converter_utils.h"
 #include "exe_graph/lowering/shape_utils.h"

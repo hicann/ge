@@ -252,8 +252,10 @@ bool OpFormatDtypeJudge::IsNodeSupport16In32out(ge::NodePtr node_ptr, const OpKe
                                                      output_dtype_vec) != SUCCESS) {
     return false;
   }
-  FE_CHECK((input_dtype_vec.size() > output_dtype_vec.size()), FE_LOGW("Input type size exceeds output."),
-           return false);
+  FE_CHECK(
+      (input_dtype_vec.size() > output_dtype_vec.size()),
+      FE_LOGW("Input type size [%zu] exceeds output type size [%zu].", input_dtype_vec.size(), output_dtype_vec.size()),
+      return false);
   // check whether support fp16 in and fp32 out
   for (size_t i = 0; i < input_dtype_vec.size(); i++) {
     if ((input_dtype_vec[i] == ge::DT_FLOAT16) && (output_dtype_vec[i] == ge::DT_FLOAT)) {

@@ -230,11 +230,11 @@ void TestFallibleTiling(bool rollback) {
   ess->PrintExecutionSummary();
   if (rollback) {
     EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "AicpuLaunchTfKernel"), 1);
-    EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelWithFlag"), 0);
+    EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelV2"), 0);
 
   } else {
     EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "AicpuLaunchTfKernel"), 0);
-    EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelWithFlag"), 1);
+    EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "LaunchKernelV2"), 1);
   }
   Shape expect_out_shape{1, 2, 3, 4};
   EXPECT_EQ(outputs.GetTensorList()[0]->GetShape().GetStorageShape(), expect_out_shape);
@@ -253,6 +253,9 @@ void RunIfGraphWithDataDump(TensorHolder &pred_tensor, bool expect_branch) {
   auto compute_graph = ShareGraph::IfGraph2();
   ASSERT_NE(compute_graph, nullptr);
   compute_graph->TopologicalSorting();
+  auto pred_data_desc = compute_graph->FindNode("pred")->GetOpDesc()->MutableOutputDesc(0);
+  pred_data_desc->SetShape(ge::GeShape());
+  pred_data_desc->SetOriginShape(ge::GeShape());
   GeModelBuilder builder(compute_graph);
   auto ge_root_model = builder.BuildGeRootModel();
 
@@ -1075,12 +1078,12 @@ TEST_F(BuiltinSubscribersST, OverflowDump_NoDataDump_ComputeNodeInfoIsNullptr) {
   auto kernel_launch_context_holder = KernelRunContextFaker()
                                           .NodeName("add1")
                                           .KernelIONum(2, 1)
-                                          .KernelType("LaunchKernelWithHandle")
-                                          .KernelName("Add_LaunchKernelWithHandle")
+                                          .KernelType("LaunchKernelV2")
+                                          .KernelName("Add_LaunchKernelV2")
                                           .Build();
   Node add_kernel_launch_node{"", 0, nullptr, *kernel_launch_context_holder.GetContext<KernelRunContext>()};
   for (auto &kernel_name_and_exe_node : dumper->kernel_names_to_exe_nodes_) {
-    if (!FindKernelNameByStartKeyWord(kernel_name_and_exe_node.first, "LaunchKernelWithHandle").empty()) {
+    if (!FindKernelNameByStartKeyWord(kernel_name_and_exe_node.first, "LaunchKernelV2").empty()) {
       add_kernel_launch_node.node_id = kernel_name_and_exe_node.second->node_id;
     }
   }

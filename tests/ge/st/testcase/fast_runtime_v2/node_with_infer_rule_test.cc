@@ -97,6 +97,7 @@ ComputeGraphPtr ShapeRuleOpGraph(const std::string &rule, const bool &with_binar
   std::vector<uint8_t> binary;
   ShapeInferenceRule::CompileJsonString(rule, binary);
   AttrUtils::SetStr(rule_op->GetOpDesc(), "_inference_rule", rule);
+  AttrUtils::SetInt(rule_op->GetOpDesc(), "N", static_cast<int64_t>(num_outputs));
   if (with_binary) {
     AttrUtils::SetBytes(rule_op->GetOpDesc(), "_inference_rule_binary", Buffer::CopyFrom(binary.data(), binary.size()));
   }
@@ -143,8 +144,10 @@ class RuleMaker {
 
   RuleMaker &Input(const Json::array_t &input, std::initializer_list<int64_t> dims) {
     json["shape"]["inputs"].push_back(input);
-    inputs.emplace_back(FakeTensors(dims, 1));
-    input_ptrs.push_back(&inputs.back().at(0));
+    constexpr size_t kDslDefaultDataDescSize = 1 * 1 * 224 * 224 * sizeof(float);
+    input_holders.emplace_back(
+        TensorFaker().Shape(dims).DataType(ge::DT_FLOAT).Placement(kOnDeviceHbm).Size(kDslDefaultDataDescSize).Build());
+    input_ptrs.push_back(input_holders.back().GetTensor());
     return *this;
   }
 
@@ -176,7 +179,7 @@ class RuleMaker {
 
   Json json;
 
-  std::vector<FakeTensors> inputs;
+  std::vector<TensorHolder> input_holders;
   std::vector<FakeTensors> outputs;
   std::vector<std::shared_ptr<std::vector<int32_t>>> output_holders;
 

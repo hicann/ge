@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from ge.graph.types import DataType
-from ge.runtime import StorageFormat, StorageShape, Tensor, TensorDesc
+from ge.runtime import StorageFormat, StorageShape, Tensor
 
 __all__: List[str] = [
     "AnnotatedArgsContext",
@@ -22,39 +22,8 @@ __all__: List[str] = [
     "EagerOpExecutionContext",
     "CompilePlatformInfo",
     "OpCompileContext",
-    "InferMetaContext",
     "WorkspaceAddr",
 ]
-
-
-class RuntimeAttrs:
-    """Borrowed view of runtime attributes for the current execute callback."""
-
-    def get_int(self, index: int) -> int: ...
-
-    def get_float(self, index: int) -> float: ...
-
-    def get_bool(self, index: int) -> bool: ...
-
-    def get_str(self, index: int) -> str: ...
-
-    def get_data_type(self, index: int) -> DataType: ...
-
-    def get_tensor(self, index: int) -> Tensor: ...
-
-    def get_list_int(self, index: int) -> List[int]: ...
-
-    def get_list_float(self, index: int) -> List[float]: ...
-
-    def get_list_bool(self, index: int) -> List[bool]: ...
-
-    def get_list_str(self, index: int) -> List[str]: ...
-
-    def get_list_data_type(self, index: int) -> List[DataType]: ...
-
-    def get_list_list_int(self, index: int) -> List[List[int]]: ...
-
-    def get_attr_num(self) -> int: ...
 
 
 class EagerOpExecutionContext:
@@ -62,7 +31,7 @@ class EagerOpExecutionContext:
 
     Borrowed execution view available through ``ge.custom_op.get_execute_ctx()``
     while a schema-bound ``execute`` callback is running. It supports querying
-    input/output tensors, allocating output/workspace memory, and retrieving the
+    output tensors, allocating output/workspace memory, and retrieving the
     execution stream.
 
     **Constraints**
@@ -80,45 +49,6 @@ class EagerOpExecutionContext:
             ctx = get_execute_ctx()
             y = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
     """
-
-    def get_input_tensor(self, index: int) -> Tensor:
-        """Return input tensor by runtime input index.
-
-        Raises ``RuntimeError`` if unavailable.
-        """
-        ...
-
-    def get_input_num(self) -> int:
-        """Return the number of runtime input tensors for current compute node."""
-        ...
-
-    def get_dynamic_input_num(self, ir_index: int) -> int:
-        """Return the number of instantiated tensors for a dynamic input IR slot."""
-        ...
-
-    def get_attrs(self) -> RuntimeAttrs:
-        """Return the borrowed runtime attributes for the current compute node."""
-        ...
-
-    def get_required_input_tensor(self, ir_index: int) -> Tensor:
-        """Return input tensor by ir index.
-
-        Raises ``RuntimeError`` if unavailable.
-        """
-        ...
-
-    def get_optional_input_tensor(self, ir_index: int) -> Optional[Tensor]:
-        """Return input tensor by ir index, or ``None`` if unavailable."""
-        ...
-
-    def get_dynamic_input_tensor(self, ir_index: int, relative_index: int) -> Tensor:
-        """Return `input tensor by ir index and relative index.
-
-        ``relative_index`` is the index inside the instantiated dynamic input group, for
-        example ``0..2`` when that dynamic input expands to three inputs. Raises
-        ``RuntimeError`` if the tensor is unavailable.
-        """
-        ...
 
     def malloc_output_tensor(
         self,
@@ -238,26 +168,3 @@ class AnnotatedArgsContext:
         launch_info: AnnotatedKernelLaunchInfo,
         args: AnnotatedKernelArgs,
     ) -> None: ...
-
-
-class InferMetaContext:
-    """Borrowed context for the Python infer_meta callback.
-
-    Input readers return ``TensorDesc`` objects containing shape and dtype.
-    The context is only valid during the infer_meta callback; calling
-    ``_invalidate()`` expires all derived borrowed views.
-    """
-
-    def get_required_input_tensor(self, ir_index: int) -> TensorDesc: ...
-
-    def get_optional_input_tensor(self, ir_index: int) -> Optional[TensorDesc]: ...
-
-    def get_dynamic_input_num(self, ir_index: int) -> int: ...
-
-    def get_dynamic_input_tensor(self, ir_index: int, relative_index: int) -> TensorDesc: ...
-
-    def get_attrs(self) -> RuntimeAttrs: ...
-
-    def get_dynamic_output_num(self, ir_index: int) -> int: ...
-
-    def _invalidate(self) -> None: ...

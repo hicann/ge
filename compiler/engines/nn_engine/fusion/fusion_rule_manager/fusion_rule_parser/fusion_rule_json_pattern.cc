@@ -146,7 +146,7 @@ Status FusionRuleJsonPattern::LoadJson(const nlohmann::json &json_object,
       fusion_rule_json_struct.fusion_json_graph = item.value();
       check_map[FUSION_GRAPH] = true;
     } else {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][LdJson] Not support key:%s in fusion rule", item.key().c_str());
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][LdJson] Does not support key:%s in fusion rule", item.key().c_str());
       return ILLEGAL_JSON;
     }
   }
@@ -300,7 +300,7 @@ Status FusionRuleJsonGraph::ParseToJsonGraph(const nlohmann::json &json_object) 
       }
       has_attrs_ = true;
     } else {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsGph] Not support key:%s in graph.", item.key().c_str());
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsGph] Does not support key:%s in graph.", item.key().c_str());
       return ILLEGAL_JSON;
     }
   }
@@ -366,7 +366,7 @@ Status FusionRuleJsonEdge::ParseJson(const nlohmann::json &json_object) {
       dst_ = anchor;
       check_map[DST] = true;
     } else {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseJs] Not support key:%s in Edge.", item.key().c_str());
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseJs] Does not support key:%s in Edge.", item.key().c_str());
       return ILLEGAL_JSON;
     }
   }
@@ -409,7 +409,7 @@ Status FusionRuleJsonEdge::ParseToJsonEdge(const nlohmann::json &json_object) {
       dst_ = anchor;
       check_map[DST] = true;
     } else {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsEdge] Not support key:%s in Edge.", item.key().c_str());
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsEdge] Does not support key:%s in Edge.", item.key().c_str());
       return ILLEGAL_JSON;
     }
   }
@@ -448,7 +448,7 @@ Status FusionRuleJsonNode::ParseJson(const nlohmann::json &json_object) {
       }
       // Not supported more than one type, now
       if (item.value().size() > 1) {
-        REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseJs] Not support more than one op type now.");
+        REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseJs] Does not support more than one op type now.");
         return ILLEGAL_JSON;
       }
 
@@ -467,7 +467,7 @@ Status FusionRuleJsonNode::ParseJson(const nlohmann::json &json_object) {
       }
       check_map[TYPE] = true;
     } else {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseJs] Not support key:%s in Nodes.", item.key().c_str());
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseJs] Does not support key:%s in Nodes.", item.key().c_str());
       return ILLEGAL_JSON;
     }
   }
@@ -507,7 +507,7 @@ Status FusionRuleJsonNode::ParseToJsonNode(const nlohmann::json &json_object) {
       }
       // Not supported more than one type, now
       if (item.value().size() > 1) {
-        REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsNd] Not support more than one op type now.");
+        REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsNd] Does not support more than one op type now.");
         return ILLEGAL_JSON;
       }
 
@@ -526,7 +526,7 @@ Status FusionRuleJsonNode::ParseToJsonNode(const nlohmann::json &json_object) {
       }
       check_map[TYPE] = true;
     } else {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsNd] Not support key:%s in Nodes.", item.key().c_str());
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsNd] Does not support key:%s in Nodes.", item.key().c_str());
       return ILLEGAL_JSON;
     }
   }
@@ -581,7 +581,7 @@ Status FusionRuleJsonOuter::ParseToJsonOuter(const nlohmann::json &json_object) 
       }
       has_src_ = true;
     } else {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsOut] Not support key:%s in Outer define.",
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseToJsOut] Does not support key:%s in Outer define.",
                       item.key().c_str());
       return ILLEGAL_JSON;
     }

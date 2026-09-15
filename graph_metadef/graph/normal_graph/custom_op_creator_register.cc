@@ -17,17 +17,30 @@
 #include "graph/custom_op_pull_registry.h"
 
 namespace ge {
+namespace {
+bool NeedRegisterLocalCreator(const OpRegistrationPriority priority, const OpEngine engine) {
+  return (priority == OpRegistrationPriority::kTop) && (engine == OpEngine::kCustom);
+}
+}  // namespace
+
 CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, const CustomOpCreateFunc op_creator)
     : CustomOpCreatorRegister(operator_type, OpBackend::kDevice, op_creator) {}
 
 CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend,
+                                                 const CustomOpCreateFunc op_creator)
+    : CustomOpCreatorRegister(operator_type, backend, OpRegistrationPriority::kTop, OpEngine::kCustom, op_creator) {}
+
+CustomOpCreatorRegister::CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend,
+                                                 OpRegistrationPriority priority, OpEngine engine,
                                                  const CustomOpCreateFunc op_creator) {
-  RegisterCustomOpLocalCreator(operator_type.GetString(), backend, op_creator);
+  if (NeedRegisterLocalCreator(priority, engine)) {
+    RegisterCustomOpLocalCreator(operator_type.GetString(), backend, op_creator);
+  }
   if ((op_creator == nullptr) || IsOfflineCustomOpSoLoading()) {
     return;
   }
-  CustomOpFactory::RegisterCustomOpCreator(operator_type, backend, [op_creator]() -> std::unique_ptr<BaseCustomOp> {
-    return std::unique_ptr<BaseCustomOp>(op_creator());
-  });
+  CustomOpFactory::RegisterCustomOpCreator(
+      operator_type, backend, priority, engine,
+      [op_creator]() -> std::unique_ptr<BaseCustomOp> { return std::unique_ptr<BaseCustomOp>(op_creator()); });
 }
 }  // namespace ge

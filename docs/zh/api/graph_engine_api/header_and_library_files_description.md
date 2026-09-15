@@ -73,7 +73,7 @@ GE图引擎接口头文件在如下目录：
 | graph/graph.h | GE Graph创建、增删节点、输入输出与图属性接口。 | libgraph.so |
 | graph/ct_infer_shape_range_context.h | 编译期Shape Range推导上下文。 | Header-only接口；主要消费库libgraph.so |
 | graph/ct_infer_shape_context.h | 编译期Shape推导上下文。 | Header-only接口；主要消费库libgraph.so |
-| graph/operator_reg.h | 算子原型、输入输出、属性和推导函数注册宏。 | libgraph.so为主要注册实现，并使用libgraph_base.so基础能力 |
+| graph/operator_reg.h | 算子原型、输入输出、属性和推导函数注册宏；提供 GetRegisteredIrDefV2 查询已注册的IR算子原型定义。 | libgraph.so为主要注册实现，并使用libgraph_base.so基础能力 |
 | graph/gnode.h | Graph节点查询、连接关系和属性访问接口。 | libgraph.so |
 | graph/graph_buffer.h | 图序列化Buffer的创建、读写和生命周期接口。 | libgraph_base.so |
 | graph/inference_context.h | Shape/Value推导的上下文、Marks和资源管理接口。 | libgraph.so |

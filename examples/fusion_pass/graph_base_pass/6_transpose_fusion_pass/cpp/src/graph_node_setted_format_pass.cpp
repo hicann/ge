@@ -780,13 +780,11 @@ bool ValidateOriginalFormats(const GNode &node, const FormatConfig &config, cons
  *
  * @param node 目标节点
  * @param node_name 节点名（用于日志）
- * @return true 校验通过（或 Data/Reshape 节点跳过）, false 校验失败
+ * @return true 校验通过（或 Data 节点跳过）, false 校验失败
  */
 bool ValidateOpSupported(GNode &node, const std::string &node_name) {
   AscendString node_type;
-  bool is_no_check_node =
-      (node.GetType(node_type) == GRAPH_SUCCESS &&
-       (std::string(node_type.GetString()) == "Data" || std::string(node_type.GetString()) == "Reshape"));
+  bool is_no_check_node = node.GetType(node_type) == GRAPH_SUCCESS && std::string(node_type.GetString()) == "Data";
   std::cout << "[GraphNodeSettedFormatPass] Node[" << node_name << "] node_type is " << node_type.GetString()
             << std::endl;
 

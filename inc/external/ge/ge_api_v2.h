@@ -307,6 +307,10 @@ extern "C" {
 /// Add feature capability query support between APP and GE.
 bool IsIrRepSupport(const char *rep);
 
+ATTRIBUTED_DEPRECATED(ge::Status GetRegisteredIrDefV2(const char *,
+                                                      std::vector<std::pair<ge::AscendString, ge::AscendString>> &,
+                                                      std::vector<std::pair<ge::AscendString, ge::AscendString>> &,
+                                                      std::vector<std::pair<ge::AscendString, ge::AscendString>> &))
 ge::Status GetRegisteredIrDef(const char *op_type, std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs);

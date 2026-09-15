@@ -57,7 +57,7 @@ Status SerializeCodegenArtifacts(const gert::Om2ModelData &model_data,
   if (!model_data.program_body.so_artifact.data.empty() && !model_data.program_body.so_artifact.file_name.empty()) {
     const std::string so_entry = runtime_dir + model_data.program_body.so_artifact.file_name;
     GE_ASSERT_TRUE(zip_writer->WriteBytes(so_entry, model_data.program_body.so_artifact.data.data(),
-                                          model_data.program_body.so_artifact.data.size(), false),
+                                          model_data.program_body.so_artifact.data.size(), true),
                    "Failed to write so artifact [%s]", model_data.program_body.so_artifact.file_name.c_str());
   }
   return SUCCESS;
@@ -71,7 +71,7 @@ Status SerializeWeightData(const gert::Om2ModelData &model_data, const std::shar
   const size_t model_index = 0UL;
   const auto constant_file_name = FormatOm2Path("%s%s%zu", OM2_CONSTANTS_DIR, OM2_CONSTANTS_FILE_PREFIX, model_index);
   GE_ASSERT_TRUE(zip_writer->WriteBytes(constant_file_name, model_data.constants_data.weight_data.get(),
-                                        model_data.constants_data.internal_weight_size, false));
+                                        model_data.constants_data.internal_weight_size, true));
   return SUCCESS;
 }
 
@@ -415,7 +415,7 @@ Status SerializeDebugInfo(const gert::Om2ModelData &model_data, const std::share
   // op_attr.json
   const auto &op_attr_json_str = model_data.op_attr_json.empty() ? std::string("{}") : model_data.op_attr_json;
   const auto op_attr_entry_path = FormatOm2Path(OM2_OP_ATTR_PATH_FORMAT, std::to_string(model_index).c_str());
-  GE_ASSERT_TRUE(zip_writer->WriteBytes(op_attr_entry_path, op_attr_json_str.data(), op_attr_json_str.size(), false));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(op_attr_entry_path, op_attr_json_str.data(), op_attr_json_str.size(), true));
 
   // visual json
   const auto visual_entry_path = FormatOm2Path(OM2_VISUAL_JSON_PATH_FORMAT, std::to_string(model_index).c_str());
@@ -450,7 +450,7 @@ Status SerializeManifest(const gert::Om2ModelData &model_data, const std::shared
 
 }  // namespace
 
-Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &model, bool is_offline,
+Status Om2ZipSaver::Save(const gert::Om2ModelData &model_data, ModelBufferData &model, const bool is_offline,
                          const std::string &writer_path) {
   GELOGI(
       "[OM2] Begin to serialize Om2ModelData to ZIP, model_name:%s, "

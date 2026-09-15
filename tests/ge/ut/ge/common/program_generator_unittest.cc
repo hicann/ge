@@ -2631,7 +2631,7 @@ aclError RegisterCustAicpuKernel(std::string &bin_id, aclrtBinHandle &bin_handle
 } // namespace
 aclError Om2Model::RegisterKernels() {
   OM2_LOGI("RegisterKernels begin");
-  OM2_CHK_STATUS(RegisterAicoreKernel(bin_ids_[0], bin_handles_[0], func_handles_[0], {"_g1add1_AicoreKernel", ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE, false, 0, "add1_faked_kernel", "add1_faked_kernel.o"}, bin_info_map_, callbacks_));
+  OM2_CHK_STATUS(RegisterAicoreKernel(bin_ids_[0], bin_handles_[0], func_handles_[0], {"te_Add_12345_AicoreKernel_AicoreKernel", ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE, false, 0, "te_Add_12345_AicoreKernel", "te_Add_12345_AicoreKernel.o"}, bin_info_map_, callbacks_));
   OM2_LOGI("RegisterKernels done");
   return ACL_SUCCESS;
 }
@@ -5199,29 +5199,29 @@ const TaskDispatchInfo kOpDefs[] = {{
   .dispatch_info = {
     .aicore = {
       .args_info = (const OpArgInfo[]){
-        {.type = OP_ARG_LEVEL1_DESC, .data = {.custom_value = 24}},
-        {.type = OP_ARG_LEVEL1_DESC, .data = {.custom_value = 80}},
-        {.type = OP_ARG_LEVEL1_DESC, .data = {.custom_value = 136}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 48}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 4294967300}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
+        {.type = OP_ARG_LEVEL1_DESC, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 24}},
+        {.type = OP_ARG_LEVEL1_DESC, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 80}},
+        {.type = OP_ARG_LEVEL1_DESC, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 136}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 48}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 4294967300}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
         {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 72U}}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 48}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 4294967300}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 48}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 4294967300}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
         {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 128U}}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 48}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 4294967300}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 1}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
-        {.type = OP_ARG_SHAPE_INFO, .data = {.custom_value = 224}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 48}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 4294967300}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
+        {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
         {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 184U}}},
       },
       .args_info_num = 24,

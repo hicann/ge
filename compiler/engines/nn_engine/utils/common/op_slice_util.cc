@@ -827,7 +827,7 @@ Status OpSliceUtil::SetSlidingWindowDeconvSliceInfo(ge::OpDescPtr op_desc_ptr,
   SetMultiAxisSplitMap(axis_split_map_cut_cout, 1, 1, 0, 1, sup_sw);
   axis_split_maps.push_back(axis_split_map_cut_cout);
 
-  FE_LOGI("Not support to set min_tbe_l1_space info yet.");
+  FE_LOGI("Setting min_tbe_l1_space info is not supported yet.");
   return SUCCESS;
 }
 /*

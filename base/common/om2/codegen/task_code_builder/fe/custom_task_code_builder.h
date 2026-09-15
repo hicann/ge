@@ -34,7 +34,7 @@ class CustomTaskCodeBuilder : public TaskCodeBuilder {
 
  private:
   // ── Build data assembly ──
-  Status RenderDispatchCustomKernel(const VarRef &op, const VarRef &ctx, std::vector<DeclNode *> &items);
+  Status RenderDispatchCustomKernel(const VarRef &op, const VarRef &ctx, std::vector<DeclNode *> &items) const;
   std::vector<BodyItem> RenderDispatchSetup(const VarRef &op, const VarRef &ctx) const;
   BodyItem RenderDispatchLoop(const VarRef &op, const VarRef &ctx) const;
   std::vector<BodyItem> RenderDistribution(const VarRef &op, const VarRef &ctx) const;

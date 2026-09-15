@@ -15,6 +15,7 @@
 #include "opskernel/ops_kernel_info_types.h"
 #include "graph/utils/args_format_desc_utils.h"
 #include "graph/args_format_desc.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 
 namespace ge {
@@ -135,7 +136,7 @@ void CustomTaskCodeBuilder::InitArgsTableEntry(const TaskSemanticContributeConte
 }
 
 Status CustomTaskCodeBuilder::RenderDispatchCustomKernel(const VarRef &op, const VarRef &ctx,
-                                                         std::vector<DeclNode *> &items) {
+                                                         std::vector<DeclNode *> &items) const {
   std::vector<BodyItem> body;
   auto setup = RenderDispatchSetup(op, ctx);
   (void)body.insert(body.end(), setup.begin(), setup.end());

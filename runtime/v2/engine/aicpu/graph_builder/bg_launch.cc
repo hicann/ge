@@ -229,7 +229,8 @@ ValueHolderPtr AicpuHostExecFuncProcess(const AicpuHostProcFunc &func, const IoI
 }
 
 ValueHolderPtr AicpuHostCompute(const ge::NodePtr &node, const AicpuArgs &args, const IoInfo &io_info,
-                                LoweringGlobalData &global_data, std::vector<DevMemValueHolderPtr> &output_addrs) {
+                                LoweringGlobalData &global_data, std::vector<DevMemValueHolderPtr> &output_addrs,
+                                bool &is_host_exec_func) {
   output_addrs = AllocHostCpuOutputsMemory(node, io_info, global_data);
 
   auto compute_io_info = io_info;
@@ -255,6 +256,7 @@ ValueHolderPtr AicpuHostCompute(const ge::NodePtr &node, const AicpuArgs &args, 
 
   AicpuHostProcFunc func = aicpu_host_find_func(type);
   ValueHolderPtr compute_holder = nullptr;
+  is_host_exec_func = (func != nullptr);
   if (func != nullptr) {
     compute_holder = AicpuHostExecFuncProcess(func, compute_io_info, output_addrs);
   } else {

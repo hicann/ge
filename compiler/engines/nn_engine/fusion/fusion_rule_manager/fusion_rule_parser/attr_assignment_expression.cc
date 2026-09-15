@@ -65,13 +65,14 @@ Status AttrAssignmentExpression::ParseJson(const nlohmann::json &json_object) {
         return ILLEGAL_JSON;
       }
       if (str != OPERATOR_ASSIGN) {
-        REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseJs] Not support operator:%s in graph.Attrs assign expression",
-                        str.c_str());
+        REPORT_FE_ERROR(
+            "[GraphOpt][FusionRuleInit][ParseJs] Does not support operator:%s in graph.Attrs assign expression",
+            str.c_str());
         return ILLEGAL_JSON;
       }
       check_map[EXPR] = true;
     } else {
-      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseJs] Not support key:%s in Attrs", item.key().c_str());
+      REPORT_FE_ERROR("[GraphOpt][FusionRuleInit][ParseJs] Does not support key:%s in Attrs", item.key().c_str());
       return ILLEGAL_JSON;
     }
   }

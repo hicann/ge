@@ -290,7 +290,7 @@ Status TbeOpStoreAdapter::ProcessFailPreCompTask(CompileTaskPara &task_para) con
     auto task_id = fin_task_pair.first;
     auto task_iter = task_para.task_node_map.find(task_id);
     if (task_iter == task_para.task_node_map.end()) {
-      REPORT_FE_ERROR("[SubGraphOpt][Pre-Comp] thread[%lu], not find task[%lu].", GetCurThreadId(), task_id);
+      REPORT_FE_ERROR("[SubGraphOpt][Pre-Comp] thread[%lu], failed to find task[%lu].", GetCurThreadId(), task_id);
       return FAILED;
     }
 
@@ -312,13 +312,14 @@ Status TbeOpStoreAdapter::ProcessSuccPreCompTask(CompileTaskPara &task_para) con
     auto task_id = fin_task_pair.first;
     auto task_iter = task_para.task_node_map.find(task_id);
     if (task_iter == task_para.task_node_map.end()) {
-      REPORT_FE_ERROR("[SubGraphOpt][Compile][ProSucTask] Thread[%lu], not find task[%lu]", GetCurThreadId(), task_id);
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][ProSucTask] Thread[%lu], failed to find task[%lu]", GetCurThreadId(),
+                      task_id);
       return FAILED;
     }
 
     auto task_kernel_iter = task_para.task_kernel_info_map.find(task_id);
     if (task_kernel_iter == task_para.task_kernel_info_map.end()) {
-      REPORT_FE_ERROR("[SubGraphOpt][Compile][ProSucTask] Thread[%lu], not find kernel info ptr for task[%lu]",
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][ProSucTask] Thread[%lu], failed to find kernel info ptr for task[%lu]",
                       GetCurThreadId(), task_id);
       return FAILED;
     }
@@ -1051,8 +1052,8 @@ void TbeOpStoreAdapter::SaveMsTuneErrorMsg(CompileTaskPara &task_para) const {
     uint64_t task_id = fin_task_pair.first;
     std::map<uint64_t, int64_t>::const_iterator task_iter = pre_scope_id_map.find(task_id);
     if (task_iter == pre_scope_id_map.end()) {
-      REPORT_FE_ERROR("[SubGraphOpt][Compile][SaveMsTuneErrorMsg] Thread[%lu], not find taskId[%lu]", GetCurThreadId(),
-                      task_id);
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][SaveMsTuneErrorMsg] Thread[%lu], failed to find taskId[%lu]",
+                      GetCurThreadId(), task_id);
       return;
     }
     int64_t scope_id = task_iter->second;
@@ -1564,7 +1565,8 @@ Status TbeOpStoreAdapter::ProcessSuccCompileTask(CompileTaskPara &task_para) con
       auto task_id = fin_task_pair.first;
       auto task_iter = task_para.task_scope_id_map.find(task_id);
       if (task_iter == task_para.task_scope_id_map.end()) {
-        REPORT_FE_ERROR("[SubGraphOpt][Compile][ProSucCmplTask] %lu, not find taskId[%lu]", GetCurThreadId(), task_id);
+        REPORT_FE_ERROR("[SubGraphOpt][Compile][ProSucCmplTask] %lu, failed to find taskId[%lu]", GetCurThreadId(),
+                        task_id);
         return FAILED;
       }
 
@@ -1592,7 +1594,7 @@ Status TbeOpStoreAdapter::DelScopeIdOfFailedNodes(CompileTaskPara &task_para) {
     auto task_id = fin_task_pair.first;
     auto task_iter = pre_scope_id_map.find(task_id);
     if (task_iter == pre_scope_id_map.end()) {
-      REPORT_FE_ERROR("[SubGraphOpt][Compile][AutoFusionCheck] tid[%lu], not find taskId[%lu]", GetCurThreadId(),
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][AutoFusionCheck] tid[%lu], failed to find taskId[%lu]", GetCurThreadId(),
                       task_id);
       return FAILED;
     }
@@ -1684,8 +1686,8 @@ Status TbeOpStoreAdapter::ProcessFailCompileTask(CompileTaskPara &task_para, con
     auto task_id = fin_task_pair.first;
     auto task_iter = pre_scope_id_map.find(task_id);
     if (task_iter == pre_scope_id_map.end()) {
-      REPORT_FE_ERROR("[SubGraphOpt][Compile][ProcFailedCompTask] tid[%lu], not find taskId[%lu]", GetCurThreadId(),
-                      task_id);
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][ProcFailedCompTask] tid[%lu], failed to find taskId[%lu]",
+                      GetCurThreadId(), task_id);
       return FAILED;
     }
 
@@ -2535,8 +2537,8 @@ Status TbeOpStoreAdapter::GetSgtSliceTaskRollbackNode(CompileTaskPara &task_para
   for (auto task_itr = failed_tasks.begin(); task_itr != failed_tasks.end();) {
     auto task_id = task_itr->first;
     if (pre_scope_id_map.find(task_id) == pre_scope_id_map.end()) {
-      REPORT_FE_ERROR("[SubGraphOpt][Compile][GetSgtSliceTaskRlb] Tid[%lu], not find taskId[%lu].", GetCurThreadId(),
-                      task_id);
+      REPORT_FE_ERROR("[SubGraphOpt][Compile][GetSgtSliceTaskRlb] Tid[%lu], failed to find taskId[%lu].",
+                      GetCurThreadId(), task_id);
       return FAILED;
     }
 
@@ -2547,7 +2549,7 @@ Status TbeOpStoreAdapter::GetSgtSliceTaskRollbackNode(CompileTaskPara &task_para
     // slice scopeid has 2 tasks at least, normal scopeid does not need to be rollbacked, only for protect
     auto task_ids = scope_task_ids_map.find(scope_id);
     if (task_ids == scope_task_ids_map.end() || task_ids->second.size() == 1) {
-      FE_LOGD("Tid[%lu], not find scope_id[%ld].", GetCurThreadId(), scope_id);
+      FE_LOGD("Tid[%lu], failed to find scope_id[%ld].", GetCurThreadId(), scope_id);
       task_itr++;
       continue;
     }
@@ -2740,8 +2742,9 @@ Status TbeOpStoreAdapter::ProcessSuccSgtSliceTask(CompileTaskPara &task_para) co
     for (auto &task_id : task_ids) {
       auto fin_task_itr = task_para.succ_tasks.find(task_id);
       if (fin_task_itr == task_para.succ_tasks.end()) {
-        REPORT_FE_ERROR("[SubGraphOpt][Compile][ProcSucSgtSlcTsk] Thread[%lu], Task[%lu]: not find in successful tasks",
-                        GetCurThreadId(), task_id);
+        REPORT_FE_ERROR(
+            "[SubGraphOpt][Compile][ProcSucSgtSlcTsk] Thread[%lu], Task[%lu]: not found in successful tasks",
+            GetCurThreadId(), task_id);
         return FAILED;
       }
       FE_LOGD("Process sgt task with first node %s.", fin_task_itr->second.teNodeOpDesc->GetName().c_str());

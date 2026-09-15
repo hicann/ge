@@ -21,6 +21,7 @@
 #include "proto/ge_ir.pb.h"
 #include "ge/ge_api.h"
 #include "ge/ge_api_v2.h"
+#include "graph/operator_reg.h"
 #include "client/ge_is_initialize.h"
 #include "session/session_manager.h"
 #include "session/session_utils.h"
@@ -1751,6 +1752,25 @@ REG_OP(QueryIrTestOp1)
   using OutType = std::vector<std::pair<AscendString, AscendString>>;
   OutType inputs, outputs, attrs;
   EXPECT_EQ(GetRegisteredIrDef("QueryIrTestOp1", inputs, outputs, attrs), SUCCESS);
+  EXPECT_EQ(inputs.size(), 3U);
+  EXPECT_EQ(outputs.size(), 2U);
+  EXPECT_EQ(inputs[0].first, "required_x1");
+  EXPECT_EQ(inputs[0].second, "required");
+  EXPECT_EQ(inputs[1].first, "optional_x2");
+  EXPECT_EQ(inputs[1].second, "optional");
+  EXPECT_EQ(inputs[2].first, "dynamic_x3");
+  EXPECT_EQ(inputs[2].second, "dynamic");
+  EXPECT_EQ(outputs[0].first, "required_y1");
+  EXPECT_EQ(outputs[0].second, "required");
+  EXPECT_EQ(outputs[1].first, "dynamic_y1");
+  EXPECT_EQ(outputs[1].second, "dynamic");
+  EXPECT_EQ(attrs.size(), 0U);
+}
+
+TEST_F(UtestGeApi, QueryIrInputOutputV2) {
+  using OutType = std::vector<std::pair<AscendString, AscendString>>;
+  OutType inputs, outputs, attrs;
+  EXPECT_EQ(GetRegisteredIrDefV2("QueryIrTestOp1", inputs, outputs, attrs), SUCCESS);
   EXPECT_EQ(inputs.size(), 3U);
   EXPECT_EQ(outputs.size(), 2U);
   EXPECT_EQ(inputs[0].first, "required_x1");

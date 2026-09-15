@@ -9,7 +9,8 @@
  */
 
 #include "autofuse_node_converter.h"
-
+#include <map>
+#include "common/tbe_handle_store/kernel_store.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/attr_utils.h"
@@ -38,33 +39,66 @@ namespace {
 constexpr char const *kAutofuseLoweringFunc = "kAutoFuseLoweringFunc";
 
 bg::ValueHolderPtr AutofuseLaunch(const ge::NodePtr &node, const LowerInput &lower_input,
-                                  const std::vector<bg::ValueHolderPtr> &tiling_results, const domi::TaskDef *task_def,
+                                  const std::vector<bg::ValueHolderPtr> &tiling_results,
                                   const std::vector<bg::ValueHolderPtr> &output_shapes,
                                   const std::vector<bg::DevMemValueHolderPtr> &output_addrs,
-                                  const bg::DevMemValueHolderPtr &workspace_addr) {
+                                  const bg::DevMemValueHolderPtr &workspace_addr, const domi::TaskDef *task_def) {
   auto global_data = lower_input.global_data;
-  // sink bin
-  auto node_bin = SinkBinForAicore(node, global_data->FindCompiledResult(node));
+  // kernel bin id
+  auto op_desc = node->GetOpDesc();
+  std::string kernel_bin_id;
+  GE_ASSERT_SUCCESS(GetTbeKernelId(op_desc, false, kernel_bin_id));
+  auto kernel_bin_id_holder = bg::ValueHolder::CreateConst(kernel_bin_id.c_str(), kernel_bin_id.size() + 1, true);
+  // magic
+  uint32_t magic{0};
+  GE_ASSERT_SUCCESS(GetBinaryMagic(op_desc, false, magic));
+  auto magic_holder = bg::ValueHolder::CreateConst(&magic, sizeof(magic), false);
+  // kernel_bin_data
+  auto kernel_bin = GetTbeKernelBin(op_desc, false);
+  GE_ASSERT_NOTNULL(kernel_bin, "Node[%s] kernel_bin is nullptr.", node->GetNamePtr());
+  bg::ValueHolderPtr kernel_bin_holder;
+  {
+    std::unique_lock<std::mutex> lk(g_kernel_bin_store_lock);
+    auto emplace_result = g_kernel_bin_store.emplace(kernel_bin_id, kernel_bin);
+    ge::KernelBinPtr *kernel_bin_ptr = &(emplace_result.first->second);
+    kernel_bin_holder = bg::ValueHolder::CreateConst(&kernel_bin_ptr, sizeof(kernel_bin_ptr));
+  }
   // shapebuffer_addr
   auto shapebuffer_addr = bg::AllocShapeBufferMem(kOnDeviceHbm, node, *(global_data));
+  // get qos attrs
+  bg::ValueHolderPtr cfg_attrs = nullptr;
+  size_t actual_cfg_num = GetLaunchKernelV2Attr(cfg_attrs, task_def, node);
+
   // get qos info
   bg::ValueHolderPtr qos = nullptr;
-  if (GetQosInfo(qos) != ge::SUCCESS) {
+  if (GetQosInfo(qos, actual_cfg_num) != ge::SUCCESS) {
     return {};
   }
-  auto node_info = task_def->kernel_with_handle().node_info() + "/";
-  auto node_info_holder = bg::ValueHolder::CreateConst(node_info.c_str(), node_info.size() + 1, true);
+  // Kernel name
+  std::string kernel_name_str;
+  if (!ge::AttrUtils::GetStr(node->GetOpDesc(), node->GetName() + "_kernelname", "_kernelname", kernel_name_str)) {
+    GELOGD("Kernel name is empty for node: %s, unable to retrieve.", node->GetName().c_str());
+  }
+  auto kernel_name_holder = bg::ValueHolder::CreateConst(kernel_name_str.c_str(), kernel_name_str.size() + 1, true);
+
+  // withHandle flag
+  uint32_t with_handle_flag = 1U;
+  auto with_handle_flag_holder = bg::ValueHolder::CreateConst(&with_handle_flag, sizeof(with_handle_flag), false);
   DfxExeArg dfx_exe_arg = GetOpDfxExeArg(node);
   auto dfx_holder = bg::ValueHolder::CreateConst(&dfx_exe_arg, sizeof(dfx_exe_arg));
-  auto launch_arg_ref = bg::LaunchKernelWithHandle(
+
+  auto launch_arg_ref = bg::LaunchKernelV2(
       {
           global_data->GetStream(),
-          node_bin,
+          kernel_bin_id_holder,
+          magic_holder,
+          kernel_bin_holder,
           tiling_results[static_cast<size_t>(TilingContext::kOutputBlockDim)],
           tiling_results[TilingContext::kOutputScheduleMode],
           tiling_results[TilingContext::kOutputLocalMemorySize],
           workspace_addr,
           shapebuffer_addr,
+          cfg_attrs,
           qos,
           lower_input.input_shapes,
           output_shapes,
@@ -72,8 +106,11 @@ bg::ValueHolderPtr AutofuseLaunch(const ge::NodePtr &node, const LowerInput &low
           global_data,
           dfx_holder,
           tiling_results[static_cast<size_t>(kernel::TilingExOutputIndex::kRtArg)],
+          tiling_results[TilingContext::kOutputTilingKey],
+          kernel_name_holder,
+          with_handle_flag_holder,
       },
-      tiling_results[TilingContext::kOutputTilingKey], node_info_holder, lower_input.input_addrs, output_addrs);
+      lower_input.input_addrs, output_addrs);
   FE_ASSERT_NOTNULL(launch_arg_ref);
   return launch_arg_ref;
 }
@@ -204,7 +241,7 @@ LowerResult LoweringAutofuseNode(const ge::NodePtr &node, const LowerInput &lowe
   auto workspace_addr = bg::AllocWorkspaceMem(
       kOnDeviceHbm, tiling_results[static_cast<size_t>(TilingContext::kOutputWorkspace)], *global_data);
   auto launch_arg_ref =
-      AutofuseLaunch(node, lower_input, tiling_results, task_def, output_shapes, output_addrs, workspace_addr);
+      AutofuseLaunch(node, lower_input, tiling_results, output_shapes, output_addrs, workspace_addr, task_def);
   for (size_t i = 0; i < lower_input.input_addrs.size(); ++i) {
     auto guarder = lower_input.input_addrs[i]->GetGuarder();
     if (guarder != nullptr) {

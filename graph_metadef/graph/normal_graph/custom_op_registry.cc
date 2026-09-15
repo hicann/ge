@@ -33,8 +33,84 @@ const char *OpBackendToString(const OpBackend backend) {
   }
 }
 
+const char *OpEngineToString(const OpEngine engine) {
+  switch (engine) {
+    case OpEngine::kCustom:
+      return "CUSTOM";
+    case OpEngine::kAiCore:
+      return "AICORE";
+    case OpEngine::kFftsPlus:
+      return "FFTS+";
+    case OpEngine::kVectorCore:
+      return "VECTORCORE";
+    case OpEngine::kDsa:
+      return "DSA";
+    case OpEngine::kRts:
+      return "RTS";
+    case OpEngine::kRtsFftsPlus:
+      return "RTS_FFTS_PLUS";
+    case OpEngine::kHccl:
+      return "HCCL";
+    case OpEngine::kAiCpuFftsPlus:
+      return "AICPU_FFTS_PLUS";
+    case OpEngine::kAiCpuAscendFftsPlus:
+      return "AICPU_ASCEND_FFTS_PLUS";
+    case OpEngine::kAiCpuAscend:
+      return "AICPU_ASCEND";
+    case OpEngine::kAiCpu:
+      return "AICPU";
+    case OpEngine::kDvpp:
+      return "DVPP";
+    case OpEngine::kGeLocal:
+      return "GE_LOCAL";
+    case OpEngine::kHostCpu:
+      return "HOST_CPU";
+    default:
+      return "unknown";
+  }
+}
+
+const char *OpPriorityToString(const OpRegistrationPriority priority) {
+  switch (priority) {
+    case OpRegistrationPriority::kTop:
+      return "top";
+    case OpRegistrationPriority::kBottom:
+      return "bottom";
+    default:
+      return "unknown";
+  }
+}
+
 bool IsValidOpBackend(const OpBackend backend) {
   return (backend == OpBackend::kDevice) || (backend == OpBackend::kHostCPU);
+}
+
+bool IsValidOpPriority(const OpRegistrationPriority priority) {
+  return (priority == OpRegistrationPriority::kTop) || (priority == OpRegistrationPriority::kBottom);
+}
+
+bool IsValidOpEngine(const OpEngine engine) {
+  return (engine >= OpEngine::kCustom) && (engine <= OpEngine::kHostCpu);
+}
+
+graphStatus ValidateCustomOpParams(const AscendString &op_type, const OpBackend backend,
+                                   const OpRegistrationPriority priority, const OpEngine engine) {
+  if (!IsValidOpEngine(engine)) {
+    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op engine for %s:%s:%s is invalid:%u.", op_type.GetString(),
+           OpBackendToString(backend), OpPriorityToString(priority), static_cast<uint32_t>(engine));
+    return GRAPH_PARAM_INVALID;
+  }
+  if (!IsValidOpBackend(backend)) {
+    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op backend for %s:%s:%s is invalid:%u.", op_type.GetString(),
+           OpEngineToString(engine), OpPriorityToString(priority), static_cast<uint32_t>(backend));
+    return GRAPH_PARAM_INVALID;
+  }
+  if (!IsValidOpPriority(priority)) {
+    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op priority for %s:%s:%s is invalid:%u.", op_type.GetString(),
+           OpEngineToString(engine), OpBackendToString(backend), static_cast<uint32_t>(priority));
+    return GRAPH_PARAM_INVALID;
+  }
+  return GRAPH_SUCCESS;
 }
 
 bool IsCommonCapability(const CustomOpCapability capability) {
@@ -126,6 +202,18 @@ graphStatus DeserializeCustomKernelItem(CustomOpRegistry &registry, const Parsed
   GELOGI("[CUSTOM OP] Successfully deserialized custom op '%s'", item.op_type.c_str());
   return GRAPH_SUCCESS;
 }
+
+template <typename EngineInstanceMap>
+void MoveCustomOpInstancesForRemoval(EngineInstanceMap &engine_instances,
+                                     std::vector<std::shared_ptr<BaseCustomOp>> &removed_custom_ops) {
+  for (auto &engine_custom_op : engine_instances) {
+    for (auto &priority_custom_op : engine_custom_op.second) {
+      for (auto &backend_custom_op : priority_custom_op.second) {
+        removed_custom_ops.emplace_back(std::move(backend_custom_op.second));
+      }
+    }
+  }
+}
 }  // namespace
 
 struct CustomOpRegistry::Impl {
@@ -153,30 +241,51 @@ CustomOpRegistry::~CustomOpRegistry() {
 
 graphStatus CustomOpRegistry::RegisterCreator(const AscendString &op_type, OpBackend backend,
                                               const BaseOpCreator &creator) {
+  return RegisterCreator(op_type, backend, OpRegistrationPriority::kTop, OpEngine::kCustom, creator);
+}
+
+graphStatus CustomOpRegistry::RegisterCreator(const AscendString &op_type, OpBackend backend,
+                                              OpRegistrationPriority priority, OpEngine engine,
+                                              const BaseOpCreator &creator) {
   const std::lock_guard<std::mutex> lock(mu_);
-  if (!IsValidOpBackend(backend)) {
-    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op backend for %s is invalid:%u.", op_type.GetString(),
-           static_cast<uint32_t>(backend));
-    return GRAPH_PARAM_INVALID;
+  const auto validate_ret = ValidateCustomOpParams(op_type, backend, priority, engine);
+  if (validate_ret != GRAPH_SUCCESS) {
+    return validate_ret;
   }
   if (creator == nullptr) {
-    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op creator for %s:%s is null.", op_type.GetString(),
-           OpBackendToString(backend));
+    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op creator for %s:%s:%s:%s is null.", op_type.GetString(),
+           OpEngineToString(engine), OpBackendToString(backend), OpPriorityToString(priority));
     return GRAPH_PARAM_INVALID;
   }
   auto creator_iter = creators_.find(op_type);
   if (creator_iter != creators_.cend()) {
-    const auto backend_iter = creator_iter->second.find(backend);
-    if (backend_iter != creator_iter->second.cend()) {
-      GELOGW("[CUSTOM OP] custom op creator for %s:%s already exist.", op_type.GetString(), OpBackendToString(backend));
-      return GRAPH_FAILED;
+    const auto engine_iter = creator_iter->second.find(engine);
+    if (engine_iter != creator_iter->second.cend()) {
+      const auto priority_iter = engine_iter->second.find(priority);
+      if (priority_iter != engine_iter->second.cend()) {
+        const auto backend_iter = priority_iter->second.find(backend);
+        if (backend_iter != priority_iter->second.cend()) {
+          GELOGW("[CUSTOM OP] custom op creator for %s:%s:%s:%s already exist.", op_type.GetString(),
+                 OpEngineToString(engine), OpBackendToString(backend), OpPriorityToString(priority));
+          return GRAPH_FAILED;
+        }
+      }
     }
   }
   if (creator_iter == creators_.cend()) {
-    creator_iter = creators_.emplace(op_type, std::map<OpBackend, BaseOpCreator>()).first;
+    creator_iter = creators_.emplace(op_type, EngineCreatorMap()).first;
   }
-  (void)creator_iter->second.emplace(backend, creator);
-  GELOGI("[CUSTOM OP] register custom operator creator for %s:%s.", op_type.GetString(), OpBackendToString(backend));
+  auto engine_iter = creator_iter->second.find(engine);
+  if (engine_iter == creator_iter->second.cend()) {
+    engine_iter = creator_iter->second.emplace(engine, PriorityCreatorMap()).first;
+  }
+  auto priority_iter = engine_iter->second.find(priority);
+  if (priority_iter == engine_iter->second.cend()) {
+    priority_iter = engine_iter->second.emplace(priority, BackendCreatorMap()).first;
+  }
+  (void)priority_iter->second.emplace(backend, creator);
+  GELOGI("[CUSTOM OP] register custom operator creator for %s:%s:%s:%s.", op_type.GetString(), OpEngineToString(engine),
+         OpBackendToString(backend), OpPriorityToString(priority));
   return GRAPH_SUCCESS;
 }
 
@@ -186,73 +295,102 @@ void CustomOpRegistry::AddSoHandles(const std::vector<CustomOpSoHandlePtr> &so_h
 }
 
 BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOp(const AscendString &op_type, OpBackend backend) {
+  return CreateOrGetCustomOp(op_type, backend, OpRegistrationPriority::kTop, OpEngine::kCustom);
+}
+
+BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOp(const AscendString &op_type, OpBackend backend,
+                                                    OpRegistrationPriority priority, OpEngine engine) {
   const std::lock_guard<std::mutex> lock(mu_);
-  return CreateOrGetCustomOpLocked(op_type, backend);
+  return CreateOrGetCustomOpLocked(op_type, backend, priority, engine);
 }
 
 BaseCustomOp *CustomOpRegistry::CacheCustomOpLocked(const AscendString &op_type, OpBackend backend,
+                                                    OpRegistrationPriority priority, OpEngine engine,
                                                     std::unique_ptr<BaseCustomOp> base_custom_op) {
-  auto &backend_custom_ops = custom_ops_[op_type];
+  auto &backend_custom_ops = custom_ops_[op_type][engine][priority];
   for (const auto &backend_custom_op : backend_custom_ops) {
     if ((backend_custom_op.second != nullptr) && (typeid(*backend_custom_op.second) == typeid(*base_custom_op))) {
       auto [ops_it, success] = backend_custom_ops.emplace(backend, backend_custom_op.second);
       if (success) {
-        GELOGI("[CUSTOM OP] share custom op instance for %s:%s with existing %s backend.", op_type.GetString(),
-               OpBackendToString(backend), OpBackendToString(backend_custom_op.first));
+        GELOGI("[CUSTOM OP] share custom op instance for %s:%s:%s:%s with existing %s backend.", op_type.GetString(),
+               OpEngineToString(engine), OpBackendToString(backend), OpPriorityToString(priority),
+               OpBackendToString(backend_custom_op.first));
         return ops_it->second.get();
       }
-      GELOGW("[CUSTOM OP] custom op instance found, get failed for %s:%s.", op_type.GetString(),
-             OpBackendToString(backend));
-      return nullptr;
+      GELOGW("[CUSTOM OP] custom op instance found for %s:%s:%s:%s.", op_type.GetString(), OpEngineToString(engine),
+             OpBackendToString(backend), OpPriorityToString(priority));
+      return ops_it->second.get();
     }
   }
   auto [ops_it, success] = backend_custom_ops.emplace(backend, std::move(base_custom_op));
   if (success) {
     return ops_it->second.get();
   }
-  GELOGW("[CUSTOM OP] custom op instance found, get failed for %s:%s.", op_type.GetString(),
-         OpBackendToString(backend));
-  return nullptr;
+  GELOGW("[CUSTOM OP] custom op instance found for %s:%s:%s:%s.", op_type.GetString(), OpEngineToString(engine),
+         OpBackendToString(backend), OpPriorityToString(priority));
+  return ops_it->second.get();
 }
 
-BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOpLocked(const AscendString &op_type, OpBackend backend) {
-  if (!IsValidOpBackend(backend)) {
-    GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op backend for %s is invalid:%u.", op_type.GetString(),
-           static_cast<uint32_t>(backend));
+BaseCustomOp *CustomOpRegistry::CreateOrGetCustomOpLocked(const AscendString &op_type, OpBackend backend,
+                                                          OpRegistrationPriority priority, OpEngine engine) {
+  if (ValidateCustomOpParams(op_type, backend, priority, engine) != GRAPH_SUCCESS) {
     return nullptr;
   }
   if (const auto it = custom_ops_.find(op_type); it != custom_ops_.cend()) {
-    if (const auto backend_it = it->second.find(backend); backend_it != it->second.cend()) {
-      GELOGD("[CUSTOM OP] custom_op %s:%s already created.", op_type.GetString(), OpBackendToString(backend));
-      return backend_it->second.get();
+    if (const auto engine_it = it->second.find(engine); engine_it != it->second.cend()) {
+      if (const auto priority_it = engine_it->second.find(priority); priority_it != engine_it->second.cend()) {
+        if (const auto backend_it = priority_it->second.find(backend); backend_it != priority_it->second.cend()) {
+          GELOGD("[CUSTOM OP] custom_op %s:%s:%s:%s already created.", op_type.GetString(), OpEngineToString(engine),
+                 OpBackendToString(backend), OpPriorityToString(priority));
+          return backend_it->second.get();
+        }
+      }
     }
   }
   if (const auto op_creator_it = creators_.find(op_type); op_creator_it != creators_.cend()) {
-    const auto backend_creator_it = op_creator_it->second.find(backend);
-    if (backend_creator_it == op_creator_it->second.cend()) {
-      GELOGW("[CUSTOM OP] get custom operator creator failed for %s:%s.", op_type.GetString(),
-             OpBackendToString(backend));
+    const auto engine_creator_it = op_creator_it->second.find(engine);
+    if (engine_creator_it == op_creator_it->second.cend()) {
+      GELOGW("[CUSTOM OP] get custom operator creator failed for %s:%s:%s:%s.", op_type.GetString(),
+             OpEngineToString(engine), OpBackendToString(backend), OpPriorityToString(priority));
+      return nullptr;
+    }
+    const auto priority_creator_it = engine_creator_it->second.find(priority);
+    if (priority_creator_it == engine_creator_it->second.cend()) {
+      GELOGW("[CUSTOM OP] get custom operator creator failed for %s:%s:%s:%s.", op_type.GetString(),
+             OpEngineToString(engine), OpBackendToString(backend), OpPriorityToString(priority));
+      return nullptr;
+    }
+    const auto backend_creator_it = priority_creator_it->second.find(backend);
+    if (backend_creator_it == priority_creator_it->second.cend()) {
+      GELOGW("[CUSTOM OP] get custom operator creator failed for %s:%s:%s:%s.", op_type.GetString(),
+             OpEngineToString(engine), OpBackendToString(backend), OpPriorityToString(priority));
       return nullptr;
     }
     if (backend_creator_it->second == nullptr) {
-      GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op creator for %s:%s is null.", op_type.GetString(),
-             OpBackendToString(backend));
+      GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] custom op creator for %s:%s:%s:%s is null.", op_type.GetString(),
+             OpEngineToString(engine), OpBackendToString(backend), OpPriorityToString(priority));
       return nullptr;
     }
     auto base_custom_op = backend_creator_it->second();
     if (base_custom_op == nullptr) {
-      GELOGE(GRAPH_FAILED, "[CUSTOM OP] custom op creator returned null for %s:%s.", op_type.GetString(),
-             OpBackendToString(backend));
+      GELOGE(GRAPH_FAILED, "[CUSTOM OP] custom op creator returned null for %s:%s:%s:%s.", op_type.GetString(),
+             OpEngineToString(engine), OpBackendToString(backend), OpPriorityToString(priority));
       return nullptr;
     }
-    return CacheCustomOpLocked(op_type, backend, std::move(base_custom_op));
+    return CacheCustomOpLocked(op_type, backend, priority, engine, std::move(base_custom_op));
   }
-  GELOGW("[CUSTOM OP] get custom operator creator failed for %s:%s.", op_type.GetString(), OpBackendToString(backend));
+  GELOGW("[CUSTOM OP] get custom operator creator failed for %s:%s:%s:%s.", op_type.GetString(),
+         OpEngineToString(engine), OpBackendToString(backend), OpPriorityToString(priority));
   return nullptr;
 }
 
 BaseCustomOp *CustomOpRegistry::GetCustomOpCommonCapability(const AscendString &op_type,
                                                             CustomOpCapability capability) {
+  return GetCustomOpCommonCapability(op_type, capability, OpRegistrationPriority::kTop, OpEngine::kCustom);
+}
+
+BaseCustomOp *CustomOpRegistry::GetCustomOpCommonCapability(const AscendString &op_type, CustomOpCapability capability,
+                                                            OpRegistrationPriority priority, OpEngine engine) {
   if (!IsCommonCapability(capability)) {
     GELOGE(GRAPH_FAILED, "[CUSTOM OP] capability %u for %s is not a common capability.",
            static_cast<uint32_t>(capability), op_type.GetString());
@@ -264,12 +402,23 @@ BaseCustomOp *CustomOpRegistry::GetCustomOpCommonCapability(const AscendString &
     GELOGW("[CUSTOM OP] get custom operator creator failed for %s.", op_type.GetString());
     return nullptr;
   }
+  const auto engine_creator_it = op_creator_it->second.find(engine);
+  if (engine_creator_it == op_creator_it->second.cend()) {
+    GELOGW("[CUSTOM OP] get custom operator creator failed for %s:%s.", op_type.GetString(), OpEngineToString(engine));
+    return nullptr;
+  }
+  const auto priority_creator_it = engine_creator_it->second.find(priority);
+  if (priority_creator_it == engine_creator_it->second.cend()) {
+    GELOGW("[CUSTOM OP] get custom operator creator failed for %s:%s:%s.", op_type.GetString(),
+           OpEngineToString(engine), OpPriorityToString(priority));
+    return nullptr;
+  }
 
   BaseCustomOp *matched_op = nullptr;
   const OpBackend *matched_backend = nullptr;
-  for (const auto &backend_creator : op_creator_it->second) {
+  for (const auto &backend_creator : priority_creator_it->second) {
     const auto backend = backend_creator.first;
-    auto *const custom_op = CreateOrGetCustomOpLocked(op_type, backend);
+    auto *const custom_op = CreateOrGetCustomOpLocked(op_type, backend, priority, engine);
     if ((custom_op == nullptr) || (!HasCommonCapability(custom_op, capability))) {
       continue;
     }
@@ -280,8 +429,7 @@ BaseCustomOp *CustomOpRegistry::GetCustomOpCommonCapability(const AscendString &
     }
     if (matched_op != custom_op) {
       GELOGE(GRAPH_FAILED,
-             "[CUSTOM OP] capability %u for %s must have a unique provider, but found in both "
-             "%s and %s backend.",
+             "[CUSTOM OP] capability %u for %s must have a unique provider, but found in both %s and %s backend.",
              static_cast<uint32_t>(capability), op_type.GetString(), OpBackendToString(*matched_backend),
              OpBackendToString(backend));
       return nullptr;
@@ -301,9 +449,7 @@ void CustomOpRegistry::RemoveCustomOps(const std::vector<AscendString> &op_types
     for (const auto &op_type : op_types) {
       const auto custom_op_iter = custom_ops_.find(op_type);
       if (custom_op_iter != custom_ops_.cend()) {
-        for (auto &backend_custom_op : custom_op_iter->second) {
-          removed_custom_ops.emplace_back(std::move(backend_custom_op.second));
-        }
+        MoveCustomOpInstancesForRemoval(custom_op_iter->second, removed_custom_ops);
         (void)custom_ops_.erase(custom_op_iter);
       }
 
@@ -337,26 +483,71 @@ bool CustomOpRegistry::IsAddressRefreshable(const AscendString &op_type) {
 
 bool CustomOpRegistry::HasCreator(const AscendString &op_type) const {
   const std::lock_guard<std::mutex> lock(mu_);
-  const auto it = creators_.find(op_type);
-  return (it != creators_.cend()) && (!it->second.empty());
+  const auto creator_iter = creators_.find(op_type);
+  if (creator_iter == creators_.cend()) {
+    return false;
+  }
+  const auto engine_iter = creator_iter->second.find(OpEngine::kCustom);
+  if (engine_iter == creator_iter->second.cend()) {
+    return false;
+  }
+  const auto priority_iter = engine_iter->second.find(OpRegistrationPriority::kTop);
+  if (priority_iter == engine_iter->second.cend()) {
+    return false;
+  }
+  return !priority_iter->second.empty();
 }
 
 bool CustomOpRegistry::HasCreator(const AscendString &op_type, OpBackend backend) const {
+  return HasCreator(op_type, backend, OpRegistrationPriority::kTop, OpEngine::kCustom);
+}
+
+bool CustomOpRegistry::HasCreator(const AscendString &op_type, OpBackend backend, OpRegistrationPriority priority,
+                                  OpEngine engine) const {
   const std::lock_guard<std::mutex> lock(mu_);
   const auto it = creators_.find(op_type);
-  return (it != creators_.cend()) && (it->second.find(backend) != it->second.cend());
+  if (it == creators_.cend()) {
+    return false;
+  }
+  const auto engine_iter = it->second.find(engine);
+  if (engine_iter == it->second.cend()) {
+    return false;
+  }
+  const auto priority_iter = engine_iter->second.find(priority);
+  if (priority_iter == engine_iter->second.cend()) {
+    return false;
+  }
+  return priority_iter->second.find(backend) != priority_iter->second.cend();
 }
 
 bool CustomOpRegistry::HasCustomOp(const AscendString &op_type) const {
   const std::lock_guard<std::mutex> lock(mu_);
-  const auto it = custom_ops_.find(op_type);
-  return (it != custom_ops_.cend()) && (!it->second.empty());
+  const auto custom_op_it = custom_ops_.find(op_type);
+  if (custom_op_it == custom_ops_.cend()) {
+    return false;
+  }
+  const auto engine_iter = custom_op_it->second.find(OpEngine::kCustom);
+  if (engine_iter == custom_op_it->second.cend()) {
+    return false;
+  }
+  const auto priority_iter = engine_iter->second.find(OpRegistrationPriority::kTop);
+  if (priority_iter == engine_iter->second.cend()) {
+    return false;
+  }
+  return !priority_iter->second.empty();
 }
 
 graphStatus CustomOpRegistry::GetAllRegisteredOps(std::vector<AscendString> &all_registered_ops) const {
   const std::lock_guard<std::mutex> lock(mu_);
   for (const auto &op_creator : creators_) {
-    all_registered_ops.push_back(op_creator.first);
+    const auto engine_iter = op_creator.second.find(OpEngine::kCustom);
+    if (engine_iter == op_creator.second.cend()) {
+      continue;
+    }
+    const auto priority_iter = engine_iter->second.find(OpRegistrationPriority::kTop);
+    if (priority_iter != engine_iter->second.cend() && !priority_iter->second.empty()) {
+      all_registered_ops.push_back(op_creator.first);
+    }
   }
   return GRAPH_SUCCESS;
 }

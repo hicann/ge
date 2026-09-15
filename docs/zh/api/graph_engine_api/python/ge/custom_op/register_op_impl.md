@@ -23,6 +23,7 @@ register_op_impl(*, op_type: str) -> callable
 ## 约束说明
 
 - 注册的实现类必须是具体类，并且至少实现一个受支持的方法。具体回调约束参见[execute](execute.md)、[compile](compile.md)和[declare_launch_args](declare_launch_args.md)。
+- `execute`、`compile`和`declare_launch_args`必须以类方法形式定义在实现类上，且必须可调用；定义为非可调用对象时，注册失败或对应方法不被识别。
 - `op_type`不合法、注册的实现类不是具体类，或实现类未提供受支持的方法时，抛出`TypeError`。`op_type`重复注册发生冲突时，抛出`ValueError`。
 
 ## 调用示例

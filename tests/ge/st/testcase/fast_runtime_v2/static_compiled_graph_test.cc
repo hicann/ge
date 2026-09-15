@@ -119,7 +119,12 @@ class StaticCompiledGraphTest : public bg::BgTest {
     conv2d->SetInputOffset({0});
     conv2d->SetOutputOffset({16});
 
-    auto relu = OP_CFG("Relu").TensorDesc(FORMAT_NCHW, DT_FLOAT16, shape).InCnt(1).OutCnt(1).Build("relu");
+    auto relu = OP_CFG("Relu")
+                    .TensorDesc(FORMAT_NCHW, DT_FLOAT16, shape)
+                    .InCnt(1)
+                    .OutCnt(1)
+                    .Attr("_kernel_bin_id", "te_relu_12345")
+                    .Build("relu");
     relu->SetInputOffset({16});
     relu->SetOutputOffset({48});
     TensorUtils::SetSize(*relu->MutableOutputDesc(0), shape_size);
@@ -157,7 +162,12 @@ class StaticCompiledGraphTest : public bg::BgTest {
                               .OutCnt(3)
                               .Build(ge::PARTITIONEDCALL);
 
-    auto add = OP_CFG("Add").TensorDesc(FORMAT_NCHW, DT_FLOAT16, shape).InCnt(3).OutCnt(1).Build("add");
+    auto add = OP_CFG("Add")
+                   .TensorDesc(FORMAT_NCHW, DT_FLOAT16, shape)
+                   .InCnt(3)
+                   .OutCnt(1)
+                   .Attr("_kernel_bin_id", "te_add_12345")
+                   .Build("add");
     add->SetOpEngineName("AIcoreEngine");
     add->SetOpKernelLibName("AIcoreEngine");
     auto netoutput =

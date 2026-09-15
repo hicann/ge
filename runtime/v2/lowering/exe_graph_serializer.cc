@@ -246,6 +246,7 @@ ge::graphStatus ExeGraphSerializer::SerializeComputeNodeInfo(const std::vector<g
     } else {
       compute_node_info = CreateComputeNodeInfo(compute_node, buffer_pool, private_attrs, total_size);
     }
+    GE_ASSERT_NOTNULL(compute_node_info, "Create compute node info for node %s failed.", compute_node->GetNamePtr());
     auto buf_id = compute_node_infos.AddBuf(compute_node_info.get(), total_size);
     index_2_unique_index.emplace_back(buf_id);
   }

@@ -41,11 +41,14 @@ class TaskCodeBuilderUtil {
       bool use_args_info_size, bool is_raw_address = false);
   // 将 OpArgDesc 列表转换为 OpArgInfo 数组的 AST 表达式（表驱动优化）
   static Arg RenderOpArgDesc(AstBuildContext &ast, const std::vector<OpArgDesc> &args);
-  static Arg BuildAddrField(AstBuildContext &ast, const OpArgDesc &a);
-  static Arg BuildTensorDataField(AstBuildContext &ast, const OpArgDesc &a);
-  static Arg BuildWorkspaceDataField(AstBuildContext &ast, const OpArgDesc &a);
-  static Arg BuildCustomValueDataField(AstBuildContext &ast, const OpArgDesc &a);
-  static Arg BuildTilingDataField(AstBuildContext &ast, const OpArgDesc &a);
+  static Arg BuildTensorDataField(AstBuildContext &ast, const OpArgDesc &arg_desc);
+  static Arg BuildWorkspaceDataField(AstBuildContext &ast, const OpArgDesc &arg_desc);
+  static Arg BuildCustomValueDataField(AstBuildContext &ast, const OpArgDesc &arg_desc);
+  static Arg BuildTilingDataField(AstBuildContext &ast, const OpArgDesc &arg_desc);
+  // OpArgInfo 的 addr 字段填充：需要地址的参数取 OpArgDesc 实际值，其余填充默认值（全 0）
+  static Arg RenderArgAddrField(AstBuildContext &ast, const OpArgDesc &arg_desc);
+  // OpArgInfo 的 data 字段填充：有对应数据的参数按类型查表构建实际值，其余填充默认值（custom_value = 0）
+  static Arg RenderArgDataField(AstBuildContext &ast, const OpArgDesc &arg_desc);
   // 将 AddrSemantic 转换为 OpArgDesc（RAW_ADDR 类型）
   static OpArgDesc ConvertAddrDesc(const AddrSemantic &addr);
 };

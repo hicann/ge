@@ -94,13 +94,20 @@ bool GetAllIrAttrs(const ge::NodePtr &node, std::vector<std::vector<uint8_t>> &r
   const auto &ir_attr_names = op_desc->GetIrAttrNames();
   for (const auto &attr_name : ir_attr_names) {
     const std::map<std::string, ge::AnyValue>::const_iterator &iter = all_attrs.find(attr_name);
-    if (iter == all_attrs.cend()) {
-      runtime_attrs.clear();
-      GELOGI("Cannot find the IR attr %s from node %s(%s), clear all attrs", attr_name.c_str(), node->GetNamePtr(),
-             node->GetTypePtr());
-      return true;
+    if (iter != all_attrs.cend()) {
+      GE_ASSERT_TRUE(AppendAttrTensor(iter->second, runtime_attrs));
+      continue;
     }
-    GE_ASSERT_TRUE(AppendAttrTensor(iter->second, runtime_attrs));
+    const auto &required_attrs = op_desc->GetRequiredAttrWithType();
+    if (required_attrs.find(attr_name) != required_attrs.cend()) {
+      GELOGE(ge::FAILED, "Cannot find the required IR attr %s from node %s(%s), clear all attrs", attr_name.c_str(),
+             node->GetNamePtr(), node->GetTypePtr());
+      runtime_attrs.clear();
+      return false;
+    }
+    GELOGD("Node %s(%s) ir attr %s has no value and is not marked as required, skip the remaining ir attrs",
+           node->GetNamePtr(), node->GetTypePtr(), attr_name.c_str());
+    return true;
   }
   return true;
 }

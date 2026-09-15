@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <securec.h>
 
+#include "common/ge_common/ge_inner_error_codes.h"
 #include "ops_kernel_builder/task_builder/task_builder.h"
 #include "graph/utils/args_format_desc_utils.h"
 #include "graph/debug/ge_attr_define.h"

@@ -295,6 +295,182 @@ TEST_F(ExecutorUnitTest, CheckParam_Failed_WhenNullIoTensor) {
                                     output_tensors.data(), outputs.size()),
             ge::GRAPH_SUCCESS);
 }
+TEST_F(ExecutorUnitTest, CheckUserInputSize_Failed_WhenUserBufferTooSmall) {
+  auto exe_graph = BuildExeGraphFromSingleNodeWithShapeAndRange(
+      {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}});
+  ASSERT_NE(exe_graph, nullptr);
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess();
+
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("tests");
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  auto model_executor = ModelV2Executor::Create(exe_graph, root_model);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+
+  const auto *input_desc = model_executor->GetModelDesc().GetInputDesc(0);
+  ASSERT_NE(input_desc, nullptr);
+  const int64_t expected_size = input_desc->GetSize();
+  ASSERT_GT(expected_size, 0);
+
+  auto outputs = FakeTensors({256}, 1);
+  auto small_input =
+      FakeValue<Tensor>(Tensor{{{256}, {4}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT, 0});
+  auto normal_input =
+      FakeValue<Tensor>(Tensor{{{256}, {256}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT, 0});
+  Tensor *inputs[] = {small_input.holder.get(), normal_input.holder.get()};
+  ASSERT_EQ(model_executor->Execute({nullptr}, inputs, 2U, reinterpret_cast<Tensor **>(outputs.GetAddrList()),
+                                    outputs.size()),
+            ge::PARAM_INVALID);
+  EXPECT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(ExecutorUnitTest, CheckUserInputSize_Success_WhenDynamicShape) {
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess();
+
+  auto model_executor = BuildExecutorFromSingleNode().executor;
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+
+  const auto *input_desc = model_executor->GetModelDesc().GetInputDesc(0);
+  ASSERT_NE(input_desc, nullptr);
+  EXPECT_EQ(input_desc->GetSize(), 0);
+
+  auto outputs = FakeTensors({2}, 1);
+  auto input0 =
+      FakeValue<Tensor>(Tensor{{{256}, {256}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT16, 0});
+  auto input1 =
+      FakeValue<Tensor>(Tensor{{{256}, {256}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT16, 0});
+  Tensor *inputs[] = {input0.holder.get(), input1.holder.get()};
+  ASSERT_EQ(model_executor->Execute({nullptr}, inputs, 2U, reinterpret_cast<Tensor **>(outputs.GetAddrList()),
+                                    outputs.size()),
+            ge::GRAPH_SUCCESS);
+  EXPECT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(ExecutorUnitTest, CheckUserInputSize_Warning_WhenUserBufferLarger) {
+  auto exe_graph = BuildExeGraphFromSingleNodeWithShapeAndRange(
+      {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}});
+  ASSERT_NE(exe_graph, nullptr);
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess();
+
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("tests");
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  auto model_executor = ModelV2Executor::Create(exe_graph, root_model);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+
+  auto outputs = FakeTensors({256}, 1);
+  auto large_input =
+      FakeValue<Tensor>(Tensor{{{512}, {512}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT, 0});
+  auto normal_input =
+      FakeValue<Tensor>(Tensor{{{256}, {256}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT, 0});
+  Tensor *inputs[] = {large_input.holder.get(), normal_input.holder.get()};
+  ASSERT_EQ(model_executor->Execute({nullptr}, inputs, 2U, reinterpret_cast<Tensor **>(outputs.GetAddrList()),
+                                    outputs.size()),
+            ge::GRAPH_SUCCESS);
+  EXPECT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(ExecutorUnitTest, CheckUserInputSize_Success_WhenUserSizeMatchesExactly) {
+  auto exe_graph = BuildExeGraphFromSingleNodeWithShapeAndRange(
+      {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}});
+  ASSERT_NE(exe_graph, nullptr);
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess();
+
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("tests");
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  auto model_executor = ModelV2Executor::Create(exe_graph, root_model);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+
+  const auto *input_desc = model_executor->GetModelDesc().GetInputDesc(0);
+  ASSERT_NE(input_desc, nullptr);
+  const int64_t expected_size = input_desc->GetSize();
+  ASSERT_GT(expected_size, 0);
+
+  auto outputs = FakeTensors({256}, 1);
+  auto exact_input =
+      FakeValue<Tensor>(Tensor{{{256}, {256}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT, 0});
+  auto normal_input =
+      FakeValue<Tensor>(Tensor{{{256}, {256}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT, 0});
+  Tensor *inputs[] = {exact_input.holder.get(), normal_input.holder.get()};
+  ASSERT_EQ(model_executor->Execute({nullptr}, inputs, 2U, reinterpret_cast<Tensor **>(outputs.GetAddrList()),
+                                    outputs.size()),
+            ge::GRAPH_SUCCESS);
+  EXPECT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(ExecutorUnitTest, CheckUserInputSize_Success_WhenWithinAlignTolerance) {
+  auto exe_graph = BuildExeGraphFromSingleNodeWithShapeAndRange(
+      {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}});
+  ASSERT_NE(exe_graph, nullptr);
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess();
+
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("tests");
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  auto model_executor = ModelV2Executor::Create(exe_graph, root_model);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+
+  const auto *input_desc = model_executor->GetModelDesc().GetInputDesc(0);
+  ASSERT_NE(input_desc, nullptr);
+  const int64_t expected_size = input_desc->GetSize();
+  ASSERT_GT(expected_size, 0);
+
+  auto outputs = FakeTensors({256}, 1);
+  auto slightly_small_input =
+      FakeValue<Tensor>(Tensor{{{256}, {240}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT, 0});
+  auto normal_input =
+      FakeValue<Tensor>(Tensor{{{256}, {256}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT, 0});
+  Tensor *inputs[] = {slightly_small_input.holder.get(), normal_input.holder.get()};
+  ASSERT_EQ(model_executor->Execute({nullptr}, inputs, 2U, reinterpret_cast<Tensor **>(outputs.GetAddrList()),
+                                    outputs.size()),
+            ge::GRAPH_SUCCESS);
+  EXPECT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
+}
+
+TEST_F(ExecutorUnitTest, CheckUserInputSize_Success_WhenUserSizeNearOverflow) {
+  auto exe_graph = BuildExeGraphFromSingleNodeWithShapeAndRange(
+      {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}}, {{256}, {256}, {256}, {256}});
+  ASSERT_NE(exe_graph, nullptr);
+
+  GertRuntimeStub stub;
+  stub.GetKernelStub().AllKernelRegisteredAndSuccess();
+
+  auto compute_graph = std::make_shared<ge::ComputeGraph>("tests");
+  auto root_model = GeModelBuilder(compute_graph).BuildGeRootModel();
+  auto model_executor = ModelV2Executor::Create(exe_graph, root_model);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+
+  auto &model_desc = const_cast<ModelDesc &>(model_executor->GetModelDesc());
+  auto *input_desc = model_desc.MutableInputDesc(0);
+  ASSERT_NE(input_desc, nullptr);
+  input_desc->MutableStorageShape() = {INT64_MAX / 4};
+  const int64_t expected_size = model_executor->GetModelDesc().GetInputDesc(0)->GetSize();
+  ASSERT_GT(expected_size, 0);
+
+  auto outputs = FakeTensors({256}, 1);
+  auto very_large_holder =
+      TensorFaker().Shape({256}).DataType(ge::DT_FLOAT).Size(static_cast<size_t>(INT64_MAX - 10)).Build();
+  auto normal_input =
+      FakeValue<Tensor>(Tensor{{{256}, {256}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT, 0});
+  Tensor *inputs[] = {very_large_holder.GetTensor(), normal_input.holder.get()};
+  ASSERT_EQ(model_executor->Execute({nullptr}, inputs, 2U, reinterpret_cast<Tensor **>(outputs.GetAddrList()),
+                                    outputs.size()),
+            ge::GRAPH_SUCCESS);
+  EXPECT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
+}
+
 TEST_F(ExecutorUnitTest, test_graph_executor_for_add_graph_run_success) {
   GertRuntimeStub stub;
   stub.GetKernelStub().AllKernelRegisteredAndSuccess();

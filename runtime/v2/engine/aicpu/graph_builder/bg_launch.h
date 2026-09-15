@@ -51,7 +51,8 @@ ValueHolderPtr AicpuHostComputeByCpuKernel(const ge::NodePtr &node, const AicpuA
 ValueHolderPtr AicpuHostExecFuncProcess(const AicpuHostProcFunc &func, const IoInfo &io_info,
                                         const std::vector<DevMemValueHolderPtr> &output_addrs);
 ValueHolderPtr AicpuHostCompute(const ge::NodePtr &node, const AicpuArgs &args, const IoInfo &io_info,
-                                LoweringGlobalData &global_data, std::vector<DevMemValueHolderPtr> &output_addrs);
+                                LoweringGlobalData &global_data, std::vector<DevMemValueHolderPtr> &output_addrs,
+                                bool &is_host_exec_func);
 ValueHolderPtr GetContainerIdHolder(const LowerInput &lower_input);
 }  // namespace bg
 }  // namespace gert

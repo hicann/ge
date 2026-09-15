@@ -12,6 +12,7 @@
 
 #include <cinttypes>
 #include <map>
+#include <mutex>
 #include <set>
 #include <string>
 #include <vector>
@@ -244,12 +245,14 @@ Status ModelHelper::LoadCustomOps(const OmFileLoadHelper &om_load_helper, const 
 Status ModelHelper::LoadCustomOpRegistry(const OmFileLoadHelper &om_load_helper,
                                          const GeRootModelPtr &ge_root_model) const {
   GE_ASSERT_NOTNULL(ge_root_model);
+  static std::mutex offline_custom_op_registry_load_mutex;
+  // 先声明锁，确保注册阶段异常返回时 registry 在解锁前析构。
+  std::unique_lock<std::mutex> custom_op_load_lock;
   auto registry = std::make_shared<CustomOpRegistry>();
   GE_ASSERT_NOTNULL(registry);
-  ScopedOpProtoLoadTxn proto_load_txn(registry);
-  std::vector<CustomOpSoHandlePtr> loaded_handles;
-  GE_CHK_STATUS_RET(LoadOpSoBin(om_load_helper, ge_root_model, loaded_handles), "[CUSTOM OP] Load so bins failed.");
-  if (loaded_handles.empty()) {
+  std::vector<OpSoBinPtr> custom_op_so_bins;
+  GE_CHK_STATUS_RET(LoadOpSoBin(om_load_helper, ge_root_model, custom_op_so_bins), "[CUSTOM OP] Load so bins failed.");
+  if (custom_op_so_bins.empty()) {
     GE_ASSERT_TRUE(!HasNonEmptyCustomOpsPartition(om_load_helper),
                    "[CUSTOM OP] custom ops partition exists but no custom op so is loaded.");
     ge_root_model->SetCustomOpRegistry(registry);
@@ -257,23 +260,36 @@ Status ModelHelper::LoadCustomOpRegistry(const OmFileLoadHelper &om_load_helper,
     return SUCCESS;
   }
 
-  GE_CHK_STATUS_RET(CustomOpRegistryBuilder::AddCreatorsFromSoHandles(loaded_handles, registry),
-                    "[CUSTOM OP] Build model custom op registry failed.");
-  if (!proto_load_txn.GetConflicts().empty()) {
-    for (const auto &conflict : proto_load_txn.GetConflicts()) {
+  // 仅串行化自定义算子 SO 的加载、静态注册、原型收集和冲突判定。
+  custom_op_load_lock = std::unique_lock<std::mutex>(offline_custom_op_registry_load_mutex);
+  {
+    ScopedOpProtoLoadTxn proto_load_txn(registry);
+    std::vector<CustomOpSoHandlePtr> loaded_handles;
+    GE_CHK_STATUS_RET(LoadCustomOpSoBins(custom_op_so_bins, loaded_handles),
+                      "[CUSTOM OP] Load custom op so bins failed.");
+    GE_ASSERT_TRUE(!loaded_handles.empty(), "[CUSTOM OP] custom op so bins loaded without handles.");
+
+    GE_CHK_STATUS_RET(CustomOpRegistryBuilder::AddCreatorsFromSoHandles(loaded_handles, registry),
+                      "[CUSTOM OP] Build model custom op registry failed.");
+    if (!proto_load_txn.GetConflicts().empty()) {
+      for (const auto &conflict : proto_load_txn.GetConflicts()) {
+        GELOGE(FAILED,
+               "[CUSTOM OP] conflicting custom op implementations for op type[%s] map kind[%u]: incumbent so[%s] "
+               "fingerprint[%s], "
+               "challenger so[%s] fingerprint[%s].",
+               conflict.op_type.c_str(), static_cast<uint32_t>(conflict.map_kind), conflict.incumbent_so_name.c_str(),
+               conflict.incumbent_fingerprint.c_str(), conflict.challenger_so_name.c_str(),
+               conflict.challenger_fingerprint.c_str());
+      }
       GELOGE(FAILED,
-             "[CUSTOM OP] conflicting custom op implementations for op type[%s] map kind[%u]: incumbent so[%s] "
-             "fingerprint[%s], "
-             "challenger so[%s] fingerprint[%s].",
-             conflict.op_type.c_str(), static_cast<uint32_t>(conflict.map_kind), conflict.incumbent_so_name.c_str(),
-             conflict.incumbent_fingerprint.c_str(), conflict.challenger_so_name.c_str(),
-             conflict.challenger_fingerprint.c_str());
+             "[CUSTOM OP] load model failed: models in one process must use the same implementation for the "
+             "same custom op type. Align custom op package versions and retry.");
+      return FAILED;
     }
-    GELOGE(FAILED,
-           "[CUSTOM OP] load model failed: models in one process must use the same implementation for the "
-           "same custom op type. Align custom op package versions and retry.");
-    return FAILED;
   }
+
+  // 事务析构必须发生在解锁之前；后续 CUSTOM_OPS 反序列化和校验只访问模型级 registry。
+  custom_op_load_lock.unlock();
   GE_CHK_STATUS_RET(LoadCustomOps(om_load_helper, registry), "[CUSTOM OP] Load custom ops to registry failed.");
   GE_CHK_STATUS_RET(ValidateCustomOpsDeserialized(ge_root_model, registry),
                     "[CUSTOM OP] Validate model custom ops deserialized failed.");
@@ -282,7 +298,7 @@ Status ModelHelper::LoadCustomOpRegistry(const OmFileLoadHelper &om_load_helper,
 }
 
 Status ModelHelper::LoadOpSoBin(const OmFileLoadHelper &om_load_helper, const GeRootModelPtr &ge_root_model,
-                                std::vector<CustomOpSoHandlePtr> &loaded_handles) const {
+                                std::vector<OpSoBinPtr> &custom_op_so_bins) const {
   ModelPartition partition_kernel_def;
   if (om_load_helper.GetModelPartition(ModelPartitionType::SO_BINS, partition_kernel_def, 0U) != SUCCESS) {
     return SUCCESS;
@@ -293,7 +309,6 @@ Status ModelHelper::LoadOpSoBin(const OmFileLoadHelper &om_load_helper, const Ge
     GE_ASSERT_NOTNULL(root_graph);
     std::map<std::string, ge::OpSoBinPtr> bin_file_buffer;
     auto all_so_bin = ge_root_model->GetAllSoBin();
-    std::vector<OpSoBinPtr> custom_op_so_bins;
     for (const auto &op_so_bin_ptr : all_so_bin) {
       if (op_so_bin_ptr == nullptr) {
         continue;
@@ -316,7 +331,6 @@ Status ModelHelper::LoadOpSoBin(const OmFileLoadHelper &om_load_helper, const Ge
     if (!bin_file_buffer.empty()) {
       (void)root_graph->SetExtAttr<std::map<std::string, ge::OpSoBinPtr>>("bin_file_buffer", bin_file_buffer);
     }
-    GE_ASSERT_SUCCESS(LoadCustomOpSoBins(custom_op_so_bins, loaded_handles));
     SaveOpSoInfo(ge_root_model);
     GELOGD("Load so bin store success");
   } else {

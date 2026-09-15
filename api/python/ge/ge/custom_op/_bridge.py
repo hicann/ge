@@ -178,10 +178,10 @@ def _build_inputs(
 def _build_execute_inputs(ctx: EagerOpExecutionContext, ir_inputs: list) -> list:
     return _build_inputs(
         ir_inputs,
-        ctx.get_required_input_tensor,
-        ctx.get_optional_input_tensor,
-        ctx.get_dynamic_input_num,
-        ctx.get_dynamic_input_tensor,
+        ctx._get_required_input_tensor,
+        ctx._get_optional_input_tensor,
+        ctx._get_dynamic_input_num,
+        ctx._get_dynamic_input_tensor,
     )
 
 
@@ -193,7 +193,7 @@ def _read_runtime_attr(attrs, index: int, ir_type: str):
 def _build_execute_attrs(ctx: EagerOpExecutionContext, ir_attrs: list) -> dict:
     if not ir_attrs:
         return {}
-    attrs = ctx.get_attrs()
+    attrs = ctx._get_attrs()
     return {
         item["name"]: _read_runtime_attr(attrs, index, item["type"])
         for index, item in enumerate(ir_attrs)
