@@ -35,6 +35,11 @@ namespace gert {
 namespace {
 const std::set<std::string> kResourceOp = {"TensorListPushBack", "TensorListPopBack"};
 
+bool IsWhereNode(const ge::NodePtr &node) {
+  std::string type;
+  return ge::GetOriginalType(node, type) == ge::SUCCESS && type == "Where";
+}
+
 void SetSingleOpScene(const ge::NodePtr &node) {
   const auto root_graph = ge::GraphUtils::FindRootGraph(node->GetOwnerComputeGraph());
   if (root_graph != nullptr) {
@@ -281,9 +286,16 @@ LowerResult BuildHostAiCpuLoweringResult(const ge::NodePtr &node, const LowerInp
 
   std::vector<bg::DevMemValueHolderPtr> output_addrs;
   const bg::IoInfo io_info{lower_input.input_addrs, lower_input.input_shapes, output_sizes, output_shapes};
-  auto compute_holder =
-      bg::AicpuHostCompute(node, lowering_data.aicpu_args, io_info, *lower_input.global_data, output_addrs);
+  bool is_host_exec_func = false;
+  auto compute_holder = bg::AicpuHostCompute(node, lowering_data.aicpu_args, io_info, *lower_input.global_data,
+                                             output_addrs, is_host_exec_func);
 
+  if (is_host_exec_func && IsWhereNode(node) && bg::IsAicpuOutputUnknownShape(node)) {
+    output_shapes = bg::IdentityShape(output_shapes);
+    for (const auto &shape : output_shapes) {
+      bg::ValueHolder::AddDependency(compute_holder, shape);
+    }
+  }
   auto after_compute_addrs = IdentityAddr(output_addrs, node->GetOpDescBarePtr()->GetStreamId());
   for (auto addr : after_compute_addrs) {
     bg::ValueHolder::AddDependency(compute_holder, addr);
