@@ -243,7 +243,7 @@ Status DeployContext::ProcessSharedContent(const deployer::SharedContentDescRequ
       GE_CHK_STATUS_RET(GetOrCreateTransferQueue(device_id, transfer_queue_id), "Failed to get transfer queue");
       GELOGD("enqueue to queue[%u] in device[%d]", transfer_queue_id, device_id);
       GE_CHK_STATUS_RET(HService::EnqueueMbufToClientQueue(device_id, transfer_queue_id, m_buf, kDequeueTimeout),
-                        "Failed to enqueue mbuf to client, device_id=%d, queue_id=%u, timeout=%d", device_id,
+                        "Failed to enqueue mbuf to client, device_id=%d, queue_id=%u, timeout=%dms", device_id,
                         transfer_queue_id, kDequeueTimeout);
 
       GE_CHK_STATUS_RET(var_manager->ProcessSharedContent(content_desc, buffer_size, data_offset, transfer_queue_id),
