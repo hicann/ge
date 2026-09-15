@@ -102,6 +102,7 @@ V1 功能包括：
 - schema-bound 形式依赖已有算子原型的 canonical IR。bridge 加载 descriptor 时收集 canonical IR，并在创建 holder 和调用业务 callback 之前调用 `validate_op_impl_descriptor`，一次性校验 schema-bound 签名：`execute` 校验 IR 输入和属性，不把输出参数纳入签名；`compile` 和 `declare_launch_args` 校验输入、输出、属性并要求显式声明 `-> None`；三个 callback 的实际返回值也必须为`None`。runtime callback 只组装实参并调用业务方法，不再校验签名；校验结果属于 descriptor 加载阶段，不进入 holder 生命周期。
 - 跨 SO 的 proto/Adapter descriptor 是同步借用的 C POD view，runtime callback 返回前必须完成校验和深拷贝。
 - Python 原型允许覆盖内置原型；若 `CustomOpFactory` 已存在同名 C++ 或 Python 自定义算子，则视为自定义算子冲突。
+- 实例缓存与公共能力查询以 priority 为收敛域：同 `op_type` 同 priority 下，动态类型相同的实现跨 engine/backend 共享同一实例；`GetCustomOpCommonCapability` 在 priority 子树内做唯一 provider 检查，engine 维度不参与筛选——不同实现类在同一 priority 下同时提供同一公共能力时查询失败并报错。
 - schema-bound 回调分别通过 `get_execute_ctx()`、`get_compile_ctx()` 或 `get_declare_launch_args_ctx()` 获取当前 context；该绑定只在当前回调动态作用域内有效。
 - Python custom op native/bridge 与构建时 Python ABI 相关，不提供跨 Python minor version 兼容承诺。
 - bridge C ABI 保持为 v1，`execute` 和 `declare_launch_args` 回调只传 holder 与对应 context；canonical IR 由 bridge 通过 run 包公共接口查询，不通过私有 ABI 投影传递。
