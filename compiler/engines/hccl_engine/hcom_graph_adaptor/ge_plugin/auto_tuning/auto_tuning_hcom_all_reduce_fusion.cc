@@ -194,7 +194,7 @@ HcclResult AutoTuningHcomAllReduceFusion::GetGroupName(const ge::OpDescPtr &op, 
       return HCCL_E_PARA;
     }
     CHK_PRT_RET(group.empty(),
-                HCCL_ERROR("[Get][GroupName]errNo[0x%016llx] get group name failed. group from"
+                HCCL_ERROR("[Get][GroupName]errNo[0x%016llx] get group name failed. group from "
                            "opDesc is empty.",
                            HCOM_ERROR_CODE(HCCL_E_PARA)),
                 HCCL_E_PARA);

@@ -34,7 +34,7 @@ HcclResult AutoTuningHcomOpsKernelBuilder::GetOriginalGraphShapeTypeFromDesc(con
   if (ge::AttrUtils::HasAttr(op, ORIGINAL_GRAPH_SHAPE_TYPE)) {
     if (ge::AttrUtils::GetInt(op, ORIGINAL_GRAPH_SHAPE_TYPE, shapeType) == false) {
       HCCL_ERROR(
-          "[Get][OriginalGraphShapeType]errNo[0x%016llx]: get shapeType failed. get \"shapeType\" from"
+          "[Get][OriginalGraphShapeType]errNo[0x%016llx]: get shapeType failed. get \"shapeType\" from "
           "opDesc failed",
           HCOM_ERROR_CODE(HCCL_E_PARA));
       return HCCL_E_PARA;
@@ -97,7 +97,7 @@ ge::Status AutoTuningHcomOpsKernelBuilder::CalcOpRunningParam(ge::Node &node) {
                          sCollectiveType.c_str()),
               ge::INTERNAL_ERROR);
 
-  HCCL_INFO("calcute hccl running parameters completed. stream num:[%llu], workspace size:[%llu]bytes", streamNum,
+  HCCL_INFO("calculate hccl running parameters completed. stream num:[%llu], workspace size:[%llu]bytes", streamNum,
             opMemSize);
   return ge::SUCCESS;
 }
@@ -109,7 +109,7 @@ HcclResult AutoTuningHcomOpsKernelBuilder::GetRankSizeFromDesc(const ge::OpDescP
     if (ge::AttrUtils::HasAttr(op, "rank_size")) {
       if (ge::AttrUtils::GetInt(op, "rank_size", rankSize) == false) {
         HCCL_ERROR(
-            "[Get][RankSize]errNo[0x%016llx] op[%s]: get rank size failed. get \"rank_size\" from"
+            "[Get][RankSize]errNo[0x%016llx] op[%s]: get rank size failed. get \"rank_size\" from "
             "opDesc failed",
             HCOM_ERROR_CODE(HCCL_E_PARA), sCollectiveType.c_str());
         return HCCL_E_PARA;

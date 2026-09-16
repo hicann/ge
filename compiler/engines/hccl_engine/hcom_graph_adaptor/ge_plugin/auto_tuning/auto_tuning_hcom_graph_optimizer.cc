@@ -93,7 +93,7 @@ ge::Status AutoTuningHcomGraphOptimizer::Initialize(const std::map<std::string, 
   }
   workPath_ = std::string(realFile);
   CHK_PRT_RET(workPath_.length() < 1,
-              HCCL_ERROR("[Initialize][GraphOptimizer]workPath length is"
+              HCCL_ERROR("[Initialize][GraphOptimizer]workPath length is "
                          "incorrect: workPath length is %zu",
                          workPath_.length()),
               ge::INTERNAL_ERROR);
@@ -313,7 +313,7 @@ HcclResult AutoTuningHcomGraphOptimizer::CalcOpRunningParam(ge::Node &node) {
     }
   }
 
-  HCCL_INFO("calcute hccl running parameters completed. stream num:[%llu], workspace size:[%llu]bytes", streamNum,
+  HCCL_INFO("calculate hccl running parameters completed. stream num:[%llu], workspace size:[%llu]bytes", streamNum,
             opMemSize);
   return HCCL_SUCCESS;
 }
@@ -329,7 +329,7 @@ HcclResult AutoTuningHcomGraphOptimizer::SetOpOutputMemSize(ge::Node &node, cons
     // 获取内存大小
     bool bErr = (ge::GRAPH_SUCCESS != ge::TensorUtils::CalcTensorMemSize(outputShape, format, dataType, memSize));
     CHK_PRT_RET(bErr,
-                HCCL_ERROR("[Set][OpOutputMemSize]In get output mem size, error outputSize because no"
+                HCCL_ERROR("[Set][OpOutputMemSize]In get output mem size, error outputSize because no "
                            "know shape, Format[%d], dataType[%d], outputSize[%lld], index[%u]",
                            format, dataType, memSize, i),
                 HCCL_E_PARA);
@@ -377,7 +377,7 @@ HcclResult AutoTuningHcomGraphOptimizer::SetOpMemAttr(ge::Node &node, const std:
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_BROADCAST) {
     bRet = ge::AttrUtils::SetBool(node.GetOpDesc(), ge::ATTR_NAME_REFERENCE, true);
     CHK_PRT_RET(!bRet,
-                HCCL_ERROR("[Set][OpMemAttr]errNo[0x%016llx] op[%s]: set  reference attr[%d] to OpDesc"
+                HCCL_ERROR("[Set][OpMemAttr]errNo[0x%016llx] op[%s]: set  reference attr[%d] to OpDesc "
                            "failed.",
                            HCOM_ERROR_CODE(HCCL_E_PARA), sCollectiveType.c_str(), true),
                 HCCL_E_PARA);

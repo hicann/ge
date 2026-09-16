@@ -37,7 +37,7 @@ HcclResult MemcpyKindTranslate(HcclRtMemcpyKind kind, aclrtMemcpyKind *rtKind) {
       return HCCL_SUCCESS;
 
     default: {
-      HCCL_ERROR("[MemcpyKindTranslate]Not support the memory copy type[%d].", kind);
+      HCCL_ERROR("[MemcpyKindTranslate]The memory copy type[%d] is not supported.", kind);
       return HCCL_E_PARA;
     }
   }

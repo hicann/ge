@@ -282,7 +282,7 @@ HcclResult HcomAllGatherFusion::GetPeerOutDataToInControl(vector<ge::OutDataAnch
     gRet = ge::GraphUtils::RemoveEdge(peerOutDataToInControl, inControlAnchor);
     if (gRet != ge::GRAPH_SUCCESS) {
       HCCL_ERROR(
-          "[Get][PeerOutData]GetPeerOutDataToInControl: remove edge between peer outDataAnchor[%d] of"
+          "[Get][PeerOutData]GetPeerOutDataToInControl: remove edge between peer outDataAnchor[%d] of "
           "Op[%s] and inControlAnchor[%d] of Op[%s] failed. ret[%u]",
           peerOutDataToInControl->GetIdx(), peerOutDataToInControl->GetOwnerNode()->GetOpDesc()->GetName().c_str(),
           inControlAnchor->GetIdx(), srcNodePtr->GetOpDesc()->GetName().c_str(), gRet);
@@ -311,7 +311,7 @@ HcclResult HcomAllGatherFusion::GetPeerOutControlToInControl(
     gRet = ge::GraphUtils::RemoveEdge(peerOutControlAnchor, inControlAnchor);
     if (gRet != ge::GRAPH_SUCCESS) {
       HCCL_ERROR(
-          "[Get][PeerOutControlToInControl]GetPeerOutControlToInControl: remove edge between peer"
+          "[Get][PeerOutControlToInControl]GetPeerOutControlToInControl: remove edge between peer "
           "outControlAnchor[%d] of Op[%s] and inControlAnchor[%d] of Op[%s] failed. ret[%u]",
           peerOutControlAnchor->GetIdx(), peerOutControlAnchor->GetOwnerNode()->GetOpDesc()->GetName().c_str(),
           inControlAnchor->GetIdx(), srcNodePtr->GetOpDesc()->GetName().c_str(), gRet);
@@ -420,7 +420,7 @@ HcclResult HcomAllGatherFusion::GetPeerInControlFromOutControl(
     gRet = ge::GraphUtils::RemoveEdge(outControlAnchor, peerInControlAnchor);
     if (gRet != ge::GRAPH_SUCCESS) {
       HCCL_ERROR(
-          "[Get][PeerInControl]GetPeerInControlFromOutControl: remove edge between"
+          "[Get][PeerInControl]GetPeerInControlFromOutControl: remove edge between "
           "outControlAnchor[%d] of Op[%s] and peer inControlAnchor[%d] of Op[%s] failed. ret[%u]",
           outControlAnchor->GetIdx(), srcNodePtr->GetOpDesc()->GetName().c_str(), peerInControlAnchor->GetIdx(),
           peerInControlAnchor->GetOwnerNode()->GetOpDesc()->GetName().c_str(), gRet);

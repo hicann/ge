@@ -303,7 +303,7 @@ HcclResult OpFusionBase::GetPeerOutDataToInControl(std::unordered_set<uintptr_t>
       gRet = ge::GraphUtils::RemoveEdge(peerOutDataToInControl, inControlAnchor);
       if (gRet != ge::GRAPH_SUCCESS) {
         HCCL_ERROR(
-            "[Get][PeerOutData]GetPeerOutDataToInControl: remove edge between peer outDataAnchor[%d] of"
+            "[Get][PeerOutData]GetPeerOutDataToInControl: remove edge between peer outDataAnchor[%d] of "
             "Op[%s] and inControlAnchor[%d] of Op[%s] failed. ret[%u]",
             peerOutDataToInControl->GetIdx(), peerOutDataToInControl->GetOwnerNode()->GetOpDesc()->GetName().c_str(),
             inControlAnchor->GetIdx(), srcNodePtr->GetOpDesc()->GetName().c_str(), gRet);
@@ -336,7 +336,7 @@ HcclResult OpFusionBase::GetPeerOutControlToInControl(std::unordered_set<uintptr
       gRet = ge::GraphUtils::RemoveEdge(peerOutControlAnchor, inControlAnchor);
       if (gRet != ge::GRAPH_SUCCESS) {
         HCCL_ERROR(
-            "[Get][PeerOutControlToInControl]GetPeerOutControlToInControl: remove edge between peer"
+            "[Get][PeerOutControlToInControl]GetPeerOutControlToInControl: remove edge between peer "
             "outControlAnchor[%d] of Op[%s] and inControlAnchor[%d] of Op[%s] failed. ret[%u]",
             peerOutControlAnchor->GetIdx(), peerOutControlAnchor->GetOwnerNode()->GetOpDesc()->GetName().c_str(),
             inControlAnchor->GetIdx(), srcNodePtr->GetOpDesc()->GetName().c_str(), gRet);
@@ -384,7 +384,7 @@ HcclResult OpFusionBase::GetPeerAnchorFromOutData(
             outDataAnchor->GetOwnerNode()->GetOpDesc()->GetOutputDesc(outDataAnchor->GetIdx()));
         if (gRet != ge::GRAPH_SUCCESS) {
           HCCL_ERROR(
-              "[Get][PeerAnchor]GetPeerAnchorFromOutData: add outputDesc[%d] of srcOp[%s] to"
+              "[Get][PeerAnchor]GetPeerAnchorFromOutData: add outputDesc[%d] of srcOp[%s] to "
               "destOp[%s] failed.",
               outDataAnchor->GetIdx(), srcOpName.c_str(), dstOpName.c_str());
           return HCCL_E_INTERNAL;
@@ -498,7 +498,7 @@ HcclResult OpFusionBase::GetPeerInControlFromOutControl(std::unordered_set<uintp
       gRet = ge::GraphUtils::RemoveEdge(outControlAnchor, peerInControlAnchor);
       if (gRet != ge::GRAPH_SUCCESS) {
         HCCL_ERROR(
-            "[Get][PeerInControl]GetPeerInControlFromOutControl: remove edge between"
+            "[Get][PeerInControl]GetPeerInControlFromOutControl: remove edge between "
             "outControlAnchor[%d] of Op[%s] and peer inControlAnchor[%d] of Op[%s] failed. ret[%u]",
             outControlAnchor->GetIdx(), srcNodePtr->GetOpDesc()->GetName().c_str(), peerInControlAnchor->GetIdx(),
             peerInControlAnchor->GetOwnerNode()->GetOpDesc()->GetName().c_str(), gRet);

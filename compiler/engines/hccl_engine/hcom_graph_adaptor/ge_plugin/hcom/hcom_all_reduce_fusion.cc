@@ -140,7 +140,7 @@ HcclResult HcomAllReduceFusion::FuseOps(ge::ComputeGraph &graph, FusionSection &
     std::vector<u32> segmentIndex;
     ret = GetFusionStrategy(graph, fusionSection, segmentNum, segmentIndex);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[Ops][Fuse]graph[%s]: get HcomAllReduce ops split strategy"
+                HCCL_ERROR("[Ops][Fuse]graph[%s]: get HcomAllReduce ops split strategy "
                            "failed. ret[%d]",
                            graph.GetName().c_str(), ret),
                 ret);
@@ -210,7 +210,7 @@ HcclResult HcomAllReduceFusion::GetFusionOption(const ge::NodePtr &nodePtr, Fusi
       break;
     case HCOM_ATTR_FUSION_BY_SPLIT_STRATEGY:
       CHK_PRT_RET((fusionOption.fusionId != HCOM_ATTR_FUSION_ID_DEFAULT),
-                  HCCL_ERROR("[Get][FusionOption]errNo[0x%016llx] node[%s] fusion[%lld] fusion_id[%lld]: fusion_id is"
+                  HCCL_ERROR("[Get][FusionOption]errNo[0x%016llx] node[%s] fusion[%lld] fusion_id[%lld]: fusion_id is "
                              "incorrect, should be %lld.",
                              HCOM_ERROR_CODE(HCCL_E_PARA), nodeName.c_str(), fusionOption.fusionAttr,
                              fusionOption.fusionId, HCOM_ATTR_FUSION_ID_DEFAULT),
@@ -349,7 +349,7 @@ HcclResult HcomAllReduceFusion::GetFusionStrategy(const ge::ComputeGraph &graph,
   if (option.fusionId == HCOM_ATTR_FUSION_ID_DEFAULT) {
     HcclResult ret = GetGradSplitStrategy(graph.GetName(), option.group, fusionSection, segmentNum, segmentIndex);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[Get][FusionStrategy]graph[%s]: group[%s] get HcomAllReduce ops split"
+                HCCL_ERROR("[Get][FusionStrategy]graph[%s]: group[%s] get HcomAllReduce ops split "
                            "strategy failed. ret[%d]",
                            graph.GetName().c_str(), option.group.c_str(), ret),
                 ret);
@@ -373,7 +373,7 @@ HcclResult HcomAllReduceFusion::GetGradSplitStrategy(const std::string &modelNam
   for (u32 inputTensorIdx = 0; inputTensorIdx < gradientNum; inputTensorIdx++) {
     HcclResult ret = HcomOpUtils::GetAllInputsTensorMemSize(fusionSection[inputTensorIdx]->GetOpDesc(), tensorSize);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[Get][GradSplitStrategy]In GetGradSplitStrategy, GetAllInputsTensorMemSize"
+                HCCL_ERROR("[Get][GradSplitStrategy]In GetGradSplitStrategy, GetAllInputsTensorMemSize "
                            "failed, node[%s], ret[%u].",
                            fusionSection[inputTensorIdx]->GetOpDesc()->GetName().c_str(), ret),
                 ret);

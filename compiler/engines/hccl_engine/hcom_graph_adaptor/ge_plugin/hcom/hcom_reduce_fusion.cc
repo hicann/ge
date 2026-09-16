@@ -171,7 +171,7 @@ HcclResult HcomReduceFusion::GetFusionOption(const ge::NodePtr &nodePtr, FusionO
 
     default:
       HCCL_ERROR(
-          "[Get][FusionOption]errNo[0x%016llx] node[%s] fusion[%lld] is incorrect, should"
+          "[Get][FusionOption]errNo[0x%016llx] node[%s] fusion[%lld] is incorrect, should "
           "be %lld or %lld",
           HCOM_ERROR_CODE(HCCL_E_PARA), nodeName.c_str(), fusionOption.fusionAttr, HCOM_ATTR_FUSION_NO_FUSION,
           HCOM_ATTR_FUSION_BY_FUSION_ID);

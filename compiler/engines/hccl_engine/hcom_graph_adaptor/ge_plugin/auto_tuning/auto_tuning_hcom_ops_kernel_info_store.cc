@@ -285,7 +285,7 @@ HcclResult AutoTuningHcomOpsKernelInfoStore::GetHcclInfo(const ge::GETaskInfo &t
                                                          ge::GETaskKernelHcclInfo &hcclInfo) {
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[AllGatherOp][Kernel]errNo[0x%016llx] GETaskInfo size in"
+              HCCL_ERROR("[AllGatherOp][Kernel]errNo[0x%016llx] GETaskInfo size in "
                          "HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -314,9 +314,7 @@ HcclResult AutoTuningHcomOpsKernelInfoStore::HcomAllGatherOpKernel(const ge::GET
   /* 动态shap地址刷新 */
   CHK_RET(GetOriginalGraphShapeTypeFromTaskInfo(task, shapeType));
   CHK_PRT_RET((shapeType == ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE),
-              HCCL_ERROR("[AllGatherOp][Kernel]not support"
-                         "unknownshape node."),
-              HCCL_E_NOT_SUPPORT);
+              HCCL_ERROR("[AllGatherOp][Kernel]does not support unknownshape node."), HCCL_E_NOT_SUPPORT);
 
   uint32_t unitSize;
   CHK_RET(SalGetDataTypeSize(dataType, unitSize));
@@ -348,9 +346,7 @@ HcclResult AutoTuningHcomOpsKernelInfoStore::HcomReduceOpKernel(const ge::GETask
   /* 动态shap地址刷新 */
   CHK_RET(GetOriginalGraphShapeTypeFromTaskInfo(task, shapeType));
   CHK_PRT_RET((shapeType == ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE),
-              HCCL_ERROR("[ReduceOp][Kernel]not support"
-                         "unknownshape graph."),
-              HCCL_E_NOT_SUPPORT);
+              HCCL_ERROR("[ReduceOp][Kernel]does not support unknownshape graph."), HCCL_E_NOT_SUPPORT);
 
   uint32_t unitSize;
   CHK_RET(SalGetDataTypeSize(dataType, unitSize));
@@ -382,9 +378,7 @@ HcclResult AutoTuningHcomOpsKernelInfoStore::HcomReduceScatterOpKernel(const ge:
   /* 动态shap地址刷新 */
   CHK_RET(GetOriginalGraphShapeTypeFromTaskInfo(task, shapeType));
   CHK_PRT_RET((shapeType == ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE),
-              HCCL_ERROR("[ReduceScatter][OpKernel]not support"
-                         "unknownshape node."),
-              HCCL_E_NOT_SUPPORT);
+              HCCL_ERROR("[ReduceScatter][OpKernel]does not support unknownshape node."), HCCL_E_NOT_SUPPORT);
 
   uint32_t unitSize;
   CHK_RET(SalGetDataTypeSize(dataType, unitSize));
@@ -414,7 +408,7 @@ ge::Status AutoTuningHcomOpsKernelInfoStore::LoadTask(ge::GETaskInfo &task) {
   ge::GETaskKernelHcclInfo hcclInfo;
   CHK_RET(GetHcclInfo(task, hcclInfo));
   CHK_PRT_RET((task.type != ACL_RT_MODEL_TASK_HCCL),
-              HCCL_ERROR("[Load][Task]errNo[0x%016llx] TaskType[%u] from"
+              HCCL_ERROR("[Load][Task]errNo[0x%016llx] TaskType[%u] from "
                          "taskinfo is invalid.",
                          HCOM_ERROR_CODE(HCCL_E_PARA), task.type),
               ge::INTERNAL_ERROR);

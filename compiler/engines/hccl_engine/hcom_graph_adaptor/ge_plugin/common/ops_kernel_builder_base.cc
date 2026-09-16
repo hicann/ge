@@ -57,7 +57,7 @@ HcclResult HCCLOpsKernelBuilder::SetOpOutputMemSize(ge::Node &node, const std::s
     // 获取内存大小
     bool bErr = (ge::GRAPH_SUCCESS != ge::TensorUtils::CalcTensorMemSize(outputShape, format, dataType, memSize));
     CHK_PRT_RET(bErr,
-                HCCL_ERROR("[SetOp][OutputMemSize]In get output mem size, error outputSize because no"
+                HCCL_ERROR("[SetOp][OutputMemSize]In get output mem size, error outputSize because no "
                            "know shape, Format[%d], dataType[%d], outputSize[%lld], index[%u]",
                            format, dataType, memSize, i),
                 HCCL_E_PARA);

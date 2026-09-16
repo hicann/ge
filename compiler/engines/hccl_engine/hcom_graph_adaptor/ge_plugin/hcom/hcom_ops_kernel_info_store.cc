@@ -202,7 +202,7 @@ HcclResult HcomOpsKernelInfoStore::GetOpKernelLoopTime(const ge::GETaskInfo &tas
 
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[GatherOp][Kernel]errNo[0x%016llx] GETaskInfo"
+              HCCL_ERROR("[GatherOp][Kernel]errNo[0x%016llx] GETaskInfo "
                          "size in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -464,7 +464,7 @@ HcclResult HcomOpsKernelInfoStore::PrepareOpExecutionParams(const std::vector<st
 HcclResult HcomOpsKernelInfoStore::HcomAlltoAllVOpKernel(const ge::GETaskInfo &task,
                                                          const std::vector<std::string> &tagVec) {
   CHK_PRT_RET((task.kernelHcclInfo.size() != 1),
-              HCCL_ERROR("[AlltoAllVOp][Kernel]errNo[0x%016llx] GETaskInfo"
+              HCCL_ERROR("[AlltoAllVOp][Kernel]errNo[0x%016llx] GETaskInfo "
                          "size in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -541,7 +541,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAlltoAllVOpKernel(const ge::GETaskInfo &t
 HcclResult HcomOpsKernelInfoStore::HcomAlltoAllOpKernel(const ge::GETaskInfo &task,
                                                         const std::vector<std::string> &tagVec) {
   CHK_PRT_RET((task.kernelHcclInfo.size() != 1),
-              HCCL_ERROR("[AlltoAllOp][Kernel]errNo[0x%016llx] GETaskInfo"
+              HCCL_ERROR("[AlltoAllOp][Kernel]errNo[0x%016llx] GETaskInfo "
                          "size in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -598,7 +598,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAlltoAllOpKernel(const ge::GETaskInfo &ta
 HcclResult HcomOpsKernelInfoStore::HcomAlltoAllVCOpKernel(const ge::GETaskInfo &task,
                                                           const std::vector<std::string> &tagVec) {
   CHK_PRT_RET((task.kernelHcclInfo.size() != 1),
-              HCCL_ERROR("[AlltoAllVCOp][Kernel]errNo[0x%016llx] GETaskInfo"
+              HCCL_ERROR("[AlltoAllVCOp][Kernel]errNo[0x%016llx] GETaskInfo "
                          "size in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -684,7 +684,7 @@ HcclResult HcomOpsKernelInfoStore::CleanIntervalMemoryOpKernel(const ge::GETaskI
   int64_t comm;
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[AllReduceOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM"
+              HCCL_ERROR("[AllReduceOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM "
                          "should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -827,7 +827,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllReduceOpKernel(const ge::GETaskInfo &t
   std::vector<void *> globalWorkSpaceAddr;
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[AllReduceOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM"
+              HCCL_ERROR("[AllReduceOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM "
                          "should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -1019,7 +1019,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllGatherOpKernel(const ge::GETaskInfo &t
   u32 shapeType;
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[AllGatherOp][Kernel]errNo[0x%016llx] GETaskInfo"
+              HCCL_ERROR("[AllGatherOp][Kernel]errNo[0x%016llx] GETaskInfo "
                          "size in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -1087,7 +1087,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllGatherVOpKernel(const ge::GETaskInfo &
   uintptr_t outputAddr = 0;
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[AllGatherVOp][Kernel]errNo[0x%016llx] GETaskInfo"
+              HCCL_ERROR("[AllGatherVOp][Kernel]errNo[0x%016llx] GETaskInfo "
                          "size in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -1421,7 +1421,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterOpKernel(const ge::GETaskInf
   std::vector<void *> globalWorkSpaceAddr;
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[ReduceScatterOp][Kernel]errNo[0x%016llx] GETaskInfo size"
+              HCCL_ERROR("[ReduceScatterOp][Kernel]errNo[0x%016llx] GETaskInfo size "
                          "in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -1499,7 +1499,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterVOpKernel(const ge::GETaskIn
   std::vector<void *> globalWorkSpaceAddr;
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[ReduceScatterVOp][Kernel]errNo[0x%016llx] GETaskInfo size"
+              HCCL_ERROR("[ReduceScatterVOp][Kernel]errNo[0x%016llx] GETaskInfo size "
                          "in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -1716,7 +1716,7 @@ HcclResult HcomOpsKernelInfoStore::HcomBroadcastOpKernel(const ge::GETaskInfo &t
   u32 root;
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[BroadcastOp][Kernel]errNo[0x%016llx] GETaskInfo size"
+              HCCL_ERROR("[BroadcastOp][Kernel]errNo[0x%016llx] GETaskInfo size "
                          "in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -1856,7 +1856,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceOpKernel(const ge::GETaskInfo &task
                                                       const std::vector<std::string> &tagVec) {
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[ReduceOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM"
+              HCCL_ERROR("[ReduceOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM "
                          "should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -2054,7 +2054,7 @@ HcclResult HcomOpsKernelInfoStore::HcomSendOpKernel(const ge::GETaskInfo &task,
 
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[SendOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM"
+              HCCL_ERROR("[SendOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM "
                          "should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -2201,7 +2201,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReceiveOpKernel(const ge::GETaskInfo &tas
 
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[ReceiveOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM"
+              HCCL_ERROR("[ReceiveOp][Kernel]errNo[0x%016llx] GETaskInfo size in HCOM "
                          "should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -2546,7 +2546,7 @@ HcclResult HcomOpsKernelInfoStore::SetUnknownShapeWorkspaceResource(const ge::GE
   std::string sGroup;
   int64_t comm = 0;
   CHK_PRT_RET(task.kernelHcclInfo.empty(),
-              HCCL_ERROR("[Set][UnknownShapeWorkspaceResource]kernelHcclInfo"
+              HCCL_ERROR("[Set][UnknownShapeWorkspaceResource]kernelHcclInfo "
                          "is empty"),
               HCCL_E_PARA);
   CHK_RET(GetCommFromTaskInfo(task, comm));
@@ -2634,7 +2634,7 @@ HcclResult HcomOpsKernelInfoStore::SetKnownShapeWorkspaceResource(const ge::GETa
   }
   std::vector<ge::GETaskKernelHcclInfo> hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[Set][KnownShapeWorkspaceResource]errNo[0x%016llx] GETaskInfo"
+              HCCL_ERROR("[Set][KnownShapeWorkspaceResource]errNo[0x%016llx] GETaskInfo "
                          "size in HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);
@@ -2653,7 +2653,7 @@ HcclResult HcomOpsKernelInfoStore::SetKnownShapeWorkspaceResource(const ge::GETa
   // 设定 stream 全局资源
   for (auto stream : hcclInfo.hcclStreamList) {
     CHK_PRT_RET((stream == nullptr),
-                HCCL_ERROR("[Set][KnownShapeWorkspaceResource]errNo[0x%016llx] load"
+                HCCL_ERROR("[Set][KnownShapeWorkspaceResource]errNo[0x%016llx] load "
                            "task failed. (stream from taskinfo is null)",
                            HCOM_ERROR_CODE(HCCL_E_PARA)),
                 HCCL_E_PARA);
@@ -3009,7 +3009,7 @@ HcclResult HcomOpsKernelInfoStore::TransfromRealRankId(const ge::GETaskInfo &tas
       CHK_RET(GetRealRankIdFromMap(privateDefBuf->selfRank, rankMapJsonStr, privateDefBuf->selfRank));
       HCCL_DEBUG("[TransfromRealRankId]srcRank:[%u]", privateDefBuf->selfRank);
     } else {
-      HCCL_ERROR("[Load][Task]errNo[0x%016llx] transform real rankid failed. rank map not exist.",
+      HCCL_ERROR("[Load][Task]errNo[0x%016llx] transform real rankid failed. rank map does not exist.",
                  HCOM_ERROR_CODE(HCCL_E_PARA));
       return HCCL_E_PARA;
     }
@@ -3191,14 +3191,14 @@ ge::Status HcomOpsKernelInfoStore::LoadTask(ge::GETaskInfo &task) {
 
   std::vector<ge::GETaskKernelHcclInfo> &hcclInfos = task.kernelHcclInfo;
   CHK_PRT_RET((hcclInfos.size() != 1),
-              HCCL_ERROR("[Load][Task]errNo[0x%016llx] GETaskInfo size[%zu] in"
+              HCCL_ERROR("[Load][Task]errNo[0x%016llx] GETaskInfo size[%zu] in "
                          "HCOM should be 1",
                          HCOM_ERROR_CODE(HCCL_E_PARA), hcclInfos.size()),
               HCCL_E_PARA);
 
   ge::GETaskKernelHcclInfo hcclInfo = hcclInfos[0];  // HCOM场景下只会有一个
   CHK_PRT_RET((task.type != ACL_RT_MODEL_TASK_HCCL),
-              HCCL_ERROR("[Load][Task]errNo[0x%016llx] TaskType[%u] from"
+              HCCL_ERROR("[Load][Task]errNo[0x%016llx] TaskType[%u] from "
                          "taskinfo is invalid.",
                          HCOM_ERROR_CODE(HCCL_E_PARA), task.type),
               ge::INTERNAL_ERROR);

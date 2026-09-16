@@ -578,8 +578,9 @@ ge::graphStatus HcomCreateComResource(const ge::OpDescPtr &opdesc, std::vector<v
     HCCL_INFO("Select HcomCreateComResourceMC2.");
     gRet = HcomCreateComResourceMC2(opdesc, contexts);
   } else {
-    HCCL_ERROR("[HcomCreateComResource]HcomCreateComResource failed, opType[%d] not support MC2, sCollectiveType[%s]",
-               opType, sCollectiveType.c_str());
+    HCCL_ERROR(
+        "[HcomCreateComResource]HcomCreateComResource failed, opType[%d] does not support MC2, sCollectiveType[%s]",
+        opType, sCollectiveType.c_str());
   }
   return gRet;
 }

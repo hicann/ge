@@ -42,7 +42,7 @@ HcclResult HcomOpUtils::GetReduction(const ge::OpDescPtr &opDescPtr, HcclReduceO
 
   auto iter = HCOM_REDUCE_TYPE_MAP.find(sReduction);
   CHK_PRT_RET((iter == HCOM_REDUCE_TYPE_MAP.end()),
-              HCCL_ERROR("[Get][Reduction] reduction[%s] is not supported, must be one of the"
+              HCCL_ERROR("[Get][Reduction] reduction[%s] is not supported, must be one of the "
                          "following types: sum, prod, max, min.",
                          sReduction.c_str()),
               HCCL_E_PARA);
@@ -78,7 +78,7 @@ HcclResult HcomOpUtils::GetGroup(const ge::OpDescPtr &opDescPtr, std::string &gr
       return HCCL_E_PARA;
     }
     CHK_PRT_RET(group.empty(),
-                HCCL_ERROR("[Get][Group]errNo[0x%016llx] get group name failed. group"
+                HCCL_ERROR("[Get][Group]errNo[0x%016llx] get group name failed. group "
                            "from opDesc is empty.",
                            HCOM_ERROR_CODE(HCCL_E_PARA)),
                 HCCL_E_PARA);
@@ -128,7 +128,7 @@ HcclResult HcomOpUtils::GetDataType(const ge::OpDescPtr &opDescPtr, std::string 
 HcclResult HcomOpUtils::TransformDataType(const ge::DataType geDataType, HcclDataType &hcclDataType) {
   auto iter = HCOM_DATA_TYPE_MAP.find(geDataType);
   CHK_PRT_RET((iter == HCOM_DATA_TYPE_MAP.end()),
-              HCCL_ERROR("[Trans][DataType]errNo[0x%016llx] GeDataType[%lld] is not supported, must be one of the"
+              HCCL_ERROR("[Trans][DataType]errNo[0x%016llx] GeDataType[%lld] is not supported, must be one of the "
                          "following types: int8, uint8, int16, uint16, int32, uint32, int64, uint64, float16, float32, "
                          "float64, bfloat16.",
                          HCOM_ERROR_CODE(HCCL_E_PARA), geDataType),
@@ -435,7 +435,7 @@ HcclResult HcomOpUtils::GetAlltoAllDataType(const ge::OpDescPtr &op, HcclDataTyp
   ge::DataType graphSendType = opDescPtr == nullptr ? ge::DT_INT8 : opDescPtr->GetDataType();  // 如果不发送则填int8类型
   auto iter = HCOM_DATA_TYPE_MAP.find(graphSendType);
   CHK_PRT_RET((iter == HCOM_DATA_TYPE_MAP.end()),
-              HCCL_ERROR("[Get][DataType]errNo[0x%016llx] node[%s]: data type[%lld] is not supported, must be"
+              HCCL_ERROR("[Get][DataType]errNo[0x%016llx] node[%s]: data type[%lld] is not supported, must be "
                          "one of the following types: "
                          "int8, uint8, int16, uint16, int32, uint32, int64, uint64, float16, float32, float32, "
                          "float64.",
@@ -447,7 +447,7 @@ HcclResult HcomOpUtils::GetAlltoAllDataType(const ge::OpDescPtr &op, HcclDataTyp
   ge::DataType graphRecvType = opDescPtr == nullptr ? ge::DT_INT8 : opDescPtr->GetDataType();  // 如果不接收则填int8类型
   iter = HCOM_DATA_TYPE_MAP.find(graphRecvType);
   CHK_PRT_RET((iter == HCOM_DATA_TYPE_MAP.end()),
-              HCCL_ERROR("[Get][DataType]errNo[0x%016llx] node[%s]: data type[%lld] is not supported, must be"
+              HCCL_ERROR("[Get][DataType]errNo[0x%016llx] node[%s]: data type[%lld] is not supported, must be "
                          "one of the following types: "
                          "int8, uint8, int16, uint16, int32, uint32, int64, uint64, float16, float32, float32, "
                          "float64.",
@@ -559,7 +559,7 @@ HcclResult HcomOpUtils::GetGroupFromOpDesc(const ge::OpDescPtr &op, std::string 
       return HCCL_E_PARA;
     }
     CHK_PRT_RET(sGroup.empty(),
-                HCCL_ERROR("[GetGroup][OpDesc]errNo[0x%016llx] get group name failed. group"
+                HCCL_ERROR("[GetGroup][OpDesc]errNo[0x%016llx] get group name failed. group "
                            "from opDesc is empty.",
                            HCOM_ERROR_CODE(HCCL_E_PARA)),
                 HCCL_E_PARA);
@@ -581,7 +581,7 @@ HcclResult HcomOpUtils::GetTensorSize(const ge::GeTensorDesc &tensorDesc, int64_
   int64_t sizeTemp = 0;
   bool bErr = (ge::TensorUtils::CalcTensorMemSize(shape, format, geDataType, sizeTemp) != ge::GRAPH_SUCCESS);
   CHK_PRT_RET((bErr) || (sizeTemp < 0),
-              HCCL_ERROR("[Get][TensorMemSize]In GetTensorMemSize, CalcTensorMemSize"
+              HCCL_ERROR("[Get][TensorMemSize]In GetTensorMemSize, CalcTensorMemSize "
                          "failed, Format[%d], dataType[%d], size[%lld]",
                          format, geDataType, sizeTemp),
               HCCL_E_PARA);
@@ -663,7 +663,7 @@ HcclResult HcomOpUtils::GetAccuracyCountFromOpDesc(const ge::OpDescPtr &op, cons
 
   // Receive 算子不支持获取count
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_RECEIVE) {
-    HCCL_RUN_WARNING("[%s][Get][Count] op[%s] get count failed. receive op not support get count.", __func__,
+    HCCL_RUN_WARNING("[%s][Get][Count] op[%s] get count failed. receive op does not support get count.", __func__,
                      sCollectiveType.c_str());
     return HCCL_SUCCESS;
   }
@@ -687,7 +687,7 @@ HcclResult HcomOpUtils::CalcCountForAlignedOp(const ge::OpDescPtr &op, const std
   for (u64 i = 0; i < op->GetInputsSize(); i++) {
     int64_t tensorSize = 0;
     CHK_PRT_RET((ge::GRAPH_SUCCESS != ge::TensorUtils::GetSize(*op->GetInputDescPtr(i), tensorSize)),
-                HCCL_ERROR("[Get][Count]errNo[0x%016llx] get workspace bytes failed. get size from TensorDesc"
+                HCCL_ERROR("[Get][Count]errNo[0x%016llx] get workspace bytes failed. get size from TensorDesc "
                            "failed, op : %s, input index : %llu",
                            HCOM_ERROR_CODE(HCCL_E_PARA), sCollectiveType.c_str(), i),
                 HCCL_E_PARA);
@@ -876,7 +876,7 @@ HcclResult HcomOpUtils::GetHcclCommNameFromConfig(std::string &commName) {
   }
 
   if ((!IsOfflineCompilation()) || (!DeviceCapability::Instance().IsMc62Device())) {
-    HCCL_ERROR("[GetHcclCommNameFromConfig] not support, only offline compilation with MC62 chip is supported.");
+    HCCL_ERROR("[GetHcclCommNameFromConfig] is not supported, only offline compilation with MC62 chip is supported.");
     return HCCL_E_NOT_SUPPORT;
   }
 
@@ -977,7 +977,7 @@ HcclResult HcomOpUtils::GetRankIdsFromGroupList(const std::string &groupName, st
   // V2和旧的json格式上有差异，当前主要使用的是最新的V2格式json文件，优先判断尝试解析V2格式
   if (ge::GetThreadLocalContext().GetOption(ge::OPTION_EXEC_HCOM_GROUPLIST_V2, groupListString) == ge::GRAPH_SUCCESS) {
     if ((!IsOfflineCompilation()) || (!DeviceCapability::Instance().IsMc62Device())) {
-      HCCL_ERROR("[GetRankIdsFromGroupList] not support, only offline compilation with MC62 chip is supported.");
+      HCCL_ERROR("[GetRankIdsFromGroupList] is not supported, only offline compilation with MC62 chip is supported.");
       return HCCL_E_NOT_SUPPORT;
     }
     CHK_RET(GetRankIdsFromGroupListV2(groupName, groupListString, rankIds));

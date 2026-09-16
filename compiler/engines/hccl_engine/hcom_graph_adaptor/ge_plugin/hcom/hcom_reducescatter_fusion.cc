@@ -346,7 +346,7 @@ HcclResult HcomReduceScatterFusion::GetPeerOutDataToInControl(vector<ge::OutData
     gRet = ge::GraphUtils::RemoveEdge(peerOutDataToInControl, inControlAnchor);
     if (gRet != ge::GRAPH_SUCCESS) {
       HCCL_ERROR(
-          "[Get][PeerOutData]GetPeerOutDataToInControl: remove edge between peer outDataAnchor[%d] of"
+          "[Get][PeerOutData]GetPeerOutDataToInControl: remove edge between peer outDataAnchor[%d] of "
           "Op[%s] and inControlAnchor[%d] of Op[%s] failed. ret[%u]",
           peerOutDataToInControl->GetIdx(), peerOutDataToInControl->GetOwnerNode()->GetOpDesc()->GetName().c_str(),
           inControlAnchor->GetIdx(), srcNodePtr->GetOpDesc()->GetName().c_str(), gRet);
@@ -375,7 +375,7 @@ HcclResult HcomReduceScatterFusion::GetPeerOutControlToInControl(
     gRet = ge::GraphUtils::RemoveEdge(peerOutControlAnchor, inControlAnchor);
     if (gRet != ge::GRAPH_SUCCESS) {
       HCCL_ERROR(
-          "[Get][PeerOutControlToInControl]GetPeerOutControlToInControl: remove edge between peer"
+          "[Get][PeerOutControlToInControl]GetPeerOutControlToInControl: remove edge between peer "
           "outControlAnchor[%d] of Op[%s] and inControlAnchor[%d] of Op[%s] failed. ret[%u]",
           peerOutControlAnchor->GetIdx(), peerOutControlAnchor->GetOwnerNode()->GetOpDesc()->GetName().c_str(),
           inControlAnchor->GetIdx(), srcNodePtr->GetOpDesc()->GetName().c_str(), gRet);
@@ -484,7 +484,7 @@ HcclResult HcomReduceScatterFusion::GetPeerInControlFromOutControl(
     gRet = ge::GraphUtils::RemoveEdge(outControlAnchor, peerInControlAnchor);
     if (gRet != ge::GRAPH_SUCCESS) {
       HCCL_ERROR(
-          "[Get][PeerInControl]GetPeerInControlFromOutControl: remove edge between"
+          "[Get][PeerInControl]GetPeerInControlFromOutControl: remove edge between "
           "outControlAnchor[%d] of Op[%s] and peer inControlAnchor[%d] of Op[%s] failed. ret[%u]",
           outControlAnchor->GetIdx(), srcNodePtr->GetOpDesc()->GetName().c_str(), peerInControlAnchor->GetIdx(),
           peerInControlAnchor->GetOwnerNode()->GetOpDesc()->GetName().c_str(), gRet);
@@ -795,7 +795,7 @@ HcclResult HcomReduceScatterFusion::CreateSplitVNode(SplitVNodeInfo &splitvNodeI
   }
 
   CHK_PRT_RET(splitvNodeInfo.numSplit > SPLITV_NUMSPLIT_MAX,
-              HCCL_ERROR("[Create][SplitV]node[%s] num_split[%d] is not support, 61 is the maximum of num_split",
+              HCCL_ERROR("[Create][SplitV]node[%s] num_split[%d] is not supported, 61 is the maximum of num_split",
                          splitVOpDescPtr->GetName().c_str(), splitvNodeInfo.numSplit),
               HCCL_E_NOT_SUPPORT);
 
