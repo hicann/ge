@@ -27,9 +27,14 @@ class CustomOpFactory {
   static graphStatus RegisterCustomOpCreator(const AscendString &op_type, const BaseOpCreator &op_creator);
   static graphStatus RegisterCustomOpCreator(const AscendString &op_type, OpBackend backend,
                                              const BaseOpCreator &op_creator);
+  static graphStatus RegisterCustomOpCreator(const AscendString &op_type, OpBackend backend,
+                                             OpRegistrationPriority priority, OpEngine engine,
+                                             const BaseOpCreator &op_creator);
 
   static BaseCustomOp *CreateOrGetCustomOp(const AscendString &op_type);
   static BaseCustomOp *CreateOrGetCustomOp(const AscendString &op_type, OpBackend backend);
+  static BaseCustomOp *CreateOrGetCustomOp(const AscendString &op_type, OpBackend backend,
+                                           OpRegistrationPriority priority, OpEngine engine);
 
   template <typename T>
   static T *GetCustomOpCommonCapability(const AscendString &op_type) {
@@ -41,6 +46,16 @@ class CustomOpFactory {
     return CustomOpCast<T>(custom_op);
   }
 
+  template <typename T>
+  static T *GetCustomOpCommonCapability(const AscendString &op_type, OpRegistrationPriority priority, OpEngine engine) {
+    static_assert(std::is_same<T, ShapeInferOp>::value || std::is_same<T, CustomOpInferMetaProvider>::value ||
+                      std::is_same<T, PortableOp>::value,
+                  "GetCustomOpCommonCapability only supports ShapeInferOp, CustomOpInferMetaProvider and PortableOp");
+    auto *const custom_op = GetGlobalRegistry().GetCustomOpCommonCapability(
+        op_type, CustomOpCapabilityTrait<T>::kCapability, priority, engine);
+    return CustomOpCast<T>(custom_op);
+  }
+
   static void RemoveCustomOps(const std::vector<AscendString> &op_types);
 
   static CustomOpRegistryPtr GetGlobalRegistryPtr();
@@ -49,6 +64,8 @@ class CustomOpFactory {
 
   static bool IsExistOp(const AscendString &op_type);
   static bool IsExistOp(const AscendString &op_type, OpBackend backend);
+  static bool IsExistOp(const AscendString &op_type, OpBackend backend, OpRegistrationPriority priority,
+                        OpEngine engine);
 
   static graphStatus LoadCustomOpsPartition(const uint8_t *data, size_t len);
 

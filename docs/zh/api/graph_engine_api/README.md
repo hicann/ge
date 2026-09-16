@@ -1235,7 +1235,8 @@
     - [GEStreamAllocationSummaryGetStreamGraphs](c/graph_base_structure/GEStreamAllocationSummaryGetStreamGraphs.md)
     - [GEStreamAllocationSummaryGetUsrStreamLabels](c/graph_base_structure/GEStreamAllocationSummaryGetUsrStreamLabels.md)
     - [GEStreamAllocationSummaryIsAssignedByStreamPass](c/graph_base_structure/GEStreamAllocationSummaryIsAssignedByStreamPass.md)
-    - [GetRegisteredIrDef](c/graph_base_structure/GetRegisteredIrDef.md)
+    - [GetRegisteredIrDef（废弃）](c/graph_base_structure/GetRegisteredIrDef.md)
+    - [GetRegisteredIrDefV2](c/graph_base_structure/GetRegisteredIrDefV2.md)
     - [IsIrRepSupport](c/graph_base_structure/IsIrRepSupport.md)
 
   - [模型管理和单算子调用接口](c/acl/model_manage_sinlgle_op_invoke.md)

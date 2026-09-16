@@ -64,3 +64,10 @@ extern "C" VISIBILITY_EXPORT ge::Status GetRegisteredIrDefFromGraph(
   }
   return ge::SUCCESS;
 }
+
+extern "C" VISIBILITY_EXPORT ge::Status GetRegisteredIrDefV2(
+    const char *op_type, std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
+    std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
+    std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs) {
+  return GetRegisteredIrDefFromGraph(op_type, inputs, outputs, attrs);
+}

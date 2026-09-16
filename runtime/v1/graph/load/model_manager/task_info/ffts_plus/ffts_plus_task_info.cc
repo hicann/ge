@@ -23,6 +23,7 @@
 #include "common/op_tiling/tiling_memcheck.h"
 #include "engine/aicore/fe_rt2_common.h"
 #include "graph/args_format_desc.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/load/model_manager/task_info/args_format/args_format_utils.h"
 

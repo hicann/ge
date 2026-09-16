@@ -14,7 +14,6 @@
 #include <string>
 #include <vector>
 
-#include "framework/common/debug/ge_log.h"
 #include "graph/error_codes.h"
 #include "graph/op_desc.h"
 #include "graph/node.h"

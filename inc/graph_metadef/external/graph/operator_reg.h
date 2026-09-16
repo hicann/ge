@@ -14,6 +14,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "graph/operator.h"
@@ -70,6 +71,7 @@ namespace ge {
 using std::function;
 using std::string;
 using std::vector;
+using Status = uint32_t;
 
 #define ATTR_String(x, ...)                                     \
   graphStatus get_attr_##x(AscendString &ret) const {           \
@@ -733,4 +735,11 @@ graphStatus BroadCastInfer(const function<vector<int64_t>()> &get_in1_shape,
                           });                                                                     \
   }
 }  // namespace ge
+
+extern "C" {
+ge::Status GetRegisteredIrDefV2(const char *op_type, std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
+                                std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
+                                std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs);
+}  // extern "C"
+
 #endif  // INC_EXTERNAL_GRAPH_OPERATOR_REG_H_

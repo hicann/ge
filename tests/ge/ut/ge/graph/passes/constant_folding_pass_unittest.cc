@@ -25,6 +25,8 @@
 #include "graph_builder_utils.h"
 #include "host_kernels/kernel.h"
 #include "host_kernels/kernel_factory.h"
+#include "register/graph_register.h"
+#include "register/op_kernel_registry.h"
 #include "graph/utils/constant_utils.h"
 #include "api/gelib/gelib.h"
 #include "securec.h"
@@ -75,6 +77,10 @@ class TestHostCustomFoldOp : public HostCpuExecuteOp {
 
 int32_t TestHostCustomFoldOp::execute_count_ = 0;
 REG_OP_BACKEND(TestHostCustomFoldOp, "HostCustomFold", ge::OpBackend::kHostCPU);
+REG_OP_WITH_PRIORITY(TestHostCustomFoldOp, "BottomHostFold", ge::OpBackend::kHostCPU,
+                     ge::OpRegistrationPriority::kBottom, ge::OpEngine::kHostCpu);
+REG_OP_WITH_PRIORITY(TestHostCustomFoldOp, "TopHostFold", ge::OpBackend::kHostCPU, ge::OpRegistrationPriority::kTop,
+                     ge::OpEngine::kHostCpu);
 
 class TestHostCustomFoldFailureOp final : public HostCpuExecuteOp {
  public:
@@ -82,8 +88,27 @@ class TestHostCustomFoldFailureOp final : public HostCpuExecuteOp {
     return GRAPH_FAILED;
   }
 };
+REG_OP_WITH_PRIORITY(TestHostCustomFoldFailureOp, "BottomHostFoldFailure", ge::OpBackend::kHostCPU,
+                     ge::OpRegistrationPriority::kBottom, ge::OpEngine::kHostCpu);
+REG_OP_WITH_PRIORITY(TestHostCustomFoldOp, "PriorityMaskHostFold", ge::OpBackend::kHostCPU,
+                     ge::OpRegistrationPriority::kBottom, ge::OpEngine::kHostCpu);
+REG_OP_WITH_PRIORITY(TestHostCustomFoldFailureOp, "PriorityMaskHostFold", ge::OpBackend::kHostCPU,
+                     ge::OpRegistrationPriority::kTop, ge::OpEngine::kHostCpu);
 
 class TestNonHostCustomFoldOp final : public BaseCustomOp {};
+
+class TestLegacyHostCpuOp final : public HostCpuOp {
+ public:
+  graphStatus Compute(Operator &, const std::map<std::string, const ge::Tensor> &,
+                      std::map<std::string, ge::Tensor> &) override {
+    ++compute_count_;
+    return GRAPH_SUCCESS;
+  }
+
+  static int32_t compute_count_;
+};
+
+int32_t TestLegacyHostCpuOp::compute_count_ = 0;
 
 class TestAddNKernel : public Kernel {
  public:
@@ -259,6 +284,31 @@ void SetWeightForConstNode(NodePtr &const_node) {
   tensor->SetData(value);
   tensor->MutableTensorDesc().SetDataType(DT_UINT8);
   ConstantUtils::SetWeight(const_node->GetOpDesc(), 0, tensor);
+}
+
+GeTensorPtr MakeHostCpuInputTensor() {
+  auto input_tensor = MakeShared<GeTensor>();
+  if (input_tensor == nullptr) {
+    return nullptr;
+  }
+  input_tensor->MutableTensorDesc().SetShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetOriginShape(GeShape({3}));
+  input_tensor->MutableTensorDesc().SetFormat(FORMAT_NCHW);
+  input_tensor->MutableTensorDesc().SetOriginFormat(FORMAT_NCHW);
+  input_tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  input_tensor->MutableTensorDesc().SetOriginDataType(DT_UINT8);
+  if (input_tensor->SetData(std::vector<uint8_t>{1, 2, 3}) != SUCCESS) {
+    return nullptr;
+  }
+  return input_tensor;
+}
+
+NodePtr BuildHostCpuFoldNode(const std::string &op_type) {
+  auto builder = ut::GraphBuilder("test");
+  auto input = builder.AddNode("input", CONSTANT, 0, 1, FORMAT_NCHW, DT_UINT8, {3});
+  auto output = builder.AddNode("output", op_type, 1, 1, FORMAT_NCHW, DT_UINT8, {3});
+  builder.AddDataEdge(input, 0, output, 0);
+  return output;
 }
 
 /**
@@ -1040,6 +1090,111 @@ TEST_F(UtestGraphPassesConstantFoldingPass, testComputeWithHostCpuKernel) {
   EXPECT_EQ(ret, SUCCESS);
   ret = pass.ComputeWithHostCpuKernel(node, inputs, outputs);
   EXPECT_EQ(ret, UNSUPPORTED);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, bottom_priority_host_cpu_op_runs_before_legacy_kernel) {
+  TestHostCustomFoldOp::execute_count_ = 0;
+  TestLegacyHostCpuOp::compute_count_ = 0;
+  const std::string op_type = "BottomHostFold";
+  auto node = BuildHostCpuFoldNode(op_type);
+  ASSERT_NE(node, nullptr);
+  auto input_tensor = MakeHostCpuInputTensor();
+  ASSERT_NE(input_tensor, nullptr);
+  std::vector<ConstGeTensorPtr> inputs{input_tensor};
+  std::vector<GeTensorPtr> outputs;
+
+  OpKernelRegistry::GetInstance().RegisterHostCpuOp(op_type, []() -> HostCpuOp * { return new TestLegacyHostCpuOp(); });
+  EXPECT_EQ(ConstantFoldingPass::RunOpKernel(node, inputs, outputs), SUCCESS);
+  EXPECT_EQ(TestHostCustomFoldOp::execute_count_, 1);
+  EXPECT_EQ(TestLegacyHostCpuOp::compute_count_, 0);
+  ASSERT_EQ(outputs.size(), 1U);
+  EXPECT_EQ(outputs[0]->GetData().GetData()[0], 1U);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, bottom_priority_host_cpu_op_failure_does_not_retry_legacy_kernel) {
+  TestLegacyHostCpuOp::compute_count_ = 0;
+  const std::string op_type = "BottomHostFoldFailure";
+  auto node = BuildHostCpuFoldNode(op_type);
+  ASSERT_NE(node, nullptr);
+  auto input_tensor = MakeHostCpuInputTensor();
+  ASSERT_NE(input_tensor, nullptr);
+  std::vector<ConstGeTensorPtr> inputs{input_tensor};
+  std::vector<GeTensorPtr> outputs;
+
+  OpKernelRegistry::GetInstance().RegisterHostCpuOp(op_type, []() -> HostCpuOp * { return new TestLegacyHostCpuOp(); });
+  EXPECT_NE(ConstantFoldingPass::RunOpKernel(node, inputs, outputs), SUCCESS);
+  EXPECT_EQ(TestLegacyHostCpuOp::compute_count_, 0);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, run_op_kernel_ignores_top_host_cpu_registration) {
+  TestHostCustomFoldOp::execute_count_ = 0;
+  TestLegacyHostCpuOp::compute_count_ = 0;
+  const std::string op_type = "TopHostFold";
+  auto node = BuildHostCpuFoldNode(op_type);
+  ASSERT_NE(node, nullptr);
+  auto input_tensor = MakeHostCpuInputTensor();
+  ASSERT_NE(input_tensor, nullptr);
+  std::vector<ConstGeTensorPtr> inputs{input_tensor};
+  std::vector<GeTensorPtr> outputs;
+
+  OpKernelRegistry::GetInstance().RegisterHostCpuOp(op_type, []() -> HostCpuOp * { return new TestLegacyHostCpuOp(); });
+  EXPECT_EQ(ConstantFoldingPass::RunOpKernel(node, inputs, outputs), SUCCESS);
+  EXPECT_EQ(TestHostCustomFoldOp::execute_count_, 0);
+  EXPECT_EQ(TestLegacyHostCpuOp::compute_count_, 1);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, top_custom_op_runs_before_legacy_host_cpu_kernel) {
+  TestHostCustomFoldOp::execute_count_ = 0;
+  TestLegacyHostCpuOp::compute_count_ = 0;
+  auto builder = ut::GraphBuilder("test");
+  auto input = builder.AddNode("input", CONSTANT, 0, 1, FORMAT_NCHW, DT_UINT8, {3});
+  auto output = builder.AddNode("output", HostCustomFold, 1, 1, FORMAT_NCHW, DT_UINT8, {3});
+  builder.AddDataEdge(input, 0, output, 0);
+  ASSERT_NE(builder.GetGraph(), nullptr);
+
+  auto input_tensor = MakeHostCpuInputTensor();
+  ASSERT_NE(input_tensor, nullptr);
+  ConstantUtils::SetWeight(input->GetOpDesc(), 0, input_tensor);
+
+  OpKernelRegistry::GetInstance().RegisterHostCpuOp(HostCustomFold,
+                                                    []() -> HostCpuOp * { return new TestLegacyHostCpuOp(); });
+  ConstantFoldingPass pass;
+  std::vector<GeTensorPtr> outputs;
+  EXPECT_EQ(pass.ComputePotentialWeight(output, outputs), SUCCESS);
+  EXPECT_EQ(TestHostCustomFoldOp::execute_count_, 1);
+  EXPECT_EQ(TestLegacyHostCpuOp::compute_count_, 0);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, bottom_priority_host_cpu_registration_runs_with_top_registration) {
+  TestHostCustomFoldOp::execute_count_ = 0;
+  TestLegacyHostCpuOp::compute_count_ = 0;
+  const std::string op_type = "PriorityMaskHostFold";
+  auto node = BuildHostCpuFoldNode(op_type);
+  ASSERT_NE(node, nullptr);
+  auto input_tensor = MakeHostCpuInputTensor();
+  ASSERT_NE(input_tensor, nullptr);
+  std::vector<ConstGeTensorPtr> inputs{input_tensor};
+  std::vector<GeTensorPtr> outputs;
+
+  OpKernelRegistry::GetInstance().RegisterHostCpuOp(op_type, []() -> HostCpuOp * { return new TestLegacyHostCpuOp(); });
+  EXPECT_EQ(ConstantFoldingPass::RunOpKernel(node, inputs, outputs), SUCCESS);
+  EXPECT_EQ(TestHostCustomFoldOp::execute_count_, 1);
+  EXPECT_EQ(TestLegacyHostCpuOp::compute_count_, 0);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, priority_registry_miss_runs_legacy_kernel) {
+  TestLegacyHostCpuOp::compute_count_ = 0;
+  const std::string op_type = "PriorityHostFoldLegacyOnly";
+  auto node = BuildHostCpuFoldNode(op_type);
+  ASSERT_NE(node, nullptr);
+  auto input_tensor = MakeHostCpuInputTensor();
+  ASSERT_NE(input_tensor, nullptr);
+  std::vector<ConstGeTensorPtr> inputs{input_tensor};
+  std::vector<GeTensorPtr> outputs;
+
+  OpKernelRegistry::GetInstance().RegisterHostCpuOp(op_type, []() -> HostCpuOp * { return new TestLegacyHostCpuOp(); });
+  EXPECT_EQ(ConstantFoldingPass::RunOpKernel(node, inputs, outputs), SUCCESS);
+  EXPECT_EQ(TestLegacyHostCpuOp::compute_count_, 1);
 }
 
 TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op) {

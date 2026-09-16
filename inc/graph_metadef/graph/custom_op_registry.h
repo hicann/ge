@@ -27,6 +27,8 @@
 namespace ge {
 class BaseCustomOp;
 enum class OpBackend : uint32_t;
+enum class OpRegistrationPriority : uint32_t;
+enum class OpEngine : uint32_t;
 using BaseOpCreator = std::function<std::unique_ptr<BaseCustomOp>()>;
 
 class CustomOpSoHandle;
@@ -37,28 +39,43 @@ class CustomOpRegistry {
   ~CustomOpRegistry();
 
   graphStatus RegisterCreator(const AscendString &op_type, OpBackend backend, const BaseOpCreator &creator);
+  graphStatus RegisterCreator(const AscendString &op_type, OpBackend backend, OpRegistrationPriority priority,
+                              OpEngine engine, const BaseOpCreator &creator);
   void AddSoHandles(const std::vector<CustomOpSoHandlePtr> &so_handles);
 
   BaseCustomOp *CreateOrGetCustomOp(const AscendString &op_type, OpBackend backend);
+  BaseCustomOp *CreateOrGetCustomOp(const AscendString &op_type, OpBackend backend, OpRegistrationPriority priority,
+                                    OpEngine engine);
   BaseCustomOp *GetCustomOpCommonCapability(const AscendString &op_type, CustomOpCapability capability);
+  BaseCustomOp *GetCustomOpCommonCapability(const AscendString &op_type, CustomOpCapability capability,
+                                            OpRegistrationPriority priority, OpEngine engine);
   void RemoveCustomOps(const std::vector<AscendString> &op_types);
   ArgsRefreshStrategy GetArgsRefreshStrategy(const AscendString &op_type);
   bool IsAddressRefreshable(const AscendString &op_type);
   bool HasCreator(const AscendString &op_type) const;
   bool HasCreator(const AscendString &op_type, OpBackend backend) const;
+  bool HasCreator(const AscendString &op_type, OpBackend backend, OpRegistrationPriority priority,
+                  OpEngine engine) const;
   bool HasCustomOp(const AscendString &op_type) const;
   graphStatus GetAllRegisteredOps(std::vector<AscendString> &all_registered_ops) const;
   graphStatus LoadCustomOpsPartition(const uint8_t *data, size_t len);
 
  private:
-  BaseCustomOp *CreateOrGetCustomOpLocked(const AscendString &op_type, OpBackend backend);
-  BaseCustomOp *CacheCustomOpLocked(const AscendString &op_type, OpBackend backend,
-                                    std::unique_ptr<BaseCustomOp> base_custom_op);
+  BaseCustomOp *CreateOrGetCustomOpLocked(const AscendString &op_type, OpBackend backend,
+                                          OpRegistrationPriority priority, OpEngine engine);
+  BaseCustomOp *CacheCustomOpLocked(const AscendString &op_type, OpBackend backend, OpRegistrationPriority priority,
+                                    OpEngine engine, std::unique_ptr<BaseCustomOp> base_custom_op);
 
   mutable std::mutex mu_;
   std::vector<CustomOpSoHandlePtr> so_handles_;
-  std::map<AscendString, std::map<OpBackend, BaseOpCreator>> creators_;
-  std::map<AscendString, std::map<OpBackend, std::shared_ptr<BaseCustomOp>>> custom_ops_;
+  using BackendCreatorMap = std::map<OpBackend, BaseOpCreator>;
+  using PriorityCreatorMap = std::map<OpRegistrationPriority, BackendCreatorMap>;
+  using EngineCreatorMap = std::map<OpEngine, PriorityCreatorMap>;
+  using BackendInstanceMap = std::map<OpBackend, std::shared_ptr<BaseCustomOp>>;
+  using PriorityInstanceMap = std::map<OpRegistrationPriority, BackendInstanceMap>;
+  using EngineInstanceMap = std::map<OpEngine, PriorityInstanceMap>;
+  std::map<AscendString, EngineCreatorMap> creators_;
+  std::map<AscendString, EngineInstanceMap> custom_ops_;
 };
 
 using CustomOpRegistryPtr = std::shared_ptr<CustomOpRegistry>;

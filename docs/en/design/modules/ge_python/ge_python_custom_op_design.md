@@ -15,7 +15,7 @@ The long-term goal of Python custom operators is to let users describe custom op
 - Python plugins are discovered and imported through `ASCEND_CUSTOM_OPP_PATH`.
 - GE loads Python custom ops idempotently before initialization, online compilation, and execution.
 - The C++ runtime accesses the existing `CustomOpFactory` / `CustomOpRegistry` through `PythonCustomOpAdapter`.
-- The Python native module `_ge_custom_op_native` provides `EagerOpExecutionContext` and `RuntimeAttrs` borrowed views.
+- The Python native module `_ge_custom_op_native` provides `EagerOpExecutionContext` borrowed views; `RuntimeAttrs` is a bridge-internal view and is not publicly exported.
 - Python users implement the compile-time `AnnotatedArgsOp` callback through `declare_launch_args` and declare kernel launch arguments with `AnnotatedArgsContext`, `AnnotatedKernelArgs`, and `AnnotatedKernelLaunchInfo`.
 - Python users implement the graph-compilation callback through schema-bound `compile`, and query compilation context and platform information through `get_compile_ctx()` and `get_compile_platform_info()`.
 - `ge.runtime` provides runtime data structures required by the context for return values or input parameters, such as `Tensor`, `StorageShape`, `StorageFormat`, `Shape`, and `TensorPlacement`.
@@ -96,7 +96,7 @@ V1 functions include:
 - The AscendIR graph structure, op proto format, and OM file format are not changed.
 - Python runtime or pybind dependencies are not directly introduced in `graph_metadef/register`.
 - Python entry failures affect loading only when Python custom op entries actually exist. The loading is skipped when no Python file or package is present.
-- `EagerOpExecutionContext`, `AnnotatedArgsContext`, `RuntimeAttrs`, and borrowed views such as `Tensor` objects returned through them can be used only within the current callback. An `AnnotatedKernelArgs` object cannot be reused after `add_launch` consumes it.
+- `EagerOpExecutionContext`, `AnnotatedArgsContext`, and borrowed views such as `Tensor` objects returned through them can be used only within the current callback. An `AnnotatedKernelArgs` object cannot be reused after `add_launch` consumes it.
 - The Python `execute` and `declare_launch_args` methods must return `None`. A normal `None` return indicates success, and an exception indicates failure.
 - The C++ adapter for Python custom ops currently declares `EagerExecuteOp`, `CompilableOp`, and `AnnotatedArgsOp` capabilities. Other C++ capability interfaces are retained as overrides in the adapter but are treated as unsupported.
 - The schema-bound form depends on canonical IR from the existing operator prototype. While loading descriptors, the bridge collects canonical IR and calls `validate_op_impl_descriptor` before holder creation or any business callback to validate schema-bound signatures once. `execute` validates IR inputs and attributes and excludes IR outputs from its parameters; `compile` and `declare_launch_args` validate inputs, outputs, and attributes and require an explicit `None` return annotation. All three callbacks must return `None` at runtime. Runtime callbacks only assemble arguments, invoke business methods, and check the runtime return; they do not validate signatures, and validation state does not enter the holder lifecycle.
@@ -282,24 +282,15 @@ The bridge layer injects the Python borrowed view at the execution entry.
 
 | Method | Description |
 |--------|-------------|
-| `get_input_tensor(index)` | Obtains an input `Tensor` by input index |
-| `get_input_num()` | Obtains the number of runtime input tensors of the current compute node |
-| `get_dynamic_input_num(ir_index)` | Obtains the runtime instance count of a dynamic input IR slot |
-| `get_attrs()` | Obtains the `RuntimeAttrs` borrowed view of the current node |
-| `get_required_input_tensor(ir_index)` | Obtains a `REQUIRED_INPUT` type input `Tensor` based on the operator IR prototype definition |
-| `get_optional_input_tensor(ir_index)` | Obtains an `OPTIONAL_INPUT` type input `Tensor` based on the operator IR prototype definition |
-| `get_dynamic_input_tensor(ir_index, relative_index)` | Obtains a `DYNAMIC_INPUT` type input `Tensor` based on the operator IR prototype definition |
 | `malloc_output_tensor(index, shape, format, dtype)` | Allocates device memory for an output tensor and initializes the basic information of the output tensor |
 | `make_output_ref_input(output_index, input_index)` | Specifies that the memory address of an output references an input |
 | `malloc_workspace(size)` | Allocates workspace memory with device placement and returns the address as an integer |
 | `get_output_tensor(index)` | Obtains the output `Tensor` specified by index |
 | `get_stream()` | Obtains the address integer of the associated execution stream |
 
-`InferShapeContext` is used by the `register_op` decorated function when it runs as `infer_meta`. It reads shapes and data types for required, optional, and dynamic inputs, reads typed runtime attributes, and queries dynamic output instance counts. This context is valid only during the current `infer_meta` callback; output shapes and data types are carried together by the `TensorDesc` objects returned from `infer_meta`.
-
 `AnnotatedArgsContext` exposes workspace allocation, stream-id query, kernel-argument builder creation, and launch addition. Its input/output tensor and attribute queries are used by the internal schema-bound assembly logic. `AnnotatedKernelArgs` exposes `append_input`, `append_output`, `append_workspace`, and `append_scalar`.
 
-`RuntimeAttrs` provides the following typed readers by attribute IR index:
+`RuntimeAttrs` is a bridge-internal runtime attribute borrowed view. It provides the following typed readers by attribute IR index; the bridge selects one according to the canonical IR attribute type, and it is not exported through `ge.custom_op`:
 
 | Attribute type | Methods |
 |----------------|---------|
@@ -314,7 +305,7 @@ The bridge layer injects the Python borrowed view at the execution entry.
 - Shape and format input parameters use `ge.runtime.StorageShape` and `ge.runtime.StorageFormat`.
 - dtype uses `ge.graph.DataType`.
 - Stream and workspace addresses are represented as Python `int`.
-- `RuntimeAttrs` and borrowed objects returned from it expire with the current context.
+- The bridge-internal `RuntimeAttrs` and borrowed objects returned from it expire with the current context.
 
 #### 3.2.6 C++ Adapter and Capability Detection
 
@@ -435,8 +426,6 @@ The current public Python interfaces are as follows:
 |-----------|-------------|
 | `execute` | User-implemented schema-bound execution entry |
 | `EagerOpExecutionContext` | Execution context borrowed view |
-| `InferShapeContext` | Input metadata access context for `infer_meta` callbacks |
-| `RuntimeAttrs` | Attribute borrowed view returned by `EagerOpExecutionContext.get_attrs()` |
 | `get_execute_ctx` | Obtains the execution context of the active schema-bound callback |
 | `register_op` | Declares and collects a Python custom operator prototype |
 | `register_op_impl` | Registers an implementation class and reflects its capability methods |

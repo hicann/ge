@@ -29,6 +29,29 @@ enum class OpBackend : uint32_t {
   kHostCPU = 1,
 };
 
+enum class OpRegistrationPriority : uint32_t {
+  kTop = 0,
+  kBottom = 1,
+};
+
+enum class OpEngine : uint32_t {
+  kCustom = 0,
+  kAiCore,
+  kFftsPlus,
+  kVectorCore,
+  kDsa,
+  kRts,
+  kRtsFftsPlus,
+  kHccl,
+  kAiCpuFftsPlus,
+  kAiCpuAscendFftsPlus,
+  kAiCpuAscend,
+  kAiCpu,
+  kDvpp,
+  kGeLocal,
+  kHostCpu = 14,
+};
+
 /**
  * 自定义算子能力接口的公共基类。
  * 用户可按需组合继承 CompilableOp、EagerExecuteOp、ShapeInferOp，
@@ -164,14 +187,19 @@ using CustomOpCreateFunc = ge::BaseCustomOp *(*)();
 
 /**
  * 自定义算子创建器注册辅助类。
- * 通常配合 REG_AUTO_MAPPING_OP 宏静态注册算子类型和创建函数。
+ * 用于通过注册宏静态注册算子类型、创建函数以及 backend、priority 和 engine 属性。
+ * 支持 REG_AUTO_MAPPING_OP、REG_OP_BACKEND 和 REG_OP_WITH_PRIORITY 宏。
  */
 class CustomOpCreatorRegister {
  public:
   CustomOpCreatorRegister(const AscendString &operator_type, const BaseOpCreator &op_creator);
   CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend, const BaseOpCreator &op_creator);
+  CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend, OpRegistrationPriority priority,
+                          OpEngine engine, const BaseOpCreator &op_creator);
   CustomOpCreatorRegister(const AscendString &operator_type, const CustomOpCreateFunc op_creator);
   CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend, const CustomOpCreateFunc op_creator);
+  CustomOpCreatorRegister(const AscendString &operator_type, OpBackend backend, OpRegistrationPriority priority,
+                          OpEngine engine, const CustomOpCreateFunc op_creator);
   ~CustomOpCreatorRegister() = default;
 };
 }  // namespace ge
@@ -187,6 +215,16 @@ class CustomOpCreatorRegister {
     return new custom_op_class();                                                              \
   }                                                                                            \
   static const ge::CustomOpCreatorRegister REG_JOIN(custom_op_register, ctr)(op_type, backend, \
+                                                                             REG_JOIN(custom_op_pull_creator, ctr))
+
+#define REG_OP_WITH_PRIORITY(custom_op_class, op_type, backend, priority, engine) \
+  REG_OP_WITH_PRIORITY_UNIQ(__COUNTER__, custom_op_class, op_type, backend, priority, engine)
+
+#define REG_OP_WITH_PRIORITY_UNIQ(ctr, custom_op_class, op_type, backend, priority, engine)                      \
+  static ge::BaseCustomOp *REG_JOIN(custom_op_pull_creator, ctr)() {                                             \
+    return new custom_op_class();                                                                                \
+  }                                                                                                              \
+  static const ge::CustomOpCreatorRegister REG_JOIN(custom_op_register, ctr)(op_type, backend, priority, engine, \
                                                                              REG_JOIN(custom_op_pull_creator, ctr))
 
 #endif  // METADEF_CXX_INC_GRAPH_BASE_CUSTOM_OP_H
