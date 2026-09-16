@@ -200,7 +200,7 @@ Status StridedWriteOptimizer::FeedToOpStructInfo(ge::OpDescPtr &op_desc, const s
   outputs_offset[idx] = output_offset_buff;
 
   (void)ge::AttrUtils::SetListInt(op_desc, kOutputOffsetForBufferFusion, outputs_offset);
-  FE_LOGD("Op[%s] set attr _output_offet_for_buffer_fusion[%ld] successfully.", op_desc->GetName().c_str(),
+  FE_LOGD("Op[%s] set attr _output_offset_for_buffer_fusion[%ld] successfully.", op_desc->GetName().c_str(),
           output_offset_buff);
 
   op_desc->SetOutputOffset(output_i);

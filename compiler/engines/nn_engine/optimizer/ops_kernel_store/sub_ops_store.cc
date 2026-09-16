@@ -1176,7 +1176,7 @@ bool SubOpsStore::PrepareFormatAndDtypeInfo(const ge::NodePtr &node, const bool 
     ge::OpDescPtr op_desc_ptr = node->GetOpDesc();
     FE_LOGI("[GraphOpt][Setcheck][CheckSubSupt] The custom dtypes for op[%s, %s] are not supported by its op kernel.",
             op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-    info.reason += "The custom dtypes for op " + op_desc_ptr->GetName() + " is not support by its op kernel.";
+    info.reason += "The custom dtypes for op " + op_desc_ptr->GetName() + " is not supported by its op kernel.";
     SetReason(info.reason, OpNotSupportedReasonID::EN_INPUTS_AND_OUTPUTS_NOT_ACCURACY_SUPPORT,
               check_param.unsupport_reason);
     return false;

@@ -36,7 +36,7 @@ class ProgramGenerator {
   Status GenerateProgram(Om2CodePrinter &code_printer);
 
  private:
-  Status GenerateModelApiHeader(Om2CodePrinter &code_printer);
+  Status GenerateModelApiHeader(Om2CodePrinter &code_printer) const;
   Status GenerateInterfaceHeader(Om2CodePrinter &code_printer);
   std::vector<DeclNode *> BuildInterfaceHeaderIncludes() const;
   Status GenerateResourcesSource(Om2CodePrinter &code_printer);

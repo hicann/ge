@@ -96,7 +96,7 @@ struct OpRangeInfo {
 
 class ShapeRangeUtils {
  public:
-  ShapeRangeUtils() {
+  ShapeRangeUtils() : shapeInfoMutex_() {
     (void)mmRWLockInit(&shapeInfoMutex_);
   }
   ~ShapeRangeUtils() noexcept {

@@ -25,7 +25,7 @@
 #include "common/util/error_manager/error_manager.h"
 #include "graph/ge_local_context.h"
 #include "common/om2/rt_var_resource.h"
-#include "framework/runtime/gert_model/gert_model_executor_types.h"
+#include "framework/om2/model_api/om2_model_api.h"
 #include "framework/common/taskdown_common.h"
 
 #include <gtest/gtest.h>

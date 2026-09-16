@@ -25,7 +25,6 @@
 #include "graph_metadef/common/ge_common/util.h"
 #include "profiling/prof_common.h"
 #include "rt_external_stars.h"
-#include "runtime/gert_model/gert_model_executor_types.h"
 
 namespace {
 

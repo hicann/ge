@@ -199,7 +199,6 @@ add_executable(ge_common_atc
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_atc.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_multi_dims.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_aipp.cc"
-    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_local_engine.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_ge_local_engine.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_infershape_and_folding.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_optimize_stage1.cc"

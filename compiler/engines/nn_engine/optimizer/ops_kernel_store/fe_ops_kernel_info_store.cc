@@ -513,7 +513,7 @@ bool FEOpsKernelInfoStore::CheckAccuracySupported(const ge::NodePtr &node, std::
   FE_LOGD("Node[%s, %s] begin CheckAccuracySupported.", op_desc_ptr->GetNamePtr(), op_desc_ptr->GetTypePtr());
   bool ret = CheckSupportedBase(node, un_supported_reason, CheckSupportMode::ACCURACY_MODE, real_query);
   if (!VerifyCastC0Format(op_desc_ptr)) {
-    un_supported_reason = "Cast op not support current c0 format.";
+    un_supported_reason = "Cast op does not support current c0 format.";
     return false;
   }
   return ret;
@@ -1429,7 +1429,7 @@ Status FEOpsKernelInfoStore::UpdateOpImplyPath(const ge::NodePtr &node_ptr, std:
       REPORT_FE_ERROR("[GraphOpt][SetDynmCustomOpStoreInfo] Get op[%s]'s imply relative path failed.", op_name.c_str());
       return FAILED;
     } else {
-      FE_LOGD("The impl path of tbe-custom is allowed to not exist.");
+      FE_LOGD("The impl path of tbe-custom is allowed to be absent.");
       return SUCCESS;
     }
   }

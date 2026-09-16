@@ -1904,7 +1904,7 @@ void TbeInfoAssembler::CalibrateCoreNum(const ge::OpDesc &op_desc, const string 
     Status ret =
         ExecutionTimeEstimator::GetExecTime(all_plat_info_.platform_info, op_desc, op_kernel_info_ptr, exec_time);
     if (ret == SUCCESS) {
-      FE_LOGD("The estimated execution time of op %s is %lu.", op_desc.GetName().c_str(), exec_time);
+      FE_LOGD("The estimated execution time of op %s is %lu ns.", op_desc.GetName().c_str(), exec_time);
       FindAmplifiedCoreNum(exec_time, final_core_num_str);
     }
     FE_LOGD("Amplified core number string is %s.", final_core_num_str.c_str());

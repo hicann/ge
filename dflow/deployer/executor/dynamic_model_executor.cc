@@ -172,7 +172,7 @@ Status DynamicModelExecutor::LoadModel(const ModelData &model_data, const Comput
   if (need_report_status_) {
     GE_CHK_STATUS_RET(
         RtsApiUtils::MemQueueAttach(status_output_queue_device_id_, status_output_queue_id_, kQueueAttachTime),
-        "Status queue mem queue attach failed, device_id=%d, queue_id=%u, timeout=%d", status_output_queue_device_id_,
+        "Status queue mem queue attach failed, device_id=%d, queue_id=%u, timeout=%dms", status_output_queue_device_id_,
         status_output_queue_id_, kQueueAttachTime);
   }
   run_thread_ = std::thread([this]() {

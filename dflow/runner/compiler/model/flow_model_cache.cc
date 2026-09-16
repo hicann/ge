@@ -650,7 +650,7 @@ Status FlowModelCache::TryMatchCacheForSubGraph(bool &is_match) const {
       is_match = true;
       GELOGI("No need to match buildinfo for nn cache, graph = %s.", root_graph_->GetName().c_str());
     } else {
-      GELOGI("Failed to match cache for graph[%s], no buildinfo in simple cache mode.", root_graph_->GetName().c_str());
+      GELOGI("Cache not matched for graph[%s], no buildinfo in simple cache mode.", root_graph_->GetName().c_str());
     }
     return SUCCESS;
   }

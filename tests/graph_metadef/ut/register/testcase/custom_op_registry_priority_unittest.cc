@@ -40,6 +40,17 @@ class TestPriorityShapeInferOp final : public ShapeInferOp {
 REG_OP_WITH_PRIORITY(TestPriorityShapeInferOp, "CustomOpRegistryCapabilityMacroOp", OpBackend::kDevice,
                      OpRegistrationPriority::kBottom, OpEngine::kAiCore);
 
+class TestPriorityOtherShapeInferOp final : public ShapeInferOp {
+ public:
+  graphStatus InferShape(gert::InferShapeContext *) override {
+    return GRAPH_SUCCESS;
+  }
+
+  graphStatus InferDataType(gert::InferDataTypeContext *) override {
+    return GRAPH_SUCCESS;
+  }
+};
+
 class TestDefaultRegisteredOp final : public BaseCustomOp {};
 REG_OP_BACKEND(TestDefaultRegisteredOp, "CustomOpRegistryDefaultMacroOp", OpBackend::kHostCPU);
 }  // namespace
@@ -76,6 +87,42 @@ TEST(CustomOpRegistryPriorityTest, TopAndBottomCanBeRegisteredIndependently) {
 
   EXPECT_TRUE(registry.HasCreator(op_type, OpBackend::kHostCPU, OpRegistrationPriority::kTop, engine));
   EXPECT_TRUE(registry.HasCreator(op_type, OpBackend::kHostCPU, OpRegistrationPriority::kBottom, engine));
+}
+
+TEST(CustomOpRegistryPriorityTest, HandlesAllPriorityEngineBackendCombinations) {
+  CustomOpRegistry registry;
+  const AscendString op_type("CustomOpRegistryPriorityAllDimensionsOp");
+  const auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestPriorityOp>(); };
+
+  ASSERT_EQ(
+      registry.RegisterCreator(op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kCustom, creator),
+      GRAPH_SUCCESS);
+  ASSERT_EQ(
+      registry.RegisterCreator(op_type, OpBackend::kHostCPU, OpRegistrationPriority::kTop, OpEngine::kAiCore, creator),
+      GRAPH_SUCCESS);
+  ASSERT_EQ(registry.RegisterCreator(op_type, OpBackend::kDevice, OpRegistrationPriority::kBottom, OpEngine::kCustom,
+                                     creator),
+            GRAPH_SUCCESS);
+  ASSERT_EQ(registry.RegisterCreator(op_type, OpBackend::kHostCPU, OpRegistrationPriority::kBottom, OpEngine::kAiCore,
+                                     creator),
+            GRAPH_SUCCESS);
+
+  EXPECT_NE(registry.CreateOrGetCustomOp(op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kCustom),
+            nullptr);
+  EXPECT_NE(registry.CreateOrGetCustomOp(op_type, OpBackend::kHostCPU, OpRegistrationPriority::kTop, OpEngine::kAiCore),
+            nullptr);
+  EXPECT_NE(
+      registry.CreateOrGetCustomOp(op_type, OpBackend::kDevice, OpRegistrationPriority::kBottom, OpEngine::kCustom),
+      nullptr);
+  EXPECT_NE(
+      registry.CreateOrGetCustomOp(op_type, OpBackend::kHostCPU, OpRegistrationPriority::kBottom, OpEngine::kAiCore),
+      nullptr);
+
+  registry.RemoveCustomOps({op_type});
+  EXPECT_FALSE(registry.HasCreator(op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kCustom));
+  EXPECT_FALSE(registry.HasCreator(op_type, OpBackend::kHostCPU, OpRegistrationPriority::kTop, OpEngine::kAiCore));
+  EXPECT_FALSE(registry.HasCreator(op_type, OpBackend::kDevice, OpRegistrationPriority::kBottom, OpEngine::kCustom));
+  EXPECT_FALSE(registry.HasCreator(op_type, OpBackend::kHostCPU, OpRegistrationPriority::kBottom, OpEngine::kAiCore));
 }
 
 TEST(CustomOpRegistryPriorityTest, CreateOrGetKeepsInstancesIndependentByPriority) {
@@ -143,17 +190,60 @@ TEST(CustomOpRegistryPriorityTest, MacroRegistersExplicitPriorityCreator) {
             nullptr);
 }
 
-TEST(CustomOpRegistryPriorityTest, CommonCapabilityCanQueryExplicitPriorityAndEngine) {
+TEST(CustomOpRegistryPriorityTest, CommonCapabilityCanQueryExplicitPriority) {
   const AscendString op_type("CustomOpRegistryCapabilityMacroOp");
   const OpEngine engine = OpEngine::kAiCore;
+  (void)engine;
   auto *custom_op =
-      CustomOpFactory::GetCustomOpCommonCapability<ShapeInferOp>(op_type, OpRegistrationPriority::kBottom, engine);
+      CustomOpFactory::GetCustomOpCommonCapability<ShapeInferOp>(op_type, OpRegistrationPriority::kBottom);
   EXPECT_NE(custom_op, nullptr);
-  EXPECT_EQ(CustomOpFactory::GetCustomOpCommonCapability<ShapeInferOp>(op_type, OpRegistrationPriority::kTop, engine),
-            nullptr);
-  EXPECT_EQ(CustomOpFactory::GetCustomOpCommonCapability<ShapeInferOp>(op_type, OpRegistrationPriority::kBottom,
-                                                                       OpEngine::kVectorCore),
-            nullptr);
+  EXPECT_EQ(CustomOpFactory::GetCustomOpCommonCapability<ShapeInferOp>(op_type, OpRegistrationPriority::kTop), nullptr);
+}
+
+TEST(CustomOpRegistryPriorityTest, SameClassSharesInstanceAcrossEnginesWithinPriority) {
+  CustomOpRegistry registry;
+  const AscendString op_type("CustomOpRegistryShareInstanceAcrossEngineOp");
+  const auto creator = []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestPriorityOp>(); };
+  ASSERT_EQ(
+      registry.RegisterCreator(op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kCustom, creator),
+      GRAPH_SUCCESS);
+  ASSERT_EQ(
+      registry.RegisterCreator(op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kAiCore, creator),
+      GRAPH_SUCCESS);
+
+  auto *custom_op =
+      registry.CreateOrGetCustomOp(op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kCustom);
+  auto *other_engine_op =
+      registry.CreateOrGetCustomOp(op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kAiCore);
+  ASSERT_NE(custom_op, nullptr);
+  EXPECT_EQ(custom_op, other_engine_op);
+}
+
+TEST(CustomOpRegistryPriorityTest, CommonCapabilityRequiresUniqueProviderAcrossEngines) {
+  CustomOpRegistry registry;
+  const AscendString op_type("CustomOpRegistryMultiEngineCapabilityOp");
+  ASSERT_EQ(registry.RegisterCreator(
+                op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kAiCore,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestPriorityShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+  ASSERT_EQ(registry.RegisterCreator(
+                op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kVectorCore,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestPriorityOtherShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+
+  EXPECT_EQ(CustomOpFactory::GetCustomOpCommonCapability<ShapeInferOp>(op_type), nullptr);
+}
+
+TEST(CustomOpRegistryPriorityTest, CommonCapabilityFindsProviderFromAnyEngineWithinPriority) {
+  CustomOpRegistry registry;
+  const AscendString op_type("CustomOpRegistryCrossEngineCapabilityOp");
+  ASSERT_EQ(registry.RegisterCreator(
+                op_type, OpBackend::kDevice, OpRegistrationPriority::kTop, OpEngine::kAiCore,
+                []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestPriorityShapeInferOp>(); }),
+            GRAPH_SUCCESS);
+
+  auto *custom_op = registry.GetCustomOpCommonCapability(op_type, CustomOpCapability::kShapeInfer);
+  EXPECT_NE(custom_op, nullptr);
 }
 
 TEST(CustomOpRegistryPriorityTest, RegOpBackendUsesCustomEngineTopPriority) {

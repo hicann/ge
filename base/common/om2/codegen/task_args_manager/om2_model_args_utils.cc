@@ -798,9 +798,9 @@ std::vector<MemInfo> ModelUtils::GetAllMemoryTypeSize(const GeModelPtr &ge_model
   return all_mem_info;
 }
 
-bool ModelUtils::IsSuppoprtAddrRefreshable(const uint64_t mem_types) {
-  return (mem_types == static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)) ||
-         (mem_types == static_cast<uint64_t>(MemoryAppType::kMemoryTypeModelIo));
+bool ModelUtils::IsSuppoprtAddrRefreshable(const uint64_t mem_type) {
+  return (mem_type == static_cast<uint64_t>(MemoryAppType::kMemoryTypeFeatureMap)) ||
+         (mem_type == static_cast<uint64_t>(MemoryAppType::kMemoryTypeModelIo));
 }
 
 void ModelUtils::GetAddrRefreshableFlagsByMemTypes(const std::vector<uint64_t> &mem_types,

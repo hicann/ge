@@ -870,7 +870,7 @@ class LambdaExpr final : public Expr {
 class CCastExpr final : public Expr {
  public:
   static CCastExpr *Create(AstContext &ctx, const std::string &target_type, Expr *expr);
-  CCastExpr(StringRef target_type, Expr *expr) : target_type_(target_type), expr_(expr) {}
+  CCastExpr(StringRef target_type, Expr *expr) : Expr(), target_type_(target_type), expr_(expr) {}
   Status Accept(CodeEmitter &emitter, std::string &output) const override;
 
   StringRef GetTargetType() const {
@@ -909,7 +909,7 @@ class DesignatedInitListExpr final : public Expr {
   static DesignatedInitListExpr *Create(AstContext &ctx, const std::vector<std::string> &names,
                                         const std::vector<Expr *> &values, bool compact = false);
   DesignatedInitListExpr(ArrayRef<StringRef> names, ArrayRef<Expr *> values, bool compact)
-      : names_(names), values_(values), compact_(compact) {}
+      : Expr(), names_(names), values_(values), compact_(compact) {}
   Status Accept(CodeEmitter &emitter, std::string &output) const override;
 
   ArrayRef<StringRef> GetNames() const {
@@ -1101,7 +1101,7 @@ class RangeForStmt final : public Stmt {
 class CaseStmt final : public Stmt {
  public:
   static CaseStmt *Create(AstContext &ctx, Expr *value);
-  explicit CaseStmt(Expr *value) : value_(value) {}
+  explicit CaseStmt(Expr *value) : Stmt(), value_(value) {}
   Status Accept(CodeEmitter &emitter, std::string &output) const override;
 
   Expr *GetValue() const {
@@ -1122,7 +1122,7 @@ class BreakStmt final : public Stmt {
 class SwitchStmt final : public Stmt {
  public:
   static SwitchStmt *Create(AstContext &ctx, Expr *cond, BlockStmt *body);
-  SwitchStmt(Expr *cond, BlockStmt *body) : cond_(cond), body_(body) {}
+  SwitchStmt(Expr *cond, BlockStmt *body) : Stmt(), cond_(cond), body_(body) {}
   Status Accept(CodeEmitter &emitter, std::string &output) const override;
 
   Expr *GetCond() const {
