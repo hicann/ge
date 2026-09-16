@@ -30,9 +30,22 @@ class ThresholdedReluFunction(torch.autograd.Function):
         return graph.op("example.domain::ThresholdedRelu", input_tensor, alpha_f=1.0)
 
 
+class MyEluFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input_tensor):
+        del ctx
+        return torch.where(input_tensor > 0, input_tensor, torch.expm1(input_tensor))
+
+    @staticmethod
+    def symbolic(graph, input_tensor):
+        return graph.op("example.domain::MyElu", input_tensor, alpha_f=1.0)
+
+
 class ExampleModel(torch.nn.Module):
     def forward(self, input_tensor):
-        return ThresholdedReluFunction.apply(input_tensor)
+        thresholded = ThresholdedReluFunction.apply(input_tensor)
+        my_elu = MyEluFunction.apply(input_tensor)
+        return thresholded, my_elu
 
 
 def main():
@@ -51,7 +64,7 @@ def main():
         args.output,
         opset_version=18,
         input_names=["x"],
-        output_names=["y"],
+        output_names=["thresholded_relu", "my_elu"],
         custom_opsets={"example.domain": 1},
     )
     print(f"[Success] ONNX model exported to {args.output}")

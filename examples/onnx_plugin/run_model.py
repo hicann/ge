@@ -34,7 +34,10 @@ from common import (  # noqa: E402
 
 def run(model_path: str) -> None:
     input_tensor = np.array([[-1.0, 0.5, 1.5], [2.0, -2.0, 3.0]], dtype=np.float32)
-    expected = np.where(input_tensor > 1.0, input_tensor, 0.0)
+    expected = [
+        np.where(input_tensor > 1.0, input_tensor, 0.0),
+        np.where(input_tensor > 0, input_tensor, np.expm1(input_tensor)),
+    ]
     model_id = None
     model_desc = None
     input_dataset = None
@@ -53,7 +56,13 @@ def run(model_path: str) -> None:
             "acl.mdl.execute", acl.mdl.execute(model_id, input_dataset, output_dataset)
         )
         outputs = collect_acl_model_outputs(model_desc, output_data)
-        np.testing.assert_allclose(outputs[0], expected, rtol=1e-5, atol=1e-5)
+        print(f"Input:\n{input_tensor}")
+        print(
+            f"Output (ThresholdedRelu, decomposed into Threshold + Mul):\n{outputs[0]}"
+        )
+        print(f"Output (MyElu, mapped to Elu by parse_operator):\n{outputs[1]}")
+        np.testing.assert_allclose(outputs[0], expected[0], rtol=1e-5, atol=1e-5)
+        np.testing.assert_allclose(outputs[1], expected[1], rtol=1e-3, atol=1e-3)
         print(
             "[Success] GE graph compiled and executed; output matches PyTorch reference."
         )
