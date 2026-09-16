@@ -15,6 +15,8 @@
 #
 # 用法: ./verify_pattern1.sh [batch] [m] [k] [n] [heads]
 
+set -e
+
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PASS_DIR=$(dirname "$SCRIPT_DIR")
 

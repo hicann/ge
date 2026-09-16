@@ -13,6 +13,8 @@
 # 验证开启融合pass后BatchMatMulV2被替换为Mul+ReduceSumD
 # 用法: ./quick_verify.sh [batch] [m] [k]
 
+set -e
+
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PASS_DIR=$(dirname "$SCRIPT_DIR")
 

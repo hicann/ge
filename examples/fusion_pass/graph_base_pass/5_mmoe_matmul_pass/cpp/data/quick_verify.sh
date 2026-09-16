@@ -12,6 +12,8 @@
 # MmoeMatmulPass 一键式验证脚本
 # 用法: ./quick_verify.sh [experts]
 
+set -e
+
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PASS_DIR=$(dirname "$SCRIPT_DIR")
 

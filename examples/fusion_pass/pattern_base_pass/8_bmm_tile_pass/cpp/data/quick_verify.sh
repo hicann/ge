@@ -13,6 +13,8 @@
 # 验证 Tile → BatchMatMulV2 融合 pass：删除冗余 Tile，利用 BMM 广播
 # 用法: ./quick_verify.sh [batch] [m] [k] [n] [test_rounds]
 
+set -e
+
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PASS_DIR=$(dirname "$SCRIPT_DIR")
 
@@ -251,7 +253,7 @@ for round in $(seq 1 $TEST_ROUNDS); do
     echo "【第${round}轮测试】"
 
     bench_output=$(./benchmark_model 1000 50 2>&1)
-    echo "$bench_output" | grep -E "Average time|Total time|Throughput"
+    echo "$bench_output" | grep -E "Average time|Total time|Throughput" || true
 
     avg_ms=$(echo "$bench_output" | grep "Average time per iteration" | awk -F'[ :]' '{for(i=1;i<=NF;i++) if($i ~ /^[0-9]/) print $i; exit}')
 

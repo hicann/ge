@@ -12,9 +12,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="${SCRIPT_DIR}"
-BUILD_DIR="${PROJECT_DIR}/build"
-OUTPUT_DIR="${PROJECT_DIR}/output"
+BUILD_DIR="${SCRIPT_DIR}/build"
+OUTPUT_DIR="${SCRIPT_DIR}/output"
 AIR_PATH="${BUILD_DIR}/tilelang_add_offline.air"
 OM_PATH="${BUILD_DIR}/tilelang_add_offline"
 
@@ -47,7 +46,7 @@ SOC_VERSION="${SOC_VERSION:-Ascend910_9362}"
 mkdir -p "${BUILD_DIR}" "${OUTPUT_DIR}"
 
 info "Step 1/4: build custom op library, graph_build and model_exec"
-cmake -S "${PROJECT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
+cmake -S "${SCRIPT_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
 cmake --build "${BUILD_DIR}" -j"$(nproc 2>/dev/null || echo 8)"
 cmake --install "${BUILD_DIR}"
 
@@ -82,7 +81,7 @@ atc --framework=1 --model="${AIR_PATH}" --output="${OM_PATH}" --soc_version="${S
   exit 1
 }
 
-OM_FILE="${OM_PATH}.om"
+OM_FILE="${BUILD_DIR}/tilelang_add_offline.om"
 if [[ ! -f "${OM_FILE}" ]]; then
   error "OM model not generated: ${OM_FILE}"
   exit 1
