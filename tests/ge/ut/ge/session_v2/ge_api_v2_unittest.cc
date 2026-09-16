@@ -129,10 +129,6 @@ class EnvValueGuard {
   bool had_value_ = false;
 };
 
-void EnableOm2OnlineMode() {
-  ASSERT_EQ(setenv("ENABLE_RUNTIME_OM2", "1", 1), 0);
-}
-
 constexpr size_t kMaxSleepTimes = 15U;
 class FakeLabelMaker : public LabelMaker {
  public:
@@ -2379,37 +2375,6 @@ TEST_F(UtestGeApiV2, QuerySameVersionIr) {
   EXPECT_TRUE(::IsIrRepSupport(INFERENCE_RULE));
   EXPECT_FALSE(::IsIrRepSupport("future_new_feature_rule"));
   EXPECT_FALSE(::IsIrRepSupport(""));
-}
-
-TEST_F(UtestGeApiV2, RunGraphAsync_ReturnsUnsupportedInOm2Mode) {
-  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
-  EnableOm2OnlineMode();
-
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
-  GeSession session(options);
-  std::vector<gert::Tensor> inputs;
-  bool callback_called = false;
-  const auto callback = [&callback_called](Status status, std::vector<gert::Tensor> &outputs) {
-    (void)status;
-    (void)outputs;
-    callback_called = true;
-  };
-  EXPECT_NE(session.RunGraphAsync(1U, inputs, callback), SUCCESS);
-  EXPECT_FALSE(callback_called);
-  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
-}
-
-TEST_F(UtestGeApiV2, GraphDebugJSONPrint_ReturnsFailureInOm2Mode) {
-  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
-  EnableOm2OnlineMode();
-
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
-  GeSession session(options);
-  AscendString json_result;
-  EXPECT_NE(session.GraphDebugJSONPrint(1U, 0U, json_result), SUCCESS);
-  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
 }
 
 TEST_F(UtestGeApiV2, GEInitialize_long_option_value) {

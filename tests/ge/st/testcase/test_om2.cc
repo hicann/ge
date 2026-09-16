@@ -129,15 +129,6 @@ using AsyncWaitInfo = aicpu::FWKAdapter::AsyncWait;
 using WorkSpaceInfo = aicpu::FWKAdapter::WorkSpaceInfo;
 using AicpuSessionInfo = SessionInfo;
 
-bool IsFileNonEmpty(const std::string &path) {
-  std::ifstream input(path, std::ios::in | std::ios::binary);
-  if (!input.is_open()) {
-    return false;
-  }
-  input.seekg(0, std::ios::end);
-  return input.good() && (input.tellg() > 0);
-}
-
 const JsonFile::json *FindMapValue(const JsonFile::json &entries, const std::string &key) {
   if (!entries.is_array()) {
     return nullptr;
@@ -1075,55 +1066,6 @@ void CreateFakeOm2File(const std::string &work_dir, const std::string &output_fi
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 }
 
-std::string BuildValidOm2ProtoTxt() {
-  ge::proto::ModelDef model_def;
-  model_def.set_name("st_om2_model");
-  auto *graph = model_def.add_graph();
-  graph->set_name("main_graph");
-  auto *op = graph->add_op();
-  op->set_name("data0");
-  op->set_type("Data");
-  return model_def.DebugString();
-}
-
-void CreateMinimalOm2File(const std::string &path, const std::string &proto_content) {
-  ZipArchiveWriter writer(path);
-  ASSERT_TRUE(writer.IsMemFileOpened());
-  const std::string manifest =
-      R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
-  ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
-  ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_proto_00000000_graph_1_test.txt", proto_content.data(),
-                                proto_content.size(), true));
-  ASSERT_TRUE(writer.SaveModelDataToFile());
-  ASSERT_EQ(mmAccess2(path.c_str(), M_F_OK), EOK);
-}
-
-void CreateMinimalOm2FileWithoutProto(const std::string &path) {
-  ZipArchiveWriter writer(path);
-  ASSERT_TRUE(writer.IsMemFileOpened());
-  const std::string manifest =
-      R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
-  ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
-  ASSERT_TRUE(writer.SaveModelDataToFile());
-  ASSERT_EQ(mmAccess2(path.c_str(), M_F_OK), EOK);
-}
-
-std::string BuildVisualJsonWithFusionScope() {
-  ge::proto::OpDef fusion_op;
-  (*fusion_op.mutable_attr())["fusion_scope"].set_i(2);
-
-  JsonFile::json visual_json;
-  visual_json["format"] = "ge_visual_json";
-  visual_json["format_version"] = 1;
-  auto &model = visual_json["model"];
-  model["name"] = "st_group_model";
-  model["attr"]["fm"] = {{"type", "list_bytes"}, {"value", JsonFile::json::array({fusion_op.SerializeAsString()})}};
-  model["graph"] = JsonFile::json::array(
-      {{{"name", "main_graph"},
-        {"op", JsonFile::json::array({{{"name", "group_op"}, {"type", "GroupOp"}, {"stream_id", 7}}})}}});
-  return visual_json.dump();
-}
-
 void ConstructOm2IoTensors(std::vector<gert::Tensor> &input_tensors, std::vector<gert::Tensor> &output_tensors,
                            std::vector<gert::Tensor *> &inputs, std::vector<gert::Tensor *> &outputs) {
   input_tensors.resize(2U);
@@ -1702,20 +1644,6 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   ExpectVisualJsonMatchesGraph(visual_json, ge_root_model->GetRootGraph());
 }
 
-TEST_F(Om2St, ConvertOm2Model_Ok_ConvertGeneratedOm2ToJson) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_json.om2"});
-  const std::string json_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_json.json"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-
-  EXPECT_EQ(ConvertOm(output_file.c_str(), json_file.c_str(), true), SUCCESS);
-  EXPECT_TRUE(IsFileNonEmpty(json_file));
-}
-
 TEST_F(Om2St, VisualJsonConverter_Ok_SerializeRichModelDef) {
   std::string visual_json;
   ASSERT_EQ(VisualJsonConverter::SerializeFromModelDef(BuildVisualConverterCoverageModelDef(), visual_json), SUCCESS);
@@ -1964,126 +1892,6 @@ TEST_F(Om2St, Om2PackageHelper_Fail_ExtractCorruptedVisualJson) {
   (void)ErrorManager::GetInstance().GetErrorMessage();
   EXPECT_NE(Om2PackageHelper::ExtractVisualJson(model.data.get(), model.length, json_out), SUCCESS);
   EXPECT_NE(ErrorManager::GetInstance().GetErrorMessage().find("E10059"), std::string::npos);
-}
-
-TEST_F(Om2St, ConvertOm2Model_Ok_ConvertMinimalVisualOm2ToJson) {
-  const std::string output_file = PathUtils::Join({test_work_dir, "minimal_visual_json.om2"});
-  const std::string json_file = PathUtils::Join({test_work_dir, "minimal_visual_json.json"});
-  const std::string visual_json = R"({
-    "format": "ge_visual_json",
-    "format_version": 1,
-    "model": {
-      "name": "minimal_visual_model",
-      "graph": [{
-        "name": "main_graph",
-        "op": [{
-          "name": "data0",
-          "type": "Data",
-          "input_desc": [{"name": "input_tensor", "dtype": "DT_FLOAT"}]
-        }]
-      }]
-    }
-  })";
-  {
-    ZipArchiveWriter writer(output_file);
-    ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest =
-        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
-    ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
-    ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
-                                  visual_json.size(), true));
-    ASSERT_TRUE(writer.SaveModelDataToFile());
-  }
-
-  ASSERT_EQ(ConvertOm(output_file.c_str(), json_file.c_str(), true), SUCCESS);
-  JsonFile converted(json_file);
-  ASSERT_TRUE(converted.IsValid());
-  const auto &raw = converted.Raw();
-  ASSERT_FALSE(raw.at("graph").empty());
-  ASSERT_FALSE(raw.at("graph").at(0).at("op").empty());
-  ASSERT_FALSE(raw.at("graph").at(0).at("op").at(0).at("input_desc").empty());
-  EXPECT_EQ(raw.at("graph").at(0).at("op").at(0).at("input_desc").at(0).at("dtype"), JsonFile::json("DT_FLOAT"));
-}
-
-TEST_F(Om2St, ConvertOm2Model_Ok_ConvertVisualOm2AddsGroupOpName) {
-  const std::string output_file = PathUtils::Join({test_work_dir, "group_visual_json.om2"});
-  const std::string json_file = PathUtils::Join({test_work_dir, "group_visual_json.json"});
-  const std::string visual_json = BuildVisualJsonWithFusionScope();
-  {
-    ZipArchiveWriter writer(output_file);
-    ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest =
-        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
-    ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
-    ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
-                                  visual_json.size(), true));
-    ASSERT_TRUE(writer.SaveModelDataToFile());
-  }
-
-  ASSERT_EQ(ConvertOm(output_file.c_str(), json_file.c_str(), true), SUCCESS);
-  JsonFile converted(json_file);
-  ASSERT_TRUE(converted.IsValid());
-  const auto &attrs = converted.Raw().at("graph").at(0).at("op").at(0).at("attr");
-  const auto *group_op_name = FindMapValue(attrs, "group_op_name");
-  ASSERT_NE(group_op_name, nullptr);
-  EXPECT_EQ(group_op_name->at("s"), JsonFile::json("group_op_ub_2_7"));
-}
-
-TEST_F(Om2St, ConvertOm2Model_Ok_ConvertLooseVisualOm2ToJson) {
-  const std::string output_file = PathUtils::Join({test_work_dir, "loose_visual_json.om2"});
-  const std::string json_file = PathUtils::Join({test_work_dir, "loose_visual_json.json"});
-  const std::string visual_json = R"({
-    "format": "ge_visual_json",
-    "format_version": 1,
-    "model": {
-      "name": "loose_visual_model",
-      "unknown_field": 1,
-      "graph": "not_an_array"
-    }
-  })";
-  {
-    ZipArchiveWriter writer(output_file);
-    ASSERT_TRUE(writer.IsMemFileOpened());
-    const std::string manifest =
-        R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
-    ASSERT_TRUE(writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
-    ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
-                                  visual_json.size(), true));
-    ASSERT_TRUE(writer.SaveModelDataToFile());
-  }
-
-  ASSERT_EQ(ConvertOm(output_file.c_str(), json_file.c_str(), true), SUCCESS);
-  JsonFile converted(json_file);
-  ASSERT_TRUE(converted.IsValid());
-  EXPECT_EQ(converted.Raw().at("unknown_field"), JsonFile::json(1));
-  EXPECT_EQ(converted.Raw().at("graph"), JsonFile::json("not_an_array"));
-}
-
-TEST_F(Om2St, ConvertOm2Model_Fail_DisplayModelInfoNotSupported) {
-  const std::string output_file = PathUtils::Join({test_work_dir, "minimal_no_display.om2"});
-  CreateMinimalOm2File(output_file, BuildValidOm2ProtoTxt());
-
-  (void)ErrorManager::GetInstance().GetErrorMessage();
-  EXPECT_NE(ConvertOm(output_file.c_str(), nullptr, false), SUCCESS);
-  const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
-  EXPECT_NE(error_message.find("E10055"), std::string::npos);
-  EXPECT_EQ(error_message.find("yet.."), std::string::npos);
-}
-
-TEST_F(Om2St, ConvertOm2Model_Fail_ConvertJsonNoVisualJson) {
-  const std::string output_file = PathUtils::Join({test_work_dir, "minimal_no_visual.om2"});
-  const std::string json_file = PathUtils::Join({test_work_dir, "minimal_no_visual.json"});
-  CreateMinimalOm2FileWithoutProto(output_file);
-
-  EXPECT_NE(ConvertOm(output_file.c_str(), json_file.c_str(), true), SUCCESS);
-}
-
-TEST_F(Om2St, ConvertOm2Model_Fail_ConvertJsonInvalidProtoTxt) {
-  const std::string output_file = PathUtils::Join({test_work_dir, "minimal_bad_proto.om2"});
-  const std::string json_file = PathUtils::Join({test_work_dir, "minimal_bad_proto.json"});
-  CreateMinimalOm2File(output_file, "this is not valid proto text {{{}}}");
-
-  EXPECT_NE(ConvertOm(output_file.c_str(), json_file.c_str(), true), SUCCESS);
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAtomicAicoreNode) {

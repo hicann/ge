@@ -84,10 +84,6 @@ class EnvValueGuard {
   bool had_value_ = false;
 };
 
-void EnableOm2OnlineMode() {
-  ASSERT_EQ(setenv("ENABLE_RUNTIME_OM2", "1", 1), 0);
-}
-
 bool test_callback_called = false;
 class FakeLabelMaker : public LabelMaker {
  public:
@@ -1999,56 +1995,6 @@ TEST_F(UtestGeApi, LoadGraph_NotCompiled_ReportE10062) {
   EXPECT_EQ(session.AddGraph(graph_id, GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph)), SUCCESS);
   EXPECT_NE(session.LoadGraph(graph_id, options, nullptr), SUCCESS);
   // Leave GE initialized (no GEFinalize) to avoid destroying the fake-op environment.
-}
-
-TEST_F(UtestGeApi, PaRemapped_ReturnsUnsupportedInOm2Mode) {
-  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
-  EnableOm2OnlineMode();
-
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(GEInitialize(options), SUCCESS);
-  Session session(options);
-  EXPECT_EQ(session.PaRemapped(0x1000U, 0x2000U, 0x100U), GE_GRAPH_UNSUPPORTED);
-  EXPECT_EQ(GEFinalize(), SUCCESS);
-}
-
-TEST_F(UtestGeApi, GraphDebugJSONPrint_ReturnsFailureInOm2Mode) {
-  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
-  EnableOm2OnlineMode();
-
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(GEInitialize(options), SUCCESS);
-  Session session(options);
-  AscendString json_result;
-  EXPECT_NE(session.GraphDebugJSONPrint(1U, 0U, json_result), SUCCESS);
-  EXPECT_EQ(GEFinalize(), SUCCESS);
-}
-
-TEST_F(UtestGeApi, ExternalAllocatorRegistration_RemainsSuccessInOm2Mode) {
-  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
-  EnableOm2OnlineMode();
-
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(GEInitialize(options), SUCCESS);
-  Session session(options);
-  const auto allocator = MakeShared<ExternalAllocatorUtStub>();
-  int32_t fake_stream = 0;
-  EXPECT_EQ(session.RegisterExternalAllocator(&fake_stream, allocator), SUCCESS);
-  EXPECT_EQ(session.UnregisterExternalAllocator(&fake_stream), SUCCESS);
-  EXPECT_EQ(GEFinalize(), SUCCESS);
-}
-
-TEST_F(UtestGeApi, ShardAndSaveApis_KeepOriginalFailureInOm2Mode) {
-  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
-  EnableOm2OnlineMode();
-
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(GEInitialize(options), SUCCESS);
-  Session session(options);
-  EXPECT_NE(session.ShardGraphsToFile("/tmp/ge_om2_unused"), SUCCESS);
-  EXPECT_NE(session.ShardGraphs(), SUCCESS);
-  EXPECT_NE(session.SaveGraphsToPb("/tmp/ge_om2_unused.pb"), SUCCESS);
-  EXPECT_EQ(GEFinalize(), SUCCESS);
 }
 
 TEST_F(UtestGeApi, NotInitializedExtraApis) {

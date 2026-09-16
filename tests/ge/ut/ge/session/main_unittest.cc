@@ -1569,68 +1569,6 @@ TEST_F(UtestMain, MainImplTest_generate_om_model_autofuse_hint_shape_with_dyna_p
   unsetenv("AUTOFUSE_FLAGS");
 }
 
-TEST_F(UtestMain, MainImplTest_Om2Mode_DynamicAipp_NotRejected) {
-  // Write a temporary dynamic AIPP config
-  const std::string cfg_path = "/tmp/ut_main_om2_dynamic_aipp.cfg";
-  {
-    std::ofstream ofs(cfg_path);
-    ofs << "aipp_op {\n"
-        << "  aipp_mode: dynamic\n"
-        << "  related_input_rank: 0\n"
-        << "  max_src_image_size: 752640\n"
-        << "}\n";
-  }
-  std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
-  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp_om2_dyn");
-  std::string insert_conf_arg = "--insert_op_conf=" + cfg_path;
-  char *argv[] = {"atc",
-                  "--mode=7",  // GEN_OM2_MODEL
-                  "--framework=3",
-                  const_cast<char *>(om_arg.c_str()),
-                  const_cast<char *>(output_arg.c_str()),
-                  const_cast<char *>(insert_conf_arg.c_str()),
-                  "--soc_version=Ascend310",
-                  "--host_env_os=linux",
-                  "--host_env_cpu=aarch64",
-                  "--input_format=NCHW"};
-  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  (void)ret;
-  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp_om2_dyn.om").c_str());
-  AtcFileFactory::RemoveFile(cfg_path.c_str());
-}
-
-TEST_F(UtestMain, MainImplTest_Om2Mode_StaticAipp_NotBlocked) {
-  // Write a temporary static AIPP config
-  const std::string cfg_path = "/tmp/ut_main_om2_static_aipp.cfg";
-  {
-    std::ofstream ofs(cfg_path);
-    ofs << "aipp_op {\n"
-        << "  aipp_mode: static\n"
-        << "  input_format: RGB888_U8\n"
-        << "  related_input_rank: 0\n"
-        << "  csc_switch: false\n"
-        << "}\n";
-  }
-  std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
-  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp_om2_sta");
-  std::string insert_conf_arg = "--insert_op_conf=" + cfg_path;
-  char *argv[] = {"atc",
-                  "--mode=7",  // GEN_OM2_MODEL
-                  "--framework=3",
-                  const_cast<char *>(om_arg.c_str()),
-                  const_cast<char *>(output_arg.c_str()),
-                  const_cast<char *>(insert_conf_arg.c_str()),
-                  "--soc_version=Ascend310",
-                  "--host_env_os=linux",
-                  "--host_env_cpu=aarch64",
-                  "--input_format=NCHW"};
-  // OM2 已支持动态 AIPP，静态 AIPP 配置可正常通过编译前置检查
-  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  (void)ret;  // result depends on env completeness; coverage is the goal
-  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp_om2_sta.om").c_str());
-  AtcFileFactory::RemoveFile(cfg_path.c_str());
-}
-
 namespace ge {
 class GFlagUtils {
  public:
@@ -2530,27 +2468,6 @@ TEST_F(UtestMain, MainImplTest_nano_display_model_info_with_opp) {
   EXPECT_NE(ret, 0);
   AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_nano_model.pb").c_str());
   AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_nano_out.exeom").c_str());
-  system(("rm -rf " + opp_path).c_str());
-}
-
-TEST_F(UtestMain, MainImplTest_om2_unsupported_save_original_model_with_opp) {
-  const auto opp_path = ConstructOppEnv();
-  std::string model_arg = AtcFileFactory::GenerateModel("--model=", "cov_om2_model.pb");
-  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "cov_om2_out");
-  char *argv[] = {"atc",
-                  "--mode=7",
-                  "--framework=3",
-                  const_cast<char *>(model_arg.c_str()),
-                  const_cast<char *>(output_arg.c_str()),
-                  "--soc_version=Ascend310",
-                  "--input_format=NCHW",
-                  "--host_env_os=linux",
-                  "--host_env_cpu=aarch64",
-                  "--save_original_model=true"};
-  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  EXPECT_NE(ret, 0);
-  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_om2_model.pb").c_str());
-  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "cov_om2_out.om2").c_str());
   system(("rm -rf " + opp_path).c_str());
 }
 

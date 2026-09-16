@@ -34,8 +34,6 @@
 #include "common/proto_util/proto_util.h"
 #include "graph/utils/op_type_utils.h"
 #include "graph_metadef/common/ge_common/util.h"
-#include "framework/common/helper/om2_package_helper.h"
-#include "common/helper/visual_json_converter.h"
 #include "proto/ge_ir.pb.h"
 #include <google/protobuf/text_format.h>
 
@@ -1017,126 +1015,6 @@ FMK_FUNC_HOST_VISIBILITY void PrintModelInfo(ge::proto::ModelDef *model_def, uin
   std::cout << "============ Display Model Info end   ============" << std::endl;
 }
 
-namespace {
-constexpr int32_t kJsonDumpNoIndent = -1;
-
-bool GetVisualFusionOpBytes(const nlohmann::json &visual_json, const nlohmann::json **fusion_op_bytes) {
-  if (!visual_json.is_object() || !visual_json.contains("model") || !visual_json["model"].is_object()) {
-    return false;
-  }
-  const auto &model = visual_json["model"];
-  if (!model.contains("attr") || !model["attr"].is_object()) {
-    return false;
-  }
-  const auto &attrs = model["attr"];
-  if (!attrs.contains(MODEL_ATTR_FUSION_MODEL_DEF) || !attrs[MODEL_ATTR_FUSION_MODEL_DEF].is_object()) {
-    return false;
-  }
-  const auto &fm_attr = attrs[MODEL_ATTR_FUSION_MODEL_DEF];
-  if (!fm_attr.contains("type") || !fm_attr["type"].is_string() || fm_attr["type"] != "list_bytes" ||
-      !fm_attr.contains("value") || !fm_attr["value"].is_array()) {
-    return false;
-  }
-  *fusion_op_bytes = &fm_attr["value"];
-  return true;
-}
-
-std::string GetVisualString(const nlohmann::json &json) {
-  return json.is_string() ? json.get<std::string>() : "";
-}
-
-int64_t GetVisualInt64(const nlohmann::json &json) {
-  return json.is_number_integer() ? json.get<int64_t>() : 0;
-}
-
-void SetVisualGroupOpName(nlohmann::json &op, const std::string &group_op_name) {
-  if (!op.contains("attr") || !op["attr"].is_object()) {
-    op["attr"] = nlohmann::json::object();
-  }
-  op["attr"]["group_op_name"] = group_op_name;
-}
-
-void SetVisualGroupOpNameByScope(nlohmann::json &op, uint64_t scope_id) {
-  const int64_t stream_id = op.contains("stream_id") ? GetVisualInt64(op["stream_id"]) : 0;
-  const uint16_t l1_id = ((scope_id & 0xFFFF0000U)) >> 16U;
-  if (l1_id != 0U) {
-    std::ostringstream group_name;
-    group_name << "group_op_l1_" << l1_id << "_" << stream_id;
-    SetVisualGroupOpName(op, group_name.str());
-    return;
-  }
-
-  const uint16_t ub_id = static_cast<uint16_t>(scope_id & 0xFFFFU);
-  if (ub_id != 0U) {
-    std::ostringstream group_name;
-    group_name << "group_op_ub_" << ub_id << "_" << stream_id;
-    SetVisualGroupOpName(op, group_name.str());
-  }
-}
-
-void GetGroupName(nlohmann::json &visual_json) {
-  const nlohmann::json *fusion_op_bytes = nullptr;
-  if (!GetVisualFusionOpBytes(visual_json, &fusion_op_bytes)) {
-    return;
-  }
-  auto &model = visual_json["model"];
-  if (!model.contains("graph") || !model["graph"].is_array()) {
-    return;
-  }
-
-  int32_t fusion_op_index = 0;
-  for (auto &graph : model["graph"]) {
-    if (!graph.is_object() || !graph.contains("op") || !graph["op"].is_array()) {
-      continue;
-    }
-    for (auto &op : graph["op"]) {
-      const std::string bt = (fusion_op_bytes->size() <= static_cast<size_t>(fusion_op_index))
-                                 ? ""
-                                 : GetVisualString((*fusion_op_bytes)[static_cast<size_t>(fusion_op_index++)]);
-      uint64_t scope_id = 0U;
-      const auto parse_result = ParseFusionScopeId(bt, scope_id);
-      if (parse_result == FusionScopeParseResult::kStop) {
-        return;
-      }
-      if (parse_result == FusionScopeParseResult::kSkip) {
-        continue;
-      }
-
-      SetVisualGroupOpNameByScope(op, scope_id);
-    }
-  }
-}
-
-// 将 OM2 包内的 visual JSON 转成与 OM --json 一致的 JSON 结构。
-// OM2 包      -> ExtractVisualJson          -> visual JSON 字符串
-// visual JSON -> LoadFromVisualJson -> 与 OM --json 对齐，递归过滤黑名单字段并输出 enum 名称
-// OM JSON     -> SaveJsonToFile     -> 最终 JSON 文件
-domi::Status ConvertOm2ToJson(const ModelData &model, const char *json_file) {
-  std::string visual_json_str;
-  GE_ASSERT_SUCCESS(Om2PackageHelper::ExtractVisualJson(model.model_data, model.model_len, visual_json_str),
-                    "[OM2] Failed to extract visual JSON from OM2 archive");
-
-  nlohmann::json visual_json;
-  try {
-    visual_json = nlohmann::json::parse(visual_json_str);
-  } catch (const std::exception &e) {
-    GELOGE(FAILED, "[OM2] Failed to parse visual JSON: %s", e.what());
-    return FAILED;
-  }
-  GetGroupName(visual_json);
-  visual_json_str = visual_json.dump(kJsonDumpNoIndent, ' ', false, nlohmann::json::error_handler_t::replace);
-
-  Json pb_json;
-  GE_ASSERT_SUCCESS(VisualJsonConverter::LoadFromVisualJson(visual_json_str, kOmBlackFields, pb_json, true),
-                    "[OM2] Failed to load visual JSON");
-
-  GE_ASSERT_SUCCESS(ModelSaver::SaveJsonToFile(json_file, pb_json), "[OM2] Failed to save JSON to %s", json_file);
-
-  GELOGI("[OM2] Successfully converted OM2 to JSON: %s", json_file);
-  return SUCCESS;
-}
-}  // namespace
-
 FMK_FUNC_HOST_VISIBILITY domi::Status ConvertOm(const char *model_file, const char *json_file, bool is_covert_to_json) {
   GE_CHECK_NOTNULL(model_file);
   // Mode 2 does not need to verify the priority, and a default value of 0 is passed
@@ -1150,32 +1028,6 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertOm(const char *model_file, const ch
       model.model_data = nullptr;
     }
   });
-
-  // 通过 ZIP 魔数判断是否为 OM2 文件。
-  constexpr size_t kZipMagicSize = 4U;
-  constexpr uint8_t kZipLocalFileHeaderMagic[kZipMagicSize] = {0x50U, 0x4BU, 0x03U, 0x04U};
-  const bool is_om2 = (model.model_data != nullptr) && (model.model_len >= kZipMagicSize) &&
-                      (std::memcmp(model.model_data, kZipLocalFileHeaderMagic, kZipMagicSize) == 0);
-  if (is_om2) {
-    if (!is_covert_to_json) {
-      const std::string reason = "Display model info is not supported for OM2 format yet";
-      REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char *>({"reason"}),
-                                std::vector<const char *>({reason.c_str()}));
-      GELOGE(ge::FAILED, "[OM2] %s", reason.c_str());
-      return ge::FAILED;
-    }
-    GE_CHECK_NOTNULL(json_file);
-    try {
-      return ConvertOm2ToJson(model, json_file);
-    } catch (const std::exception &e) {
-      const std::string reason =
-          "an exception occurred while converting om2 file " + std::string(model_file) + ": " + e.what();
-      REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
-                                std::vector<const char *>({"Convert om2 model to JSON", reason.c_str()}));
-      GELOGE(FAILED, "[Save][Model]Convert om2 model to json failed, exception message : %s.", e.what());
-      return FAILED;
-    }
-  }
 
   try {
     // Parse the contents of the file to get the modeldef object

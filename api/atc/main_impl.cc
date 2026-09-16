@@ -67,7 +67,6 @@ const char *const kModeSupport =
     "The value must be selected from the following: 0(model to framework model), "
     "1(framework model to json), 3(only pre-check), "
     "5(pbtxt to json), 6(display model info), "
-    "7(convert a model to the OM2 format), "
     "30(model to execute-om for nano, an .om file for nano chips).";
 const char *const kModelToJsonSupport =
     "The framework must be selected from {0(Caffe), 3(TensorFlow), 5(Onnx)} when model is set to 1(JSON).";
@@ -873,8 +872,7 @@ class GFlagUtils {
 
   static Status CheckFlags() {
     const bool is_mode_om = ((FLAGS_mode == static_cast<int32_t>(RunMode::GEN_OM_MODEL)) ||
-                             (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_EXE_OM_FOR_NANO)) ||
-                             (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_OM2_MODEL)));
+                             (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_EXE_OM_FOR_NANO)));
 
     const bool is_dbg = (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_EXE_OM_FOR_NANO));
 
@@ -1007,15 +1005,8 @@ class GFlagUtils {
       return FAILED;
     }
 
-    if (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_OM2_MODEL)) {
-      // OM2: 跳过 OPP 白名单校验，依赖 CheckOm2HostEnvValid（方向检查）+ 编译阶段自然报错
-      GE_ASSERT_SUCCESS(CheckOm2UserOptionsValid(ge::flgs::GetUserOptions()), "[Check][OM2][UserOptions] failed!");
-      GE_ASSERT_SUCCESS(ge::CheckOm2HostEnvValid(FLAGS_host_env_os, FLAGS_host_env_cpu),
-                        "[Check][OM2][HostEnv] failed!");
-    } else {
-      GE_ASSERT_SUCCESS(ge::CheckHostEnvOsAndHostEnvCpuStringValid(FLAGS_host_env_os, FLAGS_host_env_cpu),
-                        "[Check][HostEnvOsCpu] failed!");
-    }
+    GE_ASSERT_SUCCESS(ge::CheckHostEnvOsAndHostEnvCpuStringValid(FLAGS_host_env_os, FLAGS_host_env_cpu),
+                      "[Check][HostEnvOsCpu] failed!");
 
     GE_ASSERT_SUCCESS(CheckAllowHF32ParamValid(FLAGS_allow_hf32), "[Check][AllowHF32]failed!");
     GE_ASSERT_SUCCESS(CheckQuantDumpableParamValid(FLAGS_quant_dumpable), "[Check][QuantDumpable] failed!");
@@ -2306,8 +2297,7 @@ bool IsGenerateOmMode() {
   return (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_OM_MODEL)) ||
          (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_EXE_OM)) ||
          (FLAGS_mode == static_cast<int32_t>(RunMode::ONLY_PRE_CHECK)) ||
-         (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_EXE_OM_FOR_NANO)) ||
-         (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_OM2_MODEL));
+         (FLAGS_mode == static_cast<int32_t>(RunMode::GEN_EXE_OM_FOR_NANO));
 }
 
 Status ReportInvalidRunMode() {

@@ -3213,19 +3213,6 @@ TEST_F(AtcCommonSTest, GeFlags_raw_ge_options_display_model_info_success) {
   ReInitGe();
 }
 
-TEST_F(AtcCommonSTest, GeFlags_raw_ge_options_om2_unsupported_option_failed) {
-  const auto raw_path = WriteRawOptionsJson("raw_ge_options_om2_unsupported_option.json", R"({
-    "compile options": {
-      "graph": {
-        "ge.saveOriginalModel": "true"
-      }
-    }
-  })");
-  const int32_t ret = RunAtcWithRawOptions("raw_ge_options_om2_unsupported_option", raw_path, {"--mode=7"});
-  EXPECT_NE(ret, 0);
-  ReInitGe();
-}
-
 TEST_F(AtcCommonSTest, GeFlags_param_static_model_ops_lower_limit_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
@@ -3578,39 +3565,6 @@ TEST_F(AtcCommonSTest, CheckDisplayModelInfo_Failed) {
   EXPECT_NE(ret, 0);
   ReInitGe();
   dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
-}
-
-TEST_F(AtcCommonSTest, TestAtc_Ok_Om2) {
-  mmSetEnv("ASCEND_WORK_PATH", test_work_dir.c_str(), 1);
-  const auto ascend_install_path = EnvPath().GetAscendInstallPath();
-  setenv("ASCEND_HOME_PATH", ascend_install_path.c_str(), 1);
-  ReInitGe();
-  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
-  Mkdir(om_path.c_str());
-  om_path = PathJoin(om_path.c_str(), "pb_common_2");
-  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
-  std::string output_arg = "--output=" + om_path;
-  char *argv[] = {"atc",
-                  const_cast<char *>(model_arg.c_str()),
-                  const_cast<char *>(output_arg.c_str()),
-                  "--framework=3",  // FrameworkType
-                  "--mode=7",
-                  "--out_nodes=add_test_1:0",
-                  "--soc_version=Ascend310",
-                  "--output_type=FP32",
-                  "--input_shape=Placeholder_1:1,256,256,3",
-                  "--input_fp16_nodes=Placeholder_1",
-                  "--is_input_adjust_hw_layout=true",
-                  "--is_output_adjust_hw_layout=true"};
-  DUMP_GRAPH_WHEN("PreRunBegin")
-  auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  EXPECT_EQ(ret, 0);
-  unsetenv("ASCEND_WORK_PATH");
-  unsetenv("ASCEND_HOME_PATH");
-  ReInitGe();  // the main_impl will call GEFinalize, so re-init after call it
-  CHECK_GRAPH(PreRunBegin) {
-    EXPECT_EQ(graph->GetDirectNodesSize(), 4);
-  };
 }
 
 class MockMmpaDlOpenFail : public ge::MmpaStubApiGe {

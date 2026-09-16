@@ -401,7 +401,6 @@ set(BASE_COMMON_TEST_FILES
     "common/data_dependent_interpreter_unittest.cc"
     "common/ge_op_utils_unittest.cc"
     "common/ge_root_model_unittest.cc"
-    "common/om2_utils_unittest.cc"
     "common/om2_model_data_unittest.cc"
     "common/thread_pool_unittest.cc"
     "common/nano_dbg_data_unittest.cc"

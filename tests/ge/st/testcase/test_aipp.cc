@@ -199,61 +199,6 @@ TEST_F(AippSTest, StaticAipp_Config_Invalid) {
   ASSERT_NE(ret, SUCCESS);
 }
 
-TEST_F(AippSTest, Om2Mode_DynamicAipp_NotRejected) {
-  auto path = ModelFactory::GenerateModel_1();
-  std::string model_arg = "--model=" + path;
-  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
-  Mkdir(om_path.c_str());
-  om_path = PathJoin(om_path.c_str(), "om2_dynamic_aipp_not_rejected");
-  std::string output_arg = "--output=" + om_path;
-
-  std::string conf_path = GetAirPath() + "/tests/ge/st/config_file/aipp_conf/aipp_dynamic.cfg";
-  char real_path[PATH_MAX] = {};
-  realpath(conf_path.c_str(), real_path);
-  std::string insert_conf_arg = "--insert_op_conf=" + std::string(real_path);
-  char *argv[] = {
-      "atc",
-      const_cast<char *>(model_arg.c_str()),
-      const_cast<char *>(output_arg.c_str()),
-      const_cast<char *>(insert_conf_arg.c_str()),
-      "--framework=1",
-      "--mode=7",  // GEN_OM2_MODEL
-      "--soc_version=Ascend310",
-      "--input_format=NCHW",
-      "--output_type=FP32",
-  };
-  auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  (void)ret;
-  ReInitGe();
-}
-
-TEST_F(AippSTest, Om2Mode_StaticAipp_ValidatePasses) {
-  auto path = ModelFactory::GenerateModel_1();
-  std::string model_arg = "--model=" + path;
-  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
-  Mkdir(om_path.c_str());
-  om_path = PathJoin(om_path.c_str(), "om2_static_aipp_validate");
-  std::string output_arg = "--output=" + om_path;
-
-  std::string conf_path = GetAirPath() + "/tests/ge/st/config_file/aipp_conf/aipp_static.cfg";
-  char real_path[PATH_MAX] = {};
-  realpath(conf_path.c_str(), real_path);
-  std::string insert_conf_arg = "--insert_op_conf=" + std::string(real_path);
-  char *argv[] = {
-      "atc",
-      const_cast<char *>(model_arg.c_str()),
-      const_cast<char *>(output_arg.c_str()),
-      const_cast<char *>(insert_conf_arg.c_str()),
-      "--framework=1",
-      "--mode=7",  // GEN_OM2_MODEL
-      "--soc_version=Ascend310",
-      "--input_format=NCHW",
-      "--output_type=FP32",
-  };
-  auto ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  (void)ret;  // result depends on env completeness; coverage is the goal
-  ReInitGe();
-}
 // TODO NEED RECOVER
 /*TEST_F(AippSTest, StaticInsertAippInSubGraph) {
   auto path = ModelFactory::GenerateModel_4();

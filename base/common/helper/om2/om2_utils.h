@@ -11,8 +11,6 @@
 #ifndef BASE_COMMON_HELPER_OM2_OM2_UTILS
 #define BASE_COMMON_HELPER_OM2_OM2_UTILS
 
-#include <cstdlib>
-#include <cstring>
 #include <string>
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "common/om2/codegen/om2_codegen_types.h"
@@ -20,8 +18,7 @@
 
 namespace ge {
 inline bool IsOm2OnlineMode() {
-  const char *env = std::getenv("ENABLE_RUNTIME_OM2");
-  return env != nullptr && std::strcmp(env, "1") == 0;
+  return false;
 }
 
 class Om2Utils {
