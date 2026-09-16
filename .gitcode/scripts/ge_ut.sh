@@ -53,6 +53,10 @@ main(){
         rm -rf /home/jenkins/opensource/lib_cache
         ln -s /home/jenkins/opensource/ubuntu20/lib_cache /home/jenkins/opensource/lib_cache
     fi
+    if [ "${GIT_TARGET_BRANCH}" == "master" ] || [ "${GIT_TARGET_BRANCH}" == "develop" ]; then
+        sudo update-alternatives --set lcov /opt/lcov-2.3.2/bin/lcov
+        lcov --version
+    fi
     source /home/jenkins/Ascend/cann/bin/setenv.bash
     #########
     # install #
