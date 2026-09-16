@@ -26,6 +26,7 @@ Compile 回调 RTC 编译 Ascend C kernel
 ## 前置依赖
 
 - 已安装并配置 CANN，例如执行过 `source /usr/local/Ascend/cann/set_env.sh`（路径按实际安装位置调整）。
+- 参考 [安装指导](../../../../../docs/zh/quick_install.md) 完成 toolkit 和 ops 包安装。
 - CANN 头文件和库需要包含 `AnnotatedArgsOp`、`AnnotatedKernelLaunchInfo`、`AnnotatedKernelArgs` 等声明式地址刷新接口。
 - `atc` 可用。
 - 当前环境具备 `ACL`、`GE`、`Graph` 相关头文件与库。
