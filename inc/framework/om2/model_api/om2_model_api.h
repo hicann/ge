@@ -303,6 +303,7 @@ int32_t GertModelGetEventDesc(uint32_t *event_flags, uint64_t event_num, void *e
 uint64_t GertModelGetLabelNum();
 uint64_t GertModelGetNotifyNum();
 int32_t GertModelGetNotifyDesc(uint64_t *notify_flags, uint64_t notify_num, void *extended_attrs);
+int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr);
 
 #ifdef __cplusplus
 }

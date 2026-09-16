@@ -42,6 +42,8 @@ class Om2ModelManager {
 
   uint32_t GenModelId();
 
+  Status UpdateFeatureMemoryBase(const uint32_t model_id, const uintptr_t mem_base, const size_t size);
+
  private:
   Om2ModelManager() = default;
   ~Om2ModelManager() = default;

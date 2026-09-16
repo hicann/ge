@@ -1476,14 +1476,18 @@ std::string GetExpectedArgsManagerSource() {
 namespace om2 {
 aclError Om2ArgsTable::Init() {
   args_sizes_ = {{256}};
+  args_types_ = {{2}};
   for (size_t i = 0; (i < args_sizes_.size()); i++) {
     if (args_sizes_[i] > 0) {
       host_args_[i].clear();
       host_args_[i].resize(args_sizes_[i]);
-      OM2_CHK_STATUS(aclrtMalloc(&dev_args_[i], args_sizes_[i], ACL_MEM_MALLOC_HUGE_FIRST));
+      OM2_CHK_STATUS(AclrtMalloc(&dev_args_[i], args_sizes_[i], args_types_[i], 45));
     }
   }
   args_info_ = {{GetHostArgAddr(0, 0), GetDevArgAddr(0, 0), 168}};
+  refreshable_fm_index_to_allocation_ids_.clear();
+  refreshable_fm_index_to_allocation_ids_.resize(1);
+  refreshable_fm_index_to_allocation_ids_ = {0};
   input_index_to_allocation_ids_.clear();
   input_index_to_allocation_ids_.resize(2);
   input_index_to_allocation_ids_ = {4294967295, 4294967295};
@@ -1525,6 +1529,19 @@ void * Om2ArgsTable::GetHostArgAddr(size_t offset, int32_t args_type) {
   return GET_ADDR(host_args_[args_type].data(), offset);
 }
 
+aclError Om2ArgsTable::RefreshFeatureMap(const uintptr_t base_addr) {
+  for (const auto&allocation_id : refreshable_fm_index_to_allocation_ids_) {
+    const auto&infos = allocation_ids_to_model_args_refresh_infos_addr_all_.at(allocation_id);
+    const uint8_t*base_ptr = reinterpret_cast<const uint8_t*>(base_addr);
+    for (const auto&info : infos) {
+      void *host_addr = GET_ADDR(host_args_[info.args_type].data(), info.args_offset);
+      const uint8_t*target_addr = (base_ptr + info.offset);
+      memcpy_s(host_addr, sizeof(target_addr), &target_addr, sizeof(target_addr));
+    }
+  }
+  return ACL_SUCCESS;
+}
+
 aclError Om2ArgsTable::UpdateHostArgs(int32_t type, size_t index, const uintptr_t addr) {
   if (type == 0) {
     int32_t allocation_id = input_index_to_allocation_ids_.at(index);
@@ -1550,8 +1567,12 @@ aclError Om2ArgsTable::UpdateHostArgs(int32_t type, size_t index, const uintptr_
 }
 
 aclError Om2ArgsTable::CopyArgsToDevice(void *stream, bool is_async) {
-  OM2_CHK_STATUS(aclrtMemcpy(dev_args_[0], args_sizes_[0], host_args_[0].data(), args_sizes_[0], ACL_MEMCPY_HOST_TO_DEVICE));
-  OM2_CHK_STATUS(rtDevVA2PA((uint64_t)dev_args_[0], args_sizes_[0], stream, is_async));
+  for (size_t i = 0; (i < args_sizes_.size()); i++) {
+    if (args_sizes_[i] > 0) {
+      OM2_CHK_STATUS(aclrtMemcpy(dev_args_[i], args_sizes_[i], host_args_[i].data(), args_sizes_[i], ACL_MEMCPY_HOST_TO_DEVICE));
+      OM2_CHK_STATUS(rtDevVA2PA((uint64_t)dev_args_[i], args_sizes_[i], stream, is_async));
+    }
+  }
   return ACL_SUCCESS;
 }
 } // namespace om2
@@ -2084,13 +2105,16 @@ class Om2ArgsTable {
     ArgsInfo * GetArgsInfo(size_t index);
     void * GetDevArgAddr(size_t offset, int32_t args_type);
     void * GetHostArgAddr(size_t offset, int32_t args_type);
+    aclError RefreshFeatureMap(const uintptr_t base_addr);
     aclError UpdateHostArgs(int32_t type, size_t index, const uintptr_t addr);
     aclError CopyArgsToDevice(void *stream, bool is_async);
   private:
-    std::array<int64_t,  static_cast<size_t>(4)> args_sizes_{};
-    std::array<std::vector<uint8_t>, static_cast<size_t>(4)> host_args_{};
-    std::array<void *, static_cast<size_t>(4)> dev_args_{};
+    std::array<int64_t,  static_cast<size_t>(3)> args_sizes_{};
+    std::array<int64_t,  static_cast<size_t>(3)> args_types_{};
+    std::array<std::vector<uint8_t>, static_cast<size_t>(3)> host_args_{};
+    std::array<void *, static_cast<size_t>(3)> dev_args_{};
     std::vector<ArgsInfo> args_info_;
+    std::vector<uint32_t> refreshable_fm_index_to_allocation_ids_;
     std::vector<uint32_t> input_index_to_allocation_ids_;
     std::vector<uint32_t> output_index_to_allocation_ids_;
     std::vector<std::vector<ArgsRefreshInfo>> allocation_ids_to_model_args_refresh_infos_addr_all_;
@@ -2396,6 +2420,7 @@ class Om2Model {
     aclError RegisterKernels();
     aclError Load(const GertModelLoadCallbacks *callbacks);
     aclmdlRI GetRtModelHandle();
+    aclError RefreshFeatureMap(const uintptr_t base_addr);
     aclError Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, const GertModelRunCallbacks *run_callbacks);
     aclError RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, const GertModelRunCallbacks *run_callbacks);
     aclError ReleaseResources();
@@ -3085,6 +3110,10 @@ aclmdlRI Om2Model::GetRtModelHandle() {
   return model_handle_;
 }
 
+aclError Om2Model::RefreshFeatureMap(const uintptr_t base_addr) {
+  return args_table_.RefreshFeatureMap(base_addr);
+}
+
 aclError Om2Model::Load(const GertModelLoadCallbacks *callbacks) {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
@@ -3292,6 +3321,14 @@ int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnlo
   }
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
+}
+
+int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr) {
+  if ((model_handle == nullptr) || (base_addr == 0U)) {
+    OM2_LOGE("GertModelRefreshFeatureMap: invalid handle or base address");
+    return ACL_ERROR_FAILURE;
+  }
+  return static_cast<om2::Om2Model *>(model_handle)->RefreshFeatureMap(base_addr);
 }
 
 #ifdef __cplusplus
@@ -3776,6 +3813,10 @@ aclmdlRI Om2Model::GetRtModelHandle() {
   return model_handle_;
 }
 
+aclError Om2Model::RefreshFeatureMap(const uintptr_t base_addr) {
+  return args_table_.RefreshFeatureMap(base_addr);
+}
+
 aclError Om2Model::Load(const GertModelLoadCallbacks *callbacks) {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
@@ -3983,6 +4024,14 @@ int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnlo
   }
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
+}
+
+int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr) {
+  if ((model_handle == nullptr) || (base_addr == 0U)) {
+    OM2_LOGE("GertModelRefreshFeatureMap: invalid handle or base address");
+    return ACL_ERROR_FAILURE;
+  }
+  return static_cast<om2::Om2Model *>(model_handle)->RefreshFeatureMap(base_addr);
 }
 
 #ifdef __cplusplus
@@ -4530,6 +4579,10 @@ aclmdlRI Om2Model::GetRtModelHandle() {
   return model_handle_;
 }
 
+aclError Om2Model::RefreshFeatureMap(const uintptr_t base_addr) {
+  return args_table_.RefreshFeatureMap(base_addr);
+}
+
 aclError Om2Model::Load(const GertModelLoadCallbacks *callbacks) {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(2);
@@ -4739,6 +4792,14 @@ int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnlo
   }
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
+}
+
+int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr) {
+  if ((model_handle == nullptr) || (base_addr == 0U)) {
+    OM2_LOGE("GertModelRefreshFeatureMap: invalid handle or base address");
+    return ACL_ERROR_FAILURE;
+  }
+  return static_cast<om2::Om2Model *>(model_handle)->RefreshFeatureMap(base_addr);
 }
 
 #ifdef __cplusplus
@@ -5243,6 +5304,10 @@ aclmdlRI Om2Model::GetRtModelHandle() {
   return model_handle_;
 }
 
+aclError Om2Model::RefreshFeatureMap(const uintptr_t base_addr) {
+  return args_table_.RefreshFeatureMap(base_addr);
+}
+
 aclError Om2Model::Load(const GertModelLoadCallbacks *callbacks) {
   OM2_LOGI("Load begin");
   dev_ext_info_mem_ptrs_.resize(0);
@@ -5450,6 +5515,14 @@ int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnlo
   }
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
   return Om2ModelDestroy(&model_handle);
+}
+
+int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr) {
+  if ((model_handle == nullptr) || (base_addr == 0U)) {
+    OM2_LOGE("GertModelRefreshFeatureMap: invalid handle or base address");
+    return ACL_ERROR_FAILURE;
+  }
+  return static_cast<om2::Om2Model *>(model_handle)->RefreshFeatureMap(base_addr);
 }
 
 #ifdef __cplusplus

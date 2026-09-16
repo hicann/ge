@@ -24,18 +24,36 @@ class ArgsManagerFileCodeGenerator : public CodeGeneratorBase {
   MethodDef *BuildGetArgsInfoMethod();
   MethodDef *BuildGetDevArgAddrMethod();
   MethodDef *BuildGetHostArgAddrMethod();
+  MethodDef *BuildRefreshMapFeatureMethod();
   MethodDef *BuildUpdateHostArgsMethod();
   MethodDef *BuildCopyArgsToDeviceMethod(const Om2CodegenModel &codegen_model);
 
  private:
+  void BuildInitArgsItems(const Om2CodegenModel &codegen_model, std::vector<Arg> &args_size_items,
+                          std::vector<Arg> &args_type_items, std::vector<Arg> &args_info_items);
+  void BuildInitAllocationItems(const Om2CodegenModel &codegen_model,
+                                std::vector<Arg> &input_index_to_allocation_ids_items,
+                                std::vector<Arg> &output_index_to_allocation_ids_items,
+                                std::vector<Arg> &refreshable_fm_index_to_allocation_ids_items,
+                                std::vector<Arg> &allocation_ids_to_model_args_refresh_infos_items);
+  std::vector<BodyItem> BuildInitMethodBody(const Om2CodegenModel &codegen_model,
+                                            const std::vector<Arg> &args_size_items,
+                                            const std::vector<Arg> &args_type_items,
+                                            const std::vector<Arg> &args_info_items,
+                                            const std::vector<Arg> &input_index_to_allocation_ids_items,
+                                            const std::vector<Arg> &output_index_to_allocation_ids_items,
+                                            const std::vector<Arg> &refreshable_fm_index_to_allocation_ids_items,
+                                            const std::vector<Arg> &allocation_ids_to_model_args_refresh_infos_items);
   ExprRef GetHostArgAddr(Arg offset, Arg args_type);
   ExprRef GetDevArgAddr(Arg offset, Arg args_type);
 
   VarRef args_sizes_;
+  VarRef args_types_;
   VarRef args_info_;
   VarRef host_args_;
   VarRef dev_args_;
 
+  VarRef refreshable_fm_index_to_allocation_ids_;
   VarRef input_index_to_allocation_ids_;
   VarRef output_index_to_allocation_ids_;
   VarRef allocation_ids_to_model_args_refresh_infos_addr_all_;

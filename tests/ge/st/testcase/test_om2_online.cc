@@ -634,20 +634,6 @@ TEST_F(Om2OnlineModelExecutorTest, DumpDebugJSONPrint_ReturnsUnsupported) {
   EXPECT_EQ(model_executor.DumpDebugJSONPrint(1U, 1U, 0U, json_result), GE_GRAPH_UNSUPPORTED);
 }
 
-TEST_F(Om2OnlineModelExecutorTest, UpdateFeatureMemoryBase_ReturnsUnsupported) {
-  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
-  EnableOm2OnlineMode();
-
-  ModelExecutor model_executor;
-  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
-
-  GraphNodePtr graph_node = std::make_shared<ge::GraphNode>(1U);
-  graph_node->SetGeRootModel(std::make_shared<GeRootModel>());
-
-  EXPECT_EQ(model_executor.UpdateFeatureMemoryBase(graph_node, 0U, 0U), GE_GRAPH_UNSUPPORTED);
-  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
-}
-
 TEST_F(Om2OnlineModelExecutorTest, PaRemapped_ReturnsUnsupported) {
   EnvValueGuard guard("ENABLE_RUNTIME_OM2");
   EnableOm2OnlineMode();

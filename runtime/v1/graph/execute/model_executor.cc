@@ -384,13 +384,16 @@ Status ModelExecutor::DumpDebugJSONPrint(uint32_t model_id, uint32_t graph_id, u
 
 Status ModelExecutor::UpdateFeatureMemoryBase(const GraphNodePtr &graph_node, const uintptr_t mem_base,
                                               const size_t size) {
-  if (IsOm2OnlineMode()) {
-    return GE_GRAPH_UNSUPPORTED;
-  }
   const auto graph_id = graph_node->GetGraphId();
   const auto &ge_root_model = graph_node->GetGeRootModel();
   GE_ASSERT_NOTNULL(ge_root_model);
   const auto model_id = ge_root_model->GetModelId();
+
+  if (IsOm2OnlineMode()) {
+    GE_ASSERT_SUCCESS(Om2ModelManager::GetInstance().UpdateFeatureMemoryBase(model_id, mem_base, size),
+                      "[OM2] Failed to update feature memory base, graph_id = %u, model_id = %u", graph_id, model_id);
+    return SUCCESS;
+  }
   GE_ASSERT_SUCCESS(ModelManager::GetInstance().UpdateFeatureMemoryBase(model_id, mem_base, size),
                     "Failed to update feature memory base, graph_id = %u, model_id = %u", graph_id, model_id);
   return SUCCESS;

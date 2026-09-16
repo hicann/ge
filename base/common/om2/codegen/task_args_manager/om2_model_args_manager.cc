@@ -669,6 +669,10 @@ Status ModelArgsManager::GenerateArgsDataForProgramGenerator(Om2CodegenModel &co
 
   // 组装output index和allocation id的关系
   args_table.output_index_to_allocation_ids = model_adapter_.GetOutputIndexToAllocationIds();
+
+  // 组装fm index和allocation id的关系
+  args_table.refreshable_fm_index_and_allocation_ids = model_adapter_.GetRefreshableFmIndexAndAllocationIds();
+
   return SUCCESS;
 }
 }  // namespace om2
