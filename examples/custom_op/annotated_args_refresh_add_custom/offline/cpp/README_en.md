@@ -26,6 +26,7 @@ Key implementation points:
 ## Prerequisites
 
 - CANN has been installed and configured, for example by running `source /usr/local/Ascend/cann/set_env.sh` (adjust the path for your installation).
+- Refer to the [Installation Guide](../../../../../docs/en/quick_install.md) to install the toolkit and ops packages.
 - The CANN headers and libraries must provide the declarative address refresh APIs, including `AnnotatedArgsOp`, `AnnotatedKernelLaunchInfo`, and `AnnotatedKernelArgs`.
 - `atc` is available.
 - The environment provides ACL, GE, and Graph headers and libraries.

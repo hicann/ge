@@ -10,6 +10,8 @@
 
 #include "graph/custom_op/op_proto_ledger.h"
 
+#include <exception>
+
 #include "debug/ge_log.h"
 #include "graph/custom_op_registry.h"
 #include "graph/operator_factory_impl.h"
@@ -21,6 +23,18 @@ thread_local ScopedOpProtoLoadTxn *g_active_proto_load_txn = nullptr;
 
 ScopedOpProtoLoadTxn *GetActiveTxn() {
   return g_active_proto_load_txn;
+}
+
+void LogTxnException(const char *message, const std::exception *exception = nullptr) noexcept {
+  try {
+    if (exception != nullptr) {
+      GELOGW("[CUSTOM OP] %s: %s", message, exception->what());
+    } else {
+      GELOGW("[CUSTOM OP] %s", message);
+    }
+  } catch (...) {
+    // Logging must not make a noexcept cleanup path terminate.
+  }
 }
 }  // namespace
 
@@ -39,18 +53,32 @@ ScopedOpProtoLoadTxn::ScopedOpProtoLoadTxn(const CustomOpRegistryPtr &registry) 
   active_ = true;
 }
 
-ScopedOpProtoLoadTxn::~ScopedOpProtoLoadTxn() {
+ScopedOpProtoLoadTxn::~ScopedOpProtoLoadTxn() noexcept {
   if (!active_) {
     return;
   }
   if (g_active_proto_load_txn == this) {
     g_active_proto_load_txn = nullptr;
   }
+  AppendClaimsNoexcept();
+  FinalizeNoexcept();
+}
+
+void ScopedOpProtoLoadTxn::AppendClaimsNoexcept() noexcept {
   if ((registry_ != nullptr) && (!claims_.empty())) {
-    registry_->AppendProtoClaims(std::move(claims_));  // 提交事务日志，registry 析构时回放
+    try {
+      registry_->AppendProtoClaims(std::move(claims_));  // 提交事务日志，registry 析构时回放
+    } catch (const std::exception &e) {
+      LogTxnException("Exception when appending op proto claims in load txn destructor", &e);
+    } catch (...) {
+      LogTxnException("Unknown exception when appending op proto claims in load txn destructor");
+    }
   }
+}
+
+void ScopedOpProtoLoadTxn::FinalizeNoexcept() noexcept {
   std::vector<OpProtoClaimRecord> pending_batch;
-  {
+  try {
     auto &ledger = OpProtoLedger::GetInstance();
     const std::lock_guard<std::mutex> lock(ledger.mu_);
     if (ledger.active_txn_count_ > 0U) {
@@ -59,10 +87,22 @@ ScopedOpProtoLoadTxn::~ScopedOpProtoLoadTxn() {
     if ((ledger.active_txn_count_ == 0U) && (!ledger.pending_releases_.empty())) {
       pending_batch.swap(ledger.pending_releases_);  // 静默期：摘走被推迟的回放 claim，锁外清扫
     }
+  } catch (const std::exception &e) {
+    LogTxnException("Exception when finalizing op proto load txn destructor", &e);
+    return;
+  } catch (...) {
+    LogTxnException("Unknown exception when finalizing op proto load txn destructor");
+    return;
   }
   if (!pending_batch.empty()) {
-    GELOGI("[CUSTOM OP] load quiescence reached, replaying %zu deferred op proto claim(s).", pending_batch.size());
-    OpProtoLedger::ReleaseClaims(pending_batch);  // 清扫中若新事务开启，剩余 claim 自动再推迟（自收敛）
+    try {
+      GELOGI("[CUSTOM OP] load quiescence reached, replaying %zu deferred op proto claim(s).", pending_batch.size());
+      OpProtoLedger::ReleaseClaims(pending_batch);  // 清扫中若新事务开启，剩余 claim 自动再推迟（自收敛）
+    } catch (const std::exception &e) {
+      LogTxnException("Exception when releasing deferred op proto claims", &e);
+    } catch (...) {
+      LogTxnException("Unknown exception when releasing deferred op proto claims");
+    }
   }
 }
 
