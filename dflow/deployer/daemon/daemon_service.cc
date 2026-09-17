@@ -188,7 +188,7 @@ bool DaemonService::GetClient(int64_t client_id, DeployerDaemonClient **client, 
   REPORT_INNER_ERR_MSG("E19999", "Get client[%" PRId64 "] failed.", client_id);
   GELOGE(FAILED, "[Get][Client] Get client[%" PRId64 "] failed.", client_id);
   response.set_error_code(FAILED);
-  response.set_error_message("Not exist client id");
+  response.set_error_message("Client id does not exist");
   return false;
 }
 

@@ -313,7 +313,7 @@ void CpuSchedModelBuilder::AddGatherDequeueTask(uint32_t stream_id) {
     reinterpret_cast<uint32_t *>(kernel_args->queue_device_ids_addr)[index] = input_queue_info.first.device_id;
     reinterpret_cast<uint32_t *>(kernel_args->queue_device_type_addr)[index] = input_queue_info.first.device_type;
   }
-  GELOGD("Finish to prepare gather dequeue task, queue num:%zu, max cache num:%u, timeout:%d, drop flag:%u",
+  GELOGD("Finish to prepare gather dequeue task, queue num:%zu, max cache num:%u, timeout:%dms, drop flag:%u",
          kernel_args->input_nums, kernel_args->inputs_align_max_cache_num, kernel_args->inputs_align_timeout,
          kernel_args->inputs_align_drop_out);
 }

@@ -192,7 +192,6 @@ def _dynamo_export(class_ins, input_descs, workspace_dir):
     is_dynamic = False
     for input_desc in input_descs:
         desc_shape = [1 if item < 0 else item for item in input_desc._shape]
-        print(f"input_desc._dtype={input_desc._dtype}")
         input_list.append(
             torch.ones(
                 *desc_shape, dtype=_convert_df_to_torch_tensor_dtype(input_desc._dtype)

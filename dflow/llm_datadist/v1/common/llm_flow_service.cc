@@ -159,8 +159,8 @@ ge::Status LlmWorker::RunFlowFunc(FlowFuncType flow_func_type, size_t flow_func_
   auto feed_time_cost = std::chrono::duration_cast<std::chrono::microseconds>(feed_end - feed_start).count();
   auto left_timeout = timeout_ * kMillsToMicros;
   // feed cost time already over time limit.
-  LLM_CHK_BOOL_RET_STATUS(feed_time_cost < left_timeout, ge::LLM_WAIT_PROC_TIMEOUT, "Feed timeout, cost:%ld, left:%ld.",
-                          feed_time_cost, left_timeout);
+  LLM_CHK_BOOL_RET_STATUS(feed_time_cost < left_timeout, ge::LLM_WAIT_PROC_TIMEOUT,
+                          "Feed timeout, cost:%ld us, left:%ld us.", feed_time_cost, left_timeout);
 
   auto last_time = feed_end;
   while (true) {
