@@ -36,7 +36,7 @@ class FlowModelOmSaver {
 
   /**
    * @brief fix non standard graph load failed.
-   * flow model is seperate by partitionCall, graph output node and subgraph is incorrect.
+   * flow model is separated by partitionCall, graph output node and subgraph is incorrect.
    * now just remove output nodes and subgraphs.
    * @param graph graph.
    */

@@ -52,10 +52,10 @@ Status SetOutputSizeIfNeed(const ComputeGraphPtr &graph) {
 ExecutionOrder::ExecutionOrder(const UserGraph &user_graph) {
   user_graph_ = user_graph;
   is_unknown_input_shape_ = false;
-  SeperateGraphOptions(user_graph.graph_options);
+  SeparateGraphOptions(user_graph.graph_options);
 }
 
-void ExecutionOrder::SeperateGraphOptions(const std::map<std::string, std::string> &user_graph_options) {
+void ExecutionOrder::SeparateGraphOptions(const std::map<std::string, std::string> &user_graph_options) {
   first_ep_options_ = user_graph_options;
   for (const auto &option : user_graph_options) {
     if (kFirstEPOptions.count(option.first) > 0) {

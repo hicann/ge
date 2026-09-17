@@ -63,7 +63,7 @@ class OpFftsPlusFactory {
   ~OpFftsPlusFactory() = default;
 
  private:
-  // the op creator funtion map
+  // the op creator function map
   std::map<std::string, OP_CREATOR_FUNC> opCreatorMap_;
   std::vector<std::string> allOps_;
 };

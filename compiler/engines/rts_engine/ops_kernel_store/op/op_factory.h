@@ -62,7 +62,7 @@ class OpFactory {
   ~OpFactory() = default;
 
  private:
-  // the op creator funtion map
+  // the op creator function map
   std::map<std::string, OP_CREATOR_FUNC> op_creator_map_;
   std::vector<std::string> all_ops_;
 };

@@ -296,8 +296,8 @@ class PARSER_FUNC_VISIBILITY TensorFlowModelParser : public domi::ModelParser {
    */
   bool ConstOpNeedUpdate(const string &op_name);
 
-  static Status ExcuteScopeFusionPasses(domi::tensorflow::GraphDef *const graph_def,
-                                        shared_ptr<ge::ScopeGraph> &scope_graph);
+  static Status ExecuteScopeFusionPasses(domi::tensorflow::GraphDef *const graph_def,
+                                         shared_ptr<ge::ScopeGraph> &scope_graph);
   /**
    * @ingroup domi_omg
    * @brief Run the scope fusion optimizer in list scope_passes_list

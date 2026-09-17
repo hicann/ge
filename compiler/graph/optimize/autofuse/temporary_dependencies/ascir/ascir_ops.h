@@ -9,7 +9,7 @@
  */
 
 // Generated from asc-ir definition files, any modification made to this file may be overwritten after compile.
-// If you want to add self-defined asc-ir, please create a seperated header file.
+// If you want to add self-defined asc-ir, please create a separated header file.
 #ifndef ASCIR_OPS_ASCIR_OPS_H_
 #define ASCIR_OPS_ASCIR_OPS_H_
 
