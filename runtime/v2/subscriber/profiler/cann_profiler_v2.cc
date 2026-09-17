@@ -200,6 +200,13 @@ ge::Status GetShapeInfoFromJson(const std::string &json_str, std::vector<std::ve
 }
 }  // namespace
 
+std::string CannProfilerV2::GetOpType(NodeIdentity node_id) const {
+  if (node_id >= node_id_to_op_type_.size()) {
+    return "";
+  }
+  return node_id_to_op_type_[node_id];
+}
+
 void TensorInfoWrapper::FillShapeInfo() {
   for (size_t i = 0UL; i < tensor_num; ++i) {
     if ((i >= shapes.size()) || (shapes[i] == nullptr)) {
@@ -742,6 +749,7 @@ ge::Status CannProfilerV2::InitBasicInfoAndTensorInfo(
   exe_node_id_to_profiling_filler_.resize(execution_data.base_ed.node_num, nullptr);
   exe_node_id_to_profiling_wrappers_.resize(execution_data.base_ed.node_num);
   node_id_to_profiler_node_id_.resize(execution_data.base_ed.node_num, UINT32_MAX);
+  node_id_to_op_type_.resize(execution_data.base_ed.node_num);
 
   ProfilerRegistry &ins = ProfilerRegistry::GetInstance();
   std::unordered_map<uint64_t, std::vector<NodeIdentity>> name_hash_to_node_ids{};
@@ -758,6 +766,9 @@ ge::Status CannProfilerV2::InitBasicInfoAndTensorInfo(
     const char *kernel_type = nullptr;
     const ComputeNodeInfo *compute_node_info = nullptr;
     GE_ASSERT_SUCCESS(ParseContextByNode(node, &kernel_type, &compute_node_info));
+    if (compute_node_info != nullptr) {
+      node_id_to_op_type_[node_id] = compute_node_info->GetNodeType();
+    }
     if (compute_node_info == nullptr) {
       GELOGW("Kernel %s has no compute node info.", kernel_type);
       continue;
@@ -843,6 +854,15 @@ ge::Status CannProfilerV2::RecordTensorInfo(const uint64_t prof_time, const int3
 }
 
 ge::Status CannProfilerV2::DoProfByNodeId(NodeIdentity report_node, uint64_t prof_time, uint32_t tid) {
+  const std::string op_type = GetOpType(report_node);
+  if (GetGlobalProf()->IsEnabled(ProfilingType::kScale)) {
+    bool enabled = MsprofCheckOpSwitch(0U, op_type.c_str(), op_type.length());
+    GELOGD("[Scale Profiling] DoProfByNodeId, node_id=%zu, op_type=%s, enabled=%d", report_node, op_type.c_str(),
+           enabled);
+    if (!enabled) {
+      return ge::SUCCESS;
+    }
+  }
   const auto &addition_infos = node_addition_infos_[report_node];
   if (GetGlobalProf()->IsEnabled(ProfilingType::kDevice) &&
       prof_extend_infos_[report_node].engine_type != std::numeric_limits<uint32_t>::max()) {

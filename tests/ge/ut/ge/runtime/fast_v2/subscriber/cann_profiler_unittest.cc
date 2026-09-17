@@ -1135,4 +1135,104 @@ TEST_F(CannProfilerUT, BaseExecutorProfiler_InitNameAndTypeWithHash) {
   EXPECT_EQ(prof_extend_infos[0].origin_name_hash_for_hash, MsprofGetHashId(origin_name, strlen(origin_name)));
   prof_extend_infos.clear();
 }
+
+namespace {
+struct ScaleProfilingEnv {
+  std::unique_ptr<ModelV2Executor> executor;
+  GertRuntimeStub stub;
+  CannProfilerV2 *profiler = nullptr;
+  const ExecutionData *execution_data = nullptr;
+  size_t target_node_id = 0UL;
+};
+
+bool BuildScaleProfilingEnv(ScaleProfilingEnv &env) {
+  auto graph = ShareGraph::BuildSingleNodeGraph();
+  graph->TopologicalSorting();
+  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("Add", false).Build();
+  ModelDescHolder model_desc_holder = ModelDescHolderFaker().Build();
+  model_desc_holder.SetSpaceRegistry(SpaceRegistryFaker().Build());
+  auto exe_graph =
+      GraphConverter().SetModelDescHolder(&model_desc_holder).ConvertComputeGraphToExecuteGraph(graph, global_data);
+  if (exe_graph == nullptr) {
+    return false;
+  }
+  env.stub.GetKernelStub().AllKernelRegisteredAndSuccess();
+  env.executor = ModelV2Executor::Create(exe_graph, root_model);
+  if (env.executor == nullptr) {
+    return false;
+  }
+  env.execution_data =
+      reinterpret_cast<const ExecutionData *>(env.executor->GetExeGraphExecutor(kMainExeGraph)->GetExecutionData());
+  env.profiler =
+      env.executor->GetSubscribers().MutableBuiltInSubscriber<CannProfilerV2>(BuiltInSubscriberType::kCannProfilerV2);
+  if (env.profiler == nullptr) {
+    return false;
+  }
+  if (env.profiler->InitForCannDevice(env.execution_data) != ge::SUCCESS) {
+    return false;
+  }
+  const auto node_num = env.execution_data->base_ed.node_num;
+  for (size_t node_id = 0UL; node_id < node_num; ++node_id) {
+    if ((env.profiler->GetOpType(node_id) == "Add") &&
+        (env.profiler->node_addition_infos_[node_id][static_cast<size_t>(NodeProfInfoType::kOriginalNode)] !=
+         nullptr)) {
+      env.target_node_id = node_id;
+      return true;
+    }
+  }
+  return false;
+}
+}  // namespace
+
+TEST_F(CannProfilerUT, get_op_type_returns_node_type_and_empty_when_out_of_range) {
+  ScaleProfilingEnv env;
+  ASSERT_TRUE(BuildScaleProfilingEnv(env));
+  EXPECT_EQ(env.profiler->GetOpType(env.target_node_id), "Add");
+  EXPECT_EQ(env.profiler->GetOpType(env.execution_data->base_ed.node_num), "");
+}
+
+TEST_F(CannProfilerUT, do_prof_by_node_id_skips_report_when_scale_enabled_and_op_filtered) {
+  ScaleProfilingEnv env;
+  ASSERT_TRUE(BuildScaleProfilingEnv(env));
+  ge::diagnoseSwitch::EnableProfiling({ProfilingType::kDevice, ProfilingType::kScale});
+  size_t report_count = 0UL;
+  ge::ProfilingTestUtil::Instance().SetProfFunc(
+      [&](uint32_t moduleId, uint32_t type, void *data, uint32_t len) -> int32_t {
+        if ((type == ge::InfoType::kCompactInfo) || (type == ge::InfoType::kInfo)) {
+          ++report_count;
+        }
+        return 0;
+      });
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "Add");
+    return false;
+  };
+  EXPECT_EQ(env.profiler->DoProfByNodeId(env.target_node_id, 0U, 0U), ge::SUCCESS);
+  EXPECT_EQ(report_count, 0UL);
+  ge::ProfilingTestUtil::Instance().Clear();
+  ge::diagnoseSwitch::DisableProfiling();
+}
+
+TEST_F(CannProfilerUT, do_prof_by_node_id_reports_when_scale_enabled_and_op_allowed) {
+  ScaleProfilingEnv env;
+  ASSERT_TRUE(BuildScaleProfilingEnv(env));
+  ge::diagnoseSwitch::EnableProfiling({ProfilingType::kDevice, ProfilingType::kScale});
+  size_t report_count = 0UL;
+  ge::ProfilingTestUtil::Instance().SetProfFunc(
+      [&](uint32_t moduleId, uint32_t type, void *data, uint32_t len) -> int32_t {
+        if ((type == ge::InfoType::kCompactInfo) || (type == ge::InfoType::kInfo)) {
+          ++report_count;
+        }
+        return 0;
+      });
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "Add");
+    return true;
+  };
+  EXPECT_EQ(env.profiler->DoProfByNodeId(env.target_node_id, 0U, 0U), ge::SUCCESS);
+  EXPECT_GT(report_count, 0UL);
+  ge::ProfilingTestUtil::Instance().Clear();
+  ge::diagnoseSwitch::DisableProfiling();
+}
 }  // namespace gert

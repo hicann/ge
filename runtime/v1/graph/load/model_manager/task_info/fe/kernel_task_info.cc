@@ -36,6 +36,8 @@
 #include "common/kernel_handles_manager/kernel_handle_utils.h"
 #include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
 #include "acl/acl_rt.h"
+#include "framework/runtime/subscriber/global_profiler.h"
+#include "common/profiling_definitions.h"
 
 namespace ge {
 namespace {
@@ -65,6 +67,9 @@ constexpr uint64_t kBitFlag8 = 0x00FFFFFFFFFFFFFFUL;
 constexpr uint64_t kLevel2BitFlagCustom = 0x0100000000000000UL;
 constexpr uint64_t kLevel2BitFlagWithShape = 0x0200000000000000UL;
 constexpr uint64_t kLevel2BitFlagTilingData = 0x0300000000000000UL;
+
+constexpr uint8_t kProfilingDisabled = 0U;
+constexpr uint8_t kProfilingEnabled = 1U;
 
 bool IsAllKernel(const ModelTaskType task_type) {
   return (task_type == ModelTaskType::MODEL_TASK_ALL_KERNEL) ||
@@ -589,6 +594,15 @@ Status KernelTaskInfo::DistributeTask() {
   launch_kernel_param.launch_config.block_dim_offset = block_dim_offset_;
   launch_kernel_param.launch_config.is_block_task_prefetch = is_block_task_prefetch_;
   launch_kernel_param.launch_config.is_data_dump = is_data_dump_;
+  launch_kernel_param.launch_config.enable_profiling = kProfilingEnabled;
+  if (ModelUtils::IsAICoreKernel(kernel_type_) &&
+      gert::GlobalProfilingWrapper::GetInstance()->IsEnabled(gert::ProfilingType::kScale)) {
+    const std::string &op_type = op_desc_->GetType();
+    bool enabled = MsprofCheckOpSwitch(0U, op_type.c_str(), op_type.length());
+    GELOGD("[Scale Profiling] kernel_task_info op=%s, op_type=%s, MsprofCheckOpSwitch result=%d", op_name.c_str(),
+           op_type.c_str(), enabled);
+    launch_kernel_param.launch_config.enable_profiling = enabled ? kProfilingEnabled : kProfilingDisabled;
+  }
   if ((task_type_ == ModelTaskType::MODEL_TASK_VECTOR_ALL_KERNEL) ||
       (task_type_ == ModelTaskType::MODEL_TASK_VECTOR_KERNEL)) {
     launch_kernel_param.launch_config.engine_type = ACL_RT_ENGINE_TYPE_AIV;

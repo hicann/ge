@@ -78,6 +78,11 @@ graphStatus KernelHandleUtils::LaunchKernel(const aclrtFuncHandle func_handle, c
   attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DYN_UBUF_SIZE;
   attrs[actual_cfg_num].value.dynUBufSize = launch_param.launch_config.local_memory_size;
   actual_cfg_num++;
+  if (launch_param.launch_config.enable_profiling != kProfilingDefaultDisabled) {
+    attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING;
+    attrs[actual_cfg_num].value.enableProfiling = launch_param.launch_config.enable_profiling;
+    actual_cfg_num++;
+  }
   if (launch_param.launch_config.time_out >= 0) {
     attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
     attrs[actual_cfg_num].value.timeout = static_cast<uint16_t>(launch_param.launch_config.time_out);

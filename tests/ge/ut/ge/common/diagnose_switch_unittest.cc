@@ -145,4 +145,12 @@ TEST_F(DiagnoseSwitchUT, DoNotAutoCallCallbackWhenDuplicateReigster_WhenEnable) 
   EXPECT_EQ(global_arg.GetCount(1), 1);
   EXPECT_EQ(global_arg.GetCount(0), 0);
 }
+
+TEST_F(DiagnoseSwitchUT, EnableScaleProfiling_Ok) {
+  diagnoseSwitch::EnableScaleProfiling();
+  EXPECT_EQ(diagnoseSwitch::GetProfiling().GetEnableFlag(),
+            gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::ProfilingType>({gert::ProfilingType::kScale}));
+  diagnoseSwitch::DisableProfiling();
+  EXPECT_EQ(diagnoseSwitch::GetProfiling().GetEnableFlag(), 0UL);
+}
 }  // namespace ge

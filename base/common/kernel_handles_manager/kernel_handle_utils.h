@@ -16,6 +16,8 @@
 #include "kernel_handles_manager.h"
 
 namespace ge {
+constexpr uint8_t kProfilingDefaultDisabled = 0;
+
 struct LaunchKernelConfig {
   uint8_t schedule_mode{0U};
   uint32_t local_memory_size{0U};
@@ -24,6 +26,7 @@ struct LaunchKernelConfig {
   bool is_block_task_prefetch{false};
   bool is_data_dump{false};
   int16_t time_out{-1};
+  uint8_t enable_profiling{kProfilingDefaultDisabled};
 };
 
 using RefreshAddrInfo = aclrtPlaceHolderInfo;

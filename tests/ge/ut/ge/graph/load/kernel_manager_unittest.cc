@@ -269,4 +269,63 @@ TEST_F(KernelManagerUtest, test_launch_kernel) {
   launch_param.is_host_args = true;
   EXPECT_EQ(KernelHandleUtils::LaunchKernel(func_handle, launch_param), SUCCESS);
 }
+
+namespace {
+struct LaunchKernelCfgRecorder : public gert::RuntimeStubForKernelV2 {
+  aclError aclrtLaunchKernelV2(aclrtFuncHandle funcHandle, uint32_t numBlocks, const void *argsData, size_t argsSize,
+                               aclrtLaunchKernelCfg *cfg, aclrtStream stream) override {
+    (void)funcHandle;
+    (void)numBlocks;
+    (void)argsData;
+    (void)argsSize;
+    (void)stream;
+    attrs_snapshot.assign(cfg->attrs, cfg->attrs + cfg->numAttrs);
+    return ACL_SUCCESS;
+  }
+  std::vector<aclrtLaunchKernelAttr> attrs_snapshot;
+};
+
+const aclrtLaunchKernelAttr *FindLaunchKernelAttr(const std::vector<aclrtLaunchKernelAttr> &attrs,
+                                                  aclrtLaunchKernelAttrId id) {
+  for (const auto &attr : attrs) {
+    if (attr.id == id) {
+      return &attr;
+    }
+  }
+  return nullptr;
+}
+}  // namespace
+
+TEST_F(KernelManagerUtest, test_launch_kernel_enable_profiling_attr_present) {
+  LaunchKernelCfgRecorder recorder;
+  ge::AclRuntimeStub::Install(&recorder);
+  LaunchKernelParam launch_param;
+  launch_param.launch_config.enable_profiling = 1U;
+  launch_param.block_dim = 32;
+  launch_param.stream = (void *)0x1200;
+  launch_param.args = (void *)0x1300;
+  launch_param.args_size = 128;
+  rtFuncHandle func_handle = (void *)0x1400;
+  EXPECT_EQ(KernelHandleUtils::LaunchKernel(func_handle, launch_param), SUCCESS);
+  EXPECT_EQ(recorder.attrs_snapshot.size(), 7UL);
+  const auto *profiling_attr =
+      FindLaunchKernelAttr(recorder.attrs_snapshot, ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING);
+  ASSERT_NE(profiling_attr, nullptr);
+  EXPECT_EQ(profiling_attr->value.enableProfiling, 1U);
+}
+
+TEST_F(KernelManagerUtest, test_launch_kernel_enable_profiling_attr_absent_when_disabled) {
+  LaunchKernelCfgRecorder recorder;
+  ge::AclRuntimeStub::Install(&recorder);
+  LaunchKernelParam launch_param;
+  launch_param.launch_config.enable_profiling = kProfilingDefaultDisabled;
+  launch_param.block_dim = 32;
+  launch_param.stream = (void *)0x1200;
+  launch_param.args = (void *)0x1300;
+  launch_param.args_size = 128;
+  rtFuncHandle func_handle = (void *)0x1400;
+  EXPECT_EQ(KernelHandleUtils::LaunchKernel(func_handle, launch_param), SUCCESS);
+  EXPECT_EQ(recorder.attrs_snapshot.size(), 6UL);
+  EXPECT_EQ(FindLaunchKernelAttr(recorder.attrs_snapshot, ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING), nullptr);
+}
 }  // namespace ge

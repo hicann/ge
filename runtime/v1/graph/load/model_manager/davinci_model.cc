@@ -116,6 +116,26 @@ const std::set<std::string> hccl_op_types({ge::HCOMBROADCAST, ge::HCOMALLGATHER,
                                            ge::HCOMREDUCESCATTER, ge::HCOMREDUCE, ge::HCOMALLTOALLV,
                                            ge::HCOMGATHERALLTOALLV, ge::HCOMALLTOALLVC, ge::HCOMALLTOALL});
 
+bool IsScaleProfilingEnabledForOp(const std::string &op_type) {
+  if (!gert::GlobalProfilingWrapper::GetInstance()->IsEnabled(gert::ProfilingType::kScale)) {
+    GELOGD("[Scale Profiling] Scale profiling disabled, op_type=%s, return true", op_type.c_str());
+    return true;
+  }
+  bool enabled = MsprofCheckOpSwitch(0U, op_type.c_str(), op_type.length());
+  GELOGD("[Scale Profiling] op_type=%s, MsprofCheckOpSwitch result=%d", op_type.c_str(), enabled);
+  return enabled;
+}
+
+const std::string *FindOpTypeByName(const std::vector<NodeBasicInfoWrapper> &node_basic_infos,
+                                    const std::string &op_name) {
+  for (const auto &node_basic_info : node_basic_infos) {
+    if (node_basic_info.op_name == op_name) {
+      return &node_basic_info.op_type;
+    }
+  }
+  return nullptr;
+}
+
 constexpr const char *kModelProfStageStr[kMdlProfStageNameEnd + 1] = {
     "InitModelMem",  "InitIoNodes",          "TransAllVarData", "InitNodes", "DoTaskSink",
     "CopyModelData", "aclmdlRIExecuteAsync", "CopyOutputData",  "unknown"};
@@ -4825,8 +4845,18 @@ Status DavinciModel::ReportTaskTimeL1Info() {
     GELOGI("Do not report l1 info.");
     return SUCCESS;
   }
+  GELOGI("[Scale Profiling] ReportTaskTimeL1Info start, node_basic_infos size=%zu", node_basic_infos_.size());
   GE_CHK_STATUS_RET(ReportFusionOpInfo(), "Report profiling fusion op info failed");
+  size_t filtered_count = 0U;
+  size_t reported_count = 0U;
   for (auto &node_basic_info : node_basic_infos_) {
+    if (!IsScaleProfilingEnabledForOp(node_basic_info.op_type)) {
+      GELOGD("[Scale Profiling] Filter node_basic_info, op_name=%s, op_type=%s", node_basic_info.op_name.c_str(),
+             node_basic_info.op_type.c_str());
+      filtered_count++;
+      continue;
+    }
+    reported_count++;
     if (node_basic_info.node_basic_info.data.nodeBasicInfo.opName == 0UL) {
       node_basic_info.node_basic_info.data.nodeBasicInfo.opName =
           MsprofGetHashId(node_basic_info.op_name.c_str(), node_basic_info.op_name.length());
@@ -4843,6 +4873,7 @@ Status DavinciModel::ReportTaskTimeL1Info() {
     GE_ASSERT_SUCCESS(
         gert::GlobalProfilingWrapper::ReportTensorInfo(model_load_event_.threadId, false, task_desc_info));
   }
+  GELOGI("[Scale Profiling] ReportTaskTimeL1Info done, filtered=%zu, reported=%zu", filtered_count, reported_count);
   return SUCCESS;
 }
 
@@ -4851,12 +4882,24 @@ Status DavinciModel::ReportTaskTimeL0Info(const uint32_t prof_model_id) {
     GELOGI("Do not report l0 info.");
     return SUCCESS;
   }
+  GELOGI("[Scale Profiling] ReportTaskTimeL0Info start, context_id_infos size=%zu, prof_launch_apis size=%zu",
+         context_id_infos_.size(), prof_launch_apis_.size());
   GE_CHK_STATUS_RET(gert::GlobalProfilingWrapper::ReportLogicStreamInfo(load_end_time_, model_load_event_.threadId,
                                                                         logic_stream_ids_to_physic_stream_ids_,
                                                                         static_cast<uint16_t>(false)));
   GE_CHK_STATUS_RET(ReportModelExtInfo(model_load_event_.threadId, prof_model_id),
                     "Report profiling model ext info failed");
+  size_t context_filtered_count = 0U;
+  size_t context_reported_count = 0U;
   for (auto &context_info_id : context_id_infos_) {
+    const auto *op_type = FindOpTypeByName(node_basic_infos_, context_info_id.op_name);
+    if ((op_type != nullptr) && (!IsScaleProfilingEnabledForOp(*op_type))) {
+      GELOGD("[Scale Profiling] Filter context_id_info, op_name=%s, op_type=%s", context_info_id.op_name.c_str(),
+             op_type->c_str());
+      context_filtered_count++;
+      continue;
+    }
+    context_reported_count++;
     auto prof_context_info = reinterpret_cast<MsprofContextIdInfo *>(context_info_id.context_id_info.data);
     if (prof_context_info->opName == 0UL) {
       prof_context_info->opName = MsprofGetHashId(context_info_id.op_name.c_str(), context_info_id.op_name.length());
@@ -4865,12 +4908,25 @@ Status DavinciModel::ReportTaskTimeL0Info(const uint32_t prof_model_id) {
                                                    static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))));
   }
 
+  size_t api_filtered_count = 0U;
+  size_t api_reported_count = 0U;
   for (auto &launch_api : prof_launch_apis_) {
+    const auto *op_type = FindOpTypeByName(node_basic_infos_, launch_api.op_name);
+    if ((op_type != nullptr) && (!IsScaleProfilingEnabledForOp(*op_type))) {
+      GELOGD("[Scale Profiling] Filter launch_api, op_name=%s, op_type=%s", launch_api.op_name.c_str(),
+             op_type->c_str());
+      api_filtered_count++;
+      continue;
+    }
+    api_reported_count++;
     if (launch_api.api.itemId == 0UL) {
       launch_api.api.itemId = MsprofGetHashId(launch_api.op_name.c_str(), launch_api.op_name.length());
     }
     GE_ASSERT_MSPROF_OK(MsprofReportApi(static_cast<uint32_t>(false), &launch_api.api));
   }
+  GELOGI(
+      "[Scale Profiling] ReportTaskTimeL0Info done, context filtered=%zu, reported=%zu, api filtered=%zu, reported=%zu",
+      context_filtered_count, context_reported_count, api_filtered_count, api_reported_count);
   return SUCCESS;
 }
 

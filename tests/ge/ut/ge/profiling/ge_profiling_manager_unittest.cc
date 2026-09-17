@@ -22,11 +22,13 @@
 #undef PROF_MODEL_EXECUTE_MASK
 #undef PROF_OP_DETAIL_MASK
 #undef PROF_MODEL_LOAD_MASK
+#undef PROF_OP_MASK
 
 constexpr uint64_t PROF_TRAINING_TRACE = 0x00000040ULL;
 constexpr uint64_t PROF_MODEL_EXECUTE_MASK = 0x0000001000000ULL;
 constexpr uint64_t PROF_OP_DETAIL_MASK = 0x0000080000000ULL;
 constexpr uint64_t PROF_MODEL_LOAD_MASK = 0x8000000000000000ULL;
+constexpr uint64_t PROF_OP_MASK = 0x0000200000000ULL;
 
 #include "common/profiling/profiling_init.h"
 #include "common/profiling/profiling_manager.h"
@@ -442,6 +444,24 @@ TEST_F(UtestGeProfilingManager, ProfOpDetailProfiling_Ok) {
   ret = ProfilingManager::Instance().ProfStopProfiling(module, config_para);
   EXPECT_EQ(ret, ge::SUCCESS);
   EXPECT_FALSE(ProfilingProperties::Instance().IsOpDetailProfiling());
+}
+
+TEST_F(UtestGeProfilingManager, ProfOpMaskProfiling_EnablesScaleProfiling) {
+  const uint64_t module = PROF_OP_MASK;
+  std::map<std::string, std::string> config_para;
+  config_para["devNums"] = "4";
+  config_para["devIdList"] = "0,1,2,8";
+  ProfilingManager::Instance().RecordLoadedModelId(2005U);
+  Status ret = ProfilingManager::Instance().ProfStartProfiling(module, config_para, 1);
+  EXPECT_EQ(ret, ge::SUCCESS);
+  EXPECT_TRUE(diagnoseSwitch::GetProfiling().GetEnableFlag() &
+              gert::BuiltInSubscriberUtil::EnableBit<gert::ProfilingType>(gert::ProfilingType::kScale));
+  ret = ProfilingManager::Instance().ProfStopProfiling(module, config_para);
+  EXPECT_EQ(ret, ge::SUCCESS);
+  diagnoseSwitch::DisableProfiling();
+  EXPECT_EQ(diagnoseSwitch::GetProfiling().GetEnableFlag() &
+                gert::BuiltInSubscriberUtil::EnableBit<gert::ProfilingType>(gert::ProfilingType::kScale),
+            0UL);
 }
 
 TEST_F(UtestGeProfilingManager, StopTaskEventProfiling_Ok) {

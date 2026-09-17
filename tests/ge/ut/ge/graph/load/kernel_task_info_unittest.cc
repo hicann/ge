@@ -27,6 +27,9 @@
 #include "framework/common/framework_types_internal.h"
 #include "graph/manager/graph_var_manager.h"
 #include "depends/profiler/src/dump_stub.h"
+#include "depends/profiler/src/profiling_test_util.h"
+#include "stub/runtime_stub_for_kernel_v2.h"
+#include "framework/runtime/subscriber/global_profiler.h"
 #include "graph/manager/graph_mem_allocator.h"
 #include "exe_graph/runtime/tiling_context.h"
 #include "exe_graph/runtime/tiling_parse_context.h"
@@ -3131,6 +3134,135 @@ TEST_F(UtestKernelTaskInfo, static_shape_reuse_binary) {
     EXPECT_EQ(model.InitTaskInfo(model_task_def), SUCCESS);
     EXPECT_EQ(model.DistributeTask(model_task_def), SUCCESS);
   }
+}
+
+namespace {
+struct ScaleProfilingLaunchRecorder : public gert::RuntimeStubForKernelV2 {
+  aclError aclrtLaunchKernelV2(aclrtFuncHandle funcHandle, uint32_t numBlocks, const void *argsData, size_t argsSize,
+                               aclrtLaunchKernelCfg *cfg, aclrtStream stream) override {
+    (void)funcHandle;
+    (void)numBlocks;
+    (void)argsData;
+    (void)argsSize;
+    (void)stream;
+    attrs_snapshot.assign(cfg->attrs, cfg->attrs + cfg->numAttrs);
+    return ACL_SUCCESS;
+  }
+  std::vector<aclrtLaunchKernelAttr> attrs_snapshot;
+};
+
+const aclrtLaunchKernelAttr *FindLaunchKernelAttr(const std::vector<aclrtLaunchKernelAttr> &attrs,
+                                                  aclrtLaunchKernelAttrId id) {
+  for (const auto &attr : attrs) {
+    if (attr.id == id) {
+      return &attr;
+    }
+  }
+  return nullptr;
+}
+
+std::vector<aclrtLaunchKernelAttr> DistributeAiCoreKernelWithHandle() {
+  DavinciModel model(0, nullptr);
+  model.SetKnownNode(true);
+  model.runtime_param_.mem_size = 2048U;
+  std::vector<uint8_t> memory_holder(model.runtime_param_.mem_size);
+  model.runtime_param_.mem_base = reinterpret_cast<uintptr_t>(memory_holder.data());
+  MemAllocation fm_mem_allocation = {0, 0, UINT64_MAX, ge::MemAllocation::Type::FEATURE_MAP, 0U};
+  model.logical_mem_allocations_.emplace_back(fm_mem_allocation);
+  ModelHelper model_helper;
+  model_helper.HandleDeviceInfo(model.platform_infos_);
+
+  rtStream_t stream = nullptr;
+  model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+  model.reusable_stream_allocator_->GetOrCreateRtStream(stream, 0, 0, 0);
+  model.stream_list_.push_back(stream);
+  auto op_desc = CreateOpDesc("relu", RELU);
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{4}), FORMAT_NCHW, DT_INT32));
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{4}), FORMAT_NCHW, DT_INT32));
+  op_desc->SetIsInputConst({false});
+  op_desc->SetInputOffset({0});
+  op_desc->SetOutputOffset({0});
+  TensorUtils::SetSize(*op_desc->MutableInputDesc(0), 32);
+  TensorUtils::SetSize(*op_desc->MutableOutputDesc(0), 32);
+  op_desc->SetId(0);
+  op_desc->SetWorkspace({32});
+  op_desc->SetWorkspaceBytes({32});
+  auto run_info = std::make_shared<optiling::utils::OpRunInfo>(0, false, 0);
+  run_info->AddTilingData("1");
+  op_desc->SetExtAttr(ATTR_NAME_OP_RUN_INFO, run_info);
+  std::vector<char> kernelBin;
+  TBEKernelPtr tbe_kernel = std::make_shared<ge::OpKernelBin>("name/data", std::move(kernelBin));
+  op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbe_kernel);
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "00_0_kernel");
+  EXPECT_EQ(model.bin_kernel_handle_.RegisterDynamicKernel(op_desc, ""), SUCCESS);
+
+  domi::ModelTaskDef model_task_def;
+  domi::TaskDef &task_def = *model_task_def.add_task();
+  task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_ALL_KERNEL));
+  domi::KernelDefWithHandle *kernel_def = task_def.mutable_kernel_with_handle();
+  kernel_def->mutable_context()->set_kernel_type(static_cast<uint32_t>(ccKernelType::TE));
+  kernel_def->mutable_context()->set_op_index(op_desc->GetId());
+  kernel_def->mutable_context()->mutable_origin_op_index()->Clear();
+  uint16_t offset = 16U;
+  kernel_def->mutable_context()->set_args_offset(&offset, sizeof(uint16_t));
+  std::vector<char> args_info(56U, '0');
+  kernel_def->set_args_size(args_info.size());
+  kernel_def->set_args(args_info.data(), args_info.size());
+
+  model.op_list_[op_desc->GetId()] = op_desc;
+  auto graph = std::make_shared<ComputeGraph>("tmp");
+  auto node = graph->AddNode(op_desc);
+  model.ge_model_ = MakeShared<GeModel>();
+  model.ge_model_->SetGraph(graph);
+  auto operator_info = std::make_shared<Operator>(OpDescUtils::CreateOperatorFromNode(node));
+  model.operator_list_[op_desc->GetId()] = operator_info;
+
+  model.args_manager_.AllocKernelLaunchArgsHostMem(model.logical_mem_allocations_.size());
+  ScaleProfilingLaunchRecorder recorder;
+  ge::AclRuntimeStub::Install(&recorder);
+  EXPECT_EQ(model.InitTaskInfo(model_task_def), SUCCESS);
+  EXPECT_EQ(model.DistributeTask(model_task_def), SUCCESS);
+  ge::AclRuntimeStub::UnInstall(nullptr);
+  return recorder.attrs_snapshot;
+}
+}  // namespace
+
+TEST_F(UtestKernelTaskInfo, kernel_distribute_task_enable_profiling_on_when_scale_disabled) {
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(0);
+  const auto attrs = DistributeAiCoreKernelWithHandle();
+  const auto *attr = FindLaunchKernelAttr(attrs, ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING);
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->value.enableProfiling, 1U);
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(0);
+}
+
+TEST_F(UtestKernelTaskInfo, kernel_distribute_task_enable_profiling_on_when_scale_enabled_and_op_allowed) {
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(
+      gert::BuiltInSubscriberUtil::EnableBit<gert::ProfilingType>(gert::ProfilingType::kScale));
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "ReLU");
+    return true;
+  };
+  const auto attrs = DistributeAiCoreKernelWithHandle();
+  const auto *attr = FindLaunchKernelAttr(attrs, ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING);
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->value.enableProfiling, 1U);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = nullptr;
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(0);
+}
+
+TEST_F(UtestKernelTaskInfo, kernel_distribute_task_profiling_attr_absent_when_scale_enabled_and_op_filtered) {
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(
+      gert::BuiltInSubscriberUtil::EnableBit<gert::ProfilingType>(gert::ProfilingType::kScale));
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "ReLU");
+    return false;
+  };
+  const auto attrs = DistributeAiCoreKernelWithHandle();
+  EXPECT_EQ(FindLaunchKernelAttr(attrs, ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING), nullptr);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = nullptr;
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(0);
 }
 
 TEST_F(UtestKernelTaskInfo, static_shape_reuse_binary_with_ori_op_para_size) {

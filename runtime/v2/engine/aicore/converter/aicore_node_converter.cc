@@ -53,7 +53,7 @@ std::mutex g_kernel_bin_store_lock;
 std::map<std::string, ge::OpKernelBinPtr> g_kernel_bin_store;
 
 namespace {
-constexpr const size_t max_launch_cfg_num = 4UL;
+constexpr const size_t max_launch_cfg_num = 5UL;
 constexpr size_t const AtomicTaskdefMinNum = 2;
 
 struct ProcArgs {
@@ -462,6 +462,9 @@ size_t GetLaunchKernelV2Attr(bg::ValueHolderPtr &cfg_attrs, const domi::TaskDef 
   } else {
     attrs[actual_cfg_num].value.blockDimOffset = task_def->kernel().block_dim_offset();
   }
+  actual_cfg_num++;
+  attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING;
+  attrs[actual_cfg_num].value.enableProfiling = 1U;
   actual_cfg_num++;
   cfg_attrs = bg::ValueHolder::CreateConst(&attrs, sizeof(attrs));
   return actual_cfg_num;
