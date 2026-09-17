@@ -103,8 +103,8 @@ Status ProgramGenerator::GenerateInterfaceHeader(Om2CodePrinter &code_printer) {
   file_items.push_back(ast_.Namespace(
       "om2",
       {
-          ast_.Field("constexpr int32_t", "INPUT_NUM", static_cast<int>(codegen_model_.model_io.input_count)),
-          ast_.Field("constexpr int32_t", "OUTPUT_NUM", static_cast<int>(codegen_model_.model_io.output_count)),
+          ast_.Field("constexpr int32_t", "INPUT_NUM", static_cast<int32_t>(codegen_model_.model_io.input_count)),
+          ast_.Field("constexpr int32_t", "OUTPUT_NUM", static_cast<int32_t>(codegen_model_.model_io.output_count)),
           ast_.Field("constexpr size_t", "kModelWorkSize", ast_.ULong(codegen_model_.runtime.total_mem_size)),
           ast_.Field("constexpr size_t", "kModelZeroCopySize", ast_.ULong(codegen_model_.runtime.zero_copy_size)),
           interface_handler.BuildAclrtMallocFunction(),

@@ -19,10 +19,16 @@ namespace ge {
 struct KernelExBuildData {
   std::vector<OpArgDesc> ordered_args;
   uint32_t args_info_num{0U};
-  uint32_t deploy_type{0U}, mem_type{0U}, memcpy_kind{0U};
+  uint32_t deploy_type{0U};
+  uint32_t mem_type{0U};
+  uint32_t memcpy_kind{0U};
   uint32_t engine_type_val{0U};  // aclrtEngineType numeric value for table-driven dispatch
-  std::vector<uint8_t> args_blob, task_info_blob, ext_info_blob;
-  uint32_t args_blob_len{0U}, task_info_blob_len{0U}, ext_info_blob_len{0U};
+  std::vector<uint8_t> args_blob;
+  std::vector<uint8_t> task_info_blob;
+  std::vector<uint8_t> ext_info_blob;
+  uint32_t args_blob_len{0U};
+  uint32_t task_info_blob_len{0U};
+  uint32_t ext_info_blob_len{0U};
   KernelTaskSemantic semantic{};
 };
 

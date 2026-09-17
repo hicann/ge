@@ -21,7 +21,7 @@ using Json = nlohmann::json;
 using FD = google::protobuf::FieldDescriptor;
 
 // ListValue 元素类型枚举，对应 proto 中 val_type 的取值。
-enum class ListValType : int {
+enum class ListValType : int32_t {
   kNone = 0,
   kString = 1,
   kInt = 2,
@@ -252,7 +252,7 @@ Json WrapNestedList(const Json &value, const char *attr_field_name, const char *
 
 bool SerializeIntegerFieldValue(const google::protobuf::Message &msg, const google::protobuf::Reflection *ref,
                                 const google::protobuf::FieldDescriptor *field, const bool is_repeated,
-                                const int repeated_index, Json &out) {
+                                const int32_t repeated_index, Json &out) {
   switch (field->type()) {
     case FD::TYPE_INT64:
     case FD::TYPE_SINT64:
@@ -595,7 +595,7 @@ void VisualJsonConverter::SerializeSingularField(const google::protobuf::Message
 
 void VisualJsonConverter::SerializeFieldValue(const google::protobuf::Message &msg,
                                               const google::protobuf::Reflection *ref,
-                                              const google::protobuf::FieldDescriptor *field, int repeated_index,
+                                              const google::protobuf::FieldDescriptor *field, int32_t repeated_index,
                                               nlohmann::json &out) {
   const bool is_repeated = repeated_index >= 0;
   if (SerializeIntegerFieldValue(msg, ref, field, is_repeated, repeated_index, out)) {

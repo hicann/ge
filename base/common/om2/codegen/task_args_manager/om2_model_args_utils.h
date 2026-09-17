@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_ARGS_UTILS_H
-#define AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_ARGS_UTILS_H
+#ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_MODEL_ARGS_UTILS_H_
+#define AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_MODEL_ARGS_UTILS_H_
 
 #include <vector>
 #include "framework/common/ge_inner_error_codes.h"
@@ -167,4 +167,4 @@ class ModelUtils {
 }  // namespace om2
 }  // namespace ge
 
-#endif  // AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_ARGS_UTILS_H
+#endif  // AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_MODEL_ARGS_UTILS_H_

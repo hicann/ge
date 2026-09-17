@@ -50,9 +50,7 @@
 
 namespace {
 constexpr uint32_t kOriginalOmPartitionNum = 1U;
-constexpr int32_t kModuleTypeAicore = 4;
 constexpr int32_t kModuleTypeVectorCore = 7;
-constexpr int32_t kInfoTypeCoreNum = 3;
 const string kOpsProto = "libopsproto_rt2.0.so";
 const string kOpMaster = "libopmaster_rt2.0.so";
 const string kInner = "built-in";

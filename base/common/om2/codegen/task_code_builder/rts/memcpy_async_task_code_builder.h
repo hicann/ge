@@ -17,8 +17,11 @@
 namespace ge {
 struct MemcpyAsyncBuildData {
   std::vector<OpArgDesc> ordered_args;
-  uint64_t dst_max{0U}, count{0U};
-  uint32_t kind{0U}, stream_id{0U}, args_table_idx{0U};
+  uint64_t dst_max{0U};
+  uint64_t count{0U};
+  uint32_t kind{0U};
+  uint32_t stream_id{0U};
+  uint32_t args_table_idx{0U};
   bool io_refresh{false};
 };
 

@@ -57,7 +57,7 @@ Status StreamSwitchTaskCodeBuilder::Contribute(TaskSemanticContributeContext &co
     return FAILED;
   }
   GELOGI("Stream Switch Task Codegen: op[%s], cond_[%u], true stream id[%lu], stream id[%u], data type[%ld].",
-         context.op_desc->GetName().c_str(), build_data_.cond, static_cast<unsigned long>(build_data_.true_stream_id),
+         context.op_desc->GetName().c_str(), build_data_.cond, static_cast<uint64_t>(build_data_.true_stream_id),
          header_.stream_id, build_data_.data_type);
   build_data_.stream_id = header_.stream_id;
   for (const auto &addr : input_addr_nodes_) {

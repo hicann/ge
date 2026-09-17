@@ -848,7 +848,7 @@ static aclError ModelExecute(const uint32_t modelId, const aclmdlDataset *const 
 
     auto &dataBuffer = output->blobs[i].dataBuf;
     if ((dataBuffer->data == nullptr) && (!basync)) {
-      const auto outputSize = outputData.blobs[i].length;
+      const size_t outputSize = outputData.blobs[i].length;
       ACL_REQUIRES_CALL_RTS_OK(
           aclrtMalloc(reinterpret_cast<void **>(&dataBuffer->data), outputSize, ACL_MEM_TYPE_HIGH_BAND_WIDTH),
           aclrtMalloc);
@@ -1456,7 +1456,7 @@ aclError aclmdlBundleInitFromMemImpl(const void *model, size_t modelSize, void *
   ACL_LOG_INFO("start to execute aclmdlBundleInitFromMem, model size %zu, varWeightSize %zu", modelSize, varWeightSize);
   std::shared_ptr<const uint8_t> tmpData;
   // no delete func
-  tmpData.reset(ge::PtrToPtr<void, uint8_t>(model), [](const uint8_t *const p) { (void)p; });
+  tmpData.reset(ge::PtrToPtr<void, uint8_t>(model), [](const uint8_t *) {});
   ACL_REQUIRES_OK(BundleInitFromMem(tmpData, modelSize, "", varWeightPtr, varWeightSize, bundleId));
   ACL_LOG_INFO("end to execute aclmdlBundleInitFromMem, model size %zu, varWeightSize %zu, bundleId %u", modelSize,
                varWeightSize, *bundleId);

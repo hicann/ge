@@ -1950,7 +1950,9 @@ Arg KernelTaskCodeBuilder::RenderAicoreOpDefFields(const AicoreTaskData &data) {
   if (!orig_names.empty()) {
     std::string joined;
     for (size_t i = 0U; i < orig_names.size(); ++i) {
-      if (i != 0U) joined += ';';
+      if (i != 0U) {
+        joined += ';';
+      }
       joined += orig_names[i];
     }
     orig_names_arg = Arg::StringLiteral(joined);

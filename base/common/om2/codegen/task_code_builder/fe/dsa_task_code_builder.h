@@ -18,10 +18,16 @@ namespace ge {
 struct DsaBuildData {
   std::vector<OpArgDesc> ordered_args;
   int64_t op_desc_id{0};
-  uint32_t sqe_type{0U}, sqe_size{0U}, stream_id{0U};
+  uint32_t sqe_type{0U};
+  uint32_t sqe_size{0U};
+  uint32_t stream_id{0U};
   uint8_t dump_flag{0U};
-  uint32_t start{0U}, distribution_type{0U}, data_type{0U}, alg_type{0U};
-  uint32_t param_vld_bitmap{0U}, param_addr_val_bitmap{0U};
+  uint32_t start{0U};
+  uint32_t distribution_type{0U};
+  uint32_t data_type{0U};
+  uint32_t alg_type{0U};
+  uint32_t param_vld_bitmap{0U};
+  uint32_t param_addr_val_bitmap{0U};
   uint64_t seed_value{0U};
   bool seed_is_addr{false};
   uint64_t random_count_value{0U};
@@ -30,9 +36,14 @@ struct DsaBuildData {
   bool input1_is_addr{false};
   uint64_t input2_value{0U};
   bool input2_is_addr{false};
-  uint32_t hbm_table_index{0U}, hbm_args_size{0U};
-  uint32_t idx_output{0U}, state_addr_idx{0U}, idx_seed{0U}, idx_count{0U};
-  uint32_t idx_input1{0U}, idx_input2{0U};
+  uint32_t hbm_table_index{0U};
+  uint32_t hbm_args_size{0U};
+  uint32_t idx_output{0U};
+  uint32_t state_addr_idx{0U};
+  uint32_t idx_seed{0U};
+  uint32_t idx_count{0U};
+  uint32_t idx_input1{0U};
+  uint32_t idx_input2{0U};
   uint32_t num_iov_entries{0U};
   bool state_from_workspace{false};
   bool has_input2{true};
