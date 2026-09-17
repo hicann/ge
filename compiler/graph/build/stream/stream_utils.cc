@@ -22,6 +22,7 @@
 #include "api/gelib/gelib.h"
 #include "register/register_custom_pass.h"
 #include "register/custom_pass_context_impl.h"
+#include "graph/fusion/fusion_utils.h"
 
 namespace {
 constexpr const ge::char_t *const kTrueStr = "true";
@@ -714,9 +715,11 @@ Status StreamUtils::RunCustomStreamPass(const ComputeGraphPtr &root_graph, int64
   const int64_t orgin_max_stream_id = next_stream_id - 1;
   StreamPassContext context(orgin_max_stream_id);
   GE_TRACE_START(RunCustomStreamPass);
-  GE_ASSERT_SUCCESS(CustomPassHelper::Instance().Run(graph, context, CustomPassStage::kAfterAssignLogicStream),
-                    "Run allocate stream pass for graph [%s] failed, reason: %s.", root_graph->GetName().c_str(),
-                    context.GetErrorMessage().GetString());
+  auto pass_name_to_switches = fusion::FusionUtils::ParseFusionSwitch();
+  GE_ASSERT_SUCCESS(
+      CustomPassHelper::Instance().Run(graph, context, CustomPassStage::kAfterAssignLogicStream, pass_name_to_switches),
+      "Run allocate stream pass for graph [%s] failed, reason: %s.", root_graph->GetName().c_str(),
+      context.GetErrorMessage().GetString());
   GE_COMPILE_TRACE_TIMESTAMP_END(RunCustomStreamPass, "RunCustomPass_AfterAssignLogicStream");
   const int64_t new_stream_num = context.GetCurrMaxStreamId() - orgin_max_stream_id;
   GE_ASSERT_TRUE(new_stream_num >= 0);

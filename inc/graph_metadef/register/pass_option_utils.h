@@ -11,14 +11,29 @@
 #ifndef INC_REGISTER_PASS_OPTION_UTILS_H
 #define INC_REGISTER_PASS_OPTION_UTILS_H
 
+#include <map>
+#include <string>
 #include "optimization_option_registry.h"
 #include "graph/error_codes.h"
+#include "register/register_custom_pass.h"
 namespace ge {
 class PassOptionUtils {
  public:
   static graphStatus CheckIsPassEnabled(const std::string &pass_name, bool &is_enabled);
 
   static graphStatus CheckIsPassEnabledByOption(const std::string &pass_name, bool &is_enabled);
+
+  /**
+   * 综合运行时配置和注册默认值，判断pass是否执行
+   * 优先级：graph option > JSON精确匹配 > JSON ALL通配 > 注册默认值
+   * @param pass_name_2_switches JSON开关配置map
+   * @param pass_name pass名称
+   * @param default_switch 注册时声明的默认开关状态
+   * @return true表示执行，false表示跳过
+   * @since 9.3.0(2026-09)
+   */
+  static bool IsPassEnable(const std::map<std::string, bool> &pass_name_2_switches, const std::string &pass_name,
+                           PassSwitch default_switch);
 };
 }  // namespace ge
 

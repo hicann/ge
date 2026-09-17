@@ -13,6 +13,7 @@
 
 #include <set>
 #include <shared_mutex>
+#include <map>
 #include "external/ge_common/ge_api_error_codes.h"
 #include "register/register_custom_pass.h"
 #include "register/register_types.h"
@@ -28,9 +29,18 @@ class CustomPassHelper {
 
   Status Unload();
 
-  Status Run(GraphPtr &graph, CustomPassContext &custom_pass_context) const;
-
-  Status Run(GraphPtr &graph, CustomPassContext &custom_pass_context, const CustomPassStage stage) const;
+  /**
+   * 执行指定阶段的自定义pass，支持开关过滤
+   * @param graph 目标图
+   * @param custom_pass_context 上下文
+   * @param stage 执行阶段，默认为kBeforeInferShape
+   * @param pass_name_to_switches 开关配置（来自fusion_switch_file JSON解析），默认为空
+   * @return Status
+   * @since 9.3.0(2026-09)
+   */
+  Status Run(GraphPtr &graph, CustomPassContext &custom_pass_context,
+             const CustomPassStage stage = CustomPassStage::kBeforeInferShape,
+             const std::map<std::string, bool> &pass_name_to_switches = {}) const;
 
   ~CustomPassHelper() = default;
 

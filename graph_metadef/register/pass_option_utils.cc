@@ -92,4 +92,22 @@ graphStatus PassOptionUtils::CheckIsPassEnabledByOption(const std::string &pass_
 
   return GRAPH_FAILED;
 }
+
+bool PassOptionUtils::IsPassEnable(const std::map<std::string, bool> &pass_name_2_switches,
+                                   const std::string &pass_name, PassSwitch default_switch) {
+  static const std::string kPassSwitchAll = "ALL";
+  bool is_enable_by_option = false;
+  if (CheckIsPassEnabledByOption(pass_name, is_enable_by_option) == SUCCESS) {
+    return is_enable_by_option;
+  }
+  const auto iter = pass_name_2_switches.find(pass_name);
+  if (iter != pass_name_2_switches.cend()) {
+    return iter->second;
+  }
+  const auto all_iter = pass_name_2_switches.find(kPassSwitchAll);
+  if (all_iter != pass_name_2_switches.end()) {
+    return all_iter->second;
+  }
+  return default_switch == PassSwitch::kOn;
+}
 }  // namespace ge

@@ -314,6 +314,7 @@ add_executable(graph_engine_compile_test
         "${AIR_CODE_DIR}/tests/ge/st/testcase/test_mem_opt_rule.cc"
         "${AIR_CODE_DIR}/tests/ge/st/testcase/test_memory_api.cc"
         "${AIR_CODE_DIR}/tests/ge/st/testcase/test_kernel_manager.cc"
+        "${AIR_CODE_DIR}/tests/ge/st/testcase/test_fusion_pass_switch_st.cc"
         )
 
 # 安装 ge_py wheel 到 ST 测试专用目录（用于 fusion_pass_executor_unittest）

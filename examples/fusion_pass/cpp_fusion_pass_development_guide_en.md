@@ -262,7 +262,40 @@ Common stages:
 
 For initial development, use `kBeforeInferShape`.
 
-## 9. Writing DecomposePass
+## 9. Registering Default Switch State
+
+If a pass has precision risk or performance regression, you can declare it as default-off at registration time. The pass will only execute when the user explicitly enables it:
+
+```cpp
+REG_FUSION_PASS(RiskyPass).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape);
+```
+
+| Enum Value | Semantics |
+|------------|-----------|
+| `PassSwitch::kOn` | Default on (default value when `DefaultSwitch` is not called, consistent with historical behavior) |
+| `PassSwitch::kOff` | Default off, only executes when user explicitly enables via `--optimization_switch` or `fusion_switch_file` |
+
+Switch priority:
+
+| Priority | Source | Description |
+|----------|--------|-------------|
+| 1 (highest) | graph option | `--optimization_switch=PassName:on/off`, takes effect immediately at runtime |
+| 2 | JSON exact match | `true`/`false` for the pass name in `fusion_switch_file` JSON |
+| 3 | JSON ALL wildcard | `"ALL": true/false` in JSON, applies to all passes not exactly matched |
+| 4 (lowest) | Registration default | `PassSwitch` declared at pass registration time, defaults to `kOn` if not declared |
+
+The top 3 layers return immediately on hit. Layer 4 only takes effect when the top 3 layers are all unconfigured.
+
+> If the `.so` needs to run on old GE (< 9.3.0), use `COMPILER_VERSION_NUM` compile macro to guard `DefaultSwitch` calls:
+> ```cpp
+> #if COMPILER_VERSION_NUM >= 9030000
+> REG_FUSION_PASS(RiskyPass).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape);
+> #else
+> REG_FUSION_PASS(RiskyPass).Stage(CustomPassStage::kBeforeInferShape);
+> #endif
+> ```
+
+## 10. Writing DecomposePass
 
 If you want to decompose one node into multiple nodes, use `DecomposePass`.
 
@@ -301,7 +334,7 @@ The second parameter of `REG_DECOMPOSE_PASS` is the list of operator types to ma
 
 Complete example see [DecomposePass C++ example](pattern_base_pass/6_decompose_grouped_conv_to_splited_pass/cpp/README.md).
 
-## 10. Compilation and Running
+## 11. Compilation and Running
 
 Each example directory comes with `CMakeLists.txt`. General process is as follows.
 
@@ -336,7 +369,7 @@ atc --model=./model.onnx --framework=5 --soc_version=xxx --output=./model
 
 Online scenario usually triggers GE compilation through `torch_forward.py` in examples.
 
-## 11. Verification and Troubleshooting
+## 12. Verification and Troubleshooting
 
 Recommend enabling graph dump:
 
@@ -367,7 +400,7 @@ export ASCEND_GLOBAL_LOG_LEVEL=0
 
 When using `atc`, can add `--log=debug`.
 
-## 12. Recommended Reading Order
+## 13. Recommended Reading Order
 
 1. [Fusion Pattern Pass Mechanism](../../docs/zh/design/features/fusion_pattern_pass.md)
 2. [AddZeroPass C++ example](pattern_base_pass/4_add_zero_pass/cpp/README.md)

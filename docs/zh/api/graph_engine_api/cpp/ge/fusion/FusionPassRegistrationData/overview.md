@@ -18,5 +18,7 @@ FusionPassRegistrationData &Stage(CustomPassStage stage)
 CustomPassStage GetStage() const
 FusionPassRegistrationData &CreatePassFn(const CreateFusionPassFn &create_fusion_pass_fn)
 CreateFusionPassFn GetCreatePassFn() const
+FusionPassRegistrationData &DefaultSwitch(PassSwitch pass_switch)
+PassSwitch GetDefaultSwitch() const
 AscendString ToString() const
 ```

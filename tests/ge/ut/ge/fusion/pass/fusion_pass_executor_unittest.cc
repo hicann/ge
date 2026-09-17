@@ -40,6 +40,7 @@
 #include "compiler/graph/fusion/pass/fusion_pass_executor.h"
 #include "compiler/graph/fusion/pass/pass_plugin_loader.h"
 #include "register/optimization_option_registry.h"
+#include "register/pass_option_utils.h"
 
 // 单例，为了保证ut效果，需要清理其成员
 #define private public
@@ -2394,6 +2395,288 @@ TEST_F(UtestFusionPassExecutor, PythonPassBridgeCApi_RegisterPassesWithoutPython
   };
   EXPECT_NE(api->register_passes(&registrar), SUCCESS);
   CleanupBridgeStateForUt(*api);
+}
+
+// === PassSwitch (default switch) UT ===
+
+// 定义可复用的 pass 类：TransDataToReluPassWithSwitch
+// 通过 REG_FUSION_PASS 链式调用 DefaultSwitch(kOff) 声明默认关闭，验证默认关闭行为
+class TransDataToReluPassDefaultOff : public PatternFusionPass {
+ protected:
+  std::vector<PatternUniqPtr> Patterns() override {
+    std::vector<PatternUniqPtr> patterns;
+    auto pattern_graph = ge::es::EsGraphBuilder("pattern");
+    auto esb_graph = pattern_graph.GetCGraphBuilder();
+    auto data = EsCreateGraphInput(esb_graph, 0);
+    auto transdata = EsTransData(data, "0", "29", 0, 0, 0);
+    esb_graph->SetGraphOutput(transdata, 0);
+    auto pattern = std::make_unique<Pattern>(std::move(*pattern_graph.BuildAndReset()));
+    patterns.emplace_back(pattern.release());
+    return patterns;
+  }
+  bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result) override {
+    return true;
+  }
+  std::unique_ptr<Graph> Replacement(const unique_ptr<MatchResult> &match_result) override {
+    auto replace_graph = ge::es::EsGraphBuilder("replacement");
+    auto esb_graph = replace_graph.GetCGraphBuilder();
+    auto data = EsCreateGraphInput(esb_graph, 0);
+    auto relu = EsRelu(data);
+    esb_graph->SetGraphOutput(relu, 0);
+    return replace_graph.BuildAndReset();
+  }
+};
+
+// 场景1：注册为 kOff + 无任何运行时配置 → pass 被跳过（默认关闭生效）
+TEST_F(UtestFusionPassExecutor, PatternFusionPassReg_DefaultOff_NoConfig_PassSkipped) {
+  REG_FUSION_PASS(TransDataToReluPassDefaultOff)
+      .DefaultSwitch(PassSwitch::kOff)
+      .Stage(CustomPassStage::kAfterInferShape);
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+
+  // 不配置任何 switch（无 option、无 JSON）
+  GetThreadLocalContext().GetOo().Initialize({}, OptionRegistry::GetInstance().GetRegisteredOptTable());
+  GetThreadLocalContext().SetGlobalOption({});
+
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  bool has_relu = false;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    if (node->GetType() == "Relu") {
+      has_relu = true;
+    }
+  }
+  EXPECT_FALSE(has_relu);  // pass 默认关闭，图没有被改
+}
+
+// 场景2：注册为 kOff + graph option "on" → pass 执行（第1层覆盖注册默认值）
+TEST_F(UtestFusionPassExecutor, PatternFusionPassReg_DefaultOff_OptionOn_PassExecuted) {
+  REG_FUSION_PASS(TransDataToReluPassDefaultOff)
+      .DefaultSwitch(PassSwitch::kOff)
+      .Stage(CustomPassStage::kAfterInferShape);
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+
+  GetThreadLocalContext().GetOo().Initialize({{ge::OPTIMIZATION_SWITCH, "TransDataToReluPassDefaultOff:on"}},
+                                             OptionRegistry::GetInstance().GetRegisteredOptTable());
+
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  bool has_relu = false;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    if (node->GetType() == "Relu") {
+      has_relu = true;
+    }
+  }
+  EXPECT_TRUE(has_relu);  // option 覆盖了 kOff，pass 执行，图被改
+}
+
+// 场景3：注册为 kOff + JSON 精确匹配 "on" → pass 执行（第2层覆盖注册默认值）
+TEST_F(UtestFusionPassExecutor, PatternFusionPassReg_DefaultOff_JsonExactOn_PassExecuted) {
+  REG_FUSION_PASS(TransDataToReluPassDefaultOff)
+      .DefaultSwitch(PassSwitch::kOff)
+      .Stage(CustomPassStage::kAfterInferShape);
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+
+  std::string fusion_config_json_str =
+      "{\n"
+      "      \"Switch\":{\n"
+      "          \"GraphFusion\":{\n"
+      "            \"TransDataToReluPassDefaultOff\" : \"on\"\n"
+      "          },\n"
+      "          \"UBFusion\":{\n"
+      "          }\n"
+      "      }}";
+  std::ofstream json_file("./fusion_switch_config.json");
+  json_file << fusion_config_json_str << std::endl;
+
+  std::string config_file_path = GetCodeDir() + "/fusion_switch_config.json";
+  GetThreadLocalContext().SetGlobalOption({{FUSION_SWITCH_FILE, config_file_path}});
+
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  bool has_relu = false;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    if (node->GetType() == "Relu") {
+      has_relu = true;
+    }
+  }
+  EXPECT_TRUE(has_relu);  // JSON 精确匹配覆盖了 kOff，pass 执行
+  remove("./fusion_switch_config.json");
+}
+
+// 场景4：注册为 kOff + JSON "ALL":"on" → pass 执行（第3层覆盖注册默认值）
+TEST_F(UtestFusionPassExecutor, PatternFusionPassReg_DefaultOff_JsonAllOn_PassExecuted) {
+  REG_FUSION_PASS(TransDataToReluPassDefaultOff)
+      .DefaultSwitch(PassSwitch::kOff)
+      .Stage(CustomPassStage::kAfterInferShape);
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+
+  std::string fusion_config_json_str =
+      "{\n"
+      "      \"Switch\":{\n"
+      "          \"GraphFusion\":{\n"
+      "            \"ALL\" : \"on\"\n"
+      "          },\n"
+      "          \"UBFusion\":{\n"
+      "          }\n"
+      "      }}";
+  std::ofstream json_file("./fusion_switch_config.json");
+  json_file << fusion_config_json_str << std::endl;
+
+  std::string config_file_path = GetCodeDir() + "/fusion_switch_config.json";
+  GetThreadLocalContext().SetGlobalOption({{FUSION_SWITCH_FILE, config_file_path}});
+
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  bool has_relu = false;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    if (node->GetType() == "Relu") {
+      has_relu = true;
+    }
+  }
+  EXPECT_TRUE(has_relu);  // JSON ALL 通配覆盖了 kOff，pass 执行
+  remove("./fusion_switch_config.json");
+}
+
+// 场景5：不调用 DefaultSwitch + 无配置 → pass 执行（向后兼容，行为不变）
+TEST_F(UtestFusionPassExecutor, PatternFusionPassReg_NoSwitch_DefaultOn_PassExecuted) {
+  class TransDataToReluPassNoSwitch : public PatternFusionPass {
+   protected:
+    std::vector<PatternUniqPtr> Patterns() override {
+      std::vector<PatternUniqPtr> patterns;
+      auto pattern_graph = ge::es::EsGraphBuilder("pattern");
+      auto esb_graph = pattern_graph.GetCGraphBuilder();
+      auto data = EsCreateGraphInput(esb_graph, 0);
+      auto transdata = EsTransData(data, "0", "29", 0, 0, 0);
+      esb_graph->SetGraphOutput(transdata, 0);
+      auto pattern = std::make_unique<Pattern>(std::move(*pattern_graph.BuildAndReset()));
+      patterns.emplace_back(pattern.release());
+      return patterns;
+    }
+    bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result) override {
+      return true;
+    }
+    std::unique_ptr<Graph> Replacement(const unique_ptr<MatchResult> &match_result) override {
+      auto replace_graph = ge::es::EsGraphBuilder("replacement");
+      auto esb_graph = replace_graph.GetCGraphBuilder();
+      auto data = EsCreateGraphInput(esb_graph, 0);
+      auto relu = EsRelu(data);
+      esb_graph->SetGraphOutput(relu, 0);
+      return replace_graph.BuildAndReset();
+    }
+  };
+  REG_FUSION_PASS(TransDataToReluPassNoSwitch).Stage(CustomPassStage::kAfterInferShape);
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+
+  GetThreadLocalContext().GetOo().Initialize({}, OptionRegistry::GetInstance().GetRegisteredOptTable());
+  GetThreadLocalContext().SetGlobalOption({});
+
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  bool has_relu = false;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    if (node->GetType() == "Relu") {
+      has_relu = true;
+    }
+  }
+  EXPECT_TRUE(has_relu);  // 不传 switch 默认 kOn，pass 执行
+}
+
+// 场景6：注册为 kOff + graph option "off" → pass 跳过（option 和 kOff 同向）
+TEST_F(UtestFusionPassExecutor, PatternFusionPassReg_DefaultOff_OptionOff_PassSkipped) {
+  REG_FUSION_PASS(TransDataToReluPassDefaultOff)
+      .DefaultSwitch(PassSwitch::kOff)
+      .Stage(CustomPassStage::kAfterInferShape);
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+
+  GetThreadLocalContext().GetOo().Initialize({{ge::OPTIMIZATION_SWITCH, "TransDataToReluPassDefaultOff:off"}},
+                                             OptionRegistry::GetInstance().GetRegisteredOptTable());
+
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  bool has_relu = false;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    if (node->GetType() == "Relu") {
+      has_relu = true;
+    }
+  }
+  EXPECT_FALSE(has_relu);  // option off + kOff 同向，pass 跳过
+}
+
+// 场景7：GetDefaultSwitch 返回值校验
+TEST_F(UtestFusionPassExecutor, FusionPassRegistrationData_GetDefaultSwitch_ReturnsCorrectValue) {
+  // 不声明 switch：默认 kOn
+  FusionPassRegistrationData reg_data_on("TestPassDefaultOn");
+  EXPECT_EQ(reg_data_on.GetDefaultSwitch(), PassSwitch::kOn);
+
+  // 声明 kOff
+  FusionPassRegistrationData reg_data_off("TestPassDefaultOff");
+  reg_data_off.DefaultSwitch(PassSwitch::kOff);
+  EXPECT_EQ(reg_data_off.GetDefaultSwitch(), PassSwitch::kOff);
+
+  // 声明 kOn（显式）
+  FusionPassRegistrationData reg_data_explicit_on("TestPassExplicitOn");
+  reg_data_explicit_on.DefaultSwitch(PassSwitch::kOn);
+  EXPECT_EQ(reg_data_explicit_on.GetDefaultSwitch(), PassSwitch::kOn);
+}
+
+// 场景8：ToString 包含 switch 信息
+TEST_F(UtestFusionPassExecutor, FusionPassRegistrationData_ToString_ContainsSwitchInfo) {
+  FusionPassRegistrationData reg_data_off("TestPassForToString");
+  reg_data_off.DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape);
+  std::string str = reg_data_off.ToString().GetString();
+  EXPECT_NE(str.find("switch[off]"), std::string::npos);
+
+  FusionPassRegistrationData reg_data_on("TestPassForToStringOn");
+  reg_data_on.Stage(CustomPassStage::kBeforeInferShape);
+  str = reg_data_on.ToString().GetString();
+  EXPECT_NE(str.find("switch[on]"), std::string::npos);
+}
+
+// 场景9：PassOptionUtils::IsPassEnable 四层优先级直接验证
+TEST_F(UtestFusionPassExecutor, PassOptionUtils_IsPassEnable_FourLayerPriority) {
+  std::map<std::string, bool> empty_switches;
+
+  // 第4层：无配置 + kOff → false
+  EXPECT_FALSE(PassOptionUtils::IsPassEnable(empty_switches, "NonExistentPass", PassSwitch::kOff));
+  // 第4层：无配置 + kOn → true
+  EXPECT_TRUE(PassOptionUtils::IsPassEnable(empty_switches, "NonExistentPass", PassSwitch::kOn));
+
+  // 第2层：JSON 精确匹配覆盖 kOff
+  std::map<std::string, bool> json_switches = {{"TargetPass", true}};
+  EXPECT_TRUE(PassOptionUtils::IsPassEnable(json_switches, "TargetPass", PassSwitch::kOff));
+
+  std::map<std::string, bool> json_switches_off = {{"TargetPass", false}};
+  EXPECT_FALSE(PassOptionUtils::IsPassEnable(json_switches_off, "TargetPass", PassSwitch::kOn));
+
+  // 第3层：JSON ALL 通配覆盖 kOff
+  std::map<std::string, bool> all_switches = {{"ALL", true}};
+  EXPECT_TRUE(PassOptionUtils::IsPassEnable(all_switches, "NonExistentPass", PassSwitch::kOff));
+
+  std::map<std::string, bool> all_switches_off = {{"ALL", false}};
+  EXPECT_FALSE(PassOptionUtils::IsPassEnable(all_switches_off, "NonExistentPass", PassSwitch::kOn));
+
+  // 第2层优先于第3层：精确匹配 on + ALL off → on
+  std::map<std::string, bool> mixed_switches = {{"TargetPass", true}, {"ALL", false}};
+  EXPECT_TRUE(PassOptionUtils::IsPassEnable(mixed_switches, "TargetPass", PassSwitch::kOff));
+}
+
+TEST_F(UtestFusionPassExecutor, FusionPassRegistrationData_GetDefaultSwitch_NullImpl) {
+  FusionPassRegistrationData reg_data("TestPassNullImpl");
+  reg_data.impl_ = nullptr;
+  EXPECT_EQ(reg_data.GetDefaultSwitch(), PassSwitch::kOn);
 }
 
 }  // namespace fusion
