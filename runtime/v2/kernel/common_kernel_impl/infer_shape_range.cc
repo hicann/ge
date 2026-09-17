@@ -29,7 +29,7 @@ void ShapeRangeToStringStream(std::stringstream &ss, const Range<Shape> &shape_r
     return;
   }
   if (max->GetDimNum() != min->GetDimNum()) {
-    ss << "dim num not match. max dim num: " << max->GetDimNum() << ", min dim num: " << min->GetDimNum();
+    ss << "dim num does not match. max dim num: " << max->GetDimNum() << ", min dim num: " << min->GetDimNum();
     return;
   }
   ss << "[";

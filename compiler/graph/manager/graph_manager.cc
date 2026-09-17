@@ -5451,7 +5451,7 @@ Status GraphManager::SetDefaultHcclOptions() const {
   if (graph_options.find(OPTION_EXEC_HCOM_GROUPLIST) != graph_options.end()) {
     GELOGE(FAILED,
            "[Check][HcomGrouplist] OPTION_EXEC_HCOM_GROUPLIST conflicts with"
-           "OPTION_EXEC_HCOM_GROUPLIST_V2, cannot coexist.");
+           " OPTION_EXEC_HCOM_GROUPLIST_V2, cannot coexist.");
     return FAILED;
   }
   graph_options[OPTION_EXEC_RANK_TABLE] = HcclOfflineOptionBuilder::Instance().GetLogicRankTable();

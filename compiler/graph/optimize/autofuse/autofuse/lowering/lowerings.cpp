@@ -636,7 +636,7 @@ graphStatus LoweringManager::PostPrecessAfterLoweringNode(const NodePtr &node, c
 
   if (LoweringUtils::IsAnyKernelBoxOversize(kernel_boxes, config) || LoweringUtils::IsNodeCoreNumDif(node)) {
     GELOGI(
-        "Try re-lowering for node %s, type %s after realize inputs as kernel box is oversize, or this node"
+        "Try re-lowering for node %s, type %s after realize inputs as kernel box is oversize, or this node "
         "different core num scope with after nodes.",
         node->GetName().c_str(), node->GetType().c_str());
     if (RealizeInputsAndLowering(node) != GRAPH_SUCCESS) {

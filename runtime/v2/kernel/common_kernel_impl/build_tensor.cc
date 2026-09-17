@@ -65,7 +65,7 @@ ge::graphStatus GetShapeOutputValue(const KernelContext *context, std::stringstr
     } else if (out_data_type == ge::DataType::DT_INT64) {
       GetTensorValue<uint64_t>(tensor_data->GetAddr(), in_shape->GetOriginShape().GetDimNum(), ss);
     } else {
-      ss << "not support dtype";
+      ss << "dtype is not supported";
     }
     ss << "]";
   }

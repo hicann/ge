@@ -2136,7 +2136,7 @@ Status ModelManager::LaunchKernelCustAicpuSo(const std::string &kernel_name) {
   args_info.timeout = kNeverTimeout;
   GE_CHK_RT(rtAicpuKernelLaunchExWithArgs(rtKernelType_t::KERNEL_TYPE_AICPU, kernel_name.c_str(), 1U, &args_info,
                                           nullptr, stream, RT_KERNEL_USE_SPECIAL_TIMEOUT));
-  GELOGI("Load cust so, soNameAddrOffset %u, kernelNameAddrOffset %u, timeout %u", args_info.soNameAddrOffset,
+  GELOGI("Load cust so, soNameAddrOffset %u, kernelNameAddrOffset %u, timeout %us", args_info.soNameAddrOffset,
          args_info.kernelNameAddrOffset, args_info.timeout);
 
   GE_CHK_ACL_RET(aclrtSynchronizeStream(stream));
@@ -2332,7 +2332,7 @@ Status ModelManager::LaunchKernelBuiltinAicpuSo(const std::string &kernel_name, 
                                                 nullptr, stream, RT_KERNEL_USE_SPECIAL_TIMEOUT));
     GELOGI("[OpMasterDevice][BuiltIn]Launch so[%s], kernel_name[%s], stream[%" PRIu64 "].", so_name.c_str(),
            kernel_name.c_str(), PtrToValue(stream));
-    GELOGI("Load build in so, soNameAddrOffset %u, kernelNameAddrOffset %u, timeout %u", args_info.soNameAddrOffset,
+    GELOGI("Load build in so, soNameAddrOffset %u, kernelNameAddrOffset %u, timeout %us", args_info.soNameAddrOffset,
            args_info.kernelNameAddrOffset, args_info.timeout);
     GE_CHK_ACL_RET(aclrtSynchronizeStream(stream));
   }

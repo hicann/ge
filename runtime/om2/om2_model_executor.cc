@@ -1604,7 +1604,7 @@ class Om2ModelExecutor::Impl {
     if (run_model_info_.unload_func != nullptr && run_model_info_.model_handle != nullptr) {
       const auto unload_ret = run_model_info_.unload_func(run_model_info_.model_handle, nullptr, nullptr);
       if (unload_ret != ge::GRAPH_SUCCESS) {
-        GELOGI("[OM2] Resource release issue for so file: %s", run_model_info_.so_file.c_str());
+        GELOGW("[OM2] Resource release issue for so file: %s", run_model_info_.so_file.c_str());
       }
     } else {
       GELOGI("[OM2] Unload func not found or model not created, so file: %s", run_model_info_.so_file.c_str());

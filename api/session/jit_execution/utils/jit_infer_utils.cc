@@ -27,7 +27,7 @@
 namespace ge {
 namespace {
 /**
- * 判断node是否为uninfered node, uninfered node会被切到下一张图
+ * 判断node是否为uninferred node, uninferred node会被切到下一张图
  *
  * 1、if/case节点, 符号化暂不支持对子图的推导, 因此if和case的输出必没有符号,
  * 切到下一张图后可以根据上一张图的输出把cond构造成const, 然后对if/case做剪枝, 消除if/case节点, 把子图展平到根图上,
@@ -86,7 +86,7 @@ void DeleteNodesWithoutParentNode(std::vector<NodePtr> &inferred_nodes) {
   // delete nodes whose parents node not inferred
   for (auto it = inferred_nodes.begin(); it != inferred_nodes.end();) {
     if (!ParentNodeInferred(*it, inferred_nodes)) {
-      GELOGD("Infer node:%s. Parent node uninfered", (*it)->GetName().c_str());
+      GELOGD("Infer node:%s. Parent node uninferred", (*it)->GetName().c_str());
       it = inferred_nodes.erase(it);
     } else {
       ++it;
