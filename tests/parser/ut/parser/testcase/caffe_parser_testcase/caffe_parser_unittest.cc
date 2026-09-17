@@ -51,6 +51,7 @@ class UtestCaffeParser : public testing::Test {
  protected:
   void SetUp() {
     ParerUTestsUtils::ClearParserInnerCtx();
+    PreChecker::Instance().Clear();
     RegisterCustomOp();
   }
 

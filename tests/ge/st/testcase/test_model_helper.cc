@@ -530,6 +530,14 @@ void AddFifoWindowCacheTasks(const GeModelPtr &ge_model, const ComputeGraphPtr &
   AddKernelTask(model_def, conv_op_desc, "conv", ccKernelType::TE);
 }
 
+static std::string GetCurArch() {
+#if defined(__aarch64__) || defined(__arm64__)
+  return "aarch64";
+#else
+  return "x86_64";
+#endif
+}
+
 ComputeGraphPtr BuildAutofuseGraphWithStub(const std::string &om_path) {
   auto graph = ShareGraph::AutoFuseNodeGraph();
   EXPECT_NE(graph, nullptr);
@@ -543,8 +551,8 @@ ComputeGraphPtr BuildAutofuseGraphWithStub(const std::string &om_path) {
 }
 
 std::string SaveAutofuseRootModel(const GeRootModelPtr &ge_root_model, const std::string &om_path) {
-  (void)GetThreadLocalContext().SetGlobalOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "x86_64"}});
-  const std::string output = PathJoin(om_path.c_str(), "autofuse_repack") + "_linux_x86_64.om";
+  (void)GetThreadLocalContext().SetGlobalOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", GetCurArch()}});
+  const std::string output = PathJoin(om_path.c_str(), "autofuse_repack") + "_linux_" + GetCurArch() + ".om";
   ModelBufferData first;
   ModelHelper helper;
   helper.SetSaveMode(true);
@@ -556,9 +564,9 @@ std::string GetAutofuseActualOutput(const std::string &output) {
   std::string actual_output = output;
   const auto dot_pos = actual_output.find(".om");
   if (dot_pos < actual_output.length()) {
-    actual_output.insert(dot_pos, "_linux_x86_64");
+    actual_output.insert(dot_pos, "_linux_" + GetCurArch());
   } else {
-    actual_output.append("_linux_x86_64");
+    actual_output.append("_linux_" + GetCurArch());
   }
   return actual_output;
 }
