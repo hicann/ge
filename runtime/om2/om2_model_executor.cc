@@ -1800,7 +1800,7 @@ ge::Status Om2ModelExecutor::GetBatchInfoSize(size_t &shape_count) const {
   return impl_->GetBatchInfoSize(shape_count);
 }
 
-ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, uint64_t length,
+ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, const uint64_t length,
                                                 const std::vector<kAippDynamicBatchPara> &aipp_batch_para,
                                                 const kAippDynamicPara &aipp_parms) {
   return impl_->SetDynamicAippData(dynamic_input_addr, length, aipp_batch_para, aipp_parms);

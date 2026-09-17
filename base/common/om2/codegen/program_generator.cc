@@ -202,14 +202,14 @@ Status ProgramGenerator::GenerateLoadAndRunSource(Om2CodePrinter &code_printer) 
   anonymous_items.push_back(load_and_run_handler.BuildOpDefTable(codegen_model_, task_code_builder_list_));
   std::vector<DeclNode *> body_items = {ast_.Include(codegen_model_.model_name + "_interface.h")};
   if (has_custom_kernel_) {
-    body_items.emplace_back(ast_.Include("graph/custom_op.h"));
-    body_items.emplace_back(ast_.Include("exe_graph/runtime/gert_mem_allocator.h"));
+    (void)body_items.emplace_back(ast_.Include("graph/custom_op.h"));
+    (void)body_items.emplace_back(ast_.Include("exe_graph/runtime/gert_mem_allocator.h"));
   }
   (void)body_items.emplace_back(ast_.Space());
   if (has_custom_kernel_) {
     (void)body_items.emplace_back(ast_.Namespace(
         "ge", {ast_.StablePart(StablePartId::kCreateClassCustomOpFactory, StablePartPlacement::kNamespace)}));
-    body_items.emplace_back(ast_.Space());
+    (void)body_items.emplace_back(ast_.Space());
   }
   (void)body_items.emplace_back(
       ast_.Namespace("om2", {

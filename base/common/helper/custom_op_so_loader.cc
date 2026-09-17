@@ -279,9 +279,9 @@ Status CustomOpSoLoader::DlopenCustomOpSoBins(const std::vector<OpSoBinPtr> &cus
     GE_ASSERT_SUCCESS(CalculateSoBinFingerprint(so_bin, fingerprint_key));
     CustomOpSoHandlePtr candidate_handle;
     GE_ASSERT_SUCCESS(LoadCustomOpSoBinCandidate(so_bin, diagnostic_so_key, fingerprint_key, candidate_handle));
-    current_loaded_handles.emplace_back(std::move(candidate_handle));
+    (void)current_loaded_handles.emplace_back(std::move(candidate_handle));
   }
-  loaded_handles.insert(loaded_handles.end(), current_loaded_handles.cbegin(), current_loaded_handles.cend());
+  (void)loaded_handles.insert(loaded_handles.end(), current_loaded_handles.cbegin(), current_loaded_handles.cend());
   return SUCCESS;
 }
 

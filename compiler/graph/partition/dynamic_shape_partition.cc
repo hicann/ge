@@ -60,9 +60,8 @@ bool IsCustomOpExecOnHostCpu(const ge::OpDescPtr &op_desc) {
       !ge::CustomOpFactory::IsExistOp(ge::AscendString(op_desc->GetTypePtr()), ge::OpBackend::kHostCPU)) {
     return false;
   }
-  std::string lowering_func;
-  return ge::AttrUtils::GetStr(op_desc, ge::kAttrLowingFunc, lowering_func) &&
-         (lowering_func == ge::kHostCpuCustomOpLowerFunc);
+  const std::string *lowering_func_ptr = ge::AttrUtils::GetStr(op_desc, ge::kAttrLowingFunc);
+  return (lowering_func_ptr != nullptr) && (*lowering_func_ptr == ge::kHostCpuCustomOpLowerFunc);
 }
 }  // namespace
 

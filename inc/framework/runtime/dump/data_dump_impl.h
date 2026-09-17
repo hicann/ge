@@ -69,7 +69,8 @@ class DataDumpImpl {
 
   Status ExecuteLoadDumpInfo(const toolkit::aicpu::dump::OpMappingInfo &op_mapping_info);
 
-  Status BuildOpMappingBasicInfo(const ModelDumpInfo &model_info, toolkit::aicpu::dump::OpMappingInfo &op_mapping_info);
+  Status BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
+                                 toolkit::aicpu::dump::OpMappingInfo &dump_op_mapping_info);
 
   Status BuildTaskList(toolkit::aicpu::dump::OpMappingInfo &op_mapping_info) const;
 

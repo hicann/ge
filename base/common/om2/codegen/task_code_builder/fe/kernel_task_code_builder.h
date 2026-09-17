@@ -53,7 +53,7 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   static constexpr const char *kDispatchFuncName = "DispatchKernel";
 
  public:
-  explicit KernelTaskCodeBuilder(AstBuildContext &ast) : TaskCodeBuilder(ast) {}
+  explicit KernelTaskCodeBuilder(AstBuildContext &ast) : TaskCodeBuilder(ast), args_io_addrs_updater_() {}
 
   // ── Public overrides & accessors ──
   Status ParseTaskRunParam(const domi::TaskDef &task_def, const om2::RuntimeParam &rts_param, OpDescPtr op_desc,
