@@ -48,7 +48,7 @@ class CustomOpRegistry {
                                     OpEngine engine);
   BaseCustomOp *GetCustomOpCommonCapability(const AscendString &op_type, CustomOpCapability capability);
   BaseCustomOp *GetCustomOpCommonCapability(const AscendString &op_type, CustomOpCapability capability,
-                                            OpRegistrationPriority priority, OpEngine engine);
+                                            OpRegistrationPriority priority);
   void RemoveCustomOps(const std::vector<AscendString> &op_types);
   ArgsRefreshStrategy GetArgsRefreshStrategy(const AscendString &op_type);
   bool IsAddressRefreshable(const AscendString &op_type);
@@ -69,13 +69,13 @@ class CustomOpRegistry {
   mutable std::mutex mu_;
   std::vector<CustomOpSoHandlePtr> so_handles_;
   using BackendCreatorMap = std::map<OpBackend, BaseOpCreator>;
-  using PriorityCreatorMap = std::map<OpRegistrationPriority, BackendCreatorMap>;
-  using EngineCreatorMap = std::map<OpEngine, PriorityCreatorMap>;
+  using EngineCreatorMap = std::map<OpEngine, BackendCreatorMap>;
+  using PriorityCreatorMap = std::map<OpRegistrationPriority, EngineCreatorMap>;
   using BackendInstanceMap = std::map<OpBackend, std::shared_ptr<BaseCustomOp>>;
-  using PriorityInstanceMap = std::map<OpRegistrationPriority, BackendInstanceMap>;
-  using EngineInstanceMap = std::map<OpEngine, PriorityInstanceMap>;
-  std::map<AscendString, EngineCreatorMap> creators_;
-  std::map<AscendString, EngineInstanceMap> custom_ops_;
+  using EngineInstanceMap = std::map<OpEngine, BackendInstanceMap>;
+  using PriorityInstanceMap = std::map<OpRegistrationPriority, EngineInstanceMap>;
+  std::map<AscendString, PriorityCreatorMap> creators_;
+  std::map<AscendString, PriorityInstanceMap> custom_ops_;
 };
 
 using CustomOpRegistryPtr = std::shared_ptr<CustomOpRegistry>;

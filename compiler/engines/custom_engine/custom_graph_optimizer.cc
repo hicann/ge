@@ -19,8 +19,6 @@
 #include "common/checker.h"
 #include "graph/ascend_string.h"
 #include "graph/custom_op/cast.h"
-#include "graph/debug/ge_attr_define.h"
-#include "graph/utils/attr_utils.h"
 #include "lowering/kernel_run_context_builder.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
 #include "common/thread_pool/thread_pool.h"
@@ -145,33 +143,14 @@ ge::Status CompileCustomOpSerially(const std::vector<CompileTask *> *tasks) {
   return ge::SUCCESS;
 }
 
-bool IsCustomOpExecOnHostCpu(const ge::OpDescPtr &op_desc) {
-  if (!ge::CustomOpFactory::IsExistOp(ge::AscendString(op_desc->GetTypePtr()), ge::OpBackend::kHostCPU)) {
-    return false;
-  }
-  const std::string *lowering_func = ge::AttrUtils::GetStr(op_desc, ge::kAttrLowingFunc);
-  return (lowering_func != nullptr) && (*lowering_func == ge::kHostCpuCustomOpLowerFunc);
-}
-
 ge::Status AppendCompileTaskIfNeeded(const ge::NodePtr &node, std::vector<CompileTask> &compile_tasks) {
   const auto op_type = node->GetType();
   const ge::AscendString op_type_ascend(op_type.c_str());
-  if (!ge::CustomOpFactory::IsExistOp(op_type_ascend, ge::OpBackend::kDevice)) {
-    return ge::SUCCESS;
-  }
-  if (IsCustomOpExecOnHostCpu(node->GetOpDesc())) {
-    GELOGD("skip compile for custom op execute on host cpu, op_name:%s, op_type:%s", node->GetName().c_str(),
-           node->GetType().c_str());
+  if (!ge::CustomOpFactory::IsExistOp(op_type_ascend)) {
     return ge::SUCCESS;
   }
   GELOGI("during optimize whole graph, %s is custom op", op_type_ascend.GetString());
-  auto *const base_custom_op_ptr = ge::CustomOpFactory::CreateOrGetCustomOp(op_type_ascend, ge::OpBackend::kDevice);
-  if (base_custom_op_ptr == nullptr) {
-    GELOGE(ge::FAILED, "[Compile][CustomOp] create custom op failed, op_name:%s, op_type:%s", node->GetName().c_str(),
-           op_type.c_str());
-    return ge::FAILED;
-  }
-  auto *const compilable_op_ptr = ge::CustomOpCast<ge::CompilableOp>(base_custom_op_ptr);
+  auto *const compilable_op_ptr = ge::CustomOpFactory::GetCustomOpCommonCapability<ge::CompilableOp>(op_type_ascend);
   if (compilable_op_ptr == nullptr) {
     GELOGI("[Compile][CustomOp] custom op did not implement CompilableOp, op_name:%s, op_type:%s",
            node->GetName().c_str(), op_type.c_str());

@@ -231,7 +231,8 @@ REG_OPTION(OO_CONSTANT_FOLDING)
      - 通过 `CustomOpFactory::IsExistOp(op_type, OpBackend::kHostCPU)` 判断当前算子是否注册 Host CPU backend 自定义实现
      - 通过 `CreateOrGetCustomOp(op_type, kHostCPU)` 获取实例并调用 `HostCpuExecuteOp::Execute`
    - **第二级：AICPU 算子内核**（`ComputeWithHostCpuKernel`）
-     - 尝试通过 `aicpu_ascend_kernel` 引擎获取算子的 Host CPU 实现
+     - `RunOpKernel` 会先显式查询 `CustomOpFactory` 中 `OpRegistrationPriority::kBottom + OpEngine::kHostCpu` 的 Host CPU 实现，调用 `HostCpuExecuteOp::Execute`
+     - 若不存在自定义实现，尝试通过 `aicpu_ascend_kernel` 引擎获取算子的 Host CPU 实现
      - 通过 `OpKernelRegistry` 创建算子实例，由 `HostCpuEngine` 执行
      - 这一级支持最广泛的算子类型，运行时加载 `libconstant_folding_ops.so`
    - **第三级：GE 内置内核**（`ComputeWithBuiltInKernel`）
