@@ -69,19 +69,20 @@ main(){
 
     echo "Start run c++ testcase"
     cd ${WORKSPACE}/tests || exit
+    TEST_LOG_FILE="${WORKSPACE}/ut_test_output.log"
     if  [ "${GE_ST_RT2}X" == "ge_commonX" ];then
         if [ "${GIT_TARGET_BRANCH}" = "8.5.0" ];then
-            LOG_DO bash run_test.sh --ut=ge_common --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
+            LOG_DO_TEE "${TEST_LOG_FILE}" bash run_test.sh --ut=ge_common --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
         else
-            LOG_DO bash run_test.sh -c --ut=ge_common --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20 -f ${WORKSPACE}/pr_filelist.txt
+            LOG_DO_TEE "${TEST_LOG_FILE}" bash run_test.sh -c --ut=ge_common --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20 -f ${WORKSPACE}/pr_filelist.txt
         fi
         ret=$?
     elif [ "${GE_ST_RT2}X" != "geX" ]  ;then
         if [ "${GE_ST_RT2}X" == "dflowX" ] || [ "${GE_ST_RT2}X" == "pythonX" ] ;then
             if [ "${GIT_TARGET_BRANCH}" = "8.5.0" ];then
-                LOG_DO bash run_test.sh --u=${GE_ST_RT2} -c --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
+                LOG_DO_TEE "${TEST_LOG_FILE}" bash run_test.sh --u=${GE_ST_RT2} -c --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
             else
-                LOG_DO bash run_test.sh -c --u=${GE_ST_RT2} -c --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20 -f ${WORKSPACE}/pr_filelist.txt
+                LOG_DO_TEE "${TEST_LOG_FILE}" bash run_test.sh -c --u=${GE_ST_RT2} -c --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20 -f ${WORKSPACE}/pr_filelist.txt
             fi
             ret=$?
         else
@@ -90,25 +91,25 @@ main(){
                     echo "Skip UT test execution for ${GE_ST_RT2} on non-master branch"
                     exit 0
                 else
-                    LOG_DO bash run_test.sh --u=${GE_ST_RT2} --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
+                    LOG_DO_TEE "${TEST_LOG_FILE}" bash run_test.sh --u=${GE_ST_RT2} --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
                 fi
             elif [ "${GIT_TARGET_BRANCH}" = "9.0.0" ];then
                 if [ "${GE_ST_RT2}X" == "feX" ] || [ "${GE_ST_RT2}X" == "tefusionX" ];then
                     echo "Skip UT test execution for ${GE_ST_RT2} on non-master branch"
                     exit 0
                 else
-                    LOG_DO bash run_test.sh -c --u=${GE_ST_RT2} --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
+                    LOG_DO_TEE "${TEST_LOG_FILE}" bash run_test.sh -c --u=${GE_ST_RT2} --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
                 fi
             else
-                LOG_DO bash run_test.sh -c --u=${GE_ST_RT2} --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20 -f ${WORKSPACE}/pr_filelist.txt
+                LOG_DO_TEE "${TEST_LOG_FILE}" bash run_test.sh -c --u=${GE_ST_RT2} --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20 -f ${WORKSPACE}/pr_filelist.txt
             fi
             ret=$?
         fi
     else
         if [ "${GIT_TARGET_BRANCH}" = "8.5.0" ];then
-            LOG_DO bash run_test.sh --ut=ge -c --ascend_install_path="${ASCEND_INSTALL_PATH}" --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
+            LOG_DO_TEE "${TEST_LOG_FILE}" bash run_test.sh --ut=ge -c --ascend_install_path="${ASCEND_INSTALL_PATH}" --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20
         else
-            LOG_DO bash run_test.sh --ut=ge -c --ascend_install_path="${ASCEND_INSTALL_PATH}" --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20 -f ${WORKSPACE}/pr_filelist.txt
+            LOG_DO_TEE "${TEST_LOG_FILE}" bash run_test.sh --ut=ge -c --ascend_install_path="${ASCEND_INSTALL_PATH}" --cann_3rd_lib_path="${ASCEND_3RD_LIB_PATH}" -j20 -f ${WORKSPACE}/pr_filelist.txt
         fi
         ret=$?
     fi
@@ -119,6 +120,7 @@ main(){
        DP_ASSERT_EQUAL "$ret" "0" "Run UT testcase" "true"
     fi
     cd ${WORKSPACE}
+    check_slow_tests "${TEST_LOG_FILE}" 1000 "${WORKSPACE}" || ret=1
     coverage_info=$(find ${WORKSPACE} -name "coverage.info" | head -n1)
     if  [ "${GE_ST_RT2}X" == "pythonX" ];then
         if [ "${GIT_TARGET_BRANCH}" != "master" ] && [ "${GIT_TARGET_BRANCH}" != "develop" ]; then
