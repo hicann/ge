@@ -1822,10 +1822,7 @@ aclError aclmdlQueryWorkspaceSizeImpl(const char *fileName, size_t memOptimizeMo
   ACL_PROFILING_REG(acl::AclProfType::AclmdlQueryWorkspaceSize);
   ACL_LOG_INFO("start to execute aclmdlQueryWorkspaceSize, memOptimizeMode[%zu]", memOptimizeMode);
   (void)fileName;
-
-  if (workSize != nullptr) {
-    *workSize = 0U;
-  }
+  (void)workSize;
   ACL_LOG_INFO("aclmdlQueryWorkspaceSize is not supported by OM model.");
   return ACL_ERROR_API_NOT_SUPPORT;
 }
@@ -1859,10 +1856,7 @@ aclError aclmdlQueryWorkspaceSizeFromMemImpl(const void *model, size_t modelSize
   ACL_LOG_INFO("start to execute aclmdlQueryWorkspaceSizeFromMem, modelSize[%zu], memOptimizeMode[%zu]", modelSize,
                memOptimizeMode);
   (void)model;
-
-  if (workSize != nullptr) {
-    *workSize = 0U;
-  }
+  (void)workSize;
   ACL_LOG_INFO("aclmdlQueryWorkspaceSizeFromMem is not supported by OM model.");
   return ACL_ERROR_API_NOT_SUPPORT;
 }

@@ -1433,12 +1433,12 @@ TEST_F(UTEST_ACL_Model, aclmdlQueryWorkspaceSize) {
 
   EXPECT_NE(aclmdlQueryWorkspaceSize(nullptr, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, nullptr), ACL_SUCCESS);
   EXPECT_EQ(aclmdlQueryWorkspaceSize(fileName, 2U, &workSize), ACL_ERROR_API_NOT_SUPPORT);
-  EXPECT_EQ(workSize, 0U);
+  EXPECT_EQ(workSize, 1U);
 
   workSize = 1U;
   EXPECT_EQ(aclmdlQueryWorkspaceSize(fileName, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, &workSize),
             ACL_ERROR_API_NOT_SUPPORT);
-  EXPECT_EQ(workSize, 0U);
+  EXPECT_EQ(workSize, 1U);
   EXPECT_EQ(aclmdlQueryWorkspaceSize(fileName, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, nullptr), ACL_ERROR_API_NOT_SUPPORT);
 }
 
@@ -1448,12 +1448,12 @@ TEST_F(UTEST_ACL_Model, aclmdlQueryWorkspaceSizeFromMem) {
 
   EXPECT_NE(aclmdlQueryWorkspaceSizeFromMem(nullptr, 1U, ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT, nullptr), ACL_SUCCESS);
   EXPECT_EQ(aclmdlQueryWorkspaceSizeFromMem(model, 1U, 2U, &workSize), ACL_ERROR_API_NOT_SUPPORT);
-  EXPECT_EQ(workSize, 0U);
+  EXPECT_EQ(workSize, 1U);
 
   workSize = 1U;
   EXPECT_EQ(aclmdlQueryWorkspaceSizeFromMem(model, 1U, ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT, &workSize),
             ACL_ERROR_API_NOT_SUPPORT);
-  EXPECT_EQ(workSize, 0U);
+  EXPECT_EQ(workSize, 1U);
   EXPECT_EQ(aclmdlQueryWorkspaceSizeFromMem(model, 1U, ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT, nullptr),
             ACL_ERROR_API_NOT_SUPPORT);
 }

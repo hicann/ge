@@ -60,7 +60,7 @@ aclError CalcWorkspaceSizeByOptimizeMode(const size_t memOptimizeMode, const siz
   if (zeroCopySize > fullWorkSize) {
     ACL_LOG_INNER_ERROR("[OM2][Check][WorkspaceSize]zeroCopySize[%zu] is larger than fullWorkSize[%zu]", zeroCopySize,
                         fullWorkSize);
-    return ACL_ERROR_GE_FAILURE;
+    return ACL_ERROR_GE_PARAM_INVALID;
   }
   *workSize = fullWorkSize - zeroCopySize;
   return ACL_SUCCESS;
