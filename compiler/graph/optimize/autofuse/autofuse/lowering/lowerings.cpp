@@ -30,6 +30,35 @@
 namespace ge {
 using namespace autofuse;
 namespace {
+// 常量折叠产生的动态常量（如 Reshape/Expand 的 shape、UnsqueezeV3 的 axes）仅作编译期
+// 元数据输入，运行时不读取，判定方式与 CutCtrEdgeIfNeed 一致
+bool IsFromConstantFolding(const NodePtr &node) {
+  bool is_from_constant_folding = false;
+  if (OpTypeUtils::IsConstNode(node->GetType())) {
+    (void)ge::AttrUtils::GetBool(node->GetOpDesc(), "_is_from_constant_folding", is_from_constant_folding);
+  }
+  return is_from_constant_folding;
+}
+
+// lowering 后为 kernel box 的 unused 输入挂控制边保序。动态常量例外：其值已固化进
+// kernel，挂边会与 Lifting 阶段 RecoverInitControlEdge 恢复的保序边方向相反，融合簇
+// 横跨原图链两端时闭合出 CycleDetector 不可见的拓扑环，故跳过（生成序仍由其自身
+// 控制入边保证）
+graphStatus AddControlEdgesForUnusedInputs(const loop::KernelBox &kernel_box, const std::set<NodePtr> &unused_in_nodes,
+                                           const NodePtr &asc_node) {
+  for (auto &ctl_node : unused_in_nodes) {
+    if (IsFromConstantFolding(ctl_node)) {
+      GELOGI("Skip control edge from dynamic const %s(\"%s\") to asc node %s after lowering %s.",
+             ctl_node->GetTypePtr(), ctl_node->GetNamePtr(), asc_node->GetName().c_str(), kernel_box.Name().c_str());
+      continue;
+    }
+    GELOGI("Unused input %s(\"%s\") after lowering %s, add control edge to asc node %s", ctl_node->GetTypePtr(),
+           ctl_node->GetNamePtr(), kernel_box.Name().c_str(), asc_node->GetName().c_str());
+    GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(ctl_node->GetOutControlAnchor(), asc_node->GetInControlAnchor()));
+  }
+  return GRAPH_SUCCESS;
+}
+
 graphStatus FallbackLowering(const NodePtr &node) {
   for (auto &anchor : node->GetAllInDataAnchors()) {
     if (anchor == nullptr || anchor->GetPeerOutAnchor() == nullptr) {
@@ -505,11 +534,7 @@ graphStatus LoweringManager::FusedSubgraphLoopToAscBackendOp(
 
       std::set<NodePtr> unused_in_nodes;
       GE_ASSERT_GRAPH_SUCCESS(LoweringUtils::GetUnusedInNodes(kernel_box, used_in_nodes, unused_in_nodes));
-      for (auto &ctl_node : unused_in_nodes) {
-        GELOGI("Unused input %s(\"%s\") after lowering %s, add control edge to asc node %s", ctl_node->GetTypePtr(),
-               ctl_node->GetNamePtr(), kernel_box.Name().c_str(), asc_node->GetName().c_str());
-        GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(ctl_node->GetOutControlAnchor(), asc_node->GetInControlAnchor()));
-      }
+      GE_ASSERT_GRAPH_SUCCESS(AddControlEdgesForUnusedInputs(kernel_box, unused_in_nodes, asc_node));
       GE_ASSERT_GRAPH_SUCCESS(LoweringUtils::MoveControlEdges(node, asc_node));
     }
   }
