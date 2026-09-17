@@ -119,10 +119,14 @@ Status CalculateSymbolicIndexValue(const Expression &index_input, const Expressi
   if (negative == TriBool::kTrue) {
     normalized = index_input + input_dim;
   } else if (negative == TriBool::kUnknown) {
-    // The normalization of an index with unknown sign depends on runtime
-    // values and cannot be encoded as a single shape expression.
-    GELOGW("StridedSlice symbolic infer unsupported: index sign is unknown.");
-    return UNSUPPORTED;
+    // 符号性未知时按 hint 归一化并登记运行时 guard。hint 不可得（表达式含未取值
+    // 自由符号）属异常场景：符号创建时强制登记值，主链路不应发生，直接断言暴露，
+    // 禁止无 guard 的原始索引进入输出 shape（曾引发下游符号污染事故）。
+    bool negative_hint = false;
+    GE_ASSERT_TRUE(ge::sym::Lt(index_input, kSymbolZero).GetHint(negative_hint),
+                   "StridedSlice symbolic infer: index sign hint is unavailable, index=%s.",
+                   index_input.Serialize().get());
+    normalized = EXPECT_SYMBOL_LT(index_input, kSymbolZero) ? (index_input + input_dim) : index_input;
   }
   const auto below_lower = SymbolicUtils::StaticCheckLt(normalized, lower);
   if (below_lower == TriBool::kTrue) {
@@ -130,23 +134,32 @@ Status CalculateSymbolicIndexValue(const Expression &index_input, const Expressi
     return SUCCESS;
   }
   if (below_lower == TriBool::kUnknown) {
-    GELOGW("StridedSlice symbolic infer unsupported: index lower bound is unknown.");
-    return UNSUPPORTED;
+    // 与下界关系未知：hint 不可得属异常场景，直接断言暴露（同上）
+    bool below_lower_hint = false;
+    GE_ASSERT_TRUE(ge::sym::Lt(normalized, lower).GetHint(below_lower_hint),
+                   "StridedSlice symbolic infer: index lower bound hint is unavailable, index=%s.",
+                   normalized.Serialize().get());
+    if (EXPECT_SYMBOL_LT(normalized, lower)) {
+      index_value = lower;
+      return SUCCESS;
+    }
   }
-  if (SymbolicUtils::StaticCheckLt(upper, normalized) == TriBool::kTrue) {
+  const auto above_upper = SymbolicUtils::StaticCheckLt(upper, normalized);
+  if (above_upper == TriBool::kTrue) {
     index_value = upper;
     return SUCCESS;
   }
-  if (SymbolicUtils::StaticCheckLt(normalized, upper) == TriBool::kTrue ||
-      SymbolicUtils::StaticCheckEq(normalized, upper) == TriBool::kTrue) {
-    index_value = normalized;
+  if (above_upper == TriBool::kUnknown) {
+    // 与上界关系未知：hint 不可得属异常场景，直接断言暴露（同上）
+    bool above_upper_hint = false;
+    GE_ASSERT_TRUE(ge::sym::Lt(upper, normalized).GetHint(above_upper_hint),
+                   "StridedSlice symbolic infer: index upper bound hint is unavailable, index=%s.",
+                   normalized.Serialize().get());
+    index_value = EXPECT_SYMBOL_LT(upper, normalized) ? upper : normalized;
     return SUCCESS;
   }
-  // The relation between the symbolic index and the symbolic dimension is
-  // undecidable here; propagating the raw index would emit wrong shapes and
-  // guards that pollute downstream inference. Fall back instead.
-  GELOGW("StridedSlice symbolic infer unsupported: index range cannot be resolved.");
-  return UNSUPPORTED;
+  index_value = normalized;
+  return SUCCESS;
 }
 
 Status CalculateIndexValue(const Expression &index_input, const Expression &input_dim, const Expression &stride,

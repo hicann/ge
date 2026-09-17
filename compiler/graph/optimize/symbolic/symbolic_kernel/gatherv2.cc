@@ -15,6 +15,7 @@
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
 #include "graph/optimize/symbolic/symbol_compute_context.h"
 #include "graph/optimize/symbolic/symbolic_kernel_factory.h"
+#include <limits>
 
 namespace ge {
 namespace {
@@ -126,11 +127,20 @@ graphStatus CalOutputSymbolValue(gert::InferSymbolComputeContext *context, const
     for (int64_t j = 0L; j < block_num; j++) {
       for (int64_t k = 0L; k < indice_block_size; k++) {
         int64_t gather_index = indice_values[static_cast<size_t>(k + indice_block_size * i)];
-        GE_ASSERT_TRUE(
-            gather_index < param_dims[static_cast<size_t>(axis)],
-            "SymbolicKernel compute failed, reason: indices index:%lld should be less than axis:%lld dim:%lld, "
-            "node %s[%s].",
-            gather_index, axis, param_dims[axis], context->GetNodeName(), context->GetNodeType());
+        const int64_t axis_dim = param_dims[static_cast<size_t>(axis)];
+        // 负索引按 Gather 语义从轴末尾计数（[-dim, dim)），归一化后再做边界检查，
+        // 避免迭代器负偏移越界解引用导致进程崩溃；INT64_MIN 与 dim 相加会溢出，直接拒绝
+        if (gather_index < 0L) {
+          GE_ASSERT_TRUE(gather_index != std::numeric_limits<int64_t>::min(),
+                         "SymbolicKernel compute failed, reason: indices index:%lld overflows, node %s[%s].",
+                         gather_index, context->GetNodeName(), context->GetNodeType());
+          gather_index += axis_dim;
+        }
+        GE_ASSERT_TRUE((gather_index >= 0L) && (gather_index < axis_dim),
+                       "SymbolicKernel compute failed, reason: indices index:%lld should be in range [-%lld, %lld), "
+                       "node %s[%s].",
+                       indice_values[static_cast<size_t>(k + indice_block_size * i)], axis_dim, axis_dim,
+                       context->GetNodeName(), context->GetNodeType());
         const auto start_iter =
             param_values.begin() +
             (i * outer_block_size + (j * param_dims[static_cast<size_t>(axis)] + gather_index) * block_size);

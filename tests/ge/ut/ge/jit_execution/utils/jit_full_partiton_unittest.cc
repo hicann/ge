@@ -501,7 +501,7 @@ TEST_F(JitFullPartitionUT,
   es::EsTensorHolder data0_holder(data0);
   const auto relu = es::Relu(data0_holder);
   const auto reshape = es::Reshape(relu, relu, 0, -1);
-  std::vector<int64_t> dims_data{1, 1, 3, 3, -1};
+  std::vector<int64_t> dims_data{1, 1, 5, 5, -1};
   int64_t dims_size = 5;
   es::EsTensorHolder const_0(EsCreateConstInt64(graph.get(), dims_data.data(), &dims_size, 1));
 
