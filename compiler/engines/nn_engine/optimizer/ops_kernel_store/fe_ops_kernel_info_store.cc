@@ -513,7 +513,7 @@ bool FEOpsKernelInfoStore::CheckAccuracySupported(const ge::NodePtr &node, std::
   FE_LOGD("Node[%s, %s] begin CheckAccuracySupported.", op_desc_ptr->GetNamePtr(), op_desc_ptr->GetTypePtr());
   bool ret = CheckSupportedBase(node, un_supported_reason, CheckSupportMode::ACCURACY_MODE, real_query);
   if (!VerifyCastC0Format(op_desc_ptr)) {
-    un_supported_reason = "Cast op not support current c0 format.";
+    un_supported_reason = "Cast op does not support current c0 format.";
     return false;
   }
   return ret;
@@ -795,7 +795,7 @@ Status FEOpsKernelInfoStore::GetAllAtomicCleanNode(ge::NodePtr &node_ptr, vector
     if (is_atomic_node && is_net_output) {
       atomic_node_vec.push_back(node_ptr);
       FE_LOGD(
-          "op:%s is atomic node and connected to the netoutput, do not need"
+          "op:%s is atomic node and connected to the netoutput, do not need "
           "to be compiled, will just create and compile an atomic clean node for it.",
           node_ptr->GetName().c_str());
     }
@@ -1397,7 +1397,7 @@ Status FEOpsKernelInfoStore::GetOpImplyRealPath(std::string op_imply_relative_pa
 
   op_imply_real_path = RealPath(op_imply_absolute_path);
   if (op_imply_real_path.empty()) {
-    REPORT_FE_ERROR("[GraphOpt][SetDynmCustomOpStoreInfo] The op_impl_file_path of node %s not exist in %s",
+    REPORT_FE_ERROR("[GraphOpt][SetDynmCustomOpStoreInfo] The op_impl_file_path of node %s does not exist in %s",
                     node_ptr->GetName().c_str(), op_imply_real_path.c_str());
     return FAILED;
   }
@@ -1415,7 +1415,7 @@ Status FEOpsKernelInfoStore::UpdateOpImplyPath(const ge::NodePtr &node_ptr, std:
   OpContent op_content;
   Status status = sub_custom_ops_kernel_ptr->GetOpContentByOpType(op_type, op_content);
   if (status != SUCCESS) {
-    REPORT_FE_ERROR("[GraphOpt][SetDynmCustomOpStoreInfo] Op type[%s] not exist in op information library[%ld].",
+    REPORT_FE_ERROR("[GraphOpt][SetDynmCustomOpStoreInfo] Op type[%s] does not exist in op information library[%ld].",
                     op_type.c_str(), op_impl_type);
     return FAILED;
   }
@@ -1429,7 +1429,7 @@ Status FEOpsKernelInfoStore::UpdateOpImplyPath(const ge::NodePtr &node_ptr, std:
       REPORT_FE_ERROR("[GraphOpt][SetDynmCustomOpStoreInfo] Get op[%s]'s imply relative path failed.", op_name.c_str());
       return FAILED;
     } else {
-      FE_LOGD("impl path of tbe-custom allow not exist.");
+      FE_LOGD("The impl path of tbe-custom is allowed to be absent.");
       return SUCCESS;
     }
   }
@@ -1499,8 +1499,9 @@ Status FEOpsKernelInfoStore::GetDynamicCustomOpStoreInfoByNode(const ge::NodePtr
     if (!IsExistInTBECustom(node_ptr)) {
       ErrorMessageDetail err_msg(EM_OPEN_FILE_FAILED, {op_store_path});
       ReportErrorMessage(err_msg);
-      REPORT_FE_ERROR("[GraphOpt][SetDynmCustomOpStoreInfo] The op information library path of node %s not exist in %s",
-                      op_name.c_str(), op_store_path.c_str());
+      REPORT_FE_ERROR(
+          "[GraphOpt][SetDynmCustomOpStoreInfo] The op information library path of node %s does not exist in %s",
+          op_name.c_str(), op_store_path.c_str());
       return FAILED;
     }
     return SUCCESS;
@@ -1510,7 +1511,7 @@ Status FEOpsKernelInfoStore::GetDynamicCustomOpStoreInfoByNode(const ge::NodePtr
   if (op_store_real_path.empty()) {
     ErrorMessageDetail err_msg(EM_OPEN_FILE_FAILED, {op_store_path});
     ReportErrorMessage(err_msg);
-    REPORT_FE_ERROR("[GraphOpt][SetDynmCustomOpStoreInfo] The op_store_file_path of node %s not exist in %s",
+    REPORT_FE_ERROR("[GraphOpt][SetDynmCustomOpStoreInfo] The op_store_file_path of node %s does not exist in %s",
                     op_name.c_str(), op_store_path.c_str());
     return FAILED;
   }

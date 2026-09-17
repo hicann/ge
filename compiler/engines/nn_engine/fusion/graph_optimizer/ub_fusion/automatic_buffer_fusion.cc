@@ -600,8 +600,8 @@ Status AutomaticBufferFusion::ChangeScopeId(int64_t old_scope_id, int64_t new_sc
       }
       auto fused_node_size_of_new_scope_id = new_scope_id_iter->second.nodes.size();
       if (fused_node_size_of_old_scope_id + fused_node_size_of_new_scope_id > MAX_NODE_NUMBER_IN_ONE_SCOPE) {
-        FE_LOGW("The difference between two scopes exceeds 28. Sizes are %zu and %zu.", fused_node_size_of_old_scope_id,
-                fused_node_size_of_new_scope_id);
+        FE_LOGW("Node num of merged scopes (%zu + %zu) exceeds limit (%zu).", fused_node_size_of_old_scope_id,
+                fused_node_size_of_new_scope_id, MAX_NODE_NUMBER_IN_ONE_SCOPE);
         return GRAPH_OPTIMIZER_NOT_FUSE_TWO_SCOPE;
       }
       for (auto &node_id_map : old_scope_id_iter->second.nodes) {

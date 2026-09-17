@@ -394,7 +394,7 @@ static string GetAxisByIndex(ge::Format op_format, int64_t index) {
     sub_strs_vec.push_back(temp);
   }
   if (static_cast<size_t>(index) >= sub_strs_vec.size()) {
-    FE_LOGW("index exceeds sub_strs_vec size");
+    FE_LOGW("index %ld exceeds sub_strs_vec size %zu.", index, sub_strs_vec.size());
     return "";
   }
   return sub_strs_vec[index];

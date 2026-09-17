@@ -957,9 +957,9 @@ bool GraphMatcher::VerifyMatchResult(const GraphMatchResult &match_result) const
       match_result.origin_nodes.size() != rule_->GetOriginRuleNodes().size() ||
       match_result.outer_outputs.size() != rule_outer_output_count_) {
     FE_LOGD(
-        "Some nodes or anchors of rule %s are not matched, rule"
+        "Some nodes or anchors of rule %s are not matched, rule "
         "outerInputs:%lu, matched outer_inputs:%lu,"
-        "rule origin_nodes:%lu, matched origin_nodes:%lu, rule"
+        "rule origin_nodes:%lu, matched origin_nodes:%lu, rule "
         "outerOutputs:%lu, matched outer_outputs:%lu.",
         rule_->GetRuleName().c_str(), rule_outer_input_count_, match_result.outer_inputs.size(),
         rule_->GetOriginRuleNodes().size(), match_result.origin_nodes.size(), rule_outer_output_count_,

@@ -1375,7 +1375,7 @@ void TbeInfoAssembler::GenerateTbePrivateAttrValue(const ge::OpDesc &op_desc, co
                                                    te::TbeAttrValue &tbe_attr_value, const string &attr_name) const {
   auto func = k_private_attr_get_funcs.find(value_type.GetValueType());
   if (func == k_private_attr_get_funcs.end()) {
-    FE_LOGW("Current not support");
+    FE_LOGW("Current value type is not supported.");
   } else {
     func->second(op_desc, value_type, tbe_attr_value, attr_name);
   }
@@ -1904,7 +1904,7 @@ void TbeInfoAssembler::CalibrateCoreNum(const ge::OpDesc &op_desc, const string 
     Status ret =
         ExecutionTimeEstimator::GetExecTime(all_plat_info_.platform_info, op_desc, op_kernel_info_ptr, exec_time);
     if (ret == SUCCESS) {
-      FE_LOGD("The estimated execution time of op %s is %lu.", op_desc.GetName().c_str(), exec_time);
+      FE_LOGD("The estimated execution time of op %s is %lu ns.", op_desc.GetName().c_str(), exec_time);
       FindAmplifiedCoreNum(exec_time, final_core_num_str);
     }
     FE_LOGD("Amplified core number string is %s.", final_core_num_str.c_str());

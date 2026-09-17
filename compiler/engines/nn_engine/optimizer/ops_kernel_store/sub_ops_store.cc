@@ -276,7 +276,7 @@ bool SubOpsStore::CheckDtypeSupported(const ge::NodePtr &node, const ge::GeTenso
     (void)ge::AttrUtils::SetBool(op_desc_ptr, kMustPromoteFlag, true);
     return true;
   }
-  FE_LOGD("Check dtype for op[%s:%s] tensor %s, dtype %s, support data types is %s, precision_mode is %u unsuccessful",
+  FE_LOGD("Check dtype for op[%s:%s] tensor %s, dtype %s, support data types are %s, precision_mode is %u unsuccessful",
           op_desc_ptr->GetNamePtr(), op_desc_ptr->GetTypePtr(), input_or_output_info_ptr->GetUniqueName().c_str(),
           ge::TypeUtils::DataTypeToSerialString(desc_dtype).c_str(), GetStrByDataTypeVec(support_data_types).c_str(),
           precision_mode);
@@ -360,7 +360,7 @@ bool SubOpsStore::CheckSubformatSupported(const ge::NodePtr &node, int64_t group
     }
   }
   if (support_sub_format_vec.empty()) {
-    FE_LOGI("[ChkSpt][FEChk][ChkSubfmtSpt] Node[%s] support sub_format is empty, not support groups %ld",
+    FE_LOGI("[ChkSpt][FEChk][ChkSubfmtSpt] Node[%s] support sub_format is empty, does not support groups %ld",
             node->GetName().c_str(), groups);
     return false;
   }
@@ -701,7 +701,7 @@ bool SubOpsStore::CheckFormatAndDtypeNormalMode(const ge::NodePtr &node, const s
   // check sub_format whether support
   auto iter_sub_formats_map = info.suppport_sub_formats_map.find(tensor_name);
   if (iter_sub_formats_map == info.suppport_sub_formats_map.end()) {
-    FE_LOGD("[ChkSpt][FEChk][ChkTensor][%s, %s] not find the support sub_formats for the %s [%s].",
+    FE_LOGD("[ChkSpt][FEChk][ChkTensor][%s, %s] Failed to find the support sub_formats for the %s [%s].",
             op_desc.GetName().c_str(), op_desc.GetType().c_str(), in_or_out.c_str(), tensor_name.c_str());
     info.suppport_sub_formats_map.emplace(std::make_pair(tensor_name, vector<uint32_t>{DEFAULT_SUB_FORMAT}));
   }
@@ -1174,9 +1174,9 @@ bool SubOpsStore::PrepareFormatAndDtypeInfo(const ge::NodePtr &node, const bool 
   bool is_force_dtype_support = false;
   if (!CheckCustomizeDtype(node->GetOpDesc(), info, is_force_dtype_support)) {
     ge::OpDescPtr op_desc_ptr = node->GetOpDesc();
-    FE_LOGI("[GraphOpt][Setcheck][CheckSubSupt] The custom dtypes for op[%s, %s] is not support by its op kernel.",
+    FE_LOGI("[GraphOpt][Setcheck][CheckSubSupt] The custom dtypes for op[%s, %s] are not supported by its op kernel.",
             op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
-    info.reason += "The custom dtypes for op " + op_desc_ptr->GetName() + " is not support by its op kernel.";
+    info.reason += "The custom dtypes for op " + op_desc_ptr->GetName() + " is not supported by its op kernel.";
     SetReason(info.reason, OpNotSupportedReasonID::EN_INPUTS_AND_OUTPUTS_NOT_ACCURACY_SUPPORT,
               check_param.unsupport_reason);
     return false;
