@@ -2461,7 +2461,7 @@ void DavinciModel::PrintNoFrozenInputIndexes() {
 }
 
 Status DavinciModel::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> &index_to_data) {
-  GE_ASSERT_SUCCESS(ParseHostInputIndexOption(index_to_data.size()));
+  GE_ASSERT_SUCCESS(GenHostInputIndexes(index_to_data));
   copy_host_input_infos_.clear();
   copy_host_input_infos_.resize(index_to_data.size());
 
@@ -9439,24 +9439,38 @@ Status DavinciModel::LaunchEventForHcclGroupOrderedStream(aclrtStream const stre
   return SUCCESS;
 }
 
-Status DavinciModel::ParseHostInputIndexOption(const size_t input_num) {
+// 解析 ge.exec.hostInputIndexes 选项配置的随路拷贝输入索引，并合并 Data 节点上
+// ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT 标记的输入（JIT 场景 value-dependent/cond 输入经 D2H
+// 后的 host 副本，标记随 sliced graph 编译进入模型），共同构成 copy_host_input_indexes_。
+// 图属性部分沿用 GenInputMemAllocations 主循环的位置序号计数方式
+// （index_to_data 的 key 为真实输入索引，可能乱序，不能直接当位置用）
+Status DavinciModel::GenHostInputIndexes(const std::map<uint32_t, OpDescPtr> &index_to_data) {
   copy_host_input_indexes_.clear();
   string copy_host_inputs;
-  (void)ge::GetContext().GetOption(OPTION_EXEC_HOST_INPUT_INDEXES, copy_host_inputs);
-  if (copy_host_inputs.empty()) {
-    GELOGI("host input indexes is empty.");
-    return SUCCESS;
+  if (ge::GetContext().GetOption(OPTION_EXEC_HOST_INPUT_INDEXES, copy_host_inputs) == GRAPH_SUCCESS &&
+      !copy_host_inputs.empty()) {
+    // copy host input indexes: ids(1;2;4;5)
+    std::vector<std::string> copy_host_input_vec = StringUtils::Split(copy_host_inputs, ';');
+    for (auto &input : copy_host_input_vec) {
+      int32_t input_index;
+      GE_ASSERT_SUCCESS(ConvertToInt32(input, input_index));
+      GE_ASSERT_TRUE((input_index >= 0) && static_cast<uint32_t>(input_index) < index_to_data.size(),
+                     "host input index:%d no less than input num:%zu", input_index, index_to_data.size());
+      GELOGI("model:%u, host input index:%d", model_id_, input_index);
+      (void)copy_host_input_indexes_.insert(input_index);
+    }
   }
 
-  // copy host input indexes: ids(1;2;4;5)
-  std::vector<std::string> copy_host_input_vec = StringUtils::Split(copy_host_inputs, ';');
-  for (auto &input : copy_host_input_vec) {
-    int32_t input_index;
-    GE_ASSERT_SUCCESS(ConvertToInt32(input, input_index));
-    GE_ASSERT_TRUE((input_index >= 0) && static_cast<uint32_t>(input_index) < input_num,
-                   "host input index:%d no less than input num:%zu", input_index, input_num);
-    GELOGI("model:%u, host input index:%d", model_id_, input_index);
-    (void)copy_host_input_indexes_.insert(input_index);
+  uint32_t host_tensor_input_index = 0U;
+  for (const auto &item : index_to_data) {
+    bool is_host_tensor_input = false;
+    if (AttrUtils::GetBool(item.second, ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT, is_host_tensor_input) &&
+        is_host_tensor_input) {
+      (void)copy_host_input_indexes_.insert(host_tensor_input_index);
+      GELOGI("model:%u, data node %s is marked host tensor, input index:%u.", model_id_, item.second->GetName().c_str(),
+             host_tensor_input_index);
+    }
+    ++host_tensor_input_index;
   }
 
   return SUCCESS;
