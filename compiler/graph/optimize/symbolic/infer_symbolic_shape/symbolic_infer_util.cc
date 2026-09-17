@@ -160,7 +160,8 @@ bool SymbolicInferUtil::IsValueDependentDataNode(const NodePtr &data_node) {
           }
         }
         size_t ir_index = 0UL;
-        if (ge::OpDescUtils::GetInputIrIndexByInstanceIndex(consumer_op, input_idx, ir_index) != GRAPH_SUCCESS) {
+        if (ge::OpDescUtils::GetInputIrIndexes2InstanceIndexesPairMap(consumer_op).empty() ||
+            ge::OpDescUtils::GetInputIrIndexByInstanceIndex(consumer_op, input_idx, ir_index) != GRAPH_SUCCESS) {
           ir_index = input_idx;
         }
         if (function_new->IsInputDataDependency(ir_index)) {
