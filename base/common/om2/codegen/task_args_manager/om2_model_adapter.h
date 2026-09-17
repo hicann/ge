@@ -82,10 +82,6 @@ class ModelAdapter {
     return output_index_to_allocation_ids_;
   }
 
-  std::vector<std::pair<uint32_t, uint32_t>> &GetRefreshableFmIndexAndAllocationIds() {
-    return refreshable_fm_index_and_allocation_ids_;
-  }
-
  private:
   void PrintNoFrozenInputIndexes();
 

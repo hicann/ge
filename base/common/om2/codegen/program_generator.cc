@@ -160,7 +160,6 @@ Status ProgramGenerator::GenerateArgsManagerSource(Om2CodePrinter &code_printer)
                          args_manager_handler.BuildGetArgsInfoMethod(),
                          args_manager_handler.BuildGetDevArgAddrMethod(),
                          args_manager_handler.BuildGetHostArgAddrMethod(),
-                         args_manager_handler.BuildRefreshMapFeatureMethod(),
                          args_manager_handler.BuildUpdateHostArgsMethod(),
                          args_manager_handler.BuildCopyArgsToDeviceMethod(codegen_model_),
                      }),
@@ -224,7 +223,6 @@ Status ProgramGenerator::GenerateLoadAndRunSource(Om2CodePrinter &code_printer) 
       ast_.Namespace("om2", {
                                 ast_.Namespace("", anonymous_items),
                                 load_and_run_handler.BuildGetRtModelHandleMethod(),
-                                load_and_run_handler.BuildRefreshFeatureMapMethod(),
                                 load_and_run_handler.BuildLoadMethod(codegen_model_, task_code_builder_list_),
                                 load_and_run_handler.BuildRunAsyncMethod(codegen_model_),
                                 load_and_run_handler.BuildRunMethod(codegen_model_),

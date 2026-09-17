@@ -426,14 +426,6 @@ Status ResolveStablePart(StablePartId id, std::string &output) {
           "  }\n"
           "  OM2_LOGI(\"GertModelUnload: handle=%p\", model_handle);\n"
           "  return Om2ModelDestroy(&model_handle);\n"
-          "}\n"
-          "\n"
-          "int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr) {\n"
-          "  if ((model_handle == nullptr) || (base_addr == 0U)) {\n"
-          "    OM2_LOGE(\"GertModelRefreshFeatureMap: invalid handle or base address\");\n"
-          "    return ACL_ERROR_FAILURE;\n"
-          "  }\n"
-          "  return static_cast<om2::Om2Model *>(model_handle)->RefreshFeatureMap(base_addr);\n"
           "}\n";
       return SUCCESS;
     case StablePartId::kInterfaceInternalTypes:

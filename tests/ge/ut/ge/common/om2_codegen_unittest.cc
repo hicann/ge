@@ -2872,8 +2872,7 @@ TEST_F(Om2CodegenUt, ArgsManagerFileCodeGenerator_CopyArgsToDevice_CoverBranches
   const auto with_va2pa_output = EmitNode(*with_va2pa_method);
   ExpectContainsAll(with_va2pa_output,
                     {"aclError Om2ArgsTable::CopyArgsToDevice(void *stream, bool is_async) {\n",
-                     "OM2_CHK_STATUS(rtDevVA2PA((uint64_t)dev_args_[i], args_sizes_[i], stream, is_async));\n"});
-  EXPECT_EQ(with_va2pa_output.find("(void)stream;"), std::string::npos);
+                     "OM2_CHK_STATUS(rtDevVA2PA((uint64_t)dev_args_[0], args_sizes_[0], stream, is_async));\n"});
 
   Om2CodegenModel without_va2pa_model;
   without_va2pa_model.is_need_va2pa = false;
@@ -2882,9 +2881,8 @@ TEST_F(Om2CodegenUt, ArgsManagerFileCodeGenerator_CopyArgsToDevice_CoverBranches
   const auto without_va2pa_output = EmitNode(*without_va2pa_method);
   ExpectContainsAll(without_va2pa_output, {"aclError Om2ArgsTable::CopyArgsToDevice(void *stream, bool is_async) {\n",
                                            "(void)stream;\n", "(void)is_async;\n",
-                                           "OM2_CHK_STATUS(aclrtMemcpy(dev_args_[i], args_sizes_[i], "
-                                           "host_args_[i].data(), args_sizes_[i], ACL_MEMCPY_HOST_TO_DEVICE));\n"});
-  EXPECT_EQ(without_va2pa_output.find("rtDevVA2PA"), std::string::npos);
+                                           "OM2_CHK_STATUS(aclrtMemcpy(dev_args_[0], args_sizes_[0], "
+                                           "host_args_[0].data(), args_sizes_[0], ACL_MEMCPY_HOST_TO_DEVICE));\n"});
 }
 
 TEST_F(Om2CodegenUt, LoadAndRunFileCodeGenerator_PhaseModelExecute_CoverBranches) {

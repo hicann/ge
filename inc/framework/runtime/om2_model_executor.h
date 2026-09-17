@@ -80,7 +80,6 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
   uint64_t GetStepId() const;
   aclrtStream GetOrCreateProfStream();
   uint64_t SessionId() const;
-  ge::Status UpdateFmMemBases(const uintptr_t mem_base, const size_t size);
 
  private:
   class Impl;

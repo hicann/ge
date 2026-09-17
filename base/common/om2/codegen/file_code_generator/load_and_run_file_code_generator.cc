@@ -91,12 +91,6 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildGetRtModelHandleMethod() const {
   return ast_.DefineMethod("Om2Model", "GetRtModelHandle", {}, "aclmdlRI", {ast_.Return("model_handle_")});
 }
 
-MethodDef *LoadAndRunFileCodeGenerator::BuildRefreshFeatureMapMethod() const {
-  const auto base_addr = ast_.Var("const uintptr_t", "base_addr");
-  return ast_.DefineMethod("Om2Model", "RefreshFeatureMap", {base_addr}, "aclError",
-                           {ast_.Return(args_table_.Attr("RefreshFeatureMap")(base_addr))});
-}
-
 Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, const Om2CodegenModel &codegen_model,
                                                   const std::vector<TaskCodeBuilderPtr> &task_code_builders) {
   body.push_back(ast_.Call("OM2_LOGI", {ast_.Str("Load begin")}));

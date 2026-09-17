@@ -320,8 +320,6 @@ struct ArgsTableSemantic {
   std::vector<uint32_t> input_index_to_allocation_ids;
 
   std::vector<uint32_t> output_index_to_allocation_ids;
-
-  std::vector<std::pair<uint32_t, uint32_t>> refreshable_fm_index_and_allocation_ids;
 };
 
 struct Om2CodegenModel {
