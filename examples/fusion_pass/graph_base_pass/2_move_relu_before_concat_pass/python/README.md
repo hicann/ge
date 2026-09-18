@@ -25,9 +25,7 @@ python/
 ## 前置条件
 
 - 已完成 CANN 环境变量设置，设置方式为 `source ${ASCEND_PATH}/set_env.sh`，更多指导请参考 [C++ 样例 README](../cpp/README.md) 的配置环境变量步骤
-- Python 环境可导入 ES API（通常来自 run 包/ops 包）：
-  - `ge.es.math.ConcatV2`
-  - `ge.es.nn.Relu`（若环境中没有该符号，请确认 ES Python API 安装完整）
+- Python 环境可导入 ES API（`ConcatV2`、`Relu`）：优先来自 run 包/ops 包内置插件 `ge.es.math`/`ge.es.nn`；若缺失，回退到 `ge.es.all`（按下文“ES API 缺失时处理（可选）”生成）
 - 可导入 GE Python 包（含 `ge.graph`、`ge.passes` 及 pass 加载链路）
 
 Python pass 运行时会加载基于 `pybind11` 的预编译二进制组件。CANN 包优先提供与当前 Python 版本匹配的产物；若无匹配产物，会自动进入 fallback 编译流程。fallback 编译需要当前 Python 环境中已安装 `pybind11`。
@@ -48,7 +46,7 @@ export ASCEND_GE_PY_PASS_PATH=$PWD/python/src/python_move_relu_before_concat_pas
 2. 生成 AIR 模型：
 
 ```bash
-cd ../cpp/data
+cd cpp/data
 python es_gen_air.py
 ```
 
