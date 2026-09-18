@@ -2101,6 +2101,37 @@ TEST_F(UtestGEExecutorTest, GeExecutorCaseParseModelDescExtendNormal) {
   GeFinalize();
 }
 
+TEST_F(UtestGEExecutorTest, GeExecutorCaseParseModelDescExtendLenExceedsPartitionSize) {
+  ExeModelBuilder modelBuilder;
+  modelBuilder
+      .AddPartition(PRE_MODEL_DESC,
+                    [](std::vector<uint8_t> &model) {
+                      ModelDesc desc = {
+                          .task_num = 1,
+                          .workspace_size = 100,
+                          .weight_size = 103,
+                          .weight_type = 0,
+                          .profile_enable = 0,
+                          .model_interrupt = 0,
+                      };
+                      std::copy_n((uint8_t *)(&desc), sizeof(ModelDesc), std::back_inserter(model));
+                    })
+      .AddPartition(PRE_MODEL_DESC_EXTEND, [](std::vector<uint8_t> &model) { StubExtendPartitionNormal(model); })
+      // Keep the TLV bytes addressable while placing the last byte outside the declared partition.
+      .AddPartitionPos(PRE_MODEL_DESC_EXTEND, -1)
+      .Build();
+
+  GeInitialize();
+  uint32_t model_id = 0;
+  ModelData model_data;
+  (void)memset_s(&model_data, sizeof(ModelData), 0, sizeof(ModelData));
+  model_data.modelData = modelBuilder.ModelData();
+  model_data.modelLen = modelBuilder.ModelLen();
+  EXPECT_CALL(RtStubMock::GetInstance(), rtNanoModelLoad(_, _)).Times(0);
+  EXPECT_EQ(GeLoadModelFromData(&model_id, &model_data), ACL_ERROR_GE_LOAD_MODEL);
+  GeFinalize();
+}
+
 void StubExtendPartitionAbnormal01(std::vector<uint8_t> &model) {
   static uint8_t stub[] = {
       // uint8_t[] data
@@ -2523,21 +2554,21 @@ TEST_F(UtestGEExecutorTest, GeExecutorCaseParseModelDescExtendAbnormalInvalidTot
   GeFinalize();
 }
 
-void StubExtendPartitionAbnormal07(std::vector<uint8_t> &model) {
+void StubExtendPartitionFifoMallocFailed(std::vector<uint8_t> &model) {
   static uint8_t stub[] = {
       // uint8_t[] data
       0x48,
       0x4D,
       0x4F,
       0x44,  // magic
-      0x34,
+      0x24,
       0x00,
       0x00,
       0x00,
       0x00,
       0x00,
       0x00,
-      0x00,  // len 52
+      0x00,  // len 36
       // uint8_t[] tlv
       0x00,
       0x00,
@@ -2581,36 +2612,6 @@ void StubExtendPartitionAbnormal07(std::vector<uint8_t> &model) {
   std::copy_n(stub, total_size, std::back_inserter(model));
 }
 
-TEST_F(UtestGEExecutorTest, GeExecutorCaseParseModelDescExtendAbnormalInvalidLen) {
-  ExeModelBuilder modelBuilder;
-  modelBuilder
-      .AddPartition(PRE_MODEL_DESC,
-                    [](std::vector<uint8_t> &model) {
-                      ModelDesc desc = {
-                          .task_num = 1,
-                          .workspace_size = 100,
-                          .weight_size = 103,
-                          .weight_type = 0,
-                          .profile_enable = 0,
-                          .model_interrupt = 0,
-                      };
-                      std::copy_n((uint8_t *)(&desc), sizeof(ModelDesc), std::back_inserter(model));
-                    })
-      .AddPartition(PRE_MODEL_DESC_EXTEND, [](std::vector<uint8_t> &model) { StubExtendPartitionAbnormal07(model); })
-      .Build();
-
-  GeInitialize();
-  uint32_t model_id = 0;
-  ModelData model_data;
-  (void)memset_s(&model_data, sizeof(ModelData), 0, sizeof(ModelData));
-  model_data.modelData = modelBuilder.ModelData();
-  model_data.modelLen = modelBuilder.ModelLen();
-  EXPECT_CALL(MmpaStubMock::GetInstance(), mmMalloc(_)).WillRepeatedly(Invoke(mmMalloc_Normal_Invoke));
-  EXPECT_CALL(RtStubMock::GetInstance(), rtNanoModelLoad(_, _)).Times(0);
-  EXPECT_EQ(GeLoadModelFromData(&model_id, &model_data), ACL_ERROR_GE_LOAD_MODEL);
-  GeFinalize();
-}
-
 TEST_F(UtestGEExecutorTest, GeExecutorCaseParseModelDescExtendFifoMallocFailed) {
   ExeModelBuilder modelBuilder;
   modelBuilder
@@ -2626,7 +2627,8 @@ TEST_F(UtestGEExecutorTest, GeExecutorCaseParseModelDescExtendFifoMallocFailed) 
                       };
                       std::copy_n((uint8_t *)(&desc), sizeof(ModelDesc), std::back_inserter(model));
                     })
-      .AddPartition(PRE_MODEL_DESC_EXTEND, [](std::vector<uint8_t> &model) { StubExtendPartitionNormal(model); })
+      .AddPartition(PRE_MODEL_DESC_EXTEND,
+                    [](std::vector<uint8_t> &model) { StubExtendPartitionFifoMallocFailed(model); })
       .Build();
 
   GeInitialize();
@@ -2639,8 +2641,8 @@ TEST_F(UtestGEExecutorTest, GeExecutorCaseParseModelDescExtendFifoMallocFailed) 
       .Times(2)
       .WillOnce(Invoke(mmMalloc_Normal_Invoke))
       .WillOnce(Invoke(mmMalloc_Abnormal_Invoke));
-  EXPECT_CALL(RtStubMock::GetInstance(), rtNanoModelLoad(_, _)).Times(0);
-  EXPECT_EQ(GeLoadModelFromData(&model_id, &model_data), ACL_ERROR_GE_LOAD_MODEL);
+  EXPECT_EQ(GeLoadModelFromData(&model_id, &model_data), ACL_ERROR_GE_LOAD_MODEL);  // covers malloc fail in
+                                                                                    // ProcFifoInfo
   GeFinalize();
 }
 
