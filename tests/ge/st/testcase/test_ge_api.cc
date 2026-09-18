@@ -30,6 +30,7 @@
 #include "init_ge.h"
 #include "utils/mock_ops_kernel_builder.h"
 #include "register/register_custom_pass.h"
+#include "ge/fusion/pass/pattern_fusion_pass.h"
 #include "common/global_variables/diagnose_switch.h"
 #include "array_ops.h"
 #include "common/env_path.h"
@@ -1591,6 +1592,58 @@ TEST_F(GeApiTest, RunGraphAsync_RunCustomPass_AfterInferShape_Success) {
  * 预期结果：
  * 1. 不申请输出内存，执行成功
  */
+TEST_F(GeApiTest, RunGraph_RunFusionPass_NoPriorityEntry_NameOrderFallback) {
+  // 用例描述: REG_FUSION_PASS 注册的融合pass无 priority 条目（FusionPriorityCache 为空）时，
+  //           FusionPassExecutor 在 stage 内按 pass 名字序兜底执行
+  // 测试步骤: 1.注册两个最小融合pass（注册顺序刻意与名字序相反：Zed 先注册、Alf 最后注册）
+  //           2.Session 建图编译执行
+  // 预期结果: 1.[Run][FusionPass] 日志顺序为 Alf → Zed（与注册顺序无关，名字序兜底生效）
+  class StFusionZedPass : public ge::fusion::FusionBasePass {
+   public:
+    ge::Status Run(ge::GraphPtr &, ge::CustomPassContext &) override {
+      return NOT_CHANGED;
+    }
+  };
+  class StFusionAlfPass : public ge::fusion::FusionBasePass {
+   public:
+    ge::Status Run(ge::GraphPtr &, ge::CustomPassContext &) override {
+      return NOT_CHANGED;
+    }
+  };
+  REG_FUSION_PASS(StFusionZedPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(StFusionAlfPass).Stage(CustomPassStage::kAfterInferShape);
+
+  GertRuntimeStub runtime_stub;
+  const char_t *kKeyLogAlf = "[Run][FusionPass] StFusionAlfPass in stage AfterInferShape";
+  const char_t *kKeyLogZed = "[Run][FusionPass] StFusionZedPass in stage AfterInferShape";
+
+  auto add1 = OP_CFG(ADD).TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  auto data1 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  auto data2 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data_1", data1)->EDGE(0, 0)->NODE("add_1", add1));
+    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_1", add1));
+  };
+  auto graph = ToGeGraph(g1);
+
+  std::map<AscendString, AscendString> options;
+  Session session(options);
+  GraphId graph_id = 1;
+  EXPECT_EQ(session.AddGraph(graph_id, graph, options), SUCCESS);
+
+  std::vector<ge::Tensor> inputs;
+  std::vector<ge::Tensor> outputs;
+  runtime_stub.GetSlogStub().SetLevelDebug();
+  // 无真实算子 kernels，RunGraph 允许在后续阶段失败，此处仅关注融合 pass 的执行顺序日志
+  (void)session.RunGraph(graph_id, inputs, outputs);
+  const auto pos_alf = runtime_stub.GetSlogStub().FindLog(DLOG_DEBUG, kKeyLogAlf);
+  const auto pos_zed = runtime_stub.GetSlogStub().FindLog(DLOG_DEBUG, kKeyLogZed);
+  ASSERT_GE(pos_alf, 0);
+  ASSERT_GE(pos_zed, 0);
+  EXPECT_LT(pos_alf, pos_zed);
+  runtime_stub.GetSlogStub().Clear();
+}
+
 TEST_F(GeApiTest, DynamicMode_RunGraphWithStreamAsync_NotAllocOutputs) {
   {
     std::map<AscendString, AscendString> options;

@@ -8,7 +8,10 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "fusion_pass_executor.h"
+#include <algorithm>
+#include <cstdint>
 #include "pass_registry.h"
+#include "fusion_priority_cache.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "common/checker.h"
 #include "common/util/trace_manager/trace_manager.h"
@@ -106,6 +109,12 @@ Status FusionPassExecutor::InitPassesIfNeed(CustomPassStage stage) {
     pass_name_to_switches_ = FusionUtils::ParseFusionSwitch();
   }
   auto pass_creators = PassRegistry::GetInstance().GetFusionPassRegDataByStage(stage);
+  // 按FE解析的op_base Priority配置（进程级缓存快照）排序：有条目按数值升序，无条目视为最末。
+  // 输入集合已按pass名字序(std::map)收集，stable_sort保证同值/无条目时名字序兜底；
+  // FE未初始化时缓存为空，退化为名字序（与历史行为一致）
+  const auto priority_map = ge::fusion::FusionPriorityCache::GetInstance().GetGraphFusionPriorityMap();
+  constexpr int32_t kNoEntryPriority = INT32_MAX;
+  std::vector<std::pair<int32_t, FusionPassRegistrationData>> keyed_pass_regs;
   for (const auto &pass_reg : pass_creators) {
     const std::string pass_name = pass_reg.GetPassName().GetString();
     if (!PassOptionUtils::IsPassEnable(pass_name_to_switches_, pass_name, pass_reg.GetDefaultSwitch())) {
@@ -114,10 +123,20 @@ Status FusionPassExecutor::InitPassesIfNeed(CustomPassStage stage) {
              FusionUtils::GetFusionSwitchFileFromOption().c_str());
       continue;
     }
+    const auto iter = priority_map.find(pass_name);
+    const int32_t priority = (iter != priority_map.end()) ? iter->second : kNoEntryPriority;
+    (void)keyed_pass_regs.emplace_back(priority, pass_reg);
+  }
+  std::stable_sort(keyed_pass_regs.begin(), keyed_pass_regs.end(),
+                   [](const std::pair<int32_t, FusionPassRegistrationData> &a,
+                      const std::pair<int32_t, FusionPassRegistrationData> &b) { return a.first < b.first; });
+  for (const auto &keyed_reg : keyed_pass_regs) {
+    const auto &pass_reg = keyed_reg.second;
+    const std::string pass_name = pass_reg.GetPassName().GetString();
     auto *pass = PassRegistry::GetInstance().CreatePass(pass_reg);
     GE_ASSERT_NOTNULL(pass);
     names_to_fusion_passes_.emplace_back(pass_name, pass);
-    GELOGD("[FusionPass][ADD] %s", pass_reg.ToString().GetString());
+    GELOGD("[FusionPass][ADD] %s, priority: %d", pass_reg.ToString().GetString(), keyed_reg.first);
   }
   return SUCCESS;
 }
