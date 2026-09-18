@@ -674,6 +674,51 @@ TEST_F(UTEST_dump_manager, AddDumpProperties_With_DatadumpEnable) {
   DumpStub::GetInstance().Reset();
 }
 
+TEST_F(UTEST_dump_manager, AddDumpProperties_StripTailTimestampDir) {
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(0);
+  std::map<std::string, std::string> run_options;
+  DumpManager::GetInstance().Init(run_options);
+  ASSERT_EQ(system("rm -rf /tmp/ge_ut_dump && mkdir -p /tmp/ge_ut_dump"), 0);
+
+  GetThreadLocalContext().SetGlobalOption(
+      {{"ge.exec.enableDump", "1"}, {"ge.exec.dumpPath", "/tmp/ge_ut_dump"}, {"ge.exec.dumpData", "stats"}});
+
+  DumpProperties dump_properties;
+  EXPECT_EQ(dump_properties.InitByOptions(), ge::SUCCESS);
+  EXPECT_EQ(DumpManager::GetInstance().AddDumpProperties(0, dump_properties), ge::SUCCESS);
+  std::string dump_path;
+  EXPECT_TRUE(DumpStub::GetInstance().GetDumpPath(Adx::DumpType::OPERATOR, dump_path));
+  EXPECT_EQ(dump_path, "/tmp/ge_ut_dump/");
+  DumpManager::GetInstance().RemoveDumpProperties(0);
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(0);
+  DumpManager::GetInstance().Finalize();
+  DumpStub::GetInstance().Reset();
+  (void)system("rm -rf /tmp/ge_ut_dump");
+}
+
+TEST_F(UTEST_dump_manager, AddDumpProperties_StripTailTimestampDir_For_OverflowDump) {
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(0);
+  std::map<std::string, std::string> run_options;
+  DumpManager::GetInstance().Init(run_options);
+  ASSERT_EQ(system("rm -rf /tmp/ge_ut_dump && mkdir -p /tmp/ge_ut_dump"), 0);
+
+  GetThreadLocalContext().SetGlobalOption({{"ge.exec.enableDumpDebug", "1"},
+                                           {"ge.exec.dumpDebugMode", "aicore_overflow"},
+                                           {"ge.exec.dumpPath", "/tmp/ge_ut_dump"}});
+
+  DumpProperties dump_properties;
+  EXPECT_EQ(dump_properties.InitByOptions(), ge::SUCCESS);
+  EXPECT_EQ(DumpManager::GetInstance().AddDumpProperties(0, dump_properties), ge::SUCCESS);
+  std::string dump_path;
+  EXPECT_TRUE(DumpStub::GetInstance().GetDumpPath(Adx::DumpType::OP_OVERFLOW, dump_path));
+  EXPECT_EQ(dump_path, "/tmp/ge_ut_dump/");
+  DumpManager::GetInstance().RemoveDumpProperties(0);
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(0);
+  DumpManager::GetInstance().Finalize();
+  DumpStub::GetInstance().Reset();
+  (void)system("rm -rf /tmp/ge_ut_dump");
+}
+
 TEST_F(UTEST_dump_manager, AddDumpProperties_With_enableDump_On_enableDumpDebug_On) {
   gert::GlobalDumper::GetInstance()->SetEnableFlags(0);
   std::map<std::string, std::string> run_options;
