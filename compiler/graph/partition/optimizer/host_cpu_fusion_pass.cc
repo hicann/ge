@@ -246,7 +246,7 @@ std::string MakeChainId(const std::string &graph_name, const std::vector<NodePtr
   return os.str();
 }
 
-std::vector<NodePtr> GetTopologicalNodes(const ComputeGraphPtr &graph) {
+std::vector<NodePtr> GetDirectNodes(const ComputeGraphPtr &graph) {
   std::vector<NodePtr> nodes;
   for (const auto &node : graph->GetDirectNode()) {
     nodes.emplace_back(node);
@@ -871,10 +871,10 @@ HostCpuFusionPass::HostCpuFusionPass(std::shared_ptr<HostCpuFusionCompiler> comp
   }
 }
 
-std::unordered_set<const Node *> CollectHostCpuFusionCandidates(const std::vector<NodePtr> &topological_nodes,
+std::unordered_set<const Node *> CollectHostCpuFusionCandidates(const std::vector<NodePtr> &nodes,
                                                                 const HostCpuFusionOpSupportChecker &checker) {
   std::unordered_set<const Node *> candidates;
-  for (const auto &node : topological_nodes) {
+  for (const auto &node : nodes) {
     if (IsCandidate(node, checker)) {
       candidates.emplace(node.get());
     }
@@ -904,7 +904,47 @@ void CollectCandidateComponent(const NodePtr &seed, const std::unordered_set<con
   }
 }
 
-Status BuildHostCpuFusionComponent(const ComputeGraphPtr &graph, const std::vector<NodePtr> &topological_nodes,
+bool GetComponentTopologicalNodes(const std::vector<NodePtr> &component, std::vector<NodePtr> &topological_nodes) {
+  std::unordered_set<const Node *> component_members;
+  std::unordered_map<const Node *, size_t> in_edge_counts;
+  for (const auto &node : component) {
+    component_members.emplace(node.get());
+    in_edge_counts.emplace(node.get(), 0U);
+  }
+  for (const auto &node : component) {
+    auto &in_edge_count = in_edge_counts[node.get()];
+    for (const auto &in_node : node->GetInDataNodes()) {
+      if (component_members.count(in_node.get()) > 0U) {
+        ++in_edge_count;
+      }
+    }
+  }
+
+  std::unordered_set<const Node *> visited;
+  topological_nodes.clear();
+  topological_nodes.reserve(component.size());
+  while (topological_nodes.size() < component.size()) {
+    const auto ready =
+        std::find_if(component.cbegin(), component.cend(), [&visited, &in_edge_counts](const NodePtr &node) {
+          return (visited.count(node.get()) == 0U) && (in_edge_counts[node.get()] == 0U);
+        });
+    if (ready == component.cend()) {
+      return false;
+    }
+    const auto &node = *ready;
+    visited.emplace(node.get());
+    topological_nodes.emplace_back(node);
+    for (const auto &out_node : node->GetOutDataNodes()) {
+      const auto out_iter = in_edge_counts.find(out_node.get());
+      if (out_iter != in_edge_counts.end()) {
+        --out_iter->second;
+      }
+    }
+  }
+  return true;
+}
+
+Status BuildHostCpuFusionComponent(const ComputeGraphPtr &graph, const std::vector<NodePtr> &direct_nodes,
                                    const std::unordered_set<const Node *> &candidates,
                                    std::unordered_set<const Node *> &visited, const NodePtr &seed,
                                    const size_t component_index,
@@ -921,13 +961,19 @@ Status BuildHostCpuFusionComponent(const ComputeGraphPtr &graph, const std::vect
     return SUCCESS;
   }
   std::vector<NodePtr> component;
-  for (const auto &node : topological_nodes) {
+  for (const auto &node : direct_nodes) {
     if (component_members.count(node.get()) > 0U) {
       component.emplace_back(node);
     }
   }
+  std::vector<NodePtr> component_topological_nodes;
+  if (!GetComponentTopologicalNodes(component, component_topological_nodes)) {
+    GELOGW("Skip HostCPU fusion component[%zu]: candidate data edges are not acyclic.", component_index);
+    return NOT_CHANGED;
+  }
   std::vector<HostCpuFusionRegion> regions;
-  const Status region_status = BuildComponentRegions(graph, topological_nodes, component, component_index, regions);
+  const Status region_status =
+      BuildComponentRegions(graph, component_topological_nodes, component_topological_nodes, component_index, regions);
   if (region_status == SUCCESS) {
     component_regions.emplace_back(std::move(regions));
   } else if (region_status != NOT_CHANGED) {
@@ -948,22 +994,18 @@ Status HostCpuFusionPass::BuildFusionRegions(const ComputeGraphPtr &graph,
     GELOGE(PARAM_INVALID, "HostCPU fusion graph[%s] has no direct nodes.", graph->GetName().c_str());
     return PARAM_INVALID;
   }
-  if (graph->TopologicalSorting() != GRAPH_SUCCESS) {
-    GELOGE(FAILED, "Topological sorting failed before HostCPU fusion for graph %s.", graph->GetName().c_str());
-    return FAILED;
-  }
-  const auto topological_nodes = GetTopologicalNodes(graph);
-  const auto candidates = CollectHostCpuFusionCandidates(topological_nodes, op_support_checker_);
+  const auto direct_nodes = GetDirectNodes(graph);
+  const auto candidates = CollectHostCpuFusionCandidates(direct_nodes, op_support_checker_);
   GELOGD("HostCPU fusion candidate scan completed: graph[%s], total_nodes=%zu, candidates=%zu.",
-         graph->GetName().c_str(), topological_nodes.size(), candidates.size());
+         graph->GetName().c_str(), direct_nodes.size(), candidates.size());
   std::unordered_set<const Node *> visited;
   size_t component_index = 0U;
-  for (const auto &seed : topological_nodes) {
+  for (const auto &seed : direct_nodes) {
     if ((candidates.count(seed.get()) == 0U) || (visited.count(seed.get()) > 0U)) {
       continue;
     }
-    const Status status = BuildHostCpuFusionComponent(graph, topological_nodes, candidates, visited, seed,
-                                                      component_index++, component_regions);
+    const Status status = BuildHostCpuFusionComponent(graph, direct_nodes, candidates, visited, seed, component_index++,
+                                                      component_regions);
     if (status != SUCCESS && status != NOT_CHANGED) {
       return status;
     }
