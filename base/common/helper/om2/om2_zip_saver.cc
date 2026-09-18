@@ -71,7 +71,7 @@ Status SerializeWeightData(const gert::Om2ModelData &model_data, const std::shar
   const size_t model_index = 0UL;
   const auto constant_file_name = FormatOm2Path("%s%s%zu", OM2_CONSTANTS_DIR, OM2_CONSTANTS_FILE_PREFIX, model_index);
   GE_ASSERT_TRUE(zip_writer->WriteBytes(constant_file_name, model_data.constants_data.weight_data.get(),
-                                        model_data.constants_data.internal_weight_size, true));
+                                        model_data.constants_data.internal_weight_size, false));
   return SUCCESS;
 }
 
@@ -101,7 +101,7 @@ Status SerializeConstantsConfig(const gert::Om2ModelData &model_data,
   const auto constants_config_path =
       FormatOm2Path(OM2_CONSTANTS_CONFIG_PATH_FORMAT, model_index_str.c_str(), model_index_str.c_str());
   GE_ASSERT_TRUE(
-      zip_writer->WriteBytes(constants_config_path, constants_json_str.data(), constants_json_str.size(), false));
+      zip_writer->WriteBytes(constants_config_path, constants_json_str.data(), constants_json_str.size(), true));
   return SUCCESS;
 }
 
