@@ -1303,32 +1303,32 @@ inline Status PadNodeLeadingUnitAxisByInsertIndexesKeepOriginalAxisIds(const Nod
   return SUCCESS;
 }
 
-inline bool IsReshapeSearchTerminal(const NodePtr &node, const bool search_forward) {
+inline bool IsReshapeSearchTerminal(const Node *node, const bool search_forward) {
   if (search_forward) {
-    return BackendUtils::IsOutputNode(node);
+    return node->GetType() == kOutputType;
   }
   return (node->GetType() == kDataType) || (node->GetType() == kScalarType);
 }
 
-inline void GetConnectedPeerInNodesForReshapeSearch(const NodePtr &node, const int32_t out_data_idx,
-                                                    std::vector<NodePtr> &peer_in_nodes) {
+inline void GetConnectedPeerInNodesForReshapeSearch(const Node *node, const int32_t out_data_idx,
+                                                    std::vector<Node *> &peer_in_nodes) {
   peer_in_nodes.clear();
   const auto out_anchor = node->GetOutDataAnchor(out_data_idx);
   if (out_anchor == nullptr) {
     return;
   }
-  for (const auto &peer_in_anchor : out_anchor->GetPeerInDataAnchors()) {
+  for (const auto &peer_in_anchor : out_anchor->GetPeerInDataAnchorsPtr()) {
     if (peer_in_anchor == nullptr) {
       continue;
     }
-    const auto peer_in_node = peer_in_anchor->GetOwnerNode();
+    const auto peer_in_node = peer_in_anchor->GetOwnerNodeBarePtr();
     if (peer_in_node != nullptr) {
       peer_in_nodes.push_back(peer_in_node);
     }
   }
 }
 
-inline void GetConnectedPeerOutNodesForReshapeSearch(const NodePtr &node, std::vector<NodePtr> &peer_out_nodes) {
+inline void GetConnectedPeerOutNodesForReshapeSearch(const Node *node, std::vector<Node *> &peer_out_nodes) {
   peer_out_nodes.clear();
   const auto size = static_cast<int32_t>(node->GetAllInDataAnchorsSize());
   for (int32_t i = 0; i < size; ++i) {
@@ -1340,19 +1340,19 @@ inline void GetConnectedPeerOutNodesForReshapeSearch(const NodePtr &node, std::v
     if (peer_out_anchor == nullptr) {
       continue;
     }
-    const auto peer_out_node = peer_out_anchor->GetOwnerNode();
+    const auto peer_out_node = peer_out_anchor->GetOwnerNodeBarePtr();
     if (peer_out_node != nullptr) {
       peer_out_nodes.push_back(peer_out_node);
     }
   }
 }
 
-inline bool FindDirectionalNonUnitRepeatByAxisId(const NodePtr &node, const int64_t axis_id, const bool search_forward,
+inline bool FindDirectionalNonUnitRepeatByAxisId(const Node *node, const int64_t axis_id, const bool search_forward,
                                                  std::unordered_set<const void *> &visited, Expression &repeat) {
-  if ((node == nullptr) || (visited.find(node.get()) != visited.end())) {
+  if ((node == nullptr) || (visited.find(node) != visited.end())) {
     return false;
   }
-  visited.insert(node.get());
+  visited.insert(node);
   if (IsReshapeSearchTerminal(node, search_forward)) {
     return false;
   }
@@ -1381,7 +1381,7 @@ inline bool FindDirectionalNonUnitRepeatByAxisId(const NodePtr &node, const int6
     }
   }
 
-  std::vector<NodePtr> peer_nodes;
+  std::vector<Node *> peer_nodes;
   if (search_forward) {
     for (size_t i = 0U; i < node->GetAllOutDataAnchorsSize(); ++i) {
       GetConnectedPeerInNodesForReshapeSearch(node, static_cast<int32_t>(i), peer_nodes);
@@ -1409,7 +1409,7 @@ inline bool FindAnchorRepeatByRepeatIndex(const NodePtr &node, const std::vector
     return false;
   }
   std::unordered_set<const void *> visited;
-  return FindDirectionalNonUnitRepeatByAxisId(node, axis[repeat_index], search_forward, visited, repeat);
+  return FindDirectionalNonUnitRepeatByAxisId(node.get(), axis[repeat_index], search_forward, visited, repeat);
 }
 
 inline void BuildUnitRepeatGapIndexes(const std::vector<Expression> &repeats,
