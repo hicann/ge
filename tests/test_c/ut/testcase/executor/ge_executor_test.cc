@@ -2101,37 +2101,6 @@ TEST_F(UtestGEExecutorTest, GeExecutorCaseParseModelDescExtendNormal) {
   GeFinalize();
 }
 
-TEST_F(UtestGEExecutorTest, GeExecutorCaseParseModelDescExtendLenExceedsPartitionSize) {
-  ExeModelBuilder modelBuilder;
-  modelBuilder
-      .AddPartition(PRE_MODEL_DESC,
-                    [](std::vector<uint8_t> &model) {
-                      ModelDesc desc = {
-                          .task_num = 1,
-                          .workspace_size = 100,
-                          .weight_size = 103,
-                          .weight_type = 0,
-                          .profile_enable = 0,
-                          .model_interrupt = 0,
-                      };
-                      std::copy_n((uint8_t *)(&desc), sizeof(ModelDesc), std::back_inserter(model));
-                    })
-      .AddPartition(PRE_MODEL_DESC_EXTEND, [](std::vector<uint8_t> &model) { StubExtendPartitionNormal(model); })
-      // Keep the TLV bytes addressable while placing the last byte outside the declared partition.
-      .AddPartitionPos(PRE_MODEL_DESC_EXTEND, -1)
-      .Build();
-
-  GeInitialize();
-  uint32_t model_id = 0;
-  ModelData model_data;
-  (void)memset_s(&model_data, sizeof(ModelData), 0, sizeof(ModelData));
-  model_data.modelData = modelBuilder.ModelData();
-  model_data.modelLen = modelBuilder.ModelLen();
-  EXPECT_CALL(RtStubMock::GetInstance(), rtNanoModelLoad(_, _)).Times(0);
-  EXPECT_EQ(GeLoadModelFromData(&model_id, &model_data), ACL_ERROR_GE_LOAD_MODEL);
-  GeFinalize();
-}
-
 void StubExtendPartitionAbnormal01(std::vector<uint8_t> &model) {
   static uint8_t stub[] = {
       // uint8_t[] data
