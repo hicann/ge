@@ -161,7 +161,7 @@ Status ReportInvalidBuildConfig(const std::string &value, const std::string &rea
 
 Status CheckBuildConfigValue(const std::string &value) {
   constexpr std::string_view kAllowedChars = " _-./+,:=@%'\"";
-  for (const auto c : value) {
+  for (const char c : value) {
     // Keep build_config as make arguments instead of opening a general shell command surface.
     const bool is_allowed = std::isalnum(static_cast<uint8_t>(c)) || (kAllowedChars.find(c) != std::string_view::npos);
     GE_IF_BOOL_EXEC(!is_allowed,
@@ -175,7 +175,7 @@ Status SplitCommandTokens(const std::string &command, std::vector<std::string> &
   std::string token;
   // 引号感知拆分：避免 CXXFLAGS="-O2 -fPIC" 中的 "-fPIC" 被误判为 make 的 "-f"（Makefile）选项
   char_t quote = '\0';  // '\0' 表示引号外；'\'' 或 '"' 表示在对应引号内
-  for (const auto c : command) {
+  for (const char c : command) {
     if (quote != '\0') {
       // 在引号内：持续消费字符，直到遇到匹配的闭合引号
       token.push_back(c);

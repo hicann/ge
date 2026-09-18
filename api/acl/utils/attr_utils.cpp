@@ -75,7 +75,7 @@ float32_t Fp16ToFloat(const uint16_t val) {
   const uint32_t sRet = hfSign;
   TypeUnion u;
   u.uVal = FP32_CONSTRUCTOR(sRet, eRet, mRet);
-  const auto ret = u.fVal;
+  const float ret = u.fVal;
   return ret;
 }
 

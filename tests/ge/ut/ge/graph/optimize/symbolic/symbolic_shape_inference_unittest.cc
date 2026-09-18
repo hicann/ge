@@ -1641,8 +1641,8 @@ TEST_F(SymbolicShapeInferenceUT, InferShapeForReShapeConstWithGuard) {
   td0.SetOriginShape(shape0);
   ge::Tensor tensor0{td0};
   input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor0));
-  const std::vector<Expression> expect_symbol_output_shape = {
-      Symbol(2), sym::Rational(1, 2) * Symbol("s0") * Symbol("s1") * Symbol("s2"), Symbol(3)};
+  // -1 维度按 hint 整除求解为常量（24/6=4），不再产生符号除法分数表达式
+  const std::vector<Expression> expect_symbol_output_shape = {Symbol(2), Symbol(4), Symbol(3)};
   ExpectNodeInfo expect_node("Reshape", expect_symbol_output_shape, {}, {}, {});
   std::vector<ExpectNodeInfo> expect_node_vec;
   expect_node_vec.push_back(expect_node);

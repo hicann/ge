@@ -21,4 +21,6 @@ PassRegistrationData &Stage(const CustomPassStage stage)
 CustomPassStage GetStage() const
 PassRegistrationData &CustomAllocateStreamPassFn(const CustomAllocateStreamPassFunc &allocate_stream_pass_fn)
 CustomAllocateStreamPassFunc GetCustomAllocateStreamPass() const
+PassRegistrationData &DefaultSwitch(PassSwitch pass_switch)
+PassSwitch GetDefaultSwitch() const
 ```

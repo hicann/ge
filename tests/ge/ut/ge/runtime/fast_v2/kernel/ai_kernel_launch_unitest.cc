@@ -25,7 +25,9 @@
 #include "common/dump/exception_dumper.h"
 #include "subscriber/profiler/cann_profiler_v2.h"
 #include "runtime/subscriber/global_dumper.h"
+#include "runtime/subscriber/global_profiler.h"
 #include "depends/profiler/src/dump_stub.h"
+#include "depends/profiler/src/profiling_test_util.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "common/kernel_handles_manager/kernel_handles_manager.h"
 #include "graph/op_kernel_bin.h"
@@ -169,6 +171,9 @@ struct AiKernelLaunchContext {
     attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_BLOCKDIM_OFFSET;
     attrs[actual_cfg_num].value.blockDimOffset = 1U;
     actual_cfg_num++;
+    attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING;
+    attrs[actual_cfg_num].value.enableProfiling = 1U;
+    actual_cfg_num++;
     cfg.attrs = &attrs[0];
     cfg.numAttrs = actual_cfg_num;
     ComputeNodeDesc node_desc = {.input_num = input_num,
@@ -227,6 +232,9 @@ struct AiKernelLaunchContext {
     attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_BLOCKDIM_OFFSET;
     attrs[actual_cfg_num].value.blockDimOffset = 1U;
     actual_cfg_num++;
+    attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING;
+    attrs[actual_cfg_num].value.enableProfiling = 1U;
+    actual_cfg_num++;
     cfg.attrs = &attrs[0];
     cfg.numAttrs = actual_cfg_num;
     dfx_arg = {true, true, 12345};
@@ -272,6 +280,9 @@ struct AiKernelLaunchContext {
     actual_cfg_num++;
     attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_BLOCKDIM_OFFSET;
     attrs[actual_cfg_num].value.blockDimOffset = 1U;
+    actual_cfg_num++;
+    attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING;
+    attrs[actual_cfg_num].value.enableProfiling = 1U;
     actual_cfg_num++;
     cfg.attrs = &attrs[0];
     cfg.numAttrs = actual_cfg_num;
@@ -322,6 +333,9 @@ struct AiKernelLaunchContext {
     actual_cfg_num++;
     attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_BLOCKDIM_OFFSET;
     attrs[actual_cfg_num].value.blockDimOffset = 1U;
+    actual_cfg_num++;
+    attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING;
+    attrs[actual_cfg_num].value.enableProfiling = 1U;
     actual_cfg_num++;
     cfg.attrs = &attrs[0];
     cfg.numAttrs = actual_cfg_num;
@@ -493,7 +507,7 @@ struct AiKernelLaunchContext {
   uint32_t with_handle_flag = 0U;
   uint64_t io_num;
   uint64_t output_num_;
-  aclrtLaunchKernelAttr attrs[4];
+  aclrtLaunchKernelAttr attrs[5];
   aclrtLaunchKernelCfg cfg;
   std::string node_info;
   GertTensorData tensor_datas[10];
@@ -797,5 +811,130 @@ TEST_F(AiKernelLaunchUT, AiCoreLaunchKernelV2_need_shapebuffer_success) {
   for (size_t i = 0U; i < context.io_num; ++i) {
     ASSERT_EQ(args_host_buffer[i], 0x11);
   }
+}
+
+namespace {
+void SetScaleProfilingSwitch(const bool enabled) {
+  if (enabled) {
+    GlobalProfilingWrapper::GetInstance()->SetEnableFlags(
+        BuiltInSubscriberUtil::EnableBit<ProfilingType>(ProfilingType::kScale));
+  } else {
+    GlobalProfilingWrapper::GetInstance()->SetEnableFlags(0);
+  }
+}
+}  // namespace
+
+TEST_F(AiKernelLaunchUT, ai_launch_kernel_v2_enable_profiling_on_when_scale_disabled) {
+  AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}));
+  GertRuntimeStub runtime_stub;
+  SetScaleProfilingSwitch(false);
+  ASSERT_EQ(kernel::AiCoreLaunchKernelV2(context.WithFlag()), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(context.cfg.numAttrs, 5UL);
+  EXPECT_EQ(context.attrs[4].id, ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING);
+  EXPECT_EQ(context.attrs[4].value.enableProfiling, 1U);
+  SetScaleProfilingSwitch(false);
+}
+
+TEST_F(AiKernelLaunchUT, ai_launch_kernel_v2_enable_profiling_on_when_scale_enabled_and_op_allowed) {
+  AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}));
+  GertRuntimeStub runtime_stub;
+  SetScaleProfilingSwitch(true);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "Relu");
+    return true;
+  };
+  auto *kernel_context = context.WithFlag();
+  context.context.MutableComputeNodeInfo()->SetNodeType("Relu");
+  ASSERT_EQ(kernel::AiCoreLaunchKernelV2(kernel_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(context.cfg.numAttrs, 5UL);
+  EXPECT_EQ(context.attrs[4].id, ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING);
+  EXPECT_EQ(context.attrs[4].value.enableProfiling, 1U);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = nullptr;
+  SetScaleProfilingSwitch(false);
+}
+
+TEST_F(AiKernelLaunchUT, ai_launch_kernel_v2_profiling_attr_absent_when_scale_enabled_and_op_filtered) {
+  AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}));
+  GertRuntimeStub runtime_stub;
+  SetScaleProfilingSwitch(true);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "Relu");
+    return false;
+  };
+  auto *kernel_context = context.WithFlag();
+  context.context.MutableComputeNodeInfo()->SetNodeType("Relu");
+  ASSERT_EQ(kernel::AiCoreLaunchKernelV2(kernel_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(context.cfg.numAttrs, 4UL);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = nullptr;
+  SetScaleProfilingSwitch(false);
+}
+
+TEST_F(AiKernelLaunchUT, ai_launch_kernel_v2_no_profiling_attr_write_when_legacy_cfg) {
+  AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}));
+  GertRuntimeStub runtime_stub;
+  SetScaleProfilingSwitch(true);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "Relu");
+    return false;
+  };
+  auto *kernel_context = context.WithFlag();
+  context.context.MutableComputeNodeInfo()->SetNodeType("Relu");
+  context.cfg.numAttrs = 4UL;
+  ASSERT_EQ(kernel::AiCoreLaunchKernelV2(kernel_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(context.cfg.numAttrs, 4UL);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = nullptr;
+  SetScaleProfilingSwitch(false);
+}
+
+TEST_F(AiKernelLaunchUT, atomic_launch_kernel_v2_enable_profiling_on_when_op_allowed) {
+  AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}));
+  context.CleanWorkSpace(2);
+  GertRuntimeStub runtime_stub;
+  SetScaleProfilingSwitch(true);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "Relu");
+    return true;
+  };
+  auto *kernel_context = context.CleanWorkspaceIndex({}).WithAtomicFlag();
+  context.context.MutableComputeNodeInfo()->SetNodeType("Relu");
+  ASSERT_EQ(registry.FindKernelFuncs("AtomicLaunchKernelV2")->run_func(kernel_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(context.cfg.numAttrs, 5UL);
+  EXPECT_EQ(context.attrs[4].id, ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING);
+  EXPECT_EQ(context.attrs[4].value.enableProfiling, 1U);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = nullptr;
+  SetScaleProfilingSwitch(false);
+}
+
+TEST_F(AiKernelLaunchUT, atomic_launch_kernel_v2_profiling_attr_absent_when_op_filtered) {
+  AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}));
+  context.CleanWorkSpace(2);
+  GertRuntimeStub runtime_stub;
+  SetScaleProfilingSwitch(true);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "Relu");
+    return false;
+  };
+  auto *kernel_context = context.CleanWorkspaceIndex({}).WithAtomicFlag();
+  context.context.MutableComputeNodeInfo()->SetNodeType("Relu");
+  ASSERT_EQ(registry.FindKernelFuncs("AtomicLaunchKernelV2")->run_func(kernel_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(context.cfg.numAttrs, 4UL);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = nullptr;
+  SetScaleProfilingSwitch(false);
+}
+
+TEST_F(AiKernelLaunchUT, mix_launch_kernel_v2_profiling_attr_absent_when_op_filtered) {
+  AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}), true);
+  GertRuntimeStub runtime_stub;
+  SetScaleProfilingSwitch(true);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [](uint32_t type, const char *op, size_t len) {
+    EXPECT_EQ(std::string(op, len), "Relu");
+    return false;
+  };
+  auto *kernel_context = context.WithFlag(15);
+  context.context.MutableComputeNodeInfo()->SetNodeType("Relu");
+  ASSERT_EQ(kernel::AiCoreLaunchMixKernelV2(kernel_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(context.cfg.numAttrs, 4UL);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = nullptr;
+  SetScaleProfilingSwitch(false);
 }
 }  // namespace gert

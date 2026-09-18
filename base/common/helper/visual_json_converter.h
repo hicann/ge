@@ -24,7 +24,7 @@
 #include "proto/ge_ir.pb.h"
 
 namespace ge {
-enum class ListValType : int;
+enum class ListValType : int32_t;
 struct VisualJsonModel;
 
 class VisualJsonConverter {
@@ -53,7 +53,7 @@ class VisualJsonConverter {
 
   // singular 与 repeated 共用的字段值序列化。repeated_index < 0 表示 singular。
   static void SerializeFieldValue(const google::protobuf::Message &msg, const google::protobuf::Reflection *ref,
-                                  const google::protobuf::FieldDescriptor *field, int repeated_index,
+                                  const google::protobuf::FieldDescriptor *field, int32_t repeated_index,
                                   nlohmann::json &out);
   // list_list_int / list_list_float 二维数组展开。
   static void SerializeNestedNumberList(const google::protobuf::Message &msg, const google::protobuf::Reflection *ref,

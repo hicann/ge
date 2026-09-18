@@ -49,12 +49,12 @@ void PathValidErrReport(const std::string &file_path, const std::string &atc_par
   }
 }
 
-bool IsAllowedAsciiPathChar(const unsigned char ch) {
+bool IsAllowedAsciiPathChar(const uint8_t ch) {
   return (((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z')) || ((ch >= '0') && (ch <= '9')) || (ch == '.') ||
           (ch == '/') || (ch == '_') || (ch == '-'));
 }
 
-bool IsUtf8ContinuationByte(const unsigned char ch) {
+bool IsUtf8ContinuationByte(const uint8_t ch) {
   return (ch & 0xC0U) == 0x80U;
 }
 
@@ -63,7 +63,7 @@ bool DecodeMultiByteUtf8CodePoint(const std::string &str, size_t &index, uint32_
     return false;
   }
 
-  const auto first = static_cast<unsigned char>(str[index]);
+  const auto first = static_cast<uint8_t>(str[index]);
   size_t length = 0U;
   uint32_t min_code_point = 0U;
   if ((first & 0xE0U) == 0xC0U) {
@@ -87,7 +87,7 @@ bool DecodeMultiByteUtf8CodePoint(const std::string &str, size_t &index, uint32_
   }
 
   for (size_t i = 1U; i < length; ++i) {
-    const auto ch = static_cast<unsigned char>(str[index + i]);
+    const auto ch = static_cast<uint8_t>(str[index + i]);
     if (!IsUtf8ContinuationByte(ch)) {
       return false;
     }
@@ -105,7 +105,7 @@ bool DecodeMultiByteUtf8CodePoint(const std::string &str, size_t &index, uint32_
 
 bool IsPathCharsValid(const std::string &path) {
   for (size_t i = 0U; i < path.size();) {
-    const auto ch = static_cast<unsigned char>(path[i]);
+    const auto ch = static_cast<uint8_t>(path[i]);
     if (ch < 0x80U) {
       if (!IsAllowedAsciiPathChar(ch)) {
         return false;

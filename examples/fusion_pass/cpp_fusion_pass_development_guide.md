@@ -262,7 +262,40 @@ REG_FUSION_PASS(AddZeroPass).Stage(CustomPassStage::kBeforeInferShape);
 
 初次开发建议先使用 `kBeforeInferShape`。
 
-## 9. 写 DecomposePass
+## 9. 注册默认开关状态
+
+如果 pass 存在精度风险或性能回退，需要在注册时声明默认关闭，仅当用户显式配置开启时才执行：
+
+```cpp
+REG_FUSION_PASS(RiskyPass).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape);
+```
+
+| 枚举值 | 语义 |
+|--------|------|
+| `PassSwitch::kOn` | 默认开启（不调用 `DefaultSwitch` 时的默认值，与历史行为一致） |
+| `PassSwitch::kOff` | 默认关闭，仅当用户通过 `--optimization_switch` 或 `fusion_switch_file` 显式开启时才执行 |
+
+开关优先级：
+
+| 优先级 | 来源 | 说明 |
+|--------|------|------|
+| 1（最高） | graph option | `--optimization_switch=PassName:on/off`，运行时即时生效 |
+| 2 | JSON 精确匹配 | `fusion_switch_file` JSON 中该 pass 名对应的 `true`/`false` |
+| 3 | JSON ALL 通配 | JSON 中 `"ALL": true/false`，对所有未精确命中的 pass 生效 |
+| 4（最低） | 注册默认值 | pass 注册时声明的 `PassSwitch`，未声明时为 `kOn` |
+
+前 3 层任意一层命中都会直接返回，不走第 4 层。只有前 3 层都未配置时，第 4 层的 `kOff` 才生效。
+
+> 如果 `.so` 需要在旧版 GE（< 9.3.0）上运行，需用 `COMPILER_VERSION_NUM` 编译宏保护 `DefaultSwitch` 调用：
+> ```cpp
+> #if COMPILER_VERSION_NUM >= 9030000
+> REG_FUSION_PASS(RiskyPass).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape);
+> #else
+> REG_FUSION_PASS(RiskyPass).Stage(CustomPassStage::kBeforeInferShape);
+> #endif
+> ```
+
+## 10. 写 DecomposePass
 
 如果要把一个节点拆成多个节点，用 `DecomposePass`。
 
@@ -301,7 +334,7 @@ REG_DECOMPOSE_PASS(MyDecomposePass, {"Conv2D"}).Stage(CustomPassStage::kAfterInf
 
 完整样例见 [DecomposePass C++ 样例](pattern_base_pass/6_decompose_grouped_conv_to_splited_pass/cpp/README.md)。
 
-## 10. 编译和运行
+## 11. 编译和运行
 
 每个样例目录都带有 `CMakeLists.txt`。一般流程如下。
 
@@ -336,7 +369,7 @@ atc --model=./model.onnx --framework=5 --soc_version=xxx --output=./model
 
 在线场景通常由样例中的 `torch_forward.py` 触发 GE 编译。
 
-## 11. 验证和排查
+## 12. 验证和排查
 
 建议打开图 dump：
 
@@ -367,7 +400,7 @@ export ASCEND_GLOBAL_LOG_LEVEL=0
 
 使用 `atc` 时可增加 `--log=debug`。
 
-## 12. 推荐阅读顺序
+## 13. 推荐阅读顺序
 
 1. [融合 Pattern Pass 机制](../../docs/zh/design/features/fusion_pattern_pass.md)
 2. [AddZeroPass C++ 样例](pattern_base_pass/4_add_zero_pass/cpp/README.md)

@@ -24,14 +24,6 @@
 - IPV350：不支持
 <!-- end id7 -->
 
-## 头文件/库文件
-
-```c
-#include "acl/acl_mdl.h"
-```
-
-库文件：`libacl_mdl.so`。
-
 ## 功能说明
 
 根据内存中的模型数据和工作内存优化模式，获取模型执行时所需的工作内存大小。
@@ -61,5 +53,5 @@ aclError aclmdlQueryWorkspaceSizeFromMem(const void *model, size_t modelSize, si
 
 ## 约束说明
 
-- 本接口仅支持OM2模型数据。OM模型数据调用本接口时返回不支持。
-- 当`memOptimizeMode`设置为`ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT`时，如果模型数据不支持输入输出内存优化，则`workSize`返回模型执行所需的完整工作内存大小。
+- 本接口支持查询OM2模型数据的工作内存大小，不支持查询OM模型数据的工作内存大小。使用OM模型数据调用本接口时，返回`ACL_ERROR_API_NOT_SUPPORT`。
+- 当`memOptimizeMode`设置为`ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT`时，如果该模型数据在通过[aclmdlLoadWithConfig](aclmdlLoadWithConfig.md)接口配置`ACL_MDL_WORKSPACE_MEM_OPTIMIZE`为`ACL_WORKSPACE_MEM_OPTIMIZE_INPUTOUTPUT`后，工作内存大小没有优化效果，则`workSize`与`memOptimizeMode`设置为`ACL_WORKSPACE_MEM_OPTIMIZE_DEFAULT`时的查询结果一致。

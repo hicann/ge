@@ -77,7 +77,7 @@ bool HasPythonCustomOpEntry(const std::string &path, const struct stat &path_sta
 
   DIR *dir = opendir(path.c_str());
   if (dir == nullptr) {
-    GELOGI("Skip scanning python custom op directory[%s] because opendir failed.", path.c_str());
+    GELOGW("Skip scanning python custom op directory[%s] because opendir failed.", path.c_str());
     return false;
   }
   struct dirent *entry = nullptr;
@@ -88,7 +88,7 @@ bool HasPythonCustomOpEntry(const std::string &path, const struct stat &path_sta
     const std::string entry_path = path + "/" + entry->d_name;
     struct stat child_stat{};
     if (stat(entry_path.c_str(), &child_stat) != 0) {
-      GELOGI("Skip scanning python custom op path[%s] because stat failed.", entry_path.c_str());
+      GELOGW("Skip scanning python custom op path[%s] because stat failed.", entry_path.c_str());
       continue;
     }
     if (S_ISREG(child_stat.st_mode) && IsPythonFile(entry_path)) {

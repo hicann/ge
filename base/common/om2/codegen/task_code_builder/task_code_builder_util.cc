@@ -331,8 +331,8 @@ Arg TaskCodeBuilderUtil::BuildTilingDataField(AstBuildContext &ast, const OpArgD
   uint32_t raw_data_len = 0U;
   if (!arg_desc.raw_data.empty()) {
     std::ostringstream oss;
-    for (const auto byte : arg_desc.raw_data) {
-      oss << "\\" << std::oct << std::setw(kWidthPerChar) << std::setfill('0') << static_cast<int>(byte);
+    for (const uint8_t byte : arg_desc.raw_data) {
+      oss << "\\" << std::oct << std::setw(kWidthPerChar) << std::setfill('0') << static_cast<int32_t>(byte);
     }
     raw_data_arg = ast.ReinterpretCast("const uint8_t *", Arg::StringLiteral(oss.str()));
     raw_data_len = static_cast<uint32_t>(arg_desc.raw_data.size());

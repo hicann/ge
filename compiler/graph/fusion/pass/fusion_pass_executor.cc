@@ -23,23 +23,6 @@ namespace ge {
 namespace fusion {
 namespace {
 const size_t kMaxRepassTimes = 10U;
-const std::string kPassSwitchAll = "ALL";
-bool IsPassEnable(const std::map<std::string, bool> &pass_name_2_switches, const std::string &pass_name) {
-  bool is_enable_by_option = false;
-  if (PassOptionUtils::CheckIsPassEnabledByOption(pass_name, is_enable_by_option) == SUCCESS) {
-    return is_enable_by_option;
-  }
-  const auto iter = pass_name_2_switches.find(pass_name);
-  if (iter != pass_name_2_switches.cend()) {
-    return iter->second;
-  }
-
-  auto all_iter = pass_name_2_switches.find(kPassSwitchAll);
-  if (all_iter != pass_name_2_switches.end()) {
-    return all_iter->second;
-  }
-  return true;
-}
 Status MergeFinalStatus(Status final_status, Status cur_pass_status) {
   if (final_status != NOT_CHANGED && final_status != SUCCESS) {
     return final_status;
@@ -106,8 +89,11 @@ FusionPassExecutor::~FusionPassExecutor() {
 Status FusionPassExecutor::RunPassesWithLegacyCustom(const ComputeGraphPtr &compute_graph, CustomPassStage stage) {
   CustomPassContext context;
   auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
-  GE_ASSERT_SUCCESS(CustomPassHelper::Instance().Run(graph, context, stage), "Run custom pass for graph [%s] failed.",
-                    compute_graph->GetName().c_str());
+  if (pass_name_to_switches_.empty()) {
+    pass_name_to_switches_ = FusionUtils::ParseFusionSwitch();
+  }
+  GE_ASSERT_SUCCESS(CustomPassHelper::Instance().Run(graph, context, stage, pass_name_to_switches_),
+                    "Run custom pass for graph [%s] failed.", compute_graph->GetName().c_str());
   GE_ASSERT_SUCCESS(RunPasses(compute_graph, stage));
   return SUCCESS;
 }
@@ -122,7 +108,7 @@ Status FusionPassExecutor::InitPassesIfNeed(CustomPassStage stage) {
   auto pass_creators = PassRegistry::GetInstance().GetFusionPassRegDataByStage(stage);
   for (const auto &pass_reg : pass_creators) {
     const std::string pass_name = pass_reg.GetPassName().GetString();
-    if (!IsPassEnable(pass_name_to_switches_, pass_name)) {
+    if (!PassOptionUtils::IsPassEnable(pass_name_to_switches_, pass_name, pass_reg.GetDefaultSwitch())) {
       GELOGI("[FusionPass][SKIP] Pass [%s] is disabled by fusion switch config file, Option[%s][%s].",
              pass_reg.ToString().GetString(), FUSION_SWITCH_FILE.c_str(),
              FusionUtils::GetFusionSwitchFileFromOption().c_str());

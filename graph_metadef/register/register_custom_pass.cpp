@@ -13,6 +13,7 @@
 #include "common/checker.h"
 
 #include "register/custom_pass_helper.h"
+#include "register/pass_option_utils.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph_metadef/graph/debug/ge_util.h"
 #include "graph_metadef/common/plugin/plugin_manager.h"
@@ -161,6 +162,7 @@ class PassRegistrationDataImpl {
   CustomPassFunc custom_pass_;
   CustomAllocateStreamPassFunc allocate_stream_pass_;
   CustomPassStage stage_ = CustomPassStage::kBeforeInferShape;
+  PassSwitch default_switch_ = PassSwitch::kOn;
 };
 
 PassRegistrationDataImpl::PassRegistrationDataImpl(const std::string &pass_name)
@@ -206,6 +208,20 @@ CustomPassFunc PassRegistrationData::GetCustomPassFn() const {
 CustomAllocateStreamPassFunc PassRegistrationData::GetCustomAllocateStreamPass() const {
   GE_ASSERT_NOTNULL(impl_);
   return impl_->allocate_stream_pass_;
+}
+
+PassRegistrationData &PassRegistrationData::DefaultSwitch(PassSwitch pass_switch) {
+  if (impl_ != nullptr) {
+    impl_->default_switch_ = pass_switch;
+  }
+  return *this;
+}
+
+PassSwitch PassRegistrationData::GetDefaultSwitch() const {
+  if (impl_ == nullptr) {
+    return PassSwitch::kOn;
+  }
+  return impl_->default_switch_;
 }
 
 PassRegistrationData &PassRegistrationData::Stage(const CustomPassStage stage) {
@@ -353,15 +369,15 @@ Status CustomPassHelper::Unload() {
   return ge::SUCCESS;
 }
 
-Status CustomPassHelper::Run(GraphPtr &graph, CustomPassContext &custom_pass_context) const {
-  return Run(graph, custom_pass_context, CustomPassStage::kBeforeInferShape);
-}
-
-Status CustomPassHelper::Run(GraphPtr &graph, CustomPassContext &custom_pass_context,
-                             const CustomPassStage stage) const {
+Status CustomPassHelper::Run(GraphPtr &graph, CustomPassContext &custom_pass_context, const CustomPassStage stage,
+                             const std::map<std::string, bool> &pass_name_to_switches) const {
   std::shared_lock<std::shared_mutex> lock(mutex_);
   for (auto &item : registration_datas_) {
     if (item.GetStage() != stage) {
+      continue;
+    }
+    if (!PassOptionUtils::IsPassEnable(pass_name_to_switches, item.GetPassName(), item.GetDefaultSwitch())) {
+      GELOGI("[CustomPass][SKIP] Pass [%s] is disabled by fusion switch config.", item.GetPassName().c_str());
       continue;
     }
     GELOGD("Starting custom pass [%s] in stage [%s]!", item.GetPassName().c_str(),

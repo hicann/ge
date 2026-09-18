@@ -21,7 +21,6 @@ constexpr int32_t MIN_ALIGNMENT_YUV = 2;
 constexpr uint32_t TWO_CHANNEL = 2U;
 constexpr uint32_t THREE_CHANNEL = 3U;
 constexpr uint32_t FOUR_CHANNEL = 4U;
-constexpr uint32_t MULTIPLE = 16U;
 }  // namespace
 
 namespace acl {

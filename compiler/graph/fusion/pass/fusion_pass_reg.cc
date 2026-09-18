@@ -46,10 +46,19 @@ class FusionPassRegistrationDataImpl {
     return create_pass_func_;
   }
 
+  void DefaultSwitch(PassSwitch pass_switch) {
+    default_switch_ = pass_switch;
+  }
+
+  PassSwitch GetDefaultSwitch() const {
+    return default_switch_;
+  }
+
  private:
   AscendString pass_name_;
   CreateFusionPassFn create_pass_func_{};
   CustomPassStage stage_{};
+  PassSwitch default_switch_{PassSwitch::kOn};
 };
 
 FusionPassRegistrationData::FusionPassRegistrationData(const AscendString &pass_name) {
@@ -91,12 +100,26 @@ CreateFusionPassFn FusionPassRegistrationData::GetCreatePassFn() const {
   return nullptr;
 }
 
+FusionPassRegistrationData &FusionPassRegistrationData::DefaultSwitch(PassSwitch pass_switch) {
+  if (impl_ != nullptr) {
+    impl_->DefaultSwitch(pass_switch);
+  }
+  return *this;
+}
+
+PassSwitch FusionPassRegistrationData::GetDefaultSwitch() const {
+  if (impl_ != nullptr) {
+    return impl_->GetDefaultSwitch();
+  }
+  return PassSwitch::kOn;
+}
+
 AscendString FusionPassRegistrationData::ToString() const {
   AscendString reg_info;
   if (impl_ != nullptr) {
     std::stringstream ss;
     ss << "Pass Name[" << impl_->GetPassName().GetString() << "], stage[" << CustomPassStageToString(impl_->GetStage())
-       << "]";
+       << "], switch[" << (impl_->GetDefaultSwitch() == PassSwitch::kOn ? "on" : "off") << "]";
     reg_info = ss.str().c_str();
   }
   return reg_info;

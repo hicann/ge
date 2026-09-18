@@ -95,6 +95,13 @@ uint64_t MsprofGetHashId(const char *hashInfo, size_t length) {
   return hs(name);
 }
 
+bool MsprofCheckOpSwitch(uint32_t type, const char *op, size_t len) {
+  if (ge::ProfilingTestUtil::Instance().check_op_func_ != nullptr) {
+    return ge::ProfilingTestUtil::Instance().check_op_func_(type, op, len);
+  }
+  return true;
+}
+
 int32_t MsprofStart(uint32_t dataType, const void *data, uint32_t dataLen) {
   const char *const kEnvRecordPath = "MS_PROF_FOR_HOST_FAIL";
   char record_path[MMPA_MAX_PATH] = {};

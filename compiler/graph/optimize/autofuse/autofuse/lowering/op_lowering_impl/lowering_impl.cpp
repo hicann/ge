@@ -38,6 +38,19 @@ constexpr int gather_mode_two = 2;
 constexpr int gather_data_num_two = 2;
 constexpr int gather_data_num_three = 3;
 constexpr int len_of_num_to_str = 20;
+
+// Squeeze/SqueezeV3 的 axes 缺省语义：收集输入中所有可证明为 1 的维度（符号维度无法
+// 判定为 1 时跳过，与 shape 推导侧 CalSqueezeOutShape 行为一致）
+std::vector<int64_t> CollectUnitDims(const std::vector<ge::Expression> &dims) {
+  std::vector<int64_t> axes;
+  for (size_t i = 0UL; i < dims.size(); i++) {
+    if (EXPECT_SYMBOL_EQ(Symbol(1), dims[i])) {
+      axes.emplace_back(static_cast<int64_t>(i));
+    }
+  }
+  return axes;
+}
+
 const std::vector<std::string> kControlOpTypes = {
     "If",       "Case",         "While",        "Switch",        "RefSwitch",        "Merge",
     "RefMerge", "Enter",        "RefEnter",     "NextIteration", "RefNextIteration", "Exit",
@@ -1792,6 +1805,27 @@ REGISTER_LOWERING(BroadcastTo) {
   return GRAPH_SUCCESS;
 }
 
+// Expand与BroadcastTo同构（兼容ONNX Expand语义，shape输入的值已由符号化推导固化为输出维度），
+// 但为独立算子类型，lowering按类型精确匹配，需单独注册
+REGISTER_LOWERING(Expand) {
+  GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
+  std::vector<loop::Index> indices;
+  std::vector<ge::Expression> input_dims;
+  std::vector<ge::Expression> output_dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(node->GetInDataAnchor(0), input_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get Expand input shape");
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(node->GetOutDataAnchor(0), output_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get Expand output shape");
+  LOWERING_WARN_RECORD_REASON(!input_dims.empty() && !output_dims.empty(), node,
+                              "Expand input or output shape is empty");
+  indices.emplace_back(output_dims);
+  indices.emplace_back(input_dims);
+  loop::Index broadcast;
+  LOWERING_WARN_RECORD_REASON(Broadcast(indices, broadcast) == GRAPH_SUCCESS, node, "Failed to infer Expand broadcast");
+  loop::Store(node->GetOutDataAnchor(0), loop::Broadcast(loop::Load(node->GetInDataAnchor(0)), input_dims, broadcast));
+  return GRAPH_SUCCESS;
+}
+
 REGISTER_LOWERING(LayerNormBetaGammaBackpropV2) {
   GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
   GE_ASSERT_NOTNULL(node->GetInDataAnchor(1));
@@ -1934,6 +1968,34 @@ REGISTER_LOWERING(Muls) {
   return GRAPH_SUCCESS;
 }
 
+// Adds为Muls的加法对偶（y = x + value标量广播加）。标量值经scientific格式定点字符串
+// 构造（fixed(7)定点格式对绝对值小于5e-8的float值会输出0.0000000导致精度静默丢失，
+// scientific+20位有效数字可保证float往返无损）
+REGISTER_LOWERING(Adds) {
+  GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
+  auto src = node->GetInDataAnchor(0)->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(src);
+  auto x = loop::Load(node->GetInDataAnchor(0));
+  vector<Expression> dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(src, dims) == GRAPH_SUCCESS, node,
+                              "Failed to get 0th-input symbol shape.");
+  auto desc = src->GetOwnerNode()->GetOpDesc()->GetOutputDescPtr(src->GetIdx());
+  LOWERING_WARN_RECORD_REASON(desc != nullptr, node, "Input opdesc is nullptr.");
+  auto dtype = desc->GetDataType();
+
+  float32_t value = 0;
+  GE_WARN_ASSERT(AttrUtils::GetFloat(node->GetOpDesc(), "value", value), "Failed to get value from opdesc.");
+
+  std::ostringstream oss;
+  oss << std::scientific << std::setprecision(20) << value;
+  auto scalar_value = loop::Scalar(oss.str(), dtype);
+  std::vector<loop::BroadcastOp::DimKind> status(dims.size(), loop::BroadcastOp::DimKind::NEW_AXIS);
+  scalar_value = loop::Broadcast(scalar_value, status);
+
+  loop::Store(node->GetOutDataAnchor(0), loop::Add(x, scalar_value));
+  return GRAPH_SUCCESS;
+}
+
 REGISTER_LOWERING(SquareSumV1) {
   GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
   auto x_anchor = loop::Load(node->GetInDataAnchor(0));
@@ -1987,11 +2049,7 @@ REGISTER_LOWERING(Squeeze) {
   LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(src, dims) == GRAPH_SUCCESS, node,
                               "Failed to get 0th-input symbol shape.");
   if (vec_axes.empty()) {
-    for (size_t i = 0UL; i < dims.size(); i++) {
-      if (EXPECT_SYMBOL_EQ(Symbol(1), dims[i])) {
-        vec_axes.emplace_back(i);
-      }
-    }
+    vec_axes = CollectUnitDims(dims);
   }
   for (auto &vec_axe : vec_axes) {
     if (vec_axe < 0) {
@@ -2008,6 +2066,62 @@ REGISTER_LOWERING(Squeeze) {
   LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(node->GetOutDataAnchor(0), output_dims) == GRAPH_SUCCESS, node,
                               "Failed to get 0th-output symbol shape.");
   loop::AddReshapeAxisChange(x, dims, output_dims);
+  loop::Store(node->GetOutDataAnchor(0), x);
+  return GRAPH_SUCCESS;
+}
+
+// SqueezeV3的axes可作为输入或属性传入。axes缺省或输入为空tensor时按参考实现
+// ProcessSqueezeAxes语义收集全部可证明为1的维度；负axis按输入rank归一化；符号维度
+// 无法判定为1时跳过（不拒绝），与shape推导侧CalSqueezeOutShape行为一致
+REGISTER_LOWERING(SqueezeV3) {
+  GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
+  const auto input = node->GetInDataAnchor(0)->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(input);
+  std::vector<Expression> input_dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(input, input_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get SqueezeV3 input shape.");
+
+  std::vector<int64_t> axes;
+  const auto axes_anchor = node->GetInDataAnchor(1);
+  bool has_axes_value = false;
+  if (axes_anchor != nullptr && axes_anchor->GetPeerOutAnchor() != nullptr) {
+    if (AutofuseUtils::GetListIntByInputOrAttr(node, axes, "axes", "axes") != GRAPH_SUCCESS) {
+      LOWERING_WARN_RECORD_REASON(false, node, "SqueezeV3 axes must be constant");
+      return GRAPH_FAILED;
+    }
+    has_axes_value = true;
+  }
+  // axes未连接，或已连接但为空tensor时，均按缺省语义收集全部值为1的维度
+  if (!has_axes_value || axes.empty()) {
+    axes = CollectUnitDims(input_dims);
+  }
+
+  std::vector<int64_t> normalized_axes;
+  normalized_axes.reserve(axes.size());
+  const auto rank = static_cast<int64_t>(input_dims.size());
+  for (const auto axis : axes) {
+    const auto normalized_axis = axis < 0 ? axis + rank : axis;
+    if (normalized_axis < 0 || normalized_axis >= rank) {
+      LOWERING_WARN_RECORD_REASON(false, node, "SqueezeV3 axis %ld out of range", axis);
+      return GRAPH_FAILED;
+    }
+    if (!EXPECT_SYMBOL_EQ(input_dims[static_cast<size_t>(normalized_axis)], Symbol(1))) {
+      LOWERING_WARN_RECORD_REASON(false, node, "SqueezeV3 axis %ld does not refer to a dimension of 1", axis);
+      return GRAPH_FAILED;
+    }
+    normalized_axes.emplace_back(normalized_axis);
+  }
+
+  std::sort(normalized_axes.begin(), normalized_axes.end());
+  normalized_axes.erase(std::unique(normalized_axes.begin(), normalized_axes.end()), normalized_axes.end());
+  auto x = loop::Load(node->GetInDataAnchor(0));
+  for (size_t i = 0U; i < normalized_axes.size(); ++i) {
+    x = loop::Squeeze(x, normalized_axes[i] - static_cast<int64_t>(i));
+  }
+  std::vector<ge::Expression> output_dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(node->GetOutDataAnchor(0), output_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get 0th-output symbol shape.");
+  loop::AddReshapeAxisChange(x, input_dims, output_dims);
   loop::Store(node->GetOutDataAnchor(0), x);
   return GRAPH_SUCCESS;
 }
@@ -2242,6 +2356,48 @@ REGISTER_LOWERING(ExpandDims) {
   loop::StoreReshape(node->GetOutDataAnchor(0), x);
   return GRAPH_SUCCESS;
 }
+
+// ExpandD为Expand的属性变体（shape为ATTR），实现不读shape输入，复用Expand函数体
+REGISTER_LOWERING_WITH_EXISTED(ExpandD, LoweringExpand);
+
+// UnsqueezeV3的axes可作为输入或属性传入。负axis按最终输出rank归一化
+// （input_rank + axes.size()，参考实现ProcessUnsqueezeAxes语义：unsqueeze(x, -1)
+// 应得到[a,b,1]而非[a,1,b]），排序去重后逐维展开
+REGISTER_LOWERING(UnsqueezeV3) {
+  GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
+  std::vector<int64_t> axes;
+  LOWERING_WARN_RECORD_REASON(AutofuseUtils::GetListIntByInputOrAttr(node, axes, "axes", "axes") == GRAPH_SUCCESS, node,
+                              "UnsqueezeV3 axes must be constant");
+  LOWERING_WARN_RECORD_REASON(!axes.empty(), node, "UnsqueezeV3 axes is empty");
+  std::vector<ge::Expression> input_dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(node->GetInDataAnchor(0), input_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get UnsqueezeV3 input shape");
+  std::vector<ge::Expression> output_dims;
+  LOWERING_WARN_RECORD_REASON(loop::GetBufferShape(node->GetOutDataAnchor(0), output_dims) == GRAPH_SUCCESS, node,
+                              "Failed to get UnsqueezeV3 output shape");
+  // 先按最终输出rank统一归一化负axis并去重
+  const auto final_rank = static_cast<int64_t>(input_dims.size() + axes.size());
+  for (auto &axis : axes) {
+    if (axis < 0) {
+      axis += final_rank;
+    }
+    LOWERING_WARN_RECORD_REASON(axis >= 0 && axis <= final_rank, node, "UnsqueezeV3 axis out of range");
+    if (axis < 0 || axis > final_rank) {
+      return GRAPH_FAILED;
+    }
+  }
+  std::sort(axes.begin(), axes.end());
+  axes.erase(std::unique(axes.begin(), axes.end()), axes.end());
+  auto x = loop::Load(node->GetInDataAnchor(0));
+  for (size_t i = 0U; i < axes.size(); ++i) {
+    x = loop::Unsqueeze(x, axes[i]);
+  }
+  loop::AddReshapeAxisChange(x, input_dims, output_dims);
+  loop::StoreReshape(node->GetOutDataAnchor(0), x);
+  return GRAPH_SUCCESS;
+}
+
+REGISTER_LOWERING_WITH_EXISTED(UnsqueezeV3D, LoweringUnsqueezeV3);
 
 REGISTER_LOWERING(Select) {
   // 如果cond shape 只有一维且和input0的shape[0]相同时，先进行unsqueeze再和其他输入进行broadcast

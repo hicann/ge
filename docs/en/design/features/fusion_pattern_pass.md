@@ -321,7 +321,79 @@ This utility will synchronize the shape/dtype/format from the original graph inp
 
 On the Python side, the same capability can be called via `ge.passes.infer_shape` ([API doc](../../../zh/api/graph_engine_api/python/ge/passes/infer_shape.md)), with the `source` parameter accepting `MatchResult`, `Node`, or `SubgraphBoundary` respectively; on call failure, must not proceed with replacement.
 
-## 8. Python and C++ Relationship
+## 8. Pass Default Switch State (PassSwitch)
+
+### 8.1 Why Default Switch Is Needed
+
+Fusion pass execution is controlled by a four-layer switch mechanism (priority from high to low):
+
+| Priority | Source | Description |
+|----------|--------|-------------|
+| 1 (highest) | graph option | `PassName:on/off` in `ge.optimizationSwitch`, takes effect at runtime |
+| 2 | JSON exact match | `true`/`false` for this pass name in `fusion_switch_file` JSON |
+| 3 | JSON ALL wildcard | `"ALL": true/false` in JSON, applies to all passes not exactly matched |
+| 4 (lowest) | Registration default | `PassSwitch` declared at pass registration time, defaults to `kOn` if not declared |
+
+Layer 4 was a fixed `return true` before 9.3.0(2026-09), meaning all passes execute by default. This forced passes with precision risk or performance regression to only be guarded via conditional judgment in `MeetRequirements`, which is not intuitive and cannot skip pass instance creation at initialization phase.
+
+The `PassSwitch` enum (`register_custom_pass.h`, @since 9.3.0/2026-09) replaces layer 4 with a registration-time declared default value:
+
+| Enum Value | Semantics |
+|------------|-----------|
+| `PassSwitch::kOn` | Pass enabled by default (consistent with historical behavior). Default value when switch parameter is not provided |
+| `PassSwitch::kOff` | Pass disabled by default. Only executes when user explicitly enables it via JSON or graph option |
+
+### 8.2 Declaring Default Switch at Registration
+
+All three registration macros keep their original signatures. Default switch state is declared via chained `DefaultSwitch(PassSwitch)` call. When `DefaultSwitch` is not called, impl constructor defaults to `kOn`, consistent with historical behavior:
+
+```cpp
+// PatternFusionPass
+REG_FUSION_PASS(MyPass).Stage(CustomPassStage::kBeforeInferShape);                              // default kOn, compatible
+REG_FUSION_PASS(RiskyPass).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kAfterInferShape); // default kOff
+
+// DecomposePass
+REG_DECOMPOSE_PASS(MyDecomposePass, {"Conv2D"}).Stage(CustomPassStage::kBeforeInferShape);                              // default kOn, compatible
+REG_DECOMPOSE_PASS(RiskyDecomposePass, {"Conv2D"}).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape); // default kOff
+
+// Custom Pass (REGISTER_CUSTOM_PASS)
+REGISTER_CUSTOM_PASS("MyCustomPass").Stage(CustomPassStage::kBeforeInferShape);                              // default kOn, compatible
+REGISTER_CUSTOM_PASS("RiskyCustomPass").DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape); // default kOff
+```
+
+Both registration data classes (`FusionPassRegistrationData`, `PassRegistrationData`) add a `DefaultSwitch(PassSwitch)` chain method and a `GetDefaultSwitch()` getter. The `ToString()` output also includes switch info, e.g. `"Pass Name[MyPass], stage[BeforeInferShape], switch[off]"`.
+
+### 8.3 Runtime Configuration Overrides Registration Default
+
+A pass registered as `kOff` can still be enabled by the top three runtime layers. The judgment logic is uniformly implemented by `PassOptionUtils::IsPassEnable`, shared by `FusionPassExecutor::InitPassesIfNeed` and `CustomPassHelper::Run` (new overload with switch map). The stream allocation pass entry point `StreamUtils::RunCustomStreamPass` is also adapted, calling the 4-parameter overload with switch config to ensure consistent switch behavior between stream allocation passes and regular custom passes:
+
+| Registration Default | Runtime Config | Result |
+|----------------------|----------------|--------|
+| kOff | No config | Skipped (pass disabled by default) |
+| kOff | JSON exact "on" | Executed (config overrides registration default) |
+| kOff | JSON "ALL":"on" | Executed (ALL wildcard overrides registration default) |
+| kOff | graph option "on" | Executed (option overrides registration default) |
+| kOn (default) | No config | Executed (consistent with historical behavior) |
+| kOn (default) | JSON pass "off" | Skipped (consistent with historical behavior) |
+
+### 8.4 Compatibility Notes
+
+Registration code that does not call `DefaultSwitch()` has impl constructor initialize `default_switch_` to `kOn`. This ensures:
+
+- Existing operator repository code compiles with new headers without modification (source compatible)
+- `.so` compiled without calling `DefaultSwitch` loads unaffected on old GE runtime (ABI/runtime compatible)
+
+Chained call to `DefaultSwitch(pass_switch)` references the method symbol, which does not exist in GE runtime before 9.3.0. If the operator repository needs to run on old GE, use `COMPILER_VERSION_NUM` compile macro guard:
+
+```cpp
+#if COMPILER_VERSION_NUM >= 9030000
+REG_FUSION_PASS(MyPass).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape);
+#else
+REG_FUSION_PASS(MyPass).Stage(CustomPassStage::kBeforeInferShape);
+#endif
+```
+
+## 9. Python and C++ Relationship
 
 Both Python and C++ passes will connect to GE's unified pass scheduling flow.
 
@@ -336,7 +408,7 @@ Main differences are in development experience and delivery method:
 
 If just adding one rule and verifying effect, suggest first write in Python. After rule stabilizes, if have delivery form or performance requirements, then consider C++ implementation.
 
-## 9. Pre-development Checklist
+## 10. Pre-development Checklist
 
 Answer these questions before writing pass:
 
@@ -346,4 +418,5 @@ Answer these questions before writing pass:
 - Is topology matching sufficient, or need to check dtype、shape、attributes or Const values in `MeetRequirements`?
 - Is replacement input order consistent with pattern boundaries?
 - Is registration stage appropriate? If running after InferShape, has replacement handled shape derivation?
+- Does the pass have precision risk or performance regression? Should it declare `PassSwitch::kOff` to disable by default?
 - Can use `DUMP_GE_GRAPH=1` to compare graph before and after replacement, confirm rule actually took effect?

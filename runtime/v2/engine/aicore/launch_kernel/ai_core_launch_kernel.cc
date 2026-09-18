@@ -10,6 +10,7 @@
 
 #include "ai_core_launch_kernel.h"
 #include <cstddef>
+#include <cstring>
 #include <iomanip>
 #include "rt_external_kernel.h"
 #include "rt_external_mem.h"
@@ -42,6 +43,8 @@
 #include "rt_external_stream.h"
 #include "aprof_pub.h"
 #include "acl/acl_rt.h"
+#include "framework/runtime/subscriber/global_profiler.h"
+#include "exe_graph/runtime/compute_node_info.h"
 
 using namespace ge;
 
@@ -49,6 +52,9 @@ namespace gert {
 namespace kernel {
 namespace {
 constexpr uint32_t k2BitsMask = 0x00000003U;
+constexpr uint8_t kProfilingDisabled = 0U;
+constexpr uint8_t kProfilingEnabled = 1U;
+constexpr size_t kEnableProfilingAttrIdx = 4UL;
 enum class MixKernel { kMixArgs, kNotifyIds };
 
 struct LaunchCommonInputs {
@@ -122,7 +128,18 @@ LaunchCommonInputs GetLaunchCommonInputs(KernelContext *context) {
   return inputs;
 }
 
-ge::graphStatus PrepareLaunchConfig(LaunchCommonInputs &inputs) {
+uint8_t GetEnableProfiling(const KernelContext *context) {
+  const auto compute_node_info = static_cast<const ComputeNodeInfo *>(context->GetComputeNodeExtend());
+  if ((compute_node_info != nullptr) && GlobalProfilingWrapper::GetInstance()->IsEnabled(ProfilingType::kScale)) {
+    const char *op_type = compute_node_info->GetNodeType();
+    const bool enabled = MsprofCheckOpSwitch(0U, op_type, strlen(op_type));
+    GELOGD("[Scale Profiling] AiCore launch kernel, op_type=%s, enableProfiling=%d", op_type, enabled);
+    return enabled ? kProfilingEnabled : kProfilingDisabled;
+  }
+  return kProfilingEnabled;
+}
+
+ge::graphStatus PrepareLaunchConfig(KernelContext *context, LaunchCommonInputs &inputs) {
   if (inputs.cfg_attrs == nullptr) {
     GELOGE(ge::FAILED, "cfg_attrs is nullptr");
     return ge::GRAPH_FAILED;
@@ -134,6 +151,16 @@ ge::graphStatus PrepareLaunchConfig(LaunchCommonInputs &inputs) {
   inputs.cfg_attrs[0].value.schemMode = static_cast<uint8_t>(inputs.schedule_mode & k2BitsMask);
   inputs.cfg_attrs[1].value.dynUBufSize = inputs.local_mem_size;
   inputs.cfg->attrs = inputs.cfg_attrs;
+  if (inputs.cfg->numAttrs > kEnableProfilingAttrIdx) {
+    const uint8_t enable_profiling = GetEnableProfiling(context);
+    if (enable_profiling != kProfilingDisabled) {
+      inputs.cfg_attrs[kEnableProfilingAttrIdx].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING;
+      inputs.cfg_attrs[kEnableProfilingAttrIdx].value.enableProfiling = enable_profiling;
+      inputs.cfg->numAttrs = kEnableProfilingAttrIdx + 1UL;
+    } else {
+      inputs.cfg->numAttrs = kEnableProfilingAttrIdx;
+    }
+  }
   return ge::GRAPH_SUCCESS;
 }
 
@@ -757,7 +784,7 @@ ge::graphStatus FillAtomicAiCoreProfilingInfo(const KernelContext *context, Prof
 
 ge::graphStatus AiCoreLaunchMixKernelV2(KernelContext *context) {
   LaunchCommonInputs inputs = GetLaunchCommonInputs(context);
-  FE_RETURN_IF_ERROR(PrepareLaunchConfig(inputs));
+  FE_RETURN_IF_ERROR(PrepareLaunchConfig(context, inputs));
   int32_t addr_start = static_cast<int32_t>(WithArgs::kIoAddrs);
   FE_RETURN_IF_ERROR(UpdateArgs(context, addr_start, *inputs.args));
   auto funcHandle = GetFuncHandle(inputs.bin_handle, inputs.tiling_key, inputs.kernel_name, inputs.with_handle_flag);
@@ -793,7 +820,7 @@ REGISTER_KERNEL(LaunchMixKernelV2)
 
 ge::graphStatus AiCoreLaunchKernelV2(KernelContext *context) {
   LaunchCommonInputs inputs = GetLaunchCommonInputs(context);
-  FE_RETURN_IF_ERROR(PrepareLaunchConfig(inputs));
+  FE_RETURN_IF_ERROR(PrepareLaunchConfig(context, inputs));
   int32_t addr_start = static_cast<int32_t>(WithArgs::kIoAddrs);
   FE_RETURN_IF_ERROR(UpdateArgs(context, addr_start, *inputs.args));
   auto funcHandle = GetFuncHandle(inputs.bin_handle, inputs.tiling_key, inputs.kernel_name, inputs.with_handle_flag);
@@ -816,7 +843,7 @@ REGISTER_KERNEL(LaunchKernelV2)
 
 ge::graphStatus AtomicAiCoreLaunchKernelV2(KernelContext *context) {
   LaunchCommonInputs inputs = GetLaunchCommonInputs(context);
-  FE_RETURN_IF_ERROR(PrepareLaunchConfig(inputs));
+  FE_RETURN_IF_ERROR(PrepareLaunchConfig(context, inputs));
   FE_RETURN_IF_ERROR(UpdateAtomicArgs(context, static_cast<int32_t>(WithAtomic::kIoAddrs), *inputs.args));
   auto funcHandle = GetFuncHandle(inputs.bin_handle, inputs.tiling_key, inputs.kernel_name, inputs.with_handle_flag);
   aclrtPlaceHolderInfo info = {};

@@ -94,6 +94,8 @@ void EnableDeviceProfiling();
 
 void EnableTaskTimeProfiling();
 
+void EnableScaleProfiling();
+
 void EnableCannHostProfiling();
 
 void EnableMemoryProfiling();

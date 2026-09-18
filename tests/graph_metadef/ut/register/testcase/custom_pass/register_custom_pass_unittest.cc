@@ -452,4 +452,135 @@ TEST_F(UtestRegisterPass, IncCov_StreamPassContextNullImpl) {
   stream_ctx.impl_.reset();
   EXPECT_EQ(stream_ctx.AllocateNextStreamId(), INT64_MAX);
 }
+
+TEST_F(UtestRegisterPass, DefaultSwitch_AndGetDefaultSwitch_Success) {
+  PassRegistrationData pass_data("test_pass");
+  EXPECT_EQ(pass_data.GetDefaultSwitch(), PassSwitch::kOn);
+
+  pass_data.DefaultSwitch(PassSwitch::kOff);
+  EXPECT_EQ(pass_data.GetDefaultSwitch(), PassSwitch::kOff);
+
+  pass_data.DefaultSwitch(PassSwitch::kOn);
+  EXPECT_EQ(pass_data.GetDefaultSwitch(), PassSwitch::kOn);
+}
+
+TEST_F(UtestRegisterPass, GetDefaultSwitch_NullImpl) {
+  PassRegistrationData pass_data("test_pass");
+  pass_data.impl_ = nullptr;
+  EXPECT_EQ(pass_data.GetDefaultSwitch(), PassSwitch::kOn);
+
+  pass_data.DefaultSwitch(PassSwitch::kOff);
+  EXPECT_EQ(pass_data.GetDefaultSwitch(), PassSwitch::kOn);
+}
+
+TEST_F(UtestRegisterPass, CustomPassHelperRunWithSwitches_Success) {
+  PassRegistrationData pass_data("switch_test_pass");
+  pass_data.CustomPassFn(MyCustomPass).Stage(CustomPassStage::kAfterInferShape);
+  CustomPassHelper::Instance().Unload();
+  CustomPassHelper::Instance().Insert(pass_data);
+
+  auto graph = std::make_shared<Graph>("test2");
+  auto custom_pass_context = CustomPassContext();
+  std::map<std::string, bool> pass_switches;
+
+  auto ret =
+      CustomPassHelper::Instance().Run(graph, custom_pass_context, CustomPassStage::kAfterInferShape, pass_switches);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestRegisterPass, CustomPassHelperRunWithSwitches_PassDisabled) {
+  PassRegistrationData pass_data("disabled_test_pass");
+  pass_data.CustomPassFn(MyCustomPass).Stage(CustomPassStage::kAfterInferShape);
+  pass_data.DefaultSwitch(PassSwitch::kOff);
+  CustomPassHelper::Instance().Unload();
+  CustomPassHelper::Instance().Insert(pass_data);
+
+  auto graph = std::make_shared<Graph>("test2");
+  auto custom_pass_context = CustomPassContext();
+  std::map<std::string, bool> pass_switches;
+
+  auto ret =
+      CustomPassHelper::Instance().Run(graph, custom_pass_context, CustomPassStage::kAfterInferShape, pass_switches);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestRegisterPass, CustomPassHelperRunWithSwitches_PassEnabledBySwitchConfig) {
+  PassRegistrationData pass_data("enabled_by_config_pass");
+  pass_data.CustomPassFn(MyCustomPass).Stage(CustomPassStage::kAfterInferShape);
+  pass_data.DefaultSwitch(PassSwitch::kOff);
+  CustomPassHelper::Instance().Unload();
+  CustomPassHelper::Instance().Insert(pass_data);
+
+  auto graph = std::make_shared<Graph>("test2");
+  auto custom_pass_context = CustomPassContext();
+  std::map<std::string, bool> pass_switches = {{"enabled_by_config_pass", true}};
+
+  auto ret =
+      CustomPassHelper::Instance().Run(graph, custom_pass_context, CustomPassStage::kAfterInferShape, pass_switches);
+  EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestRegisterPass, StreamPass_DefaultOff_NoConfig_PassSkipped) {
+  bool pass_called = false;
+  CustomAllocateStreamPassFunc alloc_fn = [&pass_called](const ConstGraphPtr &, StreamPassContext &) -> Status {
+    pass_called = true;
+    return SUCCESS;
+  };
+  PassRegistrationData pass_data("StreamPassDefaultOff");
+  pass_data.CustomAllocateStreamPassFn(alloc_fn).Stage(CustomPassStage::kAfterAssignLogicStream);
+  pass_data.DefaultSwitch(PassSwitch::kOff);
+  CustomPassHelper::Instance().Unload();
+  CustomPassHelper::Instance().Insert(pass_data);
+
+  auto graph = std::make_shared<Graph>("test_stream_off");
+  StreamPassContext stream_ctx(0);
+  std::map<std::string, bool> empty_switches;
+  auto ret =
+      CustomPassHelper::Instance().Run(graph, stream_ctx, CustomPassStage::kAfterAssignLogicStream, empty_switches);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_FALSE(pass_called);
+}
+
+TEST_F(UtestRegisterPass, StreamPass_DefaultOff_JsonExactOn_PassExecuted) {
+  bool pass_called = false;
+  CustomAllocateStreamPassFunc alloc_fn = [&pass_called](const ConstGraphPtr &, StreamPassContext &) -> Status {
+    pass_called = true;
+    return SUCCESS;
+  };
+  PassRegistrationData pass_data("StreamPassDefaultOff");
+  pass_data.CustomAllocateStreamPassFn(alloc_fn).Stage(CustomPassStage::kAfterAssignLogicStream);
+  pass_data.DefaultSwitch(PassSwitch::kOff);
+  CustomPassHelper::Instance().Unload();
+  CustomPassHelper::Instance().Insert(pass_data);
+
+  auto graph = std::make_shared<Graph>("test_stream_on");
+  ASSERT_EQ(graph->SetValid(), GRAPH_SUCCESS);
+  StreamPassContext stream_ctx(0);
+  std::map<std::string, bool> pass_switches = {{"StreamPassDefaultOff", true}};
+  auto ret =
+      CustomPassHelper::Instance().Run(graph, stream_ctx, CustomPassStage::kAfterAssignLogicStream, pass_switches);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(pass_called);
+}
+
+TEST_F(UtestRegisterPass, StreamPass_DefaultOn_NoConfig_PassExecuted) {
+  bool pass_called = false;
+  CustomAllocateStreamPassFunc alloc_fn = [&pass_called](const ConstGraphPtr &, StreamPassContext &) -> Status {
+    pass_called = true;
+    return SUCCESS;
+  };
+  PassRegistrationData pass_data("StreamPassDefaultOn");
+  pass_data.CustomAllocateStreamPassFn(alloc_fn).Stage(CustomPassStage::kAfterAssignLogicStream);
+  CustomPassHelper::Instance().Unload();
+  CustomPassHelper::Instance().Insert(pass_data);
+
+  auto graph = std::make_shared<Graph>("test_stream_default_on");
+  ASSERT_EQ(graph->SetValid(), GRAPH_SUCCESS);
+  StreamPassContext stream_ctx(0);
+  std::map<std::string, bool> empty_switches;
+  auto ret =
+      CustomPassHelper::Instance().Run(graph, stream_ctx, CustomPassStage::kAfterAssignLogicStream, empty_switches);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_TRUE(pass_called);
+}
 }  // namespace ge

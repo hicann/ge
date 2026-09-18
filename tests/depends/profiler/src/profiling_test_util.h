@@ -32,6 +32,7 @@ class ProfilingTestUtil {
  public:
   using ProfFunc = std::function<int32_t(uint32_t, uint32_t, void *, uint32_t)>;
   using HashFunc = std::function<uint64_t(const char *, size_t)>;
+  using CheckOpFunc = std::function<bool(uint32_t, const char *, size_t)>;
   static ProfilingTestUtil &Instance();
   ProfilingTestUtil() = default;
 
@@ -51,6 +52,7 @@ class ProfilingTestUtil {
   void Clear() {
     func_ = nullptr;
     reg_types_.clear();
+    check_op_func_ = nullptr;
   }
 
   size_t &GetHashCount() {
@@ -80,6 +82,7 @@ class ProfilingTestUtil {
   }
 
   HashFunc hash_func_;
+  CheckOpFunc check_op_func_;
 
  private:
   ProfFunc func_;

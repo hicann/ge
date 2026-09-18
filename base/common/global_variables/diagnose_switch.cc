@@ -82,6 +82,11 @@ void EnableMemoryProfiling() {
       gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::ProfilingType>({gert::ProfilingType::kMemory}));
 }
 
+void EnableScaleProfiling() {
+  profiling_switch_.SetEnableFlag(
+      gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::ProfilingType>({gert::ProfilingType::kScale}));
+}
+
 void EnableCannHostProfiling() {
   profiling_switch_.SetEnableFlag(
       gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::ProfilingType>({gert::ProfilingType::kCannHost}));

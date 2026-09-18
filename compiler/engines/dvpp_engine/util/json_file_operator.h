@@ -31,7 +31,7 @@ class JsonFileOperator {
   /**
    * @brief convert json file format
    * @param json_file original format json
-   * @return whether convert format sucess
+   * @return whether convert format success
    */
   static bool ConvertJsonFormat(nlohmann::json &json_file);
 
@@ -39,7 +39,7 @@ class JsonFileOperator {
    * @brief convert json file format which value type is string
    * @param dvpp_op original format json
    * @param key convert key
-   * @return whether convert format sucess
+   * @return whether convert format success
    */
   static bool ConvertJsonFormatString(nlohmann::json &dvpp_op, const std::string &key);
 
@@ -47,7 +47,7 @@ class JsonFileOperator {
    * @brief convert json file format which value type is int32_t
    * @param dvpp_op original format json
    * @param key convert key
-   * @return whether convert format sucess
+   * @return whether convert format success
    */
   static bool ConvertJsonFormatInt32(nlohmann::json &dvpp_op, const std::string &key);
 
@@ -55,7 +55,7 @@ class JsonFileOperator {
    * @brief convert json file format which value type is int64_t
    * @param dvpp_op original format json
    * @param key convert key
-   * @return whether convert format sucess
+   * @return whether convert format success
    */
   static bool ConvertJsonFormatInt64(nlohmann::json &dvpp_op, const std::string &key);
 
@@ -63,21 +63,21 @@ class JsonFileOperator {
    * @brief convert json file format which value type is bool
    * @param dvpp_op original format json
    * @param key convert key
-   * @return whether convert format sucess
+   * @return whether convert format success
    */
   static bool ConvertJsonFormatBool(nlohmann::json &dvpp_op, const std::string &key);
 
   /**
    * @brief convert json file format which is inputs & outputs
    * @param dvpp_op original format json
-   * @return whether convert format sucess
+   * @return whether convert format success
    */
   static bool ConvertJsonFormatInputOutput(nlohmann::json &dvpp_op);
 
   /**
    * @brief convert json file format which is attrs
    * @param dvpp_op original format json
-   * @return whether convert format sucess
+   * @return whether convert format success
    */
   static bool ConvertJsonFormatAttr(nlohmann::json &dvpp_op);
 
@@ -101,21 +101,21 @@ class JsonFileOperator {
 };  // class JsonFileOperator
 
 /**
- * @brief DvppOpsInfoLib json to struct object funtion
+ * @brief DvppOpsInfoLib json to struct object function
  * @param json_file read json handle
  * @param dvpp_ops_info_lib convert struct
  */
 void from_json(const nlohmann::json &json_file, DvppOpsInfoLib &dvpp_ops_info_lib);
 
 /**
- * @brief DvppOp json to struct object funtion
+ * @brief DvppOp json to struct object function
  * @param json_file read json handle
  * @param dvpp_op convert struct
  */
 void from_json(const nlohmann::json &json_file, DvppOp &dvpp_op);
 
 /**
- * @brief DvppOpInfo json to struct object funtion
+ * @brief DvppOpInfo json to struct object function
  * @param json_file read json handle
  * @param dvpp_ops_info_lib convert struct
  */

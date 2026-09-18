@@ -54,7 +54,7 @@ class ExecutionOrder {
   Status AddNewSlice(const ComputeGraphPtr &graph, const std::vector<GeTensor> &inputs, ExecutionPoint *&new_ep);
   Status ConstructInputTensors(const ComputeGraphPtr &compute_graph);
   Status NormalizeOutputs(const ComputeGraphPtr &compute_graph) const;
-  void SeperateGraphOptions(const std::map<std::string, std::string> &user_graph_options);
+  void SeparateGraphOptions(const std::map<std::string, std::string> &user_graph_options);
   const std::map<std::string, std::string> &SelectEpOption(const PartionResult &partition_ret) const;
   UserGraph user_graph_;
   // 临时实现

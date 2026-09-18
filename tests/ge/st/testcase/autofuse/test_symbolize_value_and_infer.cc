@@ -43,6 +43,16 @@
 #include <graph/optimize/symbolic/shape_env_guarder.h>
 #include "graph/optimize/autofuse/autofuse_optimize.h"
 #include "depends/runtime/src/runtime_stub.h"
+#include "ge/ge_api.h"
+#include "ge_running_env/fake_engine.h"
+#include "ge_running_env/ge_running_env_faker.h"
+#include "ge_running_env/fake_op.h"
+#include "framework/common/taskdown_common.h"
+#include "graph/op_kernel_bin.h"
+#include "graph/debug/ge_attr_define.h"
+#include "graph/operator_factory_impl.h"
+#include "faker/fake_value.h"
+#include "stub/gert_runtime_stub.h"
 
 namespace ge {
 
@@ -396,6 +406,398 @@ TEST_F(SymbolizeValueST, reshape_symbolize_infer_with_real_data) {
   hint = -1;
   EXPECT_EQ(out_shape.GetDim(1).GetHint(hint), true);
   EXPECT_EQ(hint, 20);
+}
+
+namespace {
+class JitFakeAiCoreEngineOptimizer : public FakeGraphOptimizer {
+ public:
+  Status OptimizeWholeGraph(ComputeGraph &graph) override {
+    for (const auto &node : graph.GetAllNodes()) {
+      if (node->GetInDataNodes().empty() || node->GetOutDataNodes().empty()) {
+        continue;
+      }
+      std::string input_type = "[";
+      for (size_t i = 0U; i < node->GetInDataNodes().size(); i++) {
+        input_type += (i == 0U) ? "0" : ", 0";
+      }
+      input_type += "]";
+      // JSON 需包含默认 tiling 注册(IMPL_OP_DEFAULT 的 NormCompileInfo)解析所需的 key
+      const std::string compile_info_json =
+          std::string("{\"vars\": {\"srcFormat\": \"NCHW\", \"dstFormat\": \"NC1HWC0\", \"dType\": \"float16\", ") +
+          "\"ub_size\": 126464, \"block_dim\": 32, \"input_size\": 0, \"hidden_size\": 0, \"group\": 1}, " +
+          "\"_input_type\": " + input_type + ", \"_exist_output_after_reduce\": false, " +
+          "\"_exist_workspace_after_reduce\": false, \"_available_ub_size\": {\"0\": [126464]}, " +
+          "\"_common_info\": [32, 16, 4096], \"_norm_vars\": {\"0\": []}}";
+      auto op_desc = node->GetOpDesc();
+      AttrUtils::SetStr(op_desc, "compile_info_json", compile_info_json);
+      AttrUtils::SetInt(op_desc, "op_para_size", 2048);
+      auto bin = std::make_shared<OpKernelBin>("name", std::vector<char>({'F', 'a', 'k', 'e', 'b', 'i', 'n'}));
+      op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, bin);
+      AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF_AIVEC");
+      AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_METADATA, "FakeMeta");
+      AttrUtils::SetStr(op_desc, node->GetName() + "_kernelname", "FakeKernelName");
+      AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_fake_node_123");
+      op_desc->SetWorkspaceBytes({20});
+    }
+    return SUCCESS;
+  }
+};
+
+class JitFakeAiCoreOpsKernelBuilder : public FakeOpsKernelBuilder {
+ public:
+  explicit JitFakeAiCoreOpsKernelBuilder(const std::string &engine_name) : FakeOpsKernelBuilder(engine_name) {}
+  Status GenerateTask(const Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) override {
+    auto op_desc = node.GetOpDesc();
+    op_desc->SetOpKernelLibName("AIcoreEngine");
+    EnvPath env_path;
+    const std::string autofuse_stub_so_path =
+        env_path.GetBinRootPath() + "/tests/depends/op_stub/libslice_autofuse_stub.so";
+    (void)ge::AttrUtils::SetStr(op_desc, "bin_file_path", autofuse_stub_so_path);
+
+    size_t arg_size = 100;
+    std::vector<uint8_t> args(arg_size, 0);
+    domi::TaskDef task_def;
+    task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL));
+    auto kernel_info = task_def.mutable_kernel();
+    kernel_info->set_args(args.data(), args.size());
+    kernel_info->set_args_size(arg_size);
+    kernel_info->mutable_context()->set_kernel_type(static_cast<uint32_t>(ccKernelType::TE));
+    kernel_info->set_block_dim(1);
+    uint16_t args_offset[2] = {0};
+    kernel_info->mutable_context()->set_args_offset(args_offset, 2 * sizeof(uint16_t));
+    kernel_info->mutable_context()->set_op_index(node.GetOpDesc()->GetId());
+
+    auto kernel_with_handle_info = task_def.mutable_kernel_with_handle();
+    kernel_with_handle_info->set_args(args.data(), args.size());
+    kernel_with_handle_info->set_args_size(arg_size);
+    kernel_with_handle_info->mutable_context()->set_kernel_type(static_cast<uint32_t>(ccKernelType::TE));
+    kernel_with_handle_info->set_block_dim(1);
+    kernel_with_handle_info->mutable_context()->set_args_offset(args_offset, 2 * sizeof(uint16_t));
+    kernel_with_handle_info->mutable_context()->set_op_index(node.GetOpDesc()->GetId());
+    tasks.emplace_back(task_def);
+    return SUCCESS;
+  }
+};
+
+const auto JitSingleIOForwardInfer = [](Operator &op) {
+  auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
+  auto in_td = op_desc->GetInputDescPtr(0);
+  auto td = op_desc->MutableOutputDesc(0);
+  td->SetShape(in_td->GetShape());
+  td->SetOriginShape(in_td->GetOriginShape());
+  td->SetDataType(in_td->GetDataType());
+  td->SetOriginDataType(in_td->GetOriginDataType());
+  return GRAPH_SUCCESS;
+};
+
+const auto JitUniqueInferFun = [](Operator &op) -> graphStatus {
+  auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
+  const auto &input_desc = op_desc->GetInputDesc(0);
+  const auto input_shape = input_desc.GetShape().GetDims();
+
+  auto output0_desc = op_desc->MutableOutputDesc(0);
+  input_desc.GetShape().IsUnknownShape() ? output0_desc->SetShape(GeShape({-1}))
+                                         : output0_desc->SetShape(GeShape({16}));
+  output0_desc->SetShapeRange({{1, input_shape[0]}});
+  return GRAPH_SUCCESS;
+};
+
+const auto JitForwardInfer = [](Operator &op) -> graphStatus {
+  auto op_desc = ge::OpDescUtils::GetOpDescFromOperator(op);
+  *op_desc->MutableOutputDesc(0) = *op_desc->GetInputDescPtr(0);
+  return GRAPH_SUCCESS;
+};
+
+std::shared_ptr<std::map<std::string, ge::OpCreatorV2>> g_jit_backup_creators_v2;
+std::shared_ptr<std::map<std::string, OpCreator>> g_jit_backup_creators;
+
+/*
+ *  _arg_0(-1) ──┐
+ *               ├─> add ──> unique ──> mul <── const_0
+ *  _arg_1(-1) ──┘                       └──────> Node_Output
+ * add 的输入0(_arg_0)通过 _op_infer_depends 标记为 value-dependent 输入，
+ * unique 输出 shape 不可静态推导，图会被 JIT 切分为 2 个 EP，仅 EP[0] 的 input[0] 为 value-dependent。
+ */
+ComputeGraphPtr BuildValueDependentSliceGraph() {
+  DEF_GRAPH(value_dependent_slice) {
+    GeTensorDesc tensor_desc(GeShape({1}), FORMAT_ND, DT_FLOAT);
+    GeTensor tensor(tensor_desc);
+    int32_t value = 2;
+    tensor.SetData((uint8_t *)&value, sizeof(value));
+
+    auto data_0 = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    auto data_1 = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    auto add = OP_CFG(ADD).InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    auto unique_op = OP_CFG("Unique").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+    auto const_0 = OP_CFG(CONSTANTOP)
+                       .OutCnt(1)
+                       .Attr(ATTR_NAME_WEIGHTS, tensor)
+                       .Attr(ATTR_VARIABLE_PLACEMENT, "host")
+                       .TensorDesc(FORMAT_ND, DT_FLOAT, {});
+    auto mul = OP_CFG(MUL).InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {});
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {-1});
+
+    CHAIN(NODE("_arg_0", data_0)->NODE("add", add));
+    CHAIN(NODE("_arg_1", data_1)->NODE("add", add));
+    CHAIN(NODE("add", add)->NODE("unique", unique_op));
+    CHAIN(NODE("unique", unique_op)->NODE("mul", mul));
+    CHAIN(NODE("const_0", const_0)->NODE("mul", mul));
+    CHAIN(NODE("mul", mul)->NODE("Node_Output", net_output));
+  };
+  auto compute_graph = ToComputeGraph(value_dependent_slice);
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  compute_graph->TopologicalSorting();
+  auto add_node = compute_graph->FindNode("add");
+  if (add_node != nullptr && add_node->GetOpDesc() != nullptr) {
+    // Verify 阶段输入名会对齐 IR 注册名 x1，两个名字都登记以保证 value-dependent 判定命中
+    add_node->GetOpDesc()->SetOpInferDepends({"x1", "__input0"});
+  }
+  return compute_graph;
+}
+
+/*
+ *  _arg_0(16) ──┐
+ *               ├─> add ──> Node_Output
+ *  _arg_1(16) ──┘
+ * 全静态 shape（整图单 EP，ENABLE_RUNTIME_V2 关闭时走 DavinciModel 静态执行），
+ * add 的输入0(_arg_0)同样标记为 value-dependent 输入。
+ */
+ComputeGraphPtr BuildStaticValueDependentGraph() {
+  DEF_GRAPH(static_value_dependent) {
+    auto data_0 = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+    auto data_1 = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+    auto add = OP_CFG(ADD).InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_FLOAT, {16});
+
+    CHAIN(NODE("_arg_0", data_0)->NODE("add", add));
+    CHAIN(NODE("_arg_1", data_1)->NODE("add", add));
+    CHAIN(NODE("add", add)->NODE("Node_Output", net_output));
+  };
+  auto compute_graph = ToComputeGraph(static_value_dependent);
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  compute_graph->TopologicalSorting();
+  auto add_node = compute_graph->FindNode("add");
+  if (add_node != nullptr && add_node->GetOpDesc() != nullptr) {
+    add_node->GetOpDesc()->SetOpInferDepends({"x1", "__input0"});
+  }
+  return compute_graph;
+}
+}  // namespace
+
+class JitValueDependentExecuteSTBase : public testing::Test {
+ protected:
+  void SetUpEnv(bool enable_rt2) {
+    g_jit_backup_creators_v2 = ge::OperatorFactoryImpl::operator_creators_v2_;
+    g_jit_backup_creators = ge::OperatorFactoryImpl::operator_creators_;
+    EXPECT_EQ(GEInitialize(std::map<AscendString, AscendString>{}), SUCCESS);
+    gert::LoadDefaultSpaceRegistry();
+    gert::SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
+
+    auto fe_optimizer = MakeShared<JitFakeAiCoreEngineOptimizer>();
+    auto fe_ops_kernel_builder = MakeShared<JitFakeAiCoreOpsKernelBuilder>("AIcoreEngine");
+    GeRunningEnvFaker()
+        .Reset()
+        .Install(FakeEngine("DNN_VM_GE_LOCAL").KernelInfoStore("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeEngine("AIcoreEngine")
+                     .KernelInfoStore("AIcoreEngine")
+                     .GraphOptimizer("fe", fe_optimizer)
+                     .KernelBuilder(fe_ops_kernel_builder))
+        .Install(FakeEngine("DNN_VM_RTS").KernelInfoStore("DNN_VM_RTS_OP_STORE"))
+        .Install(FakeOp(IF).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp(NETOUTPUT).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp(CONSTANT).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp(DATA).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp(PARTITIONEDCALL).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp(RESHAPE)
+                     .Inputs({"x", "shape"})
+                     .Outputs({"y"})
+                     .AttrsDef("axis", 0)
+                     .AttrsDef("num_axes", -1)
+                     .InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp("Relu")
+                     .Inputs({"x"})
+                     .Outputs({"y"})
+                     .InfoStoreAndBuilder("AIcoreEngine")
+                     .InferShape(JitSingleIOForwardInfer))
+        .Install(FakeOp(ADD)
+                     .Inputs({"x1", "x2"})
+                     .Outputs({"y"})
+                     .InfoStoreAndBuilder("AIcoreEngine")
+                     .InferShape(JitSingleIOForwardInfer))
+        .Install(FakeOp("AscBackend")
+                     .Inputs({"x"})
+                     .Outputs({"y"})
+                     .InfoStoreAndBuilder("AIcoreEngine")
+                     .InferShape(JitSingleIOForwardInfer))
+        .Install(FakeOp("Add")
+                     .Inputs({"x1", "x2"})
+                     .Outputs({"y"})
+                     .InfoStoreAndBuilder("AIcoreEngine")
+                     .InferShape(JitSingleIOForwardInfer))
+        .Install(FakeOp("Unique")
+                     .Inputs({"x"})
+                     .Outputs({"y", "idx"})
+                     .InfoStoreAndBuilder("AIcoreEngine")
+                     .InferShape(JitUniqueInferFun))
+        .Install(FakeOp(MUL).InfoStoreAndBuilder("AIcoreEngine").InferShape(JitForwardInfer))
+        .Install(FakeOp(SHAPE).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp(VARIABLE).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp(CONSTANTOP).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp(IDENTITY).InfoStoreAndBuilder("DNN_VM_RTS_OP_STORE"))
+        .Install(FakeOp(EXIT).InfoStoreAndBuilder("DNN_VM_RTS_OP_STORE"))
+        .Install(FakeOp(RECV).InfoStoreAndBuilder("DNN_VM_RTS_OP_STORE"))
+        .Install(FakeOp(SEND).InfoStoreAndBuilder("DNN_VM_RTS_OP_STORE"));
+
+    auto ascend_install_path = EnvPath().GetAscendInstallPath();
+    setenv("ASCEND_OPP_PATH", (ascend_install_path + "/opp").c_str(), 1);
+    setenv("LD_LIBRARY_PATH", (ascend_install_path + "/runtime/lib64").c_str(), 1);
+    auto work_path = EnvPath().GetAirBasePath() + "/output";
+    setenv("ASCEND_WORK_PATH", work_path.c_str(), 1);
+    mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true", 1);
+    char runtime2_env[MMPA_MAX_PATH] = {enable_rt2 ? '1' : '0'};
+    mmSetEnv("ENABLE_RUNTIME_V2", &(runtime2_env[0U]), static_cast<uint32_t>(MMPA_MAX_PATH));
+
+    runtime_stub_.GetSlogStub().SetLevel(DLOG_DEBUG);
+    runtime_stub_.GetSlogStub().Clear();
+    runtime_stub_.GetKernelStub().StubTiling();
+  }
+
+  void TearDownEnv() {
+    char runtime2_env[MMPA_MAX_PATH] = {'0'};
+    mmSetEnv("ENABLE_RUNTIME_V2", &(runtime2_env[0U]), static_cast<uint32_t>(MMPA_MAX_PATH));
+    unsetenv("ASCEND_OPP_PATH");
+    unsetenv("LD_LIBRARY_PATH");
+    unsetenv("ASCEND_WORK_PATH");
+    unsetenv("AUTOFUSE_FLAGS");
+
+    runtime_stub_.GetSlogStub().Clear();
+    GEFinalize();
+    GeRunningEnvFaker().InstallDefault();
+    gert::UnLoadDefaultSpaceRegistry();
+    ge::OperatorFactoryImpl::operator_creators_v2_ = std::move(g_jit_backup_creators_v2);
+    ge::OperatorFactoryImpl::operator_creators_ = std::move(g_jit_backup_creators);
+  }
+
+  gert::GertRuntimeStub runtime_stub_;
+};
+
+class JitValueDependentExecuteST : public JitValueDependentExecuteSTBase {
+ protected:
+  void SetUp() override {
+    SetUpEnv(true);
+  }
+  void TearDown() override {
+    TearDownEnv();
+  }
+};
+
+/**
+ * 用例描述：JIT Execute 路径(gert::Tensor 版 ExecuteGraphWithStreamAsync)下 value-dependent 输入的
+ *           编译/执行 placement 一致性守护(RT2 动态图场景)：编译期 BuildCompileInputs 将
+ *           value-dependent 输入(input[0])D2H 供 guard/符号化推导(编译假设建立在 host placement 上)，
+ *           执行期传入同一份 compile_inputs，由 RT2 执行器按 host placement 消化(alloc+H2D)。
+ *           064d09db4 曾误传原始 device inputs，形成"编译假设 host、执行传入 device"的 placement
+ *           不一致，真机环境下即 slice_on_core 主进程 coredump 的触发链路。
+ * 预置条件：开启自动融合与 JIT 执行器 v2、ENABLE_RUNTIME_V2=1，图含 value-dependent 输入(add 输入0)
+ *           且输出 shape 不可静态推导(Unique)被切分为 2 个 EP，仅 EP[0] 的 input[0] 为 value-dependent。
+ * 测试步骤：1. 构图并以 kOnDeviceHbm 的 gert::Tensor 输入调用 ExecuteGraphWithStreamAsync；
+ *           2. 校验编译期 D2H、GEP 编译、JIT 多 EP 调度链路日志；
+ *           3. 校验 value-dependent 输入的 placement 渲染与 device 透传次数。
+ * 预期结果：执行返回成功；EP[0] 的 value-dependent input[0] 以 host 进入 RT2
+ *           ("placement: kOnHost" 恰 1 次)，仅 EP[1] 的 input[0] 保持 device 透传
+ *           ("input[0] address = " 恰 1 次)。若回归为执行传原始 device inputs，
+ *           EP[0] 的 value-dependent input[0] 也被 device 透传，两项分别变为 0 次和 2 次，本用例失败。
+ *           注：stub 环境 device 指针为合法 host 内存、kernel 为 stub，不会复现 native crash，
+ *           以日志断言守护 placement 一致性。
+ */
+TEST_F(JitValueDependentExecuteST, ExecuteGraphWithStreamAsyncValueDependentInputShouldNotDevicePassthrough) {
+  GTEST_SKIP() << "Skip value-dependent device passthrough case temporarily";
+  std::map<AscendString, AscendString> options;
+  options[OPTION_GRAPH_RUN_MODE] = "1";
+  options[VARIABLE_MEMORY_MAX_SIZE] = "12800";
+  options[JIT_COMPILE.c_str()] = "1";
+
+  auto compute_graph = BuildValueDependentSliceGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  Graph graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  Session session(options);
+  const uint32_t graph_id = 4321U;
+  std::map<AscendString, AscendString> graph_options;
+  EXPECT_EQ(session.AddGraph(graph_id, graph, graph_options), SUCCESS);
+
+  std::vector<gert::Tensor> inputs = gert::FakeTensors({16}, 2).Steal();
+  std::vector<gert::Tensor> outputs;
+  const auto ret = session.ExecuteGraphWithStreamAsync(graph_id, nullptr, inputs, outputs);
+  EXPECT_EQ(ret, SUCCESS);
+
+  EXPECT_NE(runtime_stub_.GetSlogStub().FindLog(-1, "BuildCompileInputs:input[0] need copy data to host"), -1);
+  EXPECT_NE(runtime_stub_.GetSlogStub().FindLog(-1, "Start to compile GEP"), -1);
+  EXPECT_NE(runtime_stub_.GetSlogStub().FindLog(-1, "ExecuteGraphWithStreamAsync GEP[ins_id:"), -1);
+  // 正向证据：执行器 DebugString 日志对所有输入打印 placement 枚举名，EP[0] 的 value-dependent input[0]
+  // 修复后应渲染为 kOnHost（修复前为 kOnDeviceHbm，出现 0 次）
+  EXPECT_EQ(runtime_stub_.GetSlogStub().CountLog(-1, "placement: kOnHost"), 1);
+  // 负向证据：device 透传 GELOGD 只在 IsOnDevice 谓词为真的分支打印且内嵌裸枚举值，
+  // 修复后仅 EP[1]（无 value-dependent 输入）的 input[0] 保持 device 透传，恰好 1 次
+  EXPECT_EQ(runtime_stub_.GetSlogStub().CountLog(-1, "input[0] address = "), 1);
+
+  // outputs 持有 RT2 执行器分配的 MemBlock，依赖 allocator 存活，须在 RemoveGraph 之前释放
+  outputs.clear();
+  inputs.clear();
+  EXPECT_EQ(session.RemoveGraph(graph_id), SUCCESS);
+}
+
+class JitValueDependentStaticExecuteST : public JitValueDependentExecuteSTBase {
+ protected:
+  void SetUp() override {
+    SetUpEnv(false);
+  }
+  void TearDown() override {
+    TearDownEnv();
+  }
+};
+
+/**
+ * 用例描述：JIT 静态整图场景(ENABLE_RUNTIME_V2 关闭，走 DavinciModel 静态执行)下，
+ *           ge.exec.reuseZeroCopyMemory=1 时，value-dependent 输入经 compile_inputs D2H 后以
+ *           host placement 执行；DavinciModel 应识别 Data 节点的 Host Tensor 标记，将该输入纳入
+ *           copy_host_input_indexes_，通过 KUpdateHostInput 随路拷贝接纳，而不是进入零拷贝内存不足校验。
+ * 预置条件：开启自动融合与 JIT 执行器、ENABLE_RUNTIME_V2=0(静态走 DavinciModel)、
+ *           graph options 设 ge.exec.reuseZeroCopyMemory=1，图含 value-dependent 输入且 shape 全静态(整图单 EP)。
+ * 测试步骤：1. 构建静态图并以 kOnDeviceHbm 的 gert::Tensor 输入调用 ExecuteGraphWithStreamAsync；
+ *           2. 校验执行返回值。
+ * 预期结果：执行返回成功；Host value-dependent 输入不触发
+ *           "placement is host when ge.exec.reuseZeroCopyMemory=1" 错误。
+ */
+TEST_F(JitValueDependentStaticExecuteST, StaticGraphReuseZeroCopyHostValueDependentInputShouldExecute) {
+  GTEST_SKIP() << "Skip static reuse-zero-copy host value-dependent case temporarily";
+  std::map<AscendString, AscendString> options;
+  options[OPTION_GRAPH_RUN_MODE] = "1";
+  options[VARIABLE_MEMORY_MAX_SIZE] = "12800";
+  options[JIT_COMPILE.c_str()] = "1";
+
+  auto compute_graph = BuildStaticValueDependentGraph();
+  ASSERT_NE(compute_graph, nullptr);
+  Graph graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  Session session(options);
+  const uint32_t graph_id = 4322U;
+  std::map<AscendString, AscendString> graph_options;
+  graph_options.emplace(ge::OPTION_EXEC_REUSE_ZERO_COPY_MEMORY, "1");
+  EXPECT_EQ(session.AddGraph(graph_id, graph, graph_options), SUCCESS);
+
+  std::vector<gert::Tensor> inputs = gert::FakeTensors({16}, 2).Steal();
+  std::vector<gert::Tensor> outputs;
+  const auto ret = session.ExecuteGraphWithStreamAsync(graph_id, nullptr, inputs, outputs);
+  EXPECT_EQ(ret, SUCCESS);
+
+  outputs.clear();
+  inputs.clear();
+  EXPECT_EQ(session.RemoveGraph(graph_id), SUCCESS);
 }
 
 }  // namespace ge

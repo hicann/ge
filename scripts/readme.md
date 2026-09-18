@@ -133,7 +133,7 @@ Options:
     -p, --password     Config password
     -h, --help
 
-Example: ge config -i=<ip-adress> -u=<username> -p=<password> (Need add escape character \ before special character $、#、!)
+Example: ge config -i=<ip-address> -u=<username> -p=<password> (Need add escape character \ before special character $、#、!)
 ```
 
 参数详细解释：

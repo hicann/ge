@@ -1191,8 +1191,8 @@ Status TensorFlowModelParser::AddNodeToGraphAndMarkFormat(ge::ComputeGraphPtr &g
   return SUCCESS;
 }
 
-Status TensorFlowModelParser::ExcuteScopeFusionPasses(domi::tensorflow::GraphDef *const graph_def,
-                                                      shared_ptr<ge::ScopeGraph> &scope_graph) {
+Status TensorFlowModelParser::ExecuteScopeFusionPasses(domi::tensorflow::GraphDef *const graph_def,
+                                                       shared_ptr<ge::ScopeGraph> &scope_graph) {
   // Identifying scope fusion operators based on scope rules
   GE_CHECK_NOTNULL(graph_def);
   ScopePassManager passmanager;
@@ -1267,7 +1267,7 @@ Status TensorFlowModelParser::ParseFromMemory(const char *data, uint32_t size, g
                               "Run ProtoType Pass Failed");
 
   shared_ptr<ge::ScopeGraph> scope_graph = nullptr;
-  Status ret = ExcuteScopeFusionPasses(&graph_def, scope_graph);
+  Status ret = ExecuteScopeFusionPasses(&graph_def, scope_graph);
   if (ret != SUCCESS) {
     GELOGE(ret, "[TF ParseFromMemory] scope fusion failed.");
     return ret;
@@ -1503,7 +1503,7 @@ Status TensorFlowModelParser::ParseAllGraph(const google::protobuf::Message *pro
                               "Run ProtoType Pass Failed");
 
   shared_ptr<ge::ScopeGraph> scope_graph = nullptr;
-  Status ret = ExcuteScopeFusionPasses(&graph_def, scope_graph);
+  Status ret = ExecuteScopeFusionPasses(&graph_def, scope_graph);
   if (ret != SUCCESS) {
     GELOGE(ret, "[TF Parse] scope fusion failed.");
     return ret;
@@ -2288,7 +2288,7 @@ Status TensorFlowModelParser::ParseProto(const google::protobuf::Message *proto,
                               "Run ProtoType Pass Failed");
 
   shared_ptr<ge::ScopeGraph> scope_graph = nullptr;
-  Status ret = ExcuteScopeFusionPasses(graph_def, scope_graph);
+  Status ret = ExecuteScopeFusionPasses(graph_def, scope_graph);
   if (ret != SUCCESS) {
     GELOGE(ret, "[TF Parser] scope fusion failed.");
     return ret;

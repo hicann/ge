@@ -21,7 +21,7 @@ uintptr_t MemorySegmentPlanner::Allocate(SegmentType type, uint64_t size) {
   memory_segment_infos_.push_back(segment);
   current_base_ += static_cast<uintptr_t>(size);
   GELOGI("[OM2] Success to allocate segment, type[%d], base=0x%lx, size=%lu.", static_cast<int32_t>(type),
-         static_cast<unsigned long>(segment.base), static_cast<unsigned long>(size));
+         static_cast<uint64_t>(segment.base), static_cast<uint64_t>(size));
   return segment.base;
 }
 }  // namespace om2

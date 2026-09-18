@@ -53,7 +53,7 @@ std::mutex g_kernel_bin_store_lock;
 std::map<std::string, ge::OpKernelBinPtr> g_kernel_bin_store;
 
 namespace {
-constexpr const size_t max_launch_cfg_num = 4UL;
+constexpr const size_t max_launch_cfg_num = 5UL;
 constexpr size_t const AtomicTaskdefMinNum = 2;
 
 struct ProcArgs {
@@ -462,6 +462,9 @@ size_t GetLaunchKernelV2Attr(bg::ValueHolderPtr &cfg_attrs, const domi::TaskDef 
   } else {
     attrs[actual_cfg_num].value.blockDimOffset = task_def->kernel().block_dim_offset();
   }
+  actual_cfg_num++;
+  attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_ENABLE_PROFILING;
+  attrs[actual_cfg_num].value.enableProfiling = 1U;
   actual_cfg_num++;
   cfg_attrs = bg::ValueHolder::CreateConst(&attrs, sizeof(attrs));
   return actual_cfg_num;
@@ -1039,7 +1042,7 @@ static LowerResult LoweringAiCoreNodeWithHandle(const ge::NodePtr &node, const L
   // 0. alloc rt arg
   const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);
   if (task_def == nullptr) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI core task def")), {}, {}, {}};
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Failed to find AI core task def")), {}, {}, {}};
   }
   ProcArgs proc_arg;
   proc_arg.launch_arg = bg::AllocRtArg(node, task_def->kernel_with_handle(), bg::kMaxTilingSize);
@@ -1165,7 +1168,7 @@ static LowerResult LoweringAiCoreNodeWithFlag(const ge::NodePtr &node, const Low
   // 0. alloc rt arg
   const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);
   if (task_def == nullptr) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI core task def")), {}, {}, {}};
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Failed to find AI core task def")), {}, {}, {}};
   }
   ProcArgs proc_arg;
   proc_arg.launch_arg = bg::AllocRtArg(node, task_def->kernel(), bg::kMaxTilingSize);
@@ -1270,7 +1273,7 @@ LowerResult LoweringStaticAicoreNode(const ge::NodePtr &node, const LowerInput &
   auto compile_result = lower_input.global_data->FindCompiledResult(node);
   const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);
   if (task_def == nullptr) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI core task def")), {}, {}, {}};
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Failed to find AI core task def")), {}, {}, {}};
   }
   auto ctx = InitStaticAicoreContext(node, lower_input, task_def, compile_result);
   if (!ctx.has_value()) {
@@ -1303,7 +1306,7 @@ LowerResult LoweringAiCoreNode(const ge::NodePtr &node, const LowerInput &lower_
   }
   const domi::TaskDef *task_def = GetTaskDef(node, compile_result, TaskDefType::kAICore);
   if (task_def == nullptr) {
-    return {HyperStatus::ErrorStatus(static_cast<const char *>("Not find AI core taskdef.")), {}, {}, {}};
+    return {HyperStatus::ErrorStatus(static_cast<const char *>("Failed to find AI core taskdef.")), {}, {}, {}};
   }
   const auto &op_desc = node->GetOpDesc();
   if (op_desc == nullptr) {

@@ -37,12 +37,12 @@ std::vector<bg::ValueHolderPtr> BuildSubgraph(const ge::NodePtr &node, int32_t s
   }
   auto lower_result = ConvertComputeSubgraphToExecuteGraph(subgraph, global_data, 1, parent_inputs_placement);
   if (lower_result == nullptr) {
-    GELOGE(ge::FAILED, "Failed to lowering subgraph index %d for %s node %s, return nullptr", subgraph_index,
+    GELOGE(ge::FAILED, "Failed to lower subgraph index %d for %s node %s, return nullptr", subgraph_index,
            node->GetType().c_str(), node->GetName().c_str());
     return {};
   }
   if (!lower_result->result.IsSuccess()) {
-    GELOGE(ge::FAILED, "Failed to lowering subgraph index %d for %s node %s, reason %s", subgraph_index,
+    GELOGE(ge::FAILED, "Failed to lower subgraph index %d for %s node %s, reason %s", subgraph_index,
            node->GetType().c_str(), node->GetName().c_str(), lower_result->result.GetErrorMessage());
     return {};
   }
@@ -52,14 +52,14 @@ std::vector<bg::ValueHolderPtr> BuildSubgraph(const ge::NodePtr &node, int32_t s
 }
 LowerResult CheckOutputsAndReturn(const ge::NodePtr &node, const vector<bg::DevMemValueHolderPtr> &outputs) {
   if (outputs.empty()) {
-    return CreateErrorLowerResult("Failed to lowering %s node %s, empty outputs", node->GetType().c_str(),
+    return CreateErrorLowerResult("Failed to lower %s node %s, empty outputs", node->GetType().c_str(),
                                   node->GetName().c_str());
   }
 
   auto data_out_count = static_cast<size_t>(node->GetAllOutDataAnchorsSize());
   if (data_out_count == 0UL) {
     if (outputs.size() != 1UL) {
-      return CreateErrorLowerResult("Failed to lowering %s node %s, the output count %zu, expect only one output",
+      return CreateErrorLowerResult("Failed to lower %s node %s, the output count %zu, expect only one output",
                                     node->GetTypePtr(), node->GetNamePtr(), outputs.size());
     }
     std::vector<bg::ValueHolderPtr> order_holders(outputs.cbegin(), outputs.cend());
@@ -67,7 +67,7 @@ LowerResult CheckOutputsAndReturn(const ge::NodePtr &node, const vector<bg::DevM
   } else {
     if (outputs.size() != data_out_count * 2UL) {
       return CreateErrorLowerResult(
-          "Failed to lowering %s node %s, the output count %zu not match with 2 times of if output count %u",
+          "Failed to lower %s node %s, the output count %zu not match with 2 times of if output count %u",
           node->GetType().c_str(), node->GetName().c_str(), outputs.size(), data_out_count);
     }
     auto addr_start = outputs.cbegin() + static_cast<int64_t>(data_out_count);

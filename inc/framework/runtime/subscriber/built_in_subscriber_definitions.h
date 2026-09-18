@@ -50,6 +50,7 @@ enum class ProfilingType {
   kTaskTime = 4,
   kMemory = 5,
   kCannHostL1 = 6,
+  kScale = 7,
   kNum,
   kAll = kNum
 };

@@ -140,8 +140,10 @@ graphStatus InferShape4PadV3(gert::InferSymbolShapeContext *context) {
   return PadV3InferShape(context, x_shape, paddings_tensor, y_shape);
 }
 
+// PadV2与Pad的paddings布局一致（恒为contiguous，形状[n, 2]），constant_values不影响shape，直接复用Pad推导
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Pad).InferSymbolShape(InferShape4Pad);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(PadD).InferSymbolShape(InferShape4PadD);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(PadV2).InferSymbolShape(InferShape4Pad);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(PadV3).InferSymbolShape(InferShape4PadV3);
 }  // namespace
 }  // namespace ge

@@ -132,7 +132,7 @@ Status Om2CodegenModelBuilder::CollectConstInputsFromOp(const OpDescPtr &op_desc
 void Om2CodegenModelBuilder::ReportUnsupportedTask(TaskCodeBuilderPtr &task_builder, domi::TaskDef *const task_def,
                                                    std::unordered_map<int64_t, OpDescPtr> &op_desc_by_index,
                                                    ModelTaskType task_type) {
-  const auto op_index = (task_builder == nullptr) ? kInvalidOpIndex : task_builder->ParseOpIndex(*task_def);
+  const int64_t op_index = (task_builder == nullptr) ? kInvalidOpIndex : task_builder->ParseOpIndex(*task_def);
   if (task_builder == nullptr || op_index == kInvalidOpIndex) {
     REPORT_INNER_ERR_MSG("E19999", "Unsupported task type %d", static_cast<int32_t>(task_type));
     GELOGE(FAILED, "[OM2] Unsupported task type %d, task def %s", static_cast<int32_t>(task_type),
@@ -585,7 +585,7 @@ Status Om2CodegenModelBuilder::BuildFileConstInputs(const GeModelPtr &model, Om2
       has_file_const = true;
     } else if (is_combined && (combined_file_path != file_path)) {
       is_combined = false;
-      for (const auto meta_index : file_const_meta_indices) {
+      for (const size_t meta_index : file_const_meta_indices) {
         const_metas[meta_index].type = "INDIVIDUAL";
       }
     }
@@ -728,9 +728,9 @@ Status Om2CodegenModelBuilder::BuildKernelRegistry(const GeModelPtr &model,
       need_registry_tf_session_task = true;
       continue;
     }
-    const auto kernel_type = Om2CodegenUtils::IsAllKernel(task_type)
-                                 ? task_def.kernel_with_handle().context().kernel_type()
-                                 : task_def.kernel().context().kernel_type();
+    const uint32_t kernel_type = Om2CodegenUtils::IsAllKernel(task_type)
+                                     ? task_def.kernel_with_handle().context().kernel_type()
+                                     : task_def.kernel().context().kernel_type();
     const bool is_aicore = Om2CodegenUtils::IsAllKernel(task_type) ||
                            Om2CodegenUtils::IsAICoreKernel(static_cast<ge::ccKernelType>(kernel_type));
 
@@ -971,7 +971,7 @@ Status Om2CodegenModelBuilder::GenerateArgsData(const GeModelPtr &model,
 Status Om2CodegenModelBuilder::BuildVA2PAInfo(Om2CodegenModel &codegen_model) const {
   bool is_need_va2pa = false;
   GE_CHK_RT_RET(rtNeedDevVA2PA(&is_need_va2pa));
-  GELOGI("[OM2] rtNeedDevVA2PA result: need_va2pa=%d", static_cast<int>(is_need_va2pa));
+  GELOGI("[OM2] rtNeedDevVA2PA result: need_va2pa=%d", static_cast<int32_t>(is_need_va2pa));
   codegen_model.is_need_va2pa = is_need_va2pa;
   return SUCCESS;
 }

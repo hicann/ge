@@ -172,6 +172,8 @@ class CannProfilerV2 : public BaseExecutorProfiler {
   ge::Status ReportMixLaunchKernel(const NodeIdentity node_id);
 
  private:
+  std::string GetOpType(NodeIdentity node_id) const;
+
   std::shared_ptr<const SubscriberExtendInfo> extend_info_{nullptr};
   bool is_device_prof_inited_{false};
   uint32_t iter_num_{1UL};
@@ -187,6 +189,7 @@ class CannProfilerV2 : public BaseExecutorProfiler {
   std::vector<NodeIdentity> cur_launch_node_ids_{};
   std::set<NodeIdentity> davinci_model_node_ids_{};
   std::unordered_map<uint64_t, uint64_t> node_hash_to_atomic_node_hash_{};
+  std::vector<std::string> node_id_to_op_type_{};
 };
 }  // namespace gert
 #endif  // AIR_CXX_RUNTIME_V2_SUBSCRIBER_PROFILER_CANN_PROFILER_V2_H_

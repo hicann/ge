@@ -321,7 +321,79 @@ REG_DECOMPOSE_PASS(ClassName, {"Conv2D"}).Stage(CustomPassStage::kBeforeInferSha
 
 Python 侧可通过 `ge.passes.infer_shape`（[API 文档](../../api/graph_engine_api/python/ge/passes/infer_shape.md)）调用相同能力，`source` 参数分别传入 `MatchResult`、`Node`、`SubgraphBoundary`；调用失败时不得继续执行替换。
 
-## 8. Python 与 C++ 的关系
+## 8. Pass 默认开关状态（PassSwitch）
+
+### 8.1 为什么需要默认开关
+
+融合 Pass 的执行受四层开关控制（优先级从高到低）：
+
+| 优先级 | 来源 | 说明 |
+|--------|------|------|
+| 1（最高） | graph option | `ge.optimizationSwitch` 中 `PassName:on/off`，运行时即时生效 |
+| 2 | JSON 精确匹配 | `fusion_switch_file` JSON 中该 pass 名对应的 `true`/`false` |
+| 3 | JSON ALL 通配 | JSON 中 `"ALL": true/false`，对所有未精确命中的 pass 生效 |
+| 4（最低） | 注册默认值 | pass 注册时声明的 `PassSwitch`，未声明时为 `kOn` |
+
+第 4 层在 9.3.0(2026-09) 之前是代码中固定 `return true`，即所有 pass 默认执行。这导致存在精度风险或性能回退的 pass 只能在 `MeetRequirements` 中做条件判断规避，不够直观，也无法在 pass 初始化阶段就跳过实例创建。
+
+`PassSwitch` 枚举（`register_custom_pass.h`，@since 9.3.0/2026-09）将第 4 层改为注册时声明的默认值：
+
+| 枚举值 | 语义 |
+|--------|------|
+| `PassSwitch::kOn` | pass 默认开启（与历史行为一致）。不传 switch 参数时的默认值 |
+| `PassSwitch::kOff` | pass 默认关闭。仅当用户通过 JSON 或 graph option 显式开启时才执行 |
+
+### 8.2 注册时声明默认开关
+
+三个注册宏保持原有签名不变，通过链式调用 `DefaultSwitch(PassSwitch)` 声明默认开关状态。不调用 `DefaultSwitch` 时 impl 构造默认 `kOn`，与历史行为一致：
+
+```cpp
+// PatternFusionPass
+REG_FUSION_PASS(MyPass).Stage(CustomPassStage::kBeforeInferShape);                              // 默认 kOn，兼容
+REG_FUSION_PASS(RiskyPass).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kAfterInferShape); // 默认 kOff
+
+// DecomposePass
+REG_DECOMPOSE_PASS(MyDecomposePass, {"Conv2D"}).Stage(CustomPassStage::kBeforeInferShape);                              // 默认 kOn，兼容
+REG_DECOMPOSE_PASS(RiskyDecomposePass, {"Conv2D"}).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape); // 默认 kOff
+
+// 自定义 Pass（REGISTER_CUSTOM_PASS）
+REGISTER_CUSTOM_PASS("MyCustomPass").Stage(CustomPassStage::kBeforeInferShape);                              // 默认 kOn，兼容
+REGISTER_CUSTOM_PASS("RiskyCustomPass").DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape); // 默认 kOff
+```
+
+两套注册数据类（`FusionPassRegistrationData`、`PassRegistrationData`）新增 `DefaultSwitch(PassSwitch)` 链式方法和 `GetDefaultSwitch()` getter。`ToString()` 输出中也会包含 switch 信息，如 `"Pass Name[MyPass], stage[BeforeInferShape], switch[off]"`。
+
+### 8.3 运行时配置覆盖注册默认值
+
+注册为 `kOff` 的 pass 仍可被前三层运行时配置开启。判断逻辑由 `PassOptionUtils::IsPassEnable` 统一实现，`FusionPassExecutor::InitPassesIfNeed` 和 `CustomPassHelper::Run`（新增带 switch map 的重载）共用。流分配 Pass 的执行入口 `StreamUtils::RunCustomStreamPass` 也已适配，调用 4 参重载传入 switch 配置，确保流分配 Pass 与普通自定义 Pass 的开关行为一致：
+
+| 注册默认值 | 运行时配置 | 结果 |
+|-----------|-----------|------|
+| kOff | 无配置 | 跳过（pass 默认关闭） |
+| kOff | JSON 精确 "on" | 执行（配置覆盖注册默认） |
+| kOff | JSON "ALL":"on" | 执行（ALL 通配覆盖注册默认） |
+| kOff | graph option "on" | 执行（option 覆盖注册默认） |
+| kOn（默认） | 无配置 | 执行（与历史行为一致） |
+| kOn（默认） | JSON 该 pass "off" | 跳过（与历史行为一致） |
+
+### 8.4 兼容性注意事项
+
+不调用 `DefaultSwitch()` 的注册代码，impl 构造时将 `default_switch_` 初始化为 `kOn`。这保证了：
+
+- 现有算子仓代码无需修改即可用新头文件编译通过（源码兼容）
+- 不调用 `DefaultSwitch` 编译的 `.so` 在旧版 GE 运行时上动态加载不受影响（ABI/运行时兼容）
+
+链式调用 `DefaultSwitch(pass_switch)` 会引用该方法符号，该方法符号在 9.3.0 之前 GE 运行时不存在。算子仓若需在旧版 GE 上运行，须用 `COMPILER_VERSION_NUM` 编译宏保护：
+
+```cpp
+#if COMPILER_VERSION_NUM >= 9030000
+REG_FUSION_PASS(MyPass).DefaultSwitch(PassSwitch::kOff).Stage(CustomPassStage::kBeforeInferShape);
+#else
+REG_FUSION_PASS(MyPass).Stage(CustomPassStage::kBeforeInferShape);
+#endif
+```
+
+## 9. Python 与 C++ 的关系
 
 Python 和 C++ 的 pass 都会接入 GE 的统一 pass 调度流程。
 
@@ -336,7 +408,7 @@ Python 和 C++ 的 pass 都会接入 GE 的统一 pass 调度流程。
 
 如果只是新增一个规则并验证效果，建议先用 Python 写。规则稳定后，如有交付形态或性能方面要求，再考虑 C++ 实现。
 
-## 9. 开发前检查清单
+## 10. 开发前检查清单
 
 写 pass 前先回答这些问题：
 
@@ -346,4 +418,5 @@ Python 和 C++ 的 pass 都会接入 GE 的统一 pass 调度流程。
 - 只是拓扑匹配就足够，还是需要在 `MeetRequirements` 里检查 dtype、shape、属性或 Const 值？
 - replacement 的输入顺序是否和 pattern 边界一致？
 - 注册阶段是否合适？如果在 InferShape 后运行，replacement 是否已经处理 shape 推导？
+- pass 是否有精度风险或性能回退？是否需要声明 `PassSwitch::kOff` 默认关闭？
 - 是否能通过 `DUMP_GE_GRAPH=1` 对比替换前后的图，确认规则确实生效？

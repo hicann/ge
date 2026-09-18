@@ -272,7 +272,7 @@ Status DSATaskCodeBuilder::RenderSqeScalars(std::vector<BodyItem> &body, const E
 
 Status DSATaskCodeBuilder::RenderSqeAddrFields(std::vector<BodyItem> &body, const ExprRef &dsa_data, const VarRef &ctx,
                                                const VarRef &dsa_sqe, const VarRef &addrs) {
-  int split_idx = 0;
+  int32_t split_idx = 0;
   auto doSplit = [this, &body, &split_idx](Arg low_attr, Arg high_attr, Arg val) {
     auto v = ast_.Var("uint64_t", "_v" + std::to_string(split_idx++));
     (void)body.push_back(ast_.VarDecl(v, val));

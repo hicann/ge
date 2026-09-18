@@ -1122,7 +1122,6 @@ ge::graphStatus GetDeterministicConfig(const ge::OpDescPtr &op_desc, const ge::C
   GE_ASSERT_SUCCESS(GetNodeDeterministicLevel(op_desc, deterministic_level, has_deterministic_level));
   if (!has_deterministic_level && ge::AttrUtils::HasAttr(root_compute_graph, ge::DETERMINISTIC_LEVEL)) {
     (void)ge::AttrUtils::GetInt(root_compute_graph, ge::DETERMINISTIC_LEVEL, deterministic_level);
-    has_deterministic_level = true;
   }
   return ge::GRAPH_SUCCESS;
 }

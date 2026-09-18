@@ -26,7 +26,7 @@ Status BinaryPartitioner::Partition(const ComputeGraphPtr &graph, const std::vec
 
   auto uninfer_nodes = GetRemainingNodes(graph, infered_nodes);
   if (uninfer_nodes.empty()) {
-    GELOGI("Partition completed! remaining nodes is empty. graph name:%s", graph->GetName().c_str());
+    GELOGI("Partition completed! remaining nodes are empty. graph name:%s", graph->GetName().c_str());
     p_ret.sliced_graph = graph;
     return GRAPH_SUCCESS;
   }
@@ -83,13 +83,13 @@ bool BinaryPartitioner::CheckNodesContainsCycle(const std::vector<NodePtr> &infe
     const auto &ctrl_nodes = node->GetInControlNodes();
     const auto data_it = std::find_if(data_nodes.begin(), data_nodes.end(), in_uninfer);
     if (data_it != data_nodes.end()) {
-      GELOGE(ge::FAILED, "CheckNodesContainsCycle node:%s is uninfered, but it is infered node:%s input",
+      GELOGE(ge::FAILED, "CheckNodesContainsCycle node:%s is uninferred, but it is inferred node:%s input",
              (*data_it)->GetName().c_str(), node->GetName().c_str());
       return true;
     }
     const auto ctrl_it = std::find_if(ctrl_nodes.begin(), ctrl_nodes.end(), in_uninfer);
     if (ctrl_it != ctrl_nodes.end()) {
-      GELOGE(ge::FAILED, "CheckNodesContainsCycle node:%s is uninfered, but it is infered node:%s input",
+      GELOGE(ge::FAILED, "CheckNodesContainsCycle node:%s is uninferred, but it is inferred node:%s input",
              (*ctrl_it)->GetName().c_str(), node->GetName().c_str());
       return true;
     }

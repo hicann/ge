@@ -4881,6 +4881,103 @@ TEST_F(UtestDavinciModel, save_profile_task_info) {
   EXPECT_EQ(block_dim, 8);
 }
 
+namespace {
+NodeBasicInfoWrapper MakeNodeBasicInfo(const std::string &op_name, const std::string &op_type) {
+  NodeBasicInfoWrapper info = {};
+  info.op_name = op_name;
+  info.op_type = op_type;
+  return info;
+}
+}  // namespace
+
+TEST_F(UtestDavinciModel, report_task_time_l1_info_no_filter_when_scale_disabled) {
+  DavinciModel model(0, nullptr);
+  model.node_basic_infos_ = {MakeNodeBasicInfo("relu", "Relu"), MakeNodeBasicInfo("gelu", "Gelu")};
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(
+      gert::BuiltInSubscriberUtil::EnableBit<gert::ProfilingType>(gert::ProfilingType::kDevice));
+  size_t compact_count = 0;
+  ge::ProfilingTestUtil::Instance().SetProfFunc(
+      [&](uint32_t moduleId, uint32_t type, void *data, uint32_t len) -> int32_t {
+        if (type == InfoType::kCompactInfo) {
+          ++compact_count;
+        }
+        return 0;
+      });
+  EXPECT_EQ(model.ReportTaskTimeL1Info(), SUCCESS);
+  EXPECT_EQ(compact_count, 2UL);
+  ge::ProfilingTestUtil::Instance().Clear();
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(0);
+}
+
+TEST_F(UtestDavinciModel, report_task_time_l1_info_filtered_by_op_type_when_scale_enabled) {
+  DavinciModel model(0, nullptr);
+  model.node_basic_infos_ = {MakeNodeBasicInfo("relu", "Relu"), MakeNodeBasicInfo("gelu", "Gelu")};
+  const uint64_t enable_flags =
+      gert::BuiltInSubscriberUtil::EnableBit<gert::ProfilingType>(gert::ProfilingType::kDevice) |
+      gert::BuiltInSubscriberUtil::EnableBit<gert::ProfilingType>(gert::ProfilingType::kScale);
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(enable_flags);
+  std::set<std::string> checked_op_types;
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [&](uint32_t type, const char *op, size_t len) {
+    checked_op_types.insert(std::string(op, len));
+    return std::string(op, len) != "Gelu";
+  };
+  size_t compact_count = 0;
+  ge::ProfilingTestUtil::Instance().SetProfFunc(
+      [&](uint32_t moduleId, uint32_t type, void *data, uint32_t len) -> int32_t {
+        if (type == InfoType::kCompactInfo) {
+          ++compact_count;
+        }
+        return 0;
+      });
+  EXPECT_EQ(model.ReportTaskTimeL1Info(), SUCCESS);
+  EXPECT_EQ(compact_count, 1UL);
+  EXPECT_EQ(checked_op_types, (std::set<std::string>{"Relu", "Gelu"}));
+  ge::ProfilingTestUtil::Instance().Clear();
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(0);
+}
+
+TEST_F(UtestDavinciModel, report_task_time_l0_info_filtered_by_op_type_when_scale_enabled) {
+  DavinciModel model(0, nullptr);
+  model.node_basic_infos_ = {MakeNodeBasicInfo("relu", "Relu"), MakeNodeBasicInfo("gelu", "Gelu")};
+  gert::ContextIdInfoWrapper relu_ctx = {};
+  relu_ctx.op_name = "relu";
+  gert::ContextIdInfoWrapper gelu_ctx = {};
+  gelu_ctx.op_name = "gelu";
+  gert::ContextIdInfoWrapper unknown_ctx = {};
+  unknown_ctx.op_name = "unknown_op";
+  model.context_id_infos_ = {relu_ctx, gelu_ctx, unknown_ctx};
+  ApiInfoWrapper relu_api = {};
+  relu_api.op_name = "relu";
+  ApiInfoWrapper gelu_api = {};
+  gelu_api.op_name = "gelu";
+  model.prof_launch_apis_ = {relu_api, gelu_api};
+  const uint64_t enable_flags =
+      gert::BuiltInSubscriberUtil::EnableBit<gert::ProfilingType>(gert::ProfilingType::kTaskTime) |
+      gert::BuiltInSubscriberUtil::EnableBit<gert::ProfilingType>(gert::ProfilingType::kScale);
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(enable_flags);
+  ge::ProfilingTestUtil::Instance().check_op_func_ = [&](uint32_t type, const char *op, size_t len) {
+    return std::string(op, len) != "Gelu";
+  };
+  size_t info_count = 0;
+  size_t api_count = 0;
+  ge::ProfilingTestUtil::Instance().SetProfFunc(
+      [&](uint32_t moduleId, uint32_t type, void *data, uint32_t len) -> int32_t {
+        if (type == InfoType::kInfo) {
+          ++info_count;
+        }
+        if (type == InfoType::kApi) {
+          ++api_count;
+        }
+        return 0;
+      });
+  EXPECT_EQ(model.ReportTaskTimeL0Info(0U), SUCCESS);
+  // kInfo: 1(graph id map) + relu_ctx + unknown_ctx；kApi: relu_api
+  EXPECT_EQ(info_count, 3UL);
+  EXPECT_EQ(api_count, 1UL);
+  ge::ProfilingTestUtil::Instance().Clear();
+  gert::GlobalProfilingWrapper::GetInstance()->SetEnableFlags(0);
+}
+
 TEST_F(UtestDavinciModel, save_profile_task_info_vector) {
   DavinciModel model(0, nullptr);
   model.SetId(1);

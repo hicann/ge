@@ -373,7 +373,11 @@ ge::Status RtV2PipelineExecutor::Unload() {
   for (auto &stage_executor : stage_executors_) {
     GELOGI("Start stop stage state %s", stage_executor->Id().c_str());
     auto status = stage_executor->Stop();
-    GELOGI("Stage state %s stop %s", stage_executor->Id().c_str(), ((status == ge::SUCCESS) ? "succeed" : "failed"));
+    if (status == ge::SUCCESS) {
+      GELOGI("Stage state %s stop succeed", stage_executor->Id().c_str());
+    } else {
+      GELOGW("Stage state %s stop failed", stage_executor->Id().c_str());
+    }
     result = (status == ge::SUCCESS) ? result : status;
   }
   return result;

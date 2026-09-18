@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_TASK_ARGS_IO_ADDRS_UPDATE_H_
-#define AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_TASK_ARGS_IO_ADDRS_UPDATE_H_
+#ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_TASK_ARGS_IO_ADDRS_UPDATER_H_
+#define AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_TASK_ARGS_IO_ADDRS_UPDATER_H_
 
 #include "common/om2/codegen/om2_codegen_types.h"
 
@@ -47,4 +47,4 @@ class ArgsIoAddrsUpdater {
 };
 }  // namespace om2
 }  // namespace ge
-#endif  // AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_TASK_ARGS_IO_ADDRS_UPDATE_H_
+#endif  // AIR_CXX_BASE_COMMON_OM2_CODEGEN_OM2_TASK_ARGS_IO_ADDRS_UPDATER_H_

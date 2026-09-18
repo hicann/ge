@@ -57,7 +57,7 @@ Status LabelSwitchByIndexTaskCodeBuilder::Contribute(TaskSemanticContributeConte
 Status LabelSwitchByIndexTaskCodeBuilder::RenderInitResource(std::vector<BodyItem> &items) {
   std::vector<Arg> label_args;
   label_args.reserve(build_data_.label_indices.size());
-  for (const auto label_id : build_data_.label_indices) {
+  for (const uint32_t label_id : build_data_.label_indices) {
     (void)label_args.emplace_back(static_cast<int64_t>(label_id));
   }
   (void)items.push_back(

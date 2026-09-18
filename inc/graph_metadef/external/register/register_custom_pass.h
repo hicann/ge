@@ -45,6 +45,15 @@ enum class CustomPassStage : uint32_t {
 };
 
 /**
+ * 自定义pass的默认开关状态，用于在注册时声明pass的默认开启/关闭
+ * @since 9.3.0(2026-09)
+ */
+enum class PassSwitch : uint32_t {
+  kOn = 0,  // @since 9.3.0(2026-09) pass默认开启，与当前行为一致
+  kOff = 1  // @since 9.3.0(2026-09) pass默认关闭，仅当用户显式配置开启时才执行
+};
+
+/**
  * @since 8.5.0(2025-12)
  */
 class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY PassRegistrationData {
@@ -116,6 +125,21 @@ class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY PassRegistrationData {
    * @since 8.5.0(2025-12)
    */
   CustomAllocateStreamPassFunc GetCustomAllocateStreamPass() const;
+
+  /**
+   * 设置自定义pass的默认开关状态
+   * @param pass_switch 开关状态，kOn或kOff
+   * @return 自身引用，支持链式调用
+   * @since 9.3.0(2026-09)
+   */
+  PassRegistrationData &DefaultSwitch(PassSwitch pass_switch);
+
+  /**
+   * 获取自定义pass的默认开关状态
+   * @return 开关状态。impl为null时返回kOn
+   * @since 9.3.0(2026-09)
+   */
+  PassSwitch GetDefaultSwitch() const;
 
  private:
   std::shared_ptr<PassRegistrationDataImpl> impl_;

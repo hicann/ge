@@ -57,8 +57,8 @@ const std::unordered_map<std::string, RTVarEntry> &RTVarResource::GetAllEntries(
 }
 
 std::string RTVarResource::BuildVarKey(const std::string &var_name, const ge::Om2TensorDesc &desc) {
-  return var_name + std::to_string(static_cast<int>(desc.GetFormat())) + "_" +
-         std::to_string(static_cast<int>(desc.GetDataType()));
+  return var_name + std::to_string(static_cast<int32_t>(desc.GetFormat())) + "_" +
+         std::to_string(static_cast<int32_t>(desc.GetDataType()));
 }
 
 }  // namespace gert

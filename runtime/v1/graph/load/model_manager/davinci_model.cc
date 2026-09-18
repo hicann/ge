@@ -116,6 +116,26 @@ const std::set<std::string> hccl_op_types({ge::HCOMBROADCAST, ge::HCOMALLGATHER,
                                            ge::HCOMREDUCESCATTER, ge::HCOMREDUCE, ge::HCOMALLTOALLV,
                                            ge::HCOMGATHERALLTOALLV, ge::HCOMALLTOALLVC, ge::HCOMALLTOALL});
 
+bool IsScaleProfilingEnabledForOp(const std::string &op_type) {
+  if (!gert::GlobalProfilingWrapper::GetInstance()->IsEnabled(gert::ProfilingType::kScale)) {
+    GELOGD("[Scale Profiling] Scale profiling disabled, op_type=%s, return true", op_type.c_str());
+    return true;
+  }
+  bool enabled = MsprofCheckOpSwitch(0U, op_type.c_str(), op_type.length());
+  GELOGD("[Scale Profiling] op_type=%s, MsprofCheckOpSwitch result=%d", op_type.c_str(), enabled);
+  return enabled;
+}
+
+const std::string *FindOpTypeByName(const std::vector<NodeBasicInfoWrapper> &node_basic_infos,
+                                    const std::string &op_name) {
+  for (const auto &node_basic_info : node_basic_infos) {
+    if (node_basic_info.op_name == op_name) {
+      return &node_basic_info.op_type;
+    }
+  }
+  return nullptr;
+}
+
 constexpr const char *kModelProfStageStr[kMdlProfStageNameEnd + 1] = {
     "InitModelMem",  "InitIoNodes",          "TransAllVarData", "InitNodes", "DoTaskSink",
     "CopyModelData", "aclmdlRIExecuteAsync", "CopyOutputData",  "unknown"};
@@ -2441,7 +2461,7 @@ void DavinciModel::PrintNoFrozenInputIndexes() {
 }
 
 Status DavinciModel::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> &index_to_data) {
-  GE_ASSERT_SUCCESS(ParseHostInputIndexOption(index_to_data.size()));
+  GE_ASSERT_SUCCESS(GenHostInputIndexes(index_to_data));
   copy_host_input_infos_.clear();
   copy_host_input_infos_.resize(index_to_data.size());
 
@@ -4825,8 +4845,18 @@ Status DavinciModel::ReportTaskTimeL1Info() {
     GELOGI("Do not report l1 info.");
     return SUCCESS;
   }
+  GELOGI("[Scale Profiling] ReportTaskTimeL1Info start, node_basic_infos size=%zu", node_basic_infos_.size());
   GE_CHK_STATUS_RET(ReportFusionOpInfo(), "Report profiling fusion op info failed");
+  size_t filtered_count = 0U;
+  size_t reported_count = 0U;
   for (auto &node_basic_info : node_basic_infos_) {
+    if (!IsScaleProfilingEnabledForOp(node_basic_info.op_type)) {
+      GELOGD("[Scale Profiling] Filter node_basic_info, op_name=%s, op_type=%s", node_basic_info.op_name.c_str(),
+             node_basic_info.op_type.c_str());
+      filtered_count++;
+      continue;
+    }
+    reported_count++;
     if (node_basic_info.node_basic_info.data.nodeBasicInfo.opName == 0UL) {
       node_basic_info.node_basic_info.data.nodeBasicInfo.opName =
           MsprofGetHashId(node_basic_info.op_name.c_str(), node_basic_info.op_name.length());
@@ -4843,6 +4873,7 @@ Status DavinciModel::ReportTaskTimeL1Info() {
     GE_ASSERT_SUCCESS(
         gert::GlobalProfilingWrapper::ReportTensorInfo(model_load_event_.threadId, false, task_desc_info));
   }
+  GELOGI("[Scale Profiling] ReportTaskTimeL1Info done, filtered=%zu, reported=%zu", filtered_count, reported_count);
   return SUCCESS;
 }
 
@@ -4851,12 +4882,24 @@ Status DavinciModel::ReportTaskTimeL0Info(const uint32_t prof_model_id) {
     GELOGI("Do not report l0 info.");
     return SUCCESS;
   }
+  GELOGI("[Scale Profiling] ReportTaskTimeL0Info start, context_id_infos size=%zu, prof_launch_apis size=%zu",
+         context_id_infos_.size(), prof_launch_apis_.size());
   GE_CHK_STATUS_RET(gert::GlobalProfilingWrapper::ReportLogicStreamInfo(load_end_time_, model_load_event_.threadId,
                                                                         logic_stream_ids_to_physic_stream_ids_,
                                                                         static_cast<uint16_t>(false)));
   GE_CHK_STATUS_RET(ReportModelExtInfo(model_load_event_.threadId, prof_model_id),
                     "Report profiling model ext info failed");
+  size_t context_filtered_count = 0U;
+  size_t context_reported_count = 0U;
   for (auto &context_info_id : context_id_infos_) {
+    const auto *op_type = FindOpTypeByName(node_basic_infos_, context_info_id.op_name);
+    if ((op_type != nullptr) && (!IsScaleProfilingEnabledForOp(*op_type))) {
+      GELOGD("[Scale Profiling] Filter context_id_info, op_name=%s, op_type=%s", context_info_id.op_name.c_str(),
+             op_type->c_str());
+      context_filtered_count++;
+      continue;
+    }
+    context_reported_count++;
     auto prof_context_info = reinterpret_cast<MsprofContextIdInfo *>(context_info_id.context_id_info.data);
     if (prof_context_info->opName == 0UL) {
       prof_context_info->opName = MsprofGetHashId(context_info_id.op_name.c_str(), context_info_id.op_name.length());
@@ -4865,12 +4908,25 @@ Status DavinciModel::ReportTaskTimeL0Info(const uint32_t prof_model_id) {
                                                    static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))));
   }
 
+  size_t api_filtered_count = 0U;
+  size_t api_reported_count = 0U;
   for (auto &launch_api : prof_launch_apis_) {
+    const auto *op_type = FindOpTypeByName(node_basic_infos_, launch_api.op_name);
+    if ((op_type != nullptr) && (!IsScaleProfilingEnabledForOp(*op_type))) {
+      GELOGD("[Scale Profiling] Filter launch_api, op_name=%s, op_type=%s", launch_api.op_name.c_str(),
+             op_type->c_str());
+      api_filtered_count++;
+      continue;
+    }
+    api_reported_count++;
     if (launch_api.api.itemId == 0UL) {
       launch_api.api.itemId = MsprofGetHashId(launch_api.op_name.c_str(), launch_api.op_name.length());
     }
     GE_ASSERT_MSPROF_OK(MsprofReportApi(static_cast<uint32_t>(false), &launch_api.api));
   }
+  GELOGI(
+      "[Scale Profiling] ReportTaskTimeL0Info done, context filtered=%zu, reported=%zu, api filtered=%zu, reported=%zu",
+      context_filtered_count, context_reported_count, api_filtered_count, api_reported_count);
   return SUCCESS;
 }
 
@@ -9383,24 +9439,38 @@ Status DavinciModel::LaunchEventForHcclGroupOrderedStream(aclrtStream const stre
   return SUCCESS;
 }
 
-Status DavinciModel::ParseHostInputIndexOption(const size_t input_num) {
+// 解析 ge.exec.hostInputIndexes 选项配置的随路拷贝输入索引，并合并 Data 节点上
+// ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT 标记的输入（JIT 场景 value-dependent/cond 输入经 D2H
+// 后的 host 副本，标记随 sliced graph 编译进入模型），共同构成 copy_host_input_indexes_。
+// 图属性部分沿用 GenInputMemAllocations 主循环的位置序号计数方式
+// （index_to_data 的 key 为真实输入索引，可能乱序，不能直接当位置用）
+Status DavinciModel::GenHostInputIndexes(const std::map<uint32_t, OpDescPtr> &index_to_data) {
   copy_host_input_indexes_.clear();
   string copy_host_inputs;
-  (void)ge::GetContext().GetOption(OPTION_EXEC_HOST_INPUT_INDEXES, copy_host_inputs);
-  if (copy_host_inputs.empty()) {
-    GELOGI("host input indexes is empty.");
-    return SUCCESS;
+  if (ge::GetContext().GetOption(OPTION_EXEC_HOST_INPUT_INDEXES, copy_host_inputs) == GRAPH_SUCCESS &&
+      !copy_host_inputs.empty()) {
+    // copy host input indexes: ids(1;2;4;5)
+    std::vector<std::string> copy_host_input_vec = StringUtils::Split(copy_host_inputs, ';');
+    for (auto &input : copy_host_input_vec) {
+      int32_t input_index;
+      GE_ASSERT_SUCCESS(ConvertToInt32(input, input_index));
+      GE_ASSERT_TRUE((input_index >= 0) && static_cast<uint32_t>(input_index) < index_to_data.size(),
+                     "host input index:%d no less than input num:%zu", input_index, index_to_data.size());
+      GELOGI("model:%u, host input index:%d", model_id_, input_index);
+      (void)copy_host_input_indexes_.insert(input_index);
+    }
   }
 
-  // copy host input indexes: ids(1;2;4;5)
-  std::vector<std::string> copy_host_input_vec = StringUtils::Split(copy_host_inputs, ';');
-  for (auto &input : copy_host_input_vec) {
-    int32_t input_index;
-    GE_ASSERT_SUCCESS(ConvertToInt32(input, input_index));
-    GE_ASSERT_TRUE((input_index >= 0) && static_cast<uint32_t>(input_index) < input_num,
-                   "host input index:%d no less than input num:%zu", input_index, input_num);
-    GELOGI("model:%u, host input index:%d", model_id_, input_index);
-    (void)copy_host_input_indexes_.insert(input_index);
+  uint32_t host_tensor_input_index = 0U;
+  for (const auto &item : index_to_data) {
+    bool is_host_tensor_input = false;
+    if (AttrUtils::GetBool(item.second, ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT, is_host_tensor_input) &&
+        is_host_tensor_input) {
+      (void)copy_host_input_indexes_.insert(host_tensor_input_index);
+      GELOGI("model:%u, data node %s is marked host tensor, input index:%u.", model_id_, item.second->GetName().c_str(),
+             host_tensor_input_index);
+    }
+    ++host_tensor_input_index;
   }
 
   return SUCCESS;

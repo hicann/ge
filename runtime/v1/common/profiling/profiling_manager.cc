@@ -250,6 +250,11 @@ Status ProfilingManager::ProfStartProfiling(const uint64_t module,
     GELOGI("Prof init: task time profiling on.");
   }
 
+  if (IsEnabled(PROF_OP_MASK)) {
+    diagnoseSwitch::EnableScaleProfiling();
+    GELOGI("Prof init: op-level profiling on.");
+  }
+
   if (IsEnabled(PROF_TASK_TIME_L1_MASK)) {
     diagnoseSwitch::EnableDeviceProfiling();
     GELOGI("Prof init: task time l1 profiling on.");

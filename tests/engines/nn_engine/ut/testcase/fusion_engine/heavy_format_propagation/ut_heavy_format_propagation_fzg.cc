@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
+#include <iostream>
 #include <memory>
 #include "common/util/op_info_util.h"
 #include "common/aicore_util_attr_define.h"
@@ -26,7 +27,9 @@
 #include "graph_optimizer/shape_format_transfer/trans_node_manager/trans_node_manager.h"
 #include "graph/debug/ge_attr_define.h"
 #include "common/configuration.h"
+#include "common/platform_utils.h"
 #include "ops_store/ops_kernel_manager.h"
+#include "platform/platform_info.h"
 using namespace std;
 using namespace ge;
 using namespace fe;
@@ -59,12 +62,31 @@ class UTEST_fusion_engine_heavy_format_distribution_fzg : public testing::Test {
     return true;
   }
 
-  void SetUp() {
+  static void SetUpTestCase() {
     TbeOpStoreAdapterPtr tbe_op_store_adapter_ptr = std::dynamic_pointer_cast<TbeOpStoreAdapter>(
         OpStoreAdapterManager::Instance(AI_CORE_NAME).GetOpStoreAdapter(EN_IMPL_HW_TBE));
-    tbe_op_store_adapter_ptr->SelectTbeOpFormat = SelectTbeOpFormatStub;
+    if (tbe_op_store_adapter_ptr != nullptr) {
+      return;
+    }
+    const std::string soc_version = "Ascend910B1";
+    PlatformInfoManager::Instance().opti_compilation_info_.soc_version = soc_version;
+    PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion(soc_version);
+    PlatformUtils::Instance().soc_version_ = soc_version;
+    Configuration::Instance(AI_CORE_NAME).InitLibPath();
+    BuildTbeOpsStoreConfig();
+    OpsKernelManager::Instance(AI_CORE_NAME).Finalize();
+    OpsKernelManager::Instance(AI_CORE_NAME).Initialize();
     std::map<std::string, std::string> options;
-    fe_ops_kernel_info_store_ptr_ = make_shared<fe::FEOpsKernelInfoStore>(fe::AI_CORE_NAME);
+    options.emplace(ge::SOC_VERSION, soc_version);
+    OpStoreAdapterManager::Instance(AI_CORE_NAME).Finalize();
+    if (OpStoreAdapterManager::Instance(AI_CORE_NAME).Initialize(options) != fe::SUCCESS) {
+      std::cout << "OpStoreAdapterManager::Initialize(options) failed, "
+                   "TBE adapter is unavailable for this suite."
+                << std::endl;
+    }
+  }
+
+  static void BuildTbeOpsStoreConfig() {
     FEOpsStoreInfo heavy_op_info{
         6,
         "tbe-builtin",
@@ -74,10 +96,19 @@ class UTEST_fusion_engine_heavy_format_distribution_fzg : public testing::Test {
         false,
         false,
         false};
-
     vector<FEOpsStoreInfo> store_info;
     store_info.emplace_back(heavy_op_info);
     Configuration::Instance(fe::AI_CORE_NAME).ops_store_info_vector_ = (store_info);
+  }
+
+  void SetUp() {
+    TbeOpStoreAdapterPtr tbe_op_store_adapter_ptr = std::dynamic_pointer_cast<TbeOpStoreAdapter>(
+        OpStoreAdapterManager::Instance(AI_CORE_NAME).GetOpStoreAdapter(EN_IMPL_HW_TBE));
+    ASSERT_NE(tbe_op_store_adapter_ptr, nullptr) << "Failed to get TBE op store adapter.";
+    tbe_op_store_adapter_ptr->SelectTbeOpFormat = SelectTbeOpFormatStub;
+    std::map<std::string, std::string> options;
+    fe_ops_kernel_info_store_ptr_ = make_shared<fe::FEOpsKernelInfoStore>(fe::AI_CORE_NAME);
+    BuildTbeOpsStoreConfig();
     OpsKernelManager::Instance(AI_CORE_NAME).Finalize();
 
     fe_ops_kernel_info_store_ptr_->Initialize(options);

@@ -146,10 +146,30 @@ class UTEST_fusion_engine_op_compiler : public testing::Test {
     PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion(soc_version);
     PlatformUtils::Instance().soc_version_ = soc_version;
     Configuration::Instance(AI_CORE_NAME).InitLibPath();
+    FEOpsStoreInfo tbe_custom{
+        2,
+        "tbe-custom",
+        EN_IMPL_CUSTOM_TBE,
+        GetCodeDir() +
+            "/tests/engines/nn_engine/ut/testcase/fusion_engine/ops_kernel_store/fe_config/tbe_custom_opinfo",
+        GetCodeDir() +
+            "/tests/engines/nn_engine/ut/testcase/fusion_engine/ops_kernel_store/fe_config/tbe_custom_opinfo",
+        true,
+        true,
+        true};
+    std::vector<FEOpsStoreInfo> store_info;
+    store_info.emplace_back(tbe_custom);
+    Configuration::Instance(AI_CORE_NAME).ops_store_info_vector_ = (store_info);
+    OpsKernelManager::Instance(AI_CORE_NAME).Finalize();
+    OpsKernelManager::Instance(AI_CORE_NAME).Initialize();
+    std::map<std::string, std::string> options;
+    OpStoreAdapterManager::Instance(AI_CORE_NAME).Finalize();
+    OpStoreAdapterManager::Instance(AI_CORE_NAME).Initialize(options);
   }
   void SetUp() {
     tbe_adapter_ptr_ = std::dynamic_pointer_cast<TbeOpStoreAdapter>(
         OpStoreAdapterManager::Instance(AI_CORE_NAME).GetOpStoreAdapter(EN_IMPL_HW_TBE));
+    ASSERT_NE(tbe_adapter_ptr_, nullptr) << "Failed to get TBE op store adapter.";
     tbe_adapter_ptr_->SelectTbeOpFormat = SelectTbeOpFormatStub;
     tbe_adapter_ptr_->CheckTbeSupported = CheckTbeSupportedStub;
     tbe_adapter_ptr_->GetOpUniqueKeyFunc = GetOpUniqueKeyStub;

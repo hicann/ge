@@ -5081,4 +5081,177 @@ TEST_F(SymbolicShapeComputeUT, InferShapeForStridedSliceV2SymbolicKernelEmptyAxe
   ExpectNodeInfo expect_node(STRIDEDSLICEV2, {Symbol(4)}, {}, {}, {Symbol(1), Symbol(2), Symbol(3), Symbol(4)});
   ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
 }
+
+// Gather 负索引（[-dim, dim) 合法语义，从轴末尾计数）归一化后正确取值
+TEST_F(SymbolicShapeComputeUT, test_gather_const_hostcompute_negative_index) {
+  const std::vector<int32_t> param_const_data = {0, 1, 2, 3};
+  const std::vector<int64_t> param_const_dim = {2, 2};
+  auto param_const =
+      EsCreateConstInt32(graph_, param_const_data.data(), param_const_dim.data(), param_const_dim.size());
+
+  const std::vector<int32_t> indice_const_data = {-1};
+  const std::vector<int64_t> indice_const_dim = {1};
+  auto indice_const =
+      EsCreateConstInt32(graph_, indice_const_data.data(), indice_const_dim.data(), indice_const_dim.size());
+
+  auto axis_const = EsCreateScalarInt32(graph_, 0);
+  auto gather_v2 = EsGatherV2(param_const, indice_const, axis_const, 0, false, false);
+  ASSERT_EQ(EsSetGraphOutput(gather_v2, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  // indices=[-1] 归一化为 1（从末尾计数），取 param 的第 1 块 [2,3]
+  std::vector<Expression> expect_symbolic_value = {Symbol(2), Symbol(3)};
+  std::vector<Expression> expect_symbolic_shape = {Symbol(1), Symbol(2)};
+  ExpectNodeInfo expect_node(GATHERV2, expect_symbolic_shape, {}, {}, expect_symbolic_value);
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
+// Gather 负索引超出 [-dim, dim) 范围：归一化后仍越界，推导失败
+TEST_F(SymbolicShapeComputeUT, test_gather_negative_index_out_of_range) {
+  const std::vector<int32_t> param_const_data = {0, 1, 2, 3};
+  const std::vector<int64_t> param_const_dim = {2, 2};
+  auto param_const =
+      EsCreateConstInt32(graph_, param_const_data.data(), param_const_dim.data(), param_const_dim.size());
+
+  const std::vector<int32_t> indice_const_data = {-3};
+  const std::vector<int64_t> indice_const_dim = {1};
+  auto indice_const =
+      EsCreateConstInt32(graph_, indice_const_data.data(), indice_const_dim.data(), indice_const_dim.size());
+
+  auto axis_const = EsCreateScalarInt32(graph_, 0);
+  auto gather_v2 = EsGatherV2(param_const, indice_const, axis_const, 0, false, false);
+  ASSERT_EQ(EsSetGraphOutput(gather_v2, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  // -3 + 2 = -1 仍小于 0，越界拒绝（历史缺陷：仅校验上界时负索引产生迭代器负偏移越界解引用）
+  ASSERT_NE(RunSymbolInferenceTest(cg, {}, {}), SUCCESS);
+}
+
+// Gather 索引为 INT64_MIN：归一化加法溢出，直接拒绝
+TEST_F(SymbolicShapeComputeUT, test_gather_index_int64_min) {
+  const std::vector<int32_t> param_const_data = {0, 1, 2, 3};
+  const std::vector<int64_t> param_const_dim = {2, 2};
+  auto param_const =
+      EsCreateConstInt32(graph_, param_const_data.data(), param_const_dim.data(), param_const_dim.size());
+
+  const std::vector<int64_t> indice_const_data = {std::numeric_limits<int64_t>::min()};
+  const std::vector<int64_t> indice_const_dim = {1};
+  auto indice_const =
+      EsCreateConstInt64(graph_, indice_const_data.data(), indice_const_dim.data(), indice_const_dim.size());
+
+  auto axis_const = EsCreateScalarInt32(graph_, 0);
+  auto gather_v2 = EsGatherV2(param_const, indice_const, axis_const, 0, false, false);
+  ASSERT_EQ(EsSetGraphOutput(gather_v2, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  // INT64_MIN 与 dim 相加会溢出（UB），守卫直接拒绝
+  ASSERT_NE(RunSymbolInferenceTest(cg, {}, {}), SUCCESS);
+}
+
+// Select 非常量条件按 hint 折叠到 then 分支并登记运行时 guard
+TEST_F(SymbolicShapeComputeUT, test_select_symbolic_condition_hint_fold_then) {
+  auto cond = EsCreateGraphInputWithDetails(graph_, 0, "cond_input", nullptr, C_DataType::C_DT_INT32,
+                                            C_Format::C_FORMAT_ND, nullptr, 0);
+  const std::vector<int32_t> then_value = {7, 8};
+  const std::vector<int32_t> else_value = {70, 80};
+  const std::vector<int64_t> data_dims = {2};
+  auto then_tensor = EsCreateConstInt32(graph_, then_value.data(), data_dims.data(), data_dims.size());
+  auto else_tensor = EsCreateConstInt32(graph_, else_value.data(), data_dims.data(), data_dims.size());
+  auto select = EsSelect(cond, then_tensor, else_tensor);
+  ASSERT_EQ(EsSetGraphOutput(select, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  // 符号必须创建在 root graph 的 shape env 上（Infer 内部按 FindRootGraph 设置上下文）
+  auto env = ge::GraphUtils::FindRootGraph(cg)->GetOrCreateAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(env, nullptr);
+  ShapeEnvGuarder guarder(env);
+  // 条件为带 hint 的符号（运行时值 1，非零为真）：按 hint 选 then 并登记 guard
+  auto cond_sym = env->CreateSymbol(1, MakeShared<InputShapeSource>(0, 0));
+  auto cond_attr =
+      cg->FindNode("cond_input")->GetOpDesc()->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(cond_attr, nullptr);
+  cond_attr->symbolic_tensor.SetSymbolShape(gert::SymbolShape({Symbol(2)}));
+  cond_attr->symbolic_tensor.SetSymbolicValue(
+      ge::MakeUnique<std::vector<Expression>>(std::vector<Expression>{cond_sym, cond_sym}));
+
+  ExpectNodeInfo expect_node("Select", {Symbol(2)}, {}, {}, {Symbol(7), Symbol(8)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+  // 折叠假设必须登记为运行时 guard（hint 与运行时不符时由 guard 链路拦截）
+  const auto guards = env->GetAllSymbolCheckInfos();
+  ASSERT_EQ(guards.size(), 1UL);
+  const std::string guard_str(guards.front().expr.Serialize().get());
+  EXPECT_NE(guard_str.find(cond_sym.Serialize().get()), std::string::npos);
+}
+
+// Select 非常量条件按 hint 折叠到 else 分支
+TEST_F(SymbolicShapeComputeUT, test_select_symbolic_condition_hint_fold_else) {
+  auto cond = EsCreateGraphInputWithDetails(graph_, 0, "cond_input", nullptr, C_DataType::C_DT_INT32,
+                                            C_Format::C_FORMAT_ND, nullptr, 0);
+  const std::vector<int32_t> then_value = {7, 8};
+  const std::vector<int32_t> else_value = {70, 80};
+  const std::vector<int64_t> data_dims = {2};
+  auto then_tensor = EsCreateConstInt32(graph_, then_value.data(), data_dims.data(), data_dims.size());
+  auto else_tensor = EsCreateConstInt32(graph_, else_value.data(), data_dims.data(), data_dims.size());
+  auto select = EsSelect(cond, then_tensor, else_tensor);
+  ASSERT_EQ(EsSetGraphOutput(select, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  // 符号必须创建在 root graph 的 shape env 上（Infer 内部按 FindRootGraph 设置上下文）
+  auto env = ge::GraphUtils::FindRootGraph(cg)->GetOrCreateAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(env, nullptr);
+  ShapeEnvGuarder guarder(env);
+  auto cond_sym = env->CreateSymbol(0, MakeShared<InputShapeSource>(0, 0));
+  auto cond_attr =
+      cg->FindNode("cond_input")->GetOpDesc()->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(cond_attr, nullptr);
+  cond_attr->symbolic_tensor.SetSymbolShape(gert::SymbolShape({Symbol(2)}));
+  cond_attr->symbolic_tensor.SetSymbolicValue(
+      ge::MakeUnique<std::vector<Expression>>(std::vector<Expression>{cond_sym, cond_sym}));
+
+  ExpectNodeInfo expect_node("Select", {Symbol(2)}, {}, {}, {Symbol(70), Symbol(80)});
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {expect_node}, {}), SUCCESS);
+}
+
+// Select 条件 hint 不可得（裸符号无登记值）：优雅降级 UNSUPPORTED，不产生无 guard 的错误分支
+TEST_F(SymbolicShapeComputeUT, test_select_symbolic_condition_hint_unavailable) {
+  auto cond = EsCreateGraphInputWithDetails(graph_, 0, "cond_input", nullptr, C_DataType::C_DT_INT32,
+                                            C_Format::C_FORMAT_ND, nullptr, 0);
+  const std::vector<int32_t> then_value = {7, 8};
+  const std::vector<int32_t> else_value = {70, 80};
+  const std::vector<int64_t> data_dims = {2};
+  auto then_tensor = EsCreateConstInt32(graph_, then_value.data(), data_dims.data(), data_dims.size());
+  auto else_tensor = EsCreateConstInt32(graph_, else_value.data(), data_dims.data(), data_dims.size());
+  auto select = EsSelect(cond, then_tensor, else_tensor);
+  ASSERT_EQ(EsSetGraphOutput(select, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  // 符号必须创建在 root graph 的 shape env 上（Infer 内部按 FindRootGraph 设置上下文）
+  auto env = ge::GraphUtils::FindRootGraph(cg)->GetOrCreateAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(env, nullptr);
+  ShapeEnvGuarder guarder(env);
+  // 条件是无登记值的裸符号：hint 不可得，Select 值计算降级，不得产生错误折叠值
+  auto cond_attr =
+      cg->FindNode("cond_input")->GetOpDesc()->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(cond_attr, nullptr);
+  cond_attr->symbolic_tensor.SetSymbolShape(gert::SymbolShape({Symbol(2)}));
+  cond_attr->symbolic_tensor.SetSymbolicValue(ge::MakeUnique<std::vector<Expression>>(
+      std::vector<Expression>{Symbol("cond_no_hint"), Symbol("cond_no_hint2")}));
+
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {}, {}), SUCCESS);
+  auto select_node = cg->FindFirstNodeMatchType(SELECT);
+  ASSERT_NE(select_node, nullptr);
+  auto out_attr = select_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(out_attr, nullptr);
+  // 值计算降级后不产生 SymbolicValue（无 guard 的折叠值是错误传播）
+  EXPECT_EQ(out_attr->symbolic_tensor.GetSymbolicValue(), nullptr);
+  // 未登记任何 guard（未做任何分支假设）
+  EXPECT_EQ(env->GetAllSymbolCheckInfos().size(), 0UL);
+}
+
 }  // namespace ge

@@ -77,6 +77,21 @@ class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY FusionPassRegistrationDat
   CreateFusionPassFn GetCreatePassFn() const;
 
   /**
+   * 设置融合pass的默认开关状态
+   * @param pass_switch 开关状态，kOn或kOff
+   * @return 自身引用，支持链式调用
+   * @since 9.3.0(2026-09)
+   */
+  FusionPassRegistrationData &DefaultSwitch(PassSwitch pass_switch);
+
+  /**
+   * 获取融合pass的默认开关状态
+   * @return 开关状态。impl为null时返回kOn
+   * @since 9.3.0(2026-09)
+   */
+  PassSwitch GetDefaultSwitch() const;
+
+  /**
    * 将融合pass的注册信息序列化，如pass name, stage等
    * @return
    * @since 8.5.0(2025-12)

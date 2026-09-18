@@ -20,9 +20,14 @@ namespace ge {
 struct MemcpyAddrBuildData {
   std::vector<OpArgDesc> ordered_args;       // IO 地址条目（不含 CUSTOM_VALUE）
   std::vector<OpArgDesc> custom_value_args;  // CUSTOM_VALUE 写回条目
-  uint64_t dst_max{0U}, count{0U};
-  uint32_t kind{0U}, align_offset{0U}, args_size{0U}, stream_id{0U};
-  uint32_t args_table_idx{0U}, aligned_io_offset{0U};
+  uint64_t dst_max{0U};
+  uint64_t count{0U};
+  uint32_t kind{0U};
+  uint32_t align_offset{0U};
+  uint32_t args_size{0U};
+  uint32_t stream_id{0U};
+  uint32_t args_table_idx{0U};
+  uint32_t aligned_io_offset{0U};
 };
 
 class MemcpyAddrAsyncTaskCodeBuilder : public TaskCodeBuilder {
