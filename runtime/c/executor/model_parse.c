@@ -45,7 +45,7 @@ static Status ParseModelDesc(const ModelData *modelData, size_t offset, uint8_t 
       GELOGD("reuse modelDesc in device memory.");
     } else {
       aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-      if (rtRet != ACL_ERROR_NONE) {
+      if (rtRet != ACL_SUCCESS) {
         return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
       }
       mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_PRE_MODEL_DESC_PTR;
@@ -79,7 +79,7 @@ static Status ParseWeightData(const ModelData *modelData, size_t offset, uint8_t
       GELOGD("reuse weight in device memory.");
     } else {
       aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-      if (rtRet != ACL_ERROR_NONE) {
+      if (rtRet != ACL_SUCCESS) {
         return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
       }
       mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_WEIGHTS_DATA_PTR;
@@ -113,7 +113,7 @@ static Status ParseTbeKernels(const ModelData *modelData, size_t offset, uint8_t
       GELOGD("reuse kernels in device memory.");
     } else {
       aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-      if (rtRet != ACL_ERROR_NONE) {
+      if (rtRet != ACL_SUCCESS) {
         return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
       }
       mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_TBE_KERNELS_PTR;
@@ -147,7 +147,7 @@ static Status ParseStaticTaskDesc(const ModelData *modelData, size_t offset, uin
       GELOGD("reuse task in device memory.");
     } else {
       aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-      if (rtRet != ACL_ERROR_NONE) {
+      if (rtRet != ACL_SUCCESS) {
         return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
       }
       mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_STATIC_TASK_DESC_PTR;
@@ -182,7 +182,7 @@ static Status ParseDynamicTaskDesc(const ModelData *modelData, size_t offset, ui
       GELOGD("reuse dynamic task in device memory.");
     } else {
       aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-      if (rtRet != ACL_ERROR_NONE) {
+      if (rtRet != ACL_SUCCESS) {
         return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
       }
       mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_DYNAMIC_TASK_DESC_PTR;
@@ -216,7 +216,7 @@ static Status ParseTaskParam(const ModelData *modelData, size_t offset, uint8_t 
       GELOGD("reuse task parameters in device memory.");
     } else {
       aclError rtRet = aclrtMalloc((void **)&dstAddr, size, mdlDesc->memType);
-      if (rtRet != ACL_ERROR_NONE) {
+      if (rtRet != ACL_SUCCESS) {
         return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
       }
       mdlDesc->innerPtrState = mdlDesc->innerPtrState | INNER_TASK_PARAM_PTR;
@@ -499,7 +499,7 @@ static Status ProcFifoInfo(const ModelData *modelData, uint8_t *tlvValue, uint32
     geFifoInfo->fifoBaseAddr = modelData->part.fifoPtr;
     if ((modelData->part.fifoPtr == NULL) || (modelData->part.fifoSize < geFifoInfo->totalSize)) {
       aclError rtRet = aclrtMalloc(&geFifoInfo->fifoBaseAddr, geFifoInfo->totalSize, mdlDesc->memType);
-      if (rtRet != ACL_ERROR_NONE) {
+      if (rtRet != ACL_SUCCESS) {
         GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "aclrtMalloc failed.");
         return ACL_ERROR_GE_LOAD_MODEL;
       }

@@ -28,7 +28,7 @@ static void *ModelGetIoAddr(uint32_t in_nums, uint32_t out_nums, const InputData
   uint32_t fifo_num = mdlDesc->fifoInfo.fifoNum;
   uint64_t addr_size = sizeof(uint64_t) * (ioa_size + fifo_num);
   if (output_data->io_addr == NULL) {
-    if (aclrtMalloc((void **)&output_data->io_addr, addr_size, mdlDesc->memType) != ACL_ERROR_NONE) {
+    if (aclrtMalloc((void **)&output_data->io_addr, addr_size, mdlDesc->memType) != ACL_SUCCESS) {
       output_data->io_addr = NULL;
       output_data->ioa_size = 0;
       return NULL;
