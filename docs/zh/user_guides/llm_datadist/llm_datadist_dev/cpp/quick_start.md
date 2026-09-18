@@ -26,11 +26,11 @@
 支持的产品形态如下：
 <!-- npu="910b" id1 -->
 
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
+- Atlas A2训练系列产品/Atlas A2推理系列产品：针对Atlas A2训练系列产品/Atlas A2推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
 <!-- end id1 -->
 
 <!-- npu="A3" id2 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品
+- Atlas A3系列产品
 <!-- end id2 -->
 
 请参考《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》安装好驱动固件以及CANN软件。

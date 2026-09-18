@@ -2,7 +2,7 @@
 
 ## 环境准备
 
-支持的产品型号：Atlas A2 训练系列产品/Atlas A2 推理系列产品和Atlas A3 训练系列产品/Atlas A3 推理系列产品。
+支持的产品型号：Atlas A2 训练系列产品/Atlas A2 推理系列产品和Atlas A3系列产品。
 
 已经安装CANN软件，详细操作请参见《[CANN软件安装](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/920/softwareinst/instg/instg_0000.html?OS=openEuler&InstallType=netyum)》。
 
