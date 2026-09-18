@@ -44,6 +44,45 @@ Dump模块采用分层设计，按执行流程分为：
 
 ### 核心设计思想
 
+#### OM2 内部传输
+
+OM2 的 `runtime/om2/dump/` 使用 `DumpTransportInfo` 和 `DumpTrans*` 对象表达元数据，
+通过 `inc/framework/runtime/dump/dump_transport_info.h` 中的 header-only 编解码器传输。
+该协议库只依赖 C++ 标准库，不依赖 GE、ACL 或 Protobuf；下文 V1/RT2 的
+`OpMappingInfo` 流程保持原样。
+
+- 模型级：`DataDumpImpl` 在原加载时机收集任务，编码后 H2D，并调用
+  `rtDatadumpInfoLoad(Device 地址, uint32_t 长度)`。Device 载荷保留到下次重建、
+  `Clear()` 或析构；清理时基本信息缓存同步失效，避免再次使用已释放的 step 地址。
+- custom：`DumpOp` 在原前处理点仅发送输入，在后处理点仅发送输出，仍调用
+  `DumpDataInfo`。参数头和两个 Device 指针不变，第二个指针指向固定 8 字节小端
+  `uint64_t` 长度。两块内存保留到对应 DumpOp 下次重建或析构。
+- dump 关闭、任务未命中和异常 dump 的原门禁保持不变；profiling 不经过此载荷。
+
+`DumpWire v1` 使用 16 字节公共头和 6 字节 TLV 头，所有整数小端编码。
+公共头依次为 `magic:u32=0x544C5601`、`version:u16=1`、
+`header_size:u16=16`、`total_size:u32`、`record_count:u32`。
+顶层恰有一个 MODEL，TASK 可为 0..N；子记录覆盖 INPUT、OUTPUT、WORKSPACE、
+BUFFER、ATTR、CONTEXT、context 地址对及 DIM_RANGE。字段编号在协议实现中固定。
+编码按单值字段编号和设计规定的集合顺序输出；解码保留字段缺失状态，未知字段跳过、
+未知枚举保留、重复单值取最后值。头、父子层次、边界、固定宽度、bool 和 shape
+长度必须合法；编解码均使用临时结果，失败不改原对象或输出缓冲。
+
+GE 只组装旧路径实际生产的信息：任务类型显式为 AICORE、end_graph 为 false，
+普通 I/O 的 origin_shape 为空、offset 为 0，普通 output 的 original_* 为空/0。
+OpDebug 保留既有特殊 output 和 workspace 信息。协议支持 dump_switch_addr 和
+DIM_RANGE 的 Set/Get 与往返，但 GE 当前不生产它们，也不新增 BUFFER、ATTR 或 CONTEXT。
+
+此变更不修改配置、最终 dump 文件、离线工具或 OM2 SO/Executor C ABI。
+GE、RT、AICPU 需配套同一协议版本，不提供 Protobuf 回退。RT/AICPU 的读取完成时点、
+缺失字段消费及错误码映射仍需组件联调确认。OM2 Executor 的 AIPP 头间接依赖
+`task.pb.h`，因此其生成头构建依赖仍保留；Dump 不再使用 `op_mapping.pb.h`，
+Executor 不再直接链接 `ascend_protobuf`。
+
+协议 UT 位于 `dump_transport_info_unittest.cc`；`om2_dump_unittest.cc` 捕获两条
+Runtime 下发路径和 ACL 内存，校验字段、模式、OpDebug、关闭态及生命周期。
+本地 stub 测试不能替代 RT/AICPU 配套后的真机落盘与离线解析等价验证。
+
 1. **逻辑复用与差异化并存**：dump、溢出检测、异常dump底层复用同一套数据流转和落盘框架，但需根据触发条件、数据类型、处理优先级进行差异化处理。
 
 2. **动态适配性**：支持运行时动态开关dump功能，约束条件可实时刷新，避免重启或重构图。

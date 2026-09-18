@@ -67,6 +67,17 @@ v1 保障存量 OM 模型的兼容性，v2 为动态 shape 场景提供更灵活
 
 ## 2. v1 模型加载：从 OM 到设备的映射
 
+OM2 Executor 的 dump 使用独立的 `DumpTransportInfo` TLV 内部载荷（详见
+[Dump 模块的 OM2 内部传输说明](../../features/datadump.md)），不改变本节的 V1
+`DataDumper` 路径。模型级仍由 `DataDumpImpl` 在加载期间通过
+`rtDatadumpInfoLoad` 下发，custom 仍在执行前/后通过 `DumpDataInfo` 分别下发
+输入/输出。Device 载荷由原实例持有，custom 长度内存固定为 8 字节小端
+`uint64_t`，公开 OM2 C ABI、执行时机、配置和落盘格式保持不变。
+
+该传输替换不参与静态/动态 shape 的执行器选择、动态图静态子图的 v2→v1
+数据传递、离线 atc 编译或 OM 序列化；在线与离线加载后的 OM2 均沿用原任务采集点。
+异常 dump 和 profiling 保持独立路径。跨组件发布需保证 RT/AICPU 使用同版本解码器。
+
 ### 2.1 加载流程总览
 
 ```mermaid

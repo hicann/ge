@@ -12,10 +12,11 @@
 #define GE_FRAMEWORK_RUNTIME_DUMP_DUMP_OP_IMPL_H_
 
 #include <map>
+#include <memory>
 #include <string>
 #include "framework/common/ge_types.h"
 #include "framework/runtime/dump/model_dump_c_api.h"
-#include "proto/op_mapping.pb.h"
+#include "framework/runtime/dump/dump_transport_info.h"
 
 namespace ge {
 namespace dump {
@@ -30,18 +31,18 @@ class DumpOp {
   Status ExecutorDumpOp(const std::string &op_name, aclrtStream stream);
   Status BuildTaskInputs(const GertModelTaskDesc &task_desc);
   Status BuildTaskOutputs(const GertModelTaskDesc &task_desc);
-  static Status SetTaskBasicInfo(const GertModelTaskDesc &task_desc, toolkit::aicpu::dump::Task *task);
-  toolkit::aicpu::dump::OpMappingInfo &GetOpMappingInfo() {
-    return op_mapping_info_;
+  static Status SetTaskBasicInfo(const GertModelTaskDesc &task_desc, DumpTransTaskInfo *task);
+  DumpTransportInfo &GetDumpTransportInfo() {
+    return dump_transport_info_;
   }
 
  private:
-  Status ProtoMallocAndMemcpy(const size_t proto_size, const std::string &proto_msg);
+  Status PayloadMallocAndMemcpy(const std::vector<uint8_t> &payload);
 
-  void *proto_dev_mem_ = nullptr;
-  size_t proto_dev_mem_capacity_ = 0U;
-  void *proto_size_dev_mem_ = nullptr;
-  toolkit::aicpu::dump::OpMappingInfo op_mapping_info_;
+  void *payload_dev_mem_ = nullptr;
+  size_t payload_dev_mem_capacity_ = 0U;
+  void *payload_size_dev_mem_ = nullptr;
+  DumpTransportInfo dump_transport_info_;
 };
 
 using DumpOpPtr = std::unique_ptr<DumpOp>;
@@ -63,7 +64,7 @@ class DumpOpImpl {
     if (dump_op == nullptr) {
       dump_op.reset(new DumpOp());
     }
-    dump_op->GetOpMappingInfo().clear_task();
+    dump_op->GetDumpTransportInfo().Clear();
     return dump_op;
   }
   std::map<std::string, std::pair<DumpOpPtr, DumpOpPtr>> custom_dump_ops_;

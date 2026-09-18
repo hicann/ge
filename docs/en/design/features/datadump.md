@@ -44,6 +44,52 @@ The Dump module uses a layered design. You can see the execution flow below:
 
 ### Core Design Principles
 
+#### OM2 Internal Transport
+
+`runtime/om2/dump/` in OM2 uses `DumpTransportInfo` and `DumpTrans*` objects to describe metadata, and
+transports them through the header-only codec in `inc/framework/runtime/dump/dump_transport_info.h`.
+The protocol library depends only on the C++ standard library and does not depend on GE, ACL, or Protobuf.
+The V1/RT2 `OpMappingInfo` flow described below remains unchanged.
+
+- Model-level path: `DataDumpImpl` collects tasks at the original load timing, encodes the payload, copies it
+  from host to device, and calls `rtDatadumpInfoLoad(Device address, uint32_t length)`. The device payload is
+  kept until the next rebuild, `Clear()`, or destruction. During cleanup, the cached basic information is also
+  invalidated to avoid reusing released step addresses.
+- Custom path: `DumpOp` sends only inputs at the original preprocessing point and only outputs at the
+  postprocessing point, and still calls `DumpDataInfo`. The argument header and two device pointers remain
+  unchanged. The second pointer refers to a fixed 8-byte little-endian `uint64_t` length. Both memory blocks
+  are kept until the corresponding `DumpOp` rebuilds them or is destroyed.
+- The original gates for dump disabled state, unmatched tasks, and exception dump stay unchanged. Profiling
+  does not use this payload.
+
+`DumpWire v1` uses a 16-byte common header and a 6-byte TLV header. All integers are encoded in little-endian
+order. The common header fields are `magic:u32=0x544C5601`, `version:u16=1`, `header_size:u16=16`,
+`total_size:u32`, and `record_count:u32`. The top level contains exactly one MODEL and 0..N TASK records.
+Nested records cover INPUT, OUTPUT, WORKSPACE, BUFFER, ATTR, CONTEXT, context address pairs, and DIM_RANGE.
+Field numbers are fixed in the protocol implementation. Encoding follows scalar field numbers and the
+collection order defined by the design. Decoding preserves field absence, skips unknown fields, preserves
+unknown enum values, and lets the last duplicate scalar value win. Header fields, parent-child hierarchy,
+bounds, fixed widths, bool values, and shape lengths must be valid. Both encoding and decoding use temporary
+results, so failures do not modify the original object or output buffer.
+
+GE only assembles the information actually produced by the old path: task type is explicitly AICORE,
+`end_graph` is false, normal I/O `origin_shape` is empty, `offset` is 0, and normal output `original_*` fields
+are empty or 0. OpDebug keeps the existing special output and workspace information. The protocol supports
+Set/Get and round-trip serialization for `dump_switch_addr` and DIM_RANGE, but GE does not currently produce
+them and does not add BUFFER, ATTR, or CONTEXT.
+
+This change does not modify configuration, final dump files, offline tools, or the OM2 SO/Executor C ABI.
+GE, RT, and AICPU must use the same protocol version together; no Protobuf fallback is provided in GE.
+RT/AICPU read-completion timing, missing-field consumption, and error-code mapping still require component
+integration verification. The OM2 Executor AIPP header indirectly depends on `task.pb.h`, so that generated
+header build dependency is retained. Dump no longer uses `op_mapping.pb.h`, and Executor no longer links
+directly against `ascend_protobuf`.
+
+Protocol UTs are in `dump_transport_info_unittest.cc`. `om2_dump_unittest.cc` captures the two Runtime
+delivery paths and ACL memory, and verifies fields, modes, OpDebug, disabled state, and lifetime. Local stub
+tests do not replace real-device file-generation and offline-parser equivalence verification after RT/AICPU
+integration.
+
 1. **Logic reuse with differentiation**: Dump, overflow detection, and exception dump reuse the same data flow and storage framework at the bottom layer. However, you must handle them differently based on trigger conditions, data types, and processing priorities.
 
 2. **Dynamic adaptability**: You can enable or disable dump functionality at runtime. Constraint conditions can refresh in real-time. This avoids restart or graph reconstruction.

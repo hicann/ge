@@ -41,10 +41,10 @@ Status DataDumpImpl::SaveTask(const GertModelTaskDesc &task_info, ModelTaskType 
          task_info.stream_id, is_op_debug);
 
   InnerDumpInfo dump_info = {};
-  dump_info.task_id = task_info.task_id;
-  dump_info.stream_id = task_info.stream_id;
-  dump_info.context_id = task_info.context_id;
-  dump_info.thread_id = task_info.thread_id;
+  dump_info.task_id = static_cast<uint32_t>(task_info.task_id);
+  dump_info.stream_id = static_cast<uint32_t>(task_info.stream_id);
+  dump_info.context_id = static_cast<uint32_t>(task_info.context_id);
+  dump_info.thread_id = static_cast<uint32_t>(task_info.thread_id);
   dump_info.task_type = task_type;
   dump_info.stream = stream;
   dump_info.is_op_debug = is_op_debug;
@@ -109,12 +109,10 @@ Status DataDumpImpl::SaveTask(const GertModelTaskDesc &task_info, ModelTaskType 
   return SUCCESS;
 }
 
-Status DataDumpImpl::ExecuteLoadDumpInfo(const toolkit::aicpu::dump::OpMappingInfo &op_mapping_info) {
-  std::string proto_str;
-  const size_t proto_size = op_mapping_info.ByteSizeLong();
-  const bool ret = op_mapping_info.SerializeToString(&proto_str);
-  if ((!ret) || (proto_size == 0U)) {
-    GELOGE(PARAM_INVALID, "[Call][SerializeToString] failed, proto size %zu.", proto_size);
+Status DataDumpImpl::ExecuteLoadDumpInfo(const std::vector<uint8_t> &payload) {
+  const size_t payload_size = payload.size();
+  if (payload_size == 0U || payload_size > UINT32_MAX) {
+    GELOGE(PARAM_INVALID, "Invalid dump payload size %zu.", payload_size);
     return PARAM_INVALID;
   }
 
@@ -124,46 +122,45 @@ Status DataDumpImpl::ExecuteLoadDumpInfo(const toolkit::aicpu::dump::OpMappingIn
     dev_mem_load_ = nullptr;
   }
 
-  aclError rt_ret = aclrtMalloc(&dev_mem_load_, proto_size, ACL_MEM_MALLOC_HUGE_FIRST);
+  aclError rt_ret = aclrtMalloc(&dev_mem_load_, payload_size, ACL_MEM_MALLOC_HUGE_FIRST);
   if (rt_ret != ACL_SUCCESS) {
-    GELOGE(RT_FAILED, "[Call][aclrtMalloc] failed, size:%zu, ret:%d", proto_size, rt_ret);
+    GELOGE(RT_FAILED, "[Call][aclrtMalloc] failed, size:%zu, ret:%d", payload_size, rt_ret);
     return RT_FAILED;
   }
 
-  rt_ret = aclrtMemcpy(dev_mem_load_, proto_size, proto_str.c_str(), proto_size, ACL_MEMCPY_HOST_TO_DEVICE);
+  rt_ret = aclrtMemcpy(dev_mem_load_, payload_size, payload.data(), payload_size, ACL_MEMCPY_HOST_TO_DEVICE);
   if (rt_ret != ACL_SUCCESS) {
-    GELOGE(RT_FAILED, "[Call][aclrtMemcpy] failed, size:%zu, ret:%d", proto_size, rt_ret);
+    GELOGE(RT_FAILED, "[Call][aclrtMemcpy] failed, size:%zu, ret:%d", payload_size, rt_ret);
     (void)aclrtFree(dev_mem_load_);
     dev_mem_load_ = nullptr;
     return RT_FAILED;
   }
 
-  rt_ret = rtDatadumpInfoLoad(dev_mem_load_, static_cast<uint32_t>(proto_size));
+  rt_ret = rtDatadumpInfoLoad(dev_mem_load_, static_cast<uint32_t>(payload_size));
   if (rt_ret != RT_ERROR_NONE) {
-    GELOGE(RT_FAILED, "[Call][rtDatadumpInfoLoad] failed, length:%zu, ret:%d", proto_size, rt_ret);
+    GELOGE(RT_FAILED, "[Call][rtDatadumpInfoLoad] failed, length:%zu, ret:%d", payload_size, rt_ret);
     (void)aclrtFree(dev_mem_load_);
     dev_mem_load_ = nullptr;
     return RT_FAILED;
   }
 
   load_flag_ = true;
-  GELOGI("LoadDumpInfo success, proto size is: %zu.", proto_size);
+  GELOGI("LoadDumpInfo success, payload size is: %zu.", payload_size);
   return SUCCESS;
 }
 
-Status DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
-                                             toolkit::aicpu::dump::OpMappingInfo &dump_op_mapping_info) {
-  if (op_mapping_base_info_initialized_) {
-    dump_op_mapping_info = op_mapping_base_info_;
+Status DataDumpImpl::BuildDumpTransportBasicInfo(const ModelDumpInfo &model_info, DumpTransportInfo &result) {
+  if (dump_transport_base_info_initialized_) {
+    result = dump_transport_base_info_;
     return ge::SUCCESS;
   }
-  auto &op_mapping_info = op_mapping_base_info_;
+  auto &dump_transport_info = dump_transport_base_info_.MutableModel();
   const char *model_name = (model_info.model_name != nullptr) ? model_info.model_name : "";
-  op_mapping_info.set_dump_path(DumpConfig::Instance().GetDumpPath() + std::to_string(model_info.device_id) + "/");
-  op_mapping_info.set_model_name(model_name);
-  op_mapping_info.set_model_id(model_info.model_id);
-  op_mapping_info.set_dump_step(DumpConfig::Instance().GetDumpStep());
-  op_mapping_info.set_flag(kAicpuLoadFlag);
+  dump_transport_info.SetDumpPath(DumpConfig::Instance().GetDumpPath() + std::to_string(model_info.device_id) + "/");
+  dump_transport_info.SetModelName(model_name);
+  dump_transport_info.SetModelId(model_info.model_id);
+  dump_transport_info.SetDumpStep(DumpConfig::Instance().GetDumpStep());
+  dump_transport_info.SetFlag(kAicpuLoadFlag);
 
   // step_id_addr 分配设备内存并初始化为 0，先释放旧的
   if (step_id_dev_addr_ != nullptr) {
@@ -186,45 +183,43 @@ Status DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
     return RT_FAILED;
   }
   step_id_dev_addr_ = step_id_dev_addr;
-  op_mapping_info.set_step_id_addr(PtrToValue(step_id_dev_addr));
+  dump_transport_info.SetStepIdAddr(PtrToValue(step_id_dev_addr));
 
   // loop_cond_addr 和 iterations_per_loop_addr 保持原逻辑
   if (model_info.loop_cond_addr != 0U) {
-    op_mapping_info.set_loop_cond_addr(model_info.loop_cond_addr);
+    dump_transport_info.SetLoopCondAddr(model_info.loop_cond_addr);
   }
   if (model_info.iterations_per_loop_addr != 0U) {
-    op_mapping_info.set_iterations_per_loop_addr(model_info.iterations_per_loop_addr);
+    dump_transport_info.SetIterationsPerLoopAddr(model_info.iterations_per_loop_addr);
   }
 
   // 设置 dump_data
   const std::string dump_data_str = DumpConfig::Instance().GetDumpData();
   if (dump_data_str == "stats") {
-    op_mapping_info.set_dump_data(toolkit::aicpu::dump::DumpData::STATS_DUMP_DATA);
+    dump_transport_info.SetDumpData(DumpTransDumpData::kStats);
   } else {
-    op_mapping_info.set_dump_data(toolkit::aicpu::dump::DumpData::TENSOR_DUMP_DATA);
+    dump_transport_info.SetDumpData(DumpTransDumpData::kTensor);
   }
-  dump_op_mapping_info = op_mapping_base_info_;
-  op_mapping_base_info_initialized_ = true;
+  result = dump_transport_base_info_;
+  dump_transport_base_info_initialized_ = true;
   return ge::SUCCESS;
 }
 
-Status DataDumpImpl::BuildTaskList(toolkit::aicpu::dump::OpMappingInfo &op_mapping_info) const {
+Status DataDumpImpl::BuildTaskList(DumpTransportInfo &dump_transport_info) const {
   for (const auto &dump_info : task_list_) {
-    toolkit::aicpu::dump::Task *task = op_mapping_info.add_task();
+    DumpTransTaskInfo *task = &dump_transport_info.AddTask();
     GE_CHECK_NOTNULL(task);
     GELOGD("BuildTaskList: task_id=%u, stream_id=%u, args_base=0x%lx, args_size=%zu, is_raw_address=%u",
            dump_info.task_id, dump_info.stream_id, dump_info.args_base, dump_info.args_size, dump_info.is_raw_address);
-    task->set_task_id(dump_info.task_id);
-    task->set_stream_id(dump_info.stream_id);
-    task->set_context_id(dump_info.context_id);
-    task->set_thread_id(dump_info.thread_id);
+    task->SetTaskId(dump_info.task_id);
+    task->SetStreamId(dump_info.stream_id);
+    task->SetContextId(dump_info.context_id);
+    task->SetThreadId(dump_info.thread_id);
 
-    // 设置 op 信息
-    toolkit::aicpu::dump::Op *op = task->mutable_op();
-    if (op != nullptr) {
-      op->set_op_name(dump_info.op_name);
-      op->set_op_type(dump_info.op_type);
-    }
+    task->SetOpName(dump_info.op_name);
+    task->SetOpType(dump_info.op_type);
+    task->SetEndGraph(false);
+    task->SetTaskType(DumpTransTaskType::kAiCore);
 
     BuildTaskInputs(dump_info, *task);
     BuildTaskOutputs(dump_info, *task);
@@ -233,7 +228,7 @@ Status DataDumpImpl::BuildTaskList(toolkit::aicpu::dump::OpMappingInfo &op_mappi
   return SUCCESS;
 }
 
-void DataDumpImpl::BuildTaskInputs(const InnerDumpInfo &dump_info, toolkit::aicpu::dump::Task &task) const {
+void DataDumpImpl::BuildTaskInputs(const InnerDumpInfo &dump_info, DumpTransTaskInfo &task) const {
   const std::string &dump_mode = DumpConfig::Instance().GetDumpMode();
   const bool need_dump_input =
       (dump_mode == GE_DUMP_MODE_INPUT) || (dump_mode == GE_DUMP_MODE_ALL) || dump_info.is_op_debug;
@@ -244,14 +239,14 @@ void DataDumpImpl::BuildTaskInputs(const InnerDumpInfo &dump_info, toolkit::aicp
   }
 
   for (size_t i = 0; i < dump_info.inputs.size(); ++i) {
-    toolkit::aicpu::dump::Input *input_tensor = task.add_input();
+    DumpTransInputInfo *input_tensor = &task.AddInput();
     const auto &tensor = dump_info.inputs[i];
 
     // 对齐 v1：直接写 args + offset 地址给 AICPU，不解引用
     uint64_t device_address = tensor.device_address;
-    auto addr_type = toolkit::aicpu::dump::AddressType::TRADITIONAL_ADDR;
+    auto addr_type = DumpTransAddressType::kTraditional;
     if (dump_info.is_raw_address) {
-      addr_type = toolkit::aicpu::dump::AddressType::RAW_ADDR;
+      addr_type = DumpTransAddressType::kRaw;
     } else if (dump_info.args_base != 0U && tensor.offset != UINT64_MAX) {
       device_address = dump_info.args_base + tensor.offset;
     }
@@ -262,18 +257,18 @@ void DataDumpImpl::BuildTaskInputs(const InnerDumpInfo &dump_info, toolkit::aicp
         dump_info.task_id, i, dump_info.args_base, static_cast<uint64_t>(tensor.offset), device_address, tensor.size,
         dump_info.is_raw_address);
 
-    input_tensor->set_data_type(tensor.data_type);
-    input_tensor->set_format(tensor.format);
-    input_tensor->set_address(device_address);
-    input_tensor->set_size(tensor.size);
-    input_tensor->set_addr_type(addr_type);
-    for (const auto dim : tensor.shape_dims) {
-      input_tensor->mutable_shape()->add_dim(static_cast<uint64_t>(dim));
-    }
+    input_tensor->SetDataType(tensor.data_type);
+    input_tensor->SetFormat(tensor.format);
+    input_tensor->SetAddress(device_address);
+    input_tensor->SetSize(tensor.size);
+    input_tensor->SetAddrType(addr_type);
+    input_tensor->SetShape(std::vector<uint64_t>(tensor.shape_dims.begin(), tensor.shape_dims.end()));
+    input_tensor->SetOriginShape({});
+    input_tensor->SetOffset(0U);
   }
 }
 
-void DataDumpImpl::BuildTaskOutputs(const InnerDumpInfo &dump_info, toolkit::aicpu::dump::Task &task) const {
+void DataDumpImpl::BuildTaskOutputs(const InnerDumpInfo &dump_info, DumpTransTaskInfo &task) const {
   const std::string &dump_mode = DumpConfig::Instance().GetDumpMode();
   const bool need_dump_output =
       (dump_mode == GE_DUMP_MODE_OUTPUT) || (dump_mode == GE_DUMP_MODE_ALL) || dump_info.is_op_debug;
@@ -284,14 +279,14 @@ void DataDumpImpl::BuildTaskOutputs(const InnerDumpInfo &dump_info, toolkit::aic
   }
 
   for (size_t i = 0; i < dump_info.outputs.size(); ++i) {
-    toolkit::aicpu::dump::Output *output_tensor = task.add_output();
+    DumpTransOutputInfo *output_tensor = &task.AddOutput();
     const auto &tensor = dump_info.outputs[i];
 
     // 对齐 v1：直接写 args + offset 地址给 AICPU，不解引用
     uint64_t device_address = tensor.device_address;
-    auto addr_type = toolkit::aicpu::dump::AddressType::TRADITIONAL_ADDR;
+    auto addr_type = DumpTransAddressType::kTraditional;
     if (dump_info.is_raw_address) {
-      addr_type = toolkit::aicpu::dump::AddressType::RAW_ADDR;
+      addr_type = DumpTransAddressType::kRaw;
     } else if (dump_info.args_base != 0U && tensor.offset != UINT64_MAX) {
       device_address = dump_info.args_base + tensor.offset;
     }
@@ -302,18 +297,22 @@ void DataDumpImpl::BuildTaskOutputs(const InnerDumpInfo &dump_info, toolkit::aic
         dump_info.task_id, i, dump_info.args_base, static_cast<uint64_t>(tensor.offset), device_address, tensor.size,
         dump_info.is_raw_address);
 
-    output_tensor->set_data_type(tensor.data_type);
-    output_tensor->set_format(tensor.format);
-    output_tensor->set_address(device_address);
-    output_tensor->set_size(tensor.size);
-    output_tensor->set_addr_type(addr_type);
-    for (const auto dim : tensor.shape_dims) {
-      output_tensor->mutable_shape()->add_dim(static_cast<uint64_t>(dim));
-    }
+    output_tensor->SetDataType(tensor.data_type);
+    output_tensor->SetFormat(tensor.format);
+    output_tensor->SetAddress(device_address);
+    output_tensor->SetSize(tensor.size);
+    output_tensor->SetAddrType(addr_type);
+    output_tensor->SetShape(std::vector<uint64_t>(tensor.shape_dims.begin(), tensor.shape_dims.end()));
+    output_tensor->SetOriginShape({});
+    output_tensor->SetOffset(0U);
+    output_tensor->SetOriginalName("");
+    output_tensor->SetOriginalOutputIndex(0);
+    output_tensor->SetOriginalOutputDataType(0);
+    output_tensor->SetOriginalOutputFormat(0);
   }
 }
 
-void DataDumpImpl::BuildTaskWorkspaces(const InnerDumpInfo &dump_info, toolkit::aicpu::dump::Task &task) const {
+void DataDumpImpl::BuildTaskWorkspaces(const InnerDumpInfo &dump_info, DumpTransTaskInfo &task) const {
   // workspace 只在 op_debug 模式下才需要 dump（用于溢出/异常调试）
   if (!dump_info.is_op_debug) {
     GELOGD("Skip dump workspace for task_id=%u, is_op_debug=%u", dump_info.task_id, dump_info.is_op_debug);
@@ -321,12 +320,12 @@ void DataDumpImpl::BuildTaskWorkspaces(const InnerDumpInfo &dump_info, toolkit::
   }
 
   for (size_t i = 0; i < dump_info.workspace_addrs.size(); ++i) {
-    toolkit::aicpu::dump::Workspace *workspace = task.add_space();
+    DumpTransWorkspaceInfo *workspace = &task.AddWorkspace();
     GELOGD("BuildTaskWorkspaces: task_id=%u, workspace[%zu], data_addr=0x%lx, size=%lu", dump_info.task_id, i,
            dump_info.workspace_addrs[i], dump_info.workspace_sizes[i]);
-    workspace->set_data_addr(dump_info.workspace_addrs[i]);
-    workspace->set_size(dump_info.workspace_sizes[i]);
-    workspace->set_type(toolkit::aicpu::dump::Workspace::LOG);
+    workspace->SetDataAddr(dump_info.workspace_addrs[i]);
+    workspace->SetSize(dump_info.workspace_sizes[i]);
+    workspace->SetType(DumpTransWorkspaceType::kLog);
   }
 }
 
@@ -337,39 +336,42 @@ void DataDumpImpl::SetOpDebugInfo(uint32_t task_id, uint32_t stream_id, void *de
   op_debug_addr_ = debug_addr;
 }
 
-void DataDumpImpl::BuildOpDebugTask(toolkit::aicpu::dump::OpMappingInfo &op_mapping_info) const {
+void DataDumpImpl::BuildOpDebugTask(DumpTransportInfo &dump_transport_info) const {
   if (!is_op_debug_) {
     return;
   }
 
   GELOGI("Add op_debug_info to aicpu, task_id=%u, stream_id=%u", op_debug_task_id_, op_debug_stream_id_);
 
-  toolkit::aicpu::dump::Task task;
-  task.set_end_graph(false);
-  task.set_task_id(op_debug_task_id_);
-  task.set_stream_id(op_debug_stream_id_);
-  task.mutable_op()->set_op_name(OP_DEBUG_NAME);
-  task.mutable_op()->set_op_type(OP_DEBUG_TYPE);
+  auto &task = dump_transport_info.AddTask();
+  task.SetEndGraph(false);
+  task.SetTaskId(op_debug_task_id_);
+  task.SetStreamId(op_debug_stream_id_);
+  task.SetOpName(OP_DEBUG_NAME);
+  task.SetOpType(OP_DEBUG_TYPE);
 
   // set output
-  toolkit::aicpu::dump::Output output;
-  output.set_original_name(OP_DEBUG_NAME);
-  output.set_original_output_index(0);
-  output.set_original_output_format(FORMAT_ND);
-  output.set_original_output_data_type(DT_UINT8);
-  output.set_data_type(DT_UINT8);
-  output.set_format(FORMAT_ND);
-  output.mutable_shape()->add_dim(kOpDebugShape);
-  output.set_address(PtrToValue(op_debug_addr_));
-  output.set_size(kOpDebugSize);
-  output.set_addr_type(toolkit::aicpu::dump::AddressType::TRADITIONAL_ADDR);
+  auto &output = task.AddOutput();
+  output.SetOriginalName(OP_DEBUG_NAME);
+  output.SetOriginalOutputIndex(0);
+  output.SetOriginalOutputFormat(FORMAT_ND);
+  output.SetOriginalOutputDataType(DT_UINT8);
+  output.SetDataType(DT_UINT8);
+  output.SetFormat(FORMAT_ND);
+  output.SetShape({kOpDebugShape});
+  output.SetAddress(PtrToValue(op_debug_addr_));
+  output.SetSize(kOpDebugSize);
+  output.SetAddrType(DumpTransAddressType::kTraditional);
 
-  task.mutable_output()->Add(std::move(output));
-  op_mapping_info.mutable_task()->Add(std::move(task));
+  output.SetOriginShape({});
+  output.SetOffset(0U);
+  task.SetContextId(0U);
+  task.SetThreadId(0U);
+  task.SetTaskType(DumpTransTaskType::kAiCore);
 }
 
-Status DataDumpImpl::BuildAndLoadOpMappingInfo(const ModelDumpInfo &model_info) {
-  GELOGI("BuildAndLoadOpMappingInfo: model_id=%u, task_count=%zu, dump_data=%s, dump_mode=%s, is_op_debug=%d",
+Status DataDumpImpl::BuildAndLoadDumpTransportInfo(const ModelDumpInfo &model_info) {
+  GELOGI("BuildAndLoadDumpTransportInfo: model_id=%u, task_count=%zu, dump_data=%s, dump_mode=%s, is_op_debug=%d",
          model_info.model_id, task_list_.size(), DumpConfig::Instance().GetDumpData().c_str(),
          DumpConfig::Instance().GetDumpMode().c_str(), is_op_debug_);
 
@@ -379,93 +381,37 @@ Status DataDumpImpl::BuildAndLoadOpMappingInfo(const ModelDumpInfo &model_info) 
     return SUCCESS;
   }
 
-  toolkit::aicpu::dump::OpMappingInfo op_mapping_info;
-  Status ret = BuildOpMappingBasicInfo(model_info, op_mapping_info);
+  DumpTransportInfo dump_transport_info;
+  Status ret = BuildDumpTransportBasicInfo(model_info, dump_transport_info);
   if (ret != SUCCESS) {
     GELOGE(ret, "Build op mapping basic info failed, ret=%u", ret);
     return ret;
   }
 
-  ret = BuildTaskList(op_mapping_info);
+  ret = BuildTaskList(dump_transport_info);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Build][TaskList] failed, ret:%u", ret);
     return ret;
   }
 
   // 添加 overflow dump 的特殊 Task（包含 p2p_debug_addr）
-  BuildOpDebugTask(op_mapping_info);
+  BuildOpDebugTask(dump_transport_info);
 
-  // 打印 op_mapping_info 便于调试（和 test1.cpp 格式对齐）
-  GELOGD("========== Dump OpMappingInfo Start ==========");
-  GELOGD("dump_path: %s", op_mapping_info.dump_path().c_str());
-  GELOGD("model_name: %s", op_mapping_info.model_name().c_str());
-  GELOGD("model_id: %u", op_mapping_info.model_id());
-  GELOGD("step_id_addr: 0x%lx", op_mapping_info.step_id_addr());
-  GELOGD("loop_cond_addr: 0x%lx", op_mapping_info.loop_cond_addr());
-  GELOGD("iterations_per_loop_addr: 0x%lx", op_mapping_info.iterations_per_loop_addr());
-  GELOGD("flag: %u", op_mapping_info.flag());
-  GELOGD("dump_step: %s", op_mapping_info.dump_step().c_str());
-  GELOGD("dump_data: %d", op_mapping_info.dump_data());
-  GELOGD("task count: %d", op_mapping_info.task_size());
-
-  for (int32_t i = 0; i < op_mapping_info.task_size(); ++i) {
-    const auto &task = op_mapping_info.task(i);
-    GELOGD("---------- Task[%d] ----------", i);
-    GELOGD("  task_id: %u", task.task_id());
-    GELOGD("  stream_id: %u", task.stream_id());
-    GELOGD("  context_id: %u", task.context_id());
-    GELOGD("  thread_id: %u", task.thread_id());
-    GELOGD("  op_name: %s", task.op().op_name().c_str());
-    GELOGD("  op_type: %s", task.op().op_type().c_str());
-    GELOGD("  end_graph: %d", task.end_graph());
-    GELOGD("  input count: %d", task.input_size());
-    for (int32_t j = 0; j < task.input_size(); ++j) {
-      const auto &input = task.input(j);
-      std::string shape_str;
-      for (int32_t k = 0; k < input.shape().dim_size(); ++k) {
-        shape_str += (k == 0 ? "" : ", ") + std::to_string(input.shape().dim(k));
-      }
-      GELOGD(
-          "    input[%d]: addr=0x%lx, size=%u, format=%d, data_type=%d, "
-          "addr_type=%d, offset=%lu, shape=[%s]",
-          j, input.address(), static_cast<uint32_t>(input.size()), input.format(), input.data_type(), input.addr_type(),
-          input.offset(), shape_str.c_str());
-    }
-    GELOGD("  output count: %d", task.output_size());
-    for (int32_t j = 0; j < task.output_size(); ++j) {
-      const auto &output = task.output(j);
-      std::string shape_str;
-      for (int32_t k = 0; k < output.shape().dim_size(); ++k) {
-        shape_str += (k == 0 ? "" : ", ") + std::to_string(output.shape().dim(k));
-      }
-      GELOGD(
-          "    output[%d]: addr=0x%lx, size=%u, format=%d, data_type=%d, "
-          "addr_type=%d, offset=%lu, shape=[%s]",
-          j, output.address(), static_cast<uint32_t>(output.size()), output.format(), output.data_type(),
-          output.addr_type(), output.offset(), shape_str.c_str());
-    }
-    GELOGD("  context count: %d", task.context_size());
-    for (int32_t j = 0; j < task.context_size(); ++j) {
-      const auto &context = task.context(j);
-      GELOGD("    context[%d]: context_id=%u, thread_id=%u", j, context.context_id(), context.thread_id());
-    }
-    GELOGD("  workspace count: %d", task.space_size());
-    for (int32_t j = 0; j < task.space_size(); ++j) {
-      const auto &ws = task.space(j);
-      GELOGD("    workspace[%d]: addr=0x%lx, size=%u, type=%d", j, ws.data_addr(), static_cast<uint32_t>(ws.size()),
-             ws.type());
-    }
+  std::vector<uint8_t> payload;
+  const auto encode_status = dump_transport_info.Serialize(payload);
+  if (encode_status != DumpTransStatus::kOk) {
+    GELOGE(PARAM_INVALID, "Serialize dump payload failed, model_id=%u, version=%u, status=%u.", model_info.model_id,
+           dump_transport_info.GetVersion(), static_cast<uint32_t>(encode_status));
+    return PARAM_INVALID;
   }
-  GELOGD("========== Dump OpMappingInfo End ==========");
-
-  ret = ExecuteLoadDumpInfo(op_mapping_info);
+  ret = ExecuteLoadDumpInfo(payload);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Execute][LoadDumpInfo] failed, ret:%u", ret);
     return ret;
   }
 
-  op_mapping_info_ = std::move(op_mapping_info);
-  GELOGI("BuildAndLoadOpMappingInfo success, task_count=%zu", task_list_.size());
+  dump_transport_info_ = std::move(dump_transport_info);
+  GELOGI("BuildAndLoadDumpTransportInfo success, task_count=%zu", task_list_.size());
   return SUCCESS;
 }
 
@@ -479,6 +425,9 @@ void DataDumpImpl::Clear() {
     step_id_dev_addr_ = nullptr;
   }
   task_list_.clear();
+  dump_transport_info_.Clear();
+  dump_transport_base_info_.Clear();
+  dump_transport_base_info_initialized_ = false;
   load_flag_ = false;
 }
 

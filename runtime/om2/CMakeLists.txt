@@ -27,12 +27,8 @@ set_source_files_properties(${OM2_FORMAT_SRCS} PROPERTIES
         COMPILE_FLAGS "-fvisibility=hidden"
 )
 
+# AIPP still includes codegen types containing task.pb.h; OM2 Dump itself is protobuf-free.
 add_dependencies(om2_executor graphengine_protos)
-
-target_compile_definitions(om2_executor PRIVATE
-        google=ascend_private
-        PROTOBUF_INLINE_NOT_IN_HEADERS=0
-)
 
 target_compile_definitions(om2_executor PRIVATE
         PROTOBUF_INLINE_NOT_IN_HEADERS=0
@@ -55,6 +51,7 @@ target_include_directories(om2_executor PRIVATE
         ${CMAKE_BINARY_DIR}
         ${CMAKE_BINARY_DIR}/proto/graphengine_protos
         ${PROTOBUF_INCLUDE_DIR}
+        $<TARGET_PROPERTY:ascend_protobuf,INTERFACE_INCLUDE_DIRECTORIES>
         ${METADEF_DIR}/inc/external
 )
 
@@ -72,7 +69,6 @@ target_link_libraries(om2_executor PRIVATE
         runtime
         json
         minizip_static
-        ascend_protobuf
         ascend_dump
         acl_rt
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>

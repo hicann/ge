@@ -27,6 +27,10 @@
 #include "depends/profiler/src/dump_stub.h"
 #include "aprof_pub.h"
 #include "depends/profiler/src/profiling_test_util.h"
+#include "depends/runtime/src/runtime_stub.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
+#include "framework/runtime/dump/dump_op_impl.h"
+#include "aicpu_task_struct.h"
 
 using namespace testing;
 using namespace ge::dump;
@@ -1358,5 +1362,424 @@ TEST_F(ProfilingImplTest, ReportRunInfoPostprocessImpl_TaskTimeDisabled_ReturnsS
   EXPECT_EQ(ret, SUCCESS);
 }
 
+namespace {
+class DumpWireMemoryStub : public AclRuntimeStub {
+ public:
+  std::map<void *, size_t> live;
+  size_t allocations = 0U;
+  size_t releases = 0U;
+  size_t fail_allocation = 0U;
+  bool fail_copy = false;
+
+  aclError aclrtMalloc(void **ptr, size_t size, aclrtMemMallocPolicy) override {
+    ++allocations;
+    if (allocations == fail_allocation) {
+      return ACL_ERROR_RT_INTERNAL_ERROR;
+    }
+    *ptr = new uint8_t[size]{};
+    live[*ptr] = size;
+    return ACL_SUCCESS;
+  }
+  aclError aclrtFree(void *ptr) override {
+    EXPECT_EQ(live.erase(ptr), 1U);
+    ++releases;
+    delete[] static_cast<uint8_t *>(ptr);
+    return ACL_SUCCESS;
+  }
+  aclError aclrtMemcpy(void *dst, size_t capacity, const void *src, size_t size, aclrtMemcpyKind kind) override {
+    EXPECT_EQ(kind, ACL_MEMCPY_HOST_TO_DEVICE);
+    EXPECT_LE(size, capacity);
+    if (fail_copy) {
+      return ACL_ERROR_RT_INTERNAL_ERROR;
+    }
+    std::memcpy(dst, src, size);
+    return ACL_SUCCESS;
+  }
+};
+
+class DumpWireRuntimeStub : public RuntimeStub {
+ public:
+  struct Submission {
+    const uint8_t *payload;
+    const void *length_address;
+    std::vector<uint8_t> bytes;
+  };
+  std::vector<Submission> models;
+  std::vector<Submission> custom;
+  rtError_t load_result = RT_ERROR_NONE;
+  rtError_t launch_result = RT_ERROR_NONE;
+  rtStream_t expected_stream = nullptr;
+
+  rtError_t rtDatadumpInfoLoad(const void *data, uint32_t size) override {
+    const auto bytes = static_cast<const uint8_t *>(data);
+    models.push_back({bytes, nullptr, {bytes, bytes + size}});
+    return load_result;
+  }
+  rtError_t rtCpuKernelLaunchWithFlag(const void *so, const void *kernel, uint32_t block_dim, const rtArgsEx_t *args,
+                                      rtSmDesc_t *sm, rtStream_t stream, uint32_t flags) override {
+    EXPECT_EQ(so, nullptr);
+    EXPECT_EQ(sm, nullptr);
+    EXPECT_STREQ(static_cast<const char *>(kernel), "DumpDataInfo");
+    EXPECT_EQ(block_dim, 1U);
+    EXPECT_EQ(flags, RT_KERNEL_DEFAULT);
+    EXPECT_EQ(stream, expected_stream);
+    aicpu::AicpuParamHead head{};
+    std::memcpy(&head, args->args, sizeof(head));
+    EXPECT_EQ(head.ioAddrNum, 2U);
+    EXPECT_EQ(head.length, sizeof(head) + 2U * sizeof(uint64_t));
+    EXPECT_EQ(args->argsSize, head.length);
+    EXPECT_EQ(args->isNoNeedH2DCopy, 0U);
+    uint64_t addresses[2]{};
+    std::memcpy(addresses, static_cast<const uint8_t *>(args->args) + sizeof(head), sizeof(addresses));
+    const auto payload = reinterpret_cast<const uint8_t *>(addresses[0]);
+    const auto length = reinterpret_cast<const uint8_t *>(addresses[1]);
+    uint64_t size = 0U;
+    for (size_t i = 0; i < sizeof(uint64_t); ++i) {
+      size |= static_cast<uint64_t>(length[i]) << (8U * i);
+    }
+    custom.push_back({payload, length, {payload, payload + size}});
+    return launch_result;
+  }
+};
+
+template <typename Object, typename Value>
+Value ReadDumpField(const Object &object, DumpTransStatus (Object::*getter)(Value &) const) {
+  Value value{};
+  EXPECT_EQ((object.*getter)(value), DumpTransStatus::kOk);
+  return value;
+}
+
+class Om2DumpWireTest : public Test {
+ protected:
+  void SetUp() override {
+    DumpConfig::Instance().Reset();
+    ProfilingConfig::Instance().Disable();
+    memory = std::make_shared<DumpWireMemoryStub>();
+    runtime = std::make_shared<DumpWireRuntimeStub>();
+    AclRuntimeStub::SetInstance(memory);
+    RuntimeStub::SetInstance(runtime);
+    tensor.SetData(gert::TensorData{reinterpret_cast<void *>(0x8000U), nullptr});
+    tensor.SetSize(128U);
+    tensor.SetDataType(DT_FLOAT);
+    tensor.SetStorageFormat(FORMAT_ND);
+    tensor.MutableStorageShape().AppendDim(2);
+    tensor.MutableStorageShape().AppendDim(-1);
+    tensor.MutableOriginShape().AppendDim(999);
+    input.tensor = &tensor;
+    input.offset = 16U;
+    output.tensor = &tensor;
+    output.offset = 24U;
+    task.op_name = "layer1";
+    task.op_type = "Custom";
+    task.task_id = (1UL << 32U) + 7U;
+    task.stream_id = (1UL << 32U) + 8U;
+    task.context_id = (1UL << 32U) + 9U;
+    task.thread_id = (1UL << 32U) + 10U;
+    task.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+    task.inputs = &input;
+    task.input_num = 1;
+    task.outputs = &output;
+    task.output_num = 1;
+    task.args_base = 0x1000U;
+    model.model_id = 42U;
+    model.model_name = "test_model";
+    model.device_id = 3U;
+  }
+  void TearDown() override {
+    EXPECT_TRUE(memory->live.empty());
+    AclRuntimeStub::Reset();
+    RuntimeStub::Reset();
+    DumpConfig::Instance().Reset();
+    ProfilingConfig::Instance().Disable();
+  }
+  void Configure(const std::string &mode = "all", const std::string &data = "tensor") {
+    const std::string config = "{\"dump\":{\"dump_path\":\"/tmp/om2_wire\",\"dump_mode\":\"" + mode +
+                               "\",\"dump_step\":\"1|3-5\",\"dump_data\":\"" + data +
+                               "\",\"dump_list\":[{\"model_name\":\"test_model\",\"layers\":[\"layer1\"]}]}}";
+    ASSERT_EQ(DumpConfig::Instance().ParseAndValidate(config.c_str(), config.size()), SUCCESS);
+  }
+  void Decode(const DumpWireRuntimeStub::Submission &submission, DumpTransportInfo &info) {
+    ASSERT_EQ(info.Deserialize(submission.bytes.data(), submission.bytes.size()), DumpTransStatus::kOk);
+    ASSERT_EQ(memory->live.count(const_cast<uint8_t *>(submission.payload)), 1U);
+    EXPECT_EQ(std::memcmp(submission.payload, submission.bytes.data(), submission.bytes.size()), 0);
+    EXPECT_EQ(ReadDumpField(info.GetModel(), &DumpTransModelInfo::GetModelId), 42U);
+    EXPECT_EQ(ReadDumpField(info.GetModel(), &DumpTransModelInfo::GetModelName), "test_model");
+    EXPECT_EQ(ReadDumpField(info.GetModel(), &DumpTransModelInfo::GetDumpPath),
+              DumpConfig::Instance().GetDumpPath() + "3/");
+    EXPECT_EQ(ReadDumpField(info.GetModel(), &DumpTransModelInfo::GetDumpStep), "1|3-5");
+    EXPECT_EQ(ReadDumpField(info.GetModel(), &DumpTransModelInfo::GetFlag), 1U);
+    const auto step = ReadDumpField(info.GetModel(), &DumpTransModelInfo::GetStepIdAddr);
+    EXPECT_EQ(memory->live.at(reinterpret_cast<void *>(step)), sizeof(uint32_t));
+    EXPECT_EQ(*reinterpret_cast<const uint32_t *>(step), 0U);
+    uint64_t absent = 0;
+    EXPECT_EQ(info.GetModel().GetDumpSwitchAddr(absent), DumpTransStatus::kFieldAbsent);
+  }
+  void CheckTask(const DumpTransTaskInfo &info) {
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTaskInfo::GetTaskId), 7U);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTaskInfo::GetStreamId), 8U);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTaskInfo::GetContextId), 9U);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTaskInfo::GetThreadId), 10U);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTaskInfo::GetOpName), "layer1");
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTaskInfo::GetOpType), "Custom");
+    EXPECT_FALSE(ReadDumpField(info, &DumpTransTaskInfo::GetEndGraph));
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTaskInfo::GetTaskType), DumpTransTaskType::kAiCore);
+    EXPECT_EQ(info.GetBufferCount(), 0U);
+    EXPECT_EQ(info.GetAttrCount(), 0U);
+    EXPECT_EQ(info.GetContextCount(), 0U);
+  }
+  void CheckTensor(const DumpTransTensorInfo &info, uint64_t address, DumpTransAddressType address_type) {
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTensorInfo::GetAddress), address);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTensorInfo::GetAddrType), address_type);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTensorInfo::GetSize), 128U);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTensorInfo::GetDataType), DT_FLOAT);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTensorInfo::GetFormat), FORMAT_ND);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTensorInfo::GetShape), (std::vector<uint64_t>{2U, UINT64_MAX}));
+    EXPECT_TRUE(ReadDumpField(info, &DumpTransTensorInfo::GetOriginShape).empty());
+    EXPECT_EQ(ReadDumpField(info, &DumpTransTensorInfo::GetOffset), 0U);
+  }
+  void CheckOutputDefaults(const DumpTransOutputInfo &info) {
+    EXPECT_EQ(ReadDumpField(info, &DumpTransOutputInfo::GetOriginalName), "");
+    EXPECT_EQ(ReadDumpField(info, &DumpTransOutputInfo::GetOriginalOutputIndex), 0);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransOutputInfo::GetOriginalOutputDataType), 0);
+    EXPECT_EQ(ReadDumpField(info, &DumpTransOutputInfo::GetOriginalOutputFormat), 0);
+    EXPECT_EQ(info.GetDimRangeCount(), 0U);
+  }
+  std::shared_ptr<DumpWireMemoryStub> memory;
+  std::shared_ptr<DumpWireRuntimeStub> runtime;
+  gert::Tensor tensor{};
+  GertModelTaskIoEntry input{};
+  GertModelTaskIoEntry output{};
+  GertModelTaskDesc task{};
+  ModelDumpInfo model{};
+};
+
+TEST_F(Om2DumpWireTest, ModelModesStatsAddressesAndLifetime) {
+  for (const std::string mode : {"input", "output", "all"}) {
+    for (const int address_case : {0, 1, 2}) {
+      Configure(mode, "stats");
+      task.is_raw_address = address_case == 1;
+      input.offset = address_case == 2 ? UINT64_MAX : 16U;
+      output.offset = address_case == 2 ? UINT64_MAX : 24U;
+      DataDumpImpl impl;
+      ASSERT_EQ(impl.SaveTask(task, ModelTaskType::MODEL_TASK_KERNEL, nullptr, false), SUCCESS);
+      ASSERT_EQ(impl.BuildAndLoadDumpTransportInfo(model), SUCCESS);
+      ASSERT_FALSE(runtime->models.empty());
+      DumpTransportInfo decoded;
+      Decode(runtime->models.back(), decoded);
+      EXPECT_EQ(ReadDumpField(decoded.GetModel(), &DumpTransModelInfo::GetDumpData), DumpTransDumpData::kStats);
+      uint64_t absent = 0;
+      EXPECT_EQ(decoded.GetModel().GetLoopCondAddr(absent), DumpTransStatus::kFieldAbsent);
+      EXPECT_EQ(decoded.GetModel().GetIterationsPerLoopAddr(absent), DumpTransStatus::kFieldAbsent);
+      ASSERT_EQ(decoded.GetTaskCount(), 1U);
+      const DumpTransTaskInfo *read = nullptr;
+      ASSERT_EQ(decoded.GetTask(0, read), DumpTransStatus::kOk);
+      CheckTask(*read);
+      EXPECT_EQ(read->GetWorkspaceCount(), 0U);
+      EXPECT_EQ(read->GetInputCount(), mode == "output" ? 0U : 1U);
+      EXPECT_EQ(read->GetOutputCount(), mode == "input" ? 0U : 1U);
+      const auto type = address_case == 1 ? DumpTransAddressType::kRaw : DumpTransAddressType::kTraditional;
+      if (read->GetInputCount() != 0U) {
+        const DumpTransInputInfo *io = nullptr;
+        ASSERT_EQ(read->GetInput(0, io), DumpTransStatus::kOk);
+        CheckTensor(*io, address_case == 0 ? 0x1010U : 0x8000U, type);
+      }
+      if (read->GetOutputCount() != 0U) {
+        const DumpTransOutputInfo *io = nullptr;
+        ASSERT_EQ(read->GetOutput(0, io), DumpTransStatus::kOk);
+        CheckTensor(*io, address_case == 0 ? 0x1018U : 0x8000U, type);
+        CheckOutputDefaults(*io);
+      }
+      EXPECT_EQ(memory->live.size(), 2U);
+      const auto releases = memory->releases;
+      ASSERT_EQ(impl.BuildAndLoadDumpTransportInfo(model), SUCCESS);
+      EXPECT_EQ(memory->releases, releases + 1U);
+      EXPECT_EQ(memory->live.size(), 2U);
+      impl.Clear();
+      EXPECT_TRUE(memory->live.empty());
+      ASSERT_EQ(impl.SaveTask(task, ModelTaskType::MODEL_TASK_KERNEL, nullptr, false), SUCCESS);
+      ASSERT_EQ(impl.BuildAndLoadDumpTransportInfo(model), SUCCESS);
+      Decode(runtime->models.back(), decoded);
+    }
+  }
+}
+
+TEST_F(Om2DumpWireTest, CustomPrePostModesAndDeviceLengthOwnership) {
+  for (const std::string mode : {"input", "output", "all"}) {
+    Configure(mode);
+    task.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL);
+    task.is_raw_address = true;
+    runtime->custom.clear();
+    {
+      ModelDumpManager manager(42U);
+      ASSERT_EQ(manager.SetModelDumpInfo(model), SUCCESS);
+      ASSERT_EQ(manager.PreprocessOm2TaskInfo(task), SUCCESS);
+      EXPECT_EQ(runtime->custom.size(), mode == "output" ? 0U : 1U);
+      ASSERT_EQ(manager.PostprocessOm2TaskInfo(task), SUCCESS);
+      ASSERT_EQ(runtime->custom.size(), mode == "all" ? 2U : 1U);
+      for (size_t index = 0; index < runtime->custom.size(); ++index) {
+        const auto &submission = runtime->custom[index];
+        EXPECT_EQ(memory->live.at(const_cast<void *>(submission.length_address)), sizeof(uint64_t));
+        DumpTransportInfo decoded;
+        Decode(submission, decoded);
+        EXPECT_EQ(ReadDumpField(decoded.GetModel(), &DumpTransModelInfo::GetDumpData), DumpTransDumpData::kTensor);
+        ASSERT_EQ(decoded.GetTaskCount(), 1U);
+        const DumpTransTaskInfo *read = nullptr;
+        ASSERT_EQ(decoded.GetTask(0, read), DumpTransStatus::kOk);
+        CheckTask(*read);
+        const bool is_input = mode == "input" || (mode == "all" && index == 0U);
+        EXPECT_EQ(read->GetInputCount(), is_input ? 1U : 0U);
+        EXPECT_EQ(read->GetOutputCount(), is_input ? 0U : 1U);
+        EXPECT_EQ(read->GetWorkspaceCount(), 0U);
+        if (is_input) {
+          const DumpTransInputInfo *io = nullptr;
+          ASSERT_EQ(read->GetInput(0, io), DumpTransStatus::kOk);
+          CheckTensor(*io, 0x8000U, DumpTransAddressType::kTraditional);
+        } else {
+          const DumpTransOutputInfo *io = nullptr;
+          ASSERT_EQ(read->GetOutput(0, io), DumpTransStatus::kOk);
+          CheckTensor(*io, 0x8000U, DumpTransAddressType::kTraditional);
+          CheckOutputDefaults(*io);
+        }
+      }
+      const auto releases = memory->releases;
+      ASSERT_EQ(manager.PreprocessOm2TaskInfo(task), SUCCESS);
+      ASSERT_EQ(manager.PostprocessOm2TaskInfo(task), SUCCESS);
+      EXPECT_EQ(memory->releases - releases, mode == "all" ? 4U : 2U);
+    }
+    EXPECT_TRUE(memory->live.empty());
+  }
+}
+
+TEST_F(Om2DumpWireTest, OpDebugForcesIoAndWorkspaceAndAppendsSpecialTask) {
+  Configure("input");
+  const uint64_t addresses[] = {0x2000U, 0x3000U};
+  const uint64_t sizes[] = {32U, 64U};
+  task.workspace_addrs = addresses;
+  task.workspace_sizes = sizes;
+  task.workspace_num = 2U;
+  model.loop_cond_addr = 0x4000U;
+  model.iterations_per_loop_addr = 0x5000U;
+  DataDumpImpl impl;
+  ASSERT_EQ(impl.SaveTask(task, ModelTaskType::MODEL_TASK_KERNEL, nullptr, true), SUCCESS);
+  impl.SetOpDebugInfo(20U, 21U, reinterpret_cast<void *>(0x6000U));
+  ASSERT_EQ(impl.BuildAndLoadDumpTransportInfo(model), SUCCESS);
+  DumpTransportInfo decoded;
+  Decode(runtime->models.back(), decoded);
+  EXPECT_EQ(ReadDumpField(decoded.GetModel(), &DumpTransModelInfo::GetLoopCondAddr), 0x4000U);
+  EXPECT_EQ(ReadDumpField(decoded.GetModel(), &DumpTransModelInfo::GetIterationsPerLoopAddr), 0x5000U);
+  ASSERT_EQ(decoded.GetTaskCount(), 2U);
+  const DumpTransTaskInfo *read = nullptr;
+  ASSERT_EQ(decoded.GetTask(0, read), DumpTransStatus::kOk);
+  CheckTask(*read);
+  EXPECT_EQ(read->GetInputCount(), 1U);
+  EXPECT_EQ(read->GetOutputCount(), 1U);
+  ASSERT_EQ(read->GetWorkspaceCount(), 2U);
+  for (size_t i = 0; i < 2; ++i) {
+    const DumpTransWorkspaceInfo *space = nullptr;
+    ASSERT_EQ(read->GetWorkspace(i, space), DumpTransStatus::kOk);
+    EXPECT_EQ(ReadDumpField(*space, &DumpTransWorkspaceInfo::GetType), DumpTransWorkspaceType::kLog);
+    EXPECT_EQ(ReadDumpField(*space, &DumpTransWorkspaceInfo::GetDataAddr), addresses[i]);
+    EXPECT_EQ(ReadDumpField(*space, &DumpTransWorkspaceInfo::GetSize), sizes[i]);
+  }
+  ASSERT_EQ(decoded.GetTask(1, read), DumpTransStatus::kOk);
+  EXPECT_EQ(ReadDumpField(*read, &DumpTransTaskInfo::GetTaskId), 20U);
+  EXPECT_EQ(ReadDumpField(*read, &DumpTransTaskInfo::GetStreamId), 21U);
+  EXPECT_EQ(ReadDumpField(*read, &DumpTransTaskInfo::GetContextId), 0U);
+  EXPECT_EQ(ReadDumpField(*read, &DumpTransTaskInfo::GetThreadId), 0U);
+  EXPECT_EQ(ReadDumpField(*read, &DumpTransTaskInfo::GetOpName), "Node_OpDebug");
+  EXPECT_EQ(ReadDumpField(*read, &DumpTransTaskInfo::GetOpType), "Opdebug");
+  EXPECT_FALSE(ReadDumpField(*read, &DumpTransTaskInfo::GetEndGraph));
+  EXPECT_EQ(ReadDumpField(*read, &DumpTransTaskInfo::GetTaskType), DumpTransTaskType::kAiCore);
+  EXPECT_EQ(read->GetInputCount(), 0U);
+  ASSERT_EQ(read->GetOutputCount(), 1U);
+  const DumpTransOutputInfo *io = nullptr;
+  ASSERT_EQ(read->GetOutput(0, io), DumpTransStatus::kOk);
+  EXPECT_EQ(ReadDumpField(*io, &DumpTransOutputInfo::GetOriginalName), "Node_OpDebug");
+  EXPECT_EQ(ReadDumpField(*io, &DumpTransOutputInfo::GetOriginalOutputIndex), 0);
+  EXPECT_EQ(ReadDumpField(*io, &DumpTransOutputInfo::GetOriginalOutputDataType), DT_UINT8);
+  EXPECT_EQ(ReadDumpField(*io, &DumpTransOutputInfo::GetOriginalOutputFormat), FORMAT_ND);
+  const DumpTransTensorInfo &tensor_info = *io;
+  EXPECT_EQ(ReadDumpField(tensor_info, &DumpTransTensorInfo::GetDataType), DT_UINT8);
+  EXPECT_EQ(ReadDumpField(tensor_info, &DumpTransTensorInfo::GetFormat), FORMAT_ND);
+  EXPECT_EQ(ReadDumpField(tensor_info, &DumpTransTensorInfo::GetShape), (std::vector<uint64_t>{2048U}));
+  EXPECT_EQ(ReadDumpField(tensor_info, &DumpTransTensorInfo::GetAddress), 0x6000U);
+  EXPECT_EQ(ReadDumpField(tensor_info, &DumpTransTensorInfo::GetSize), 2048U);
+  EXPECT_EQ(ReadDumpField(tensor_info, &DumpTransTensorInfo::GetAddrType), DumpTransAddressType::kTraditional);
+  EXPECT_TRUE(ReadDumpField(tensor_info, &DumpTransTensorInfo::GetOriginShape).empty());
+  EXPECT_EQ(ReadDumpField(tensor_info, &DumpTransTensorInfo::GetOffset), 0U);
+  EXPECT_EQ(io->GetDimRangeCount(), 0U);
+}
+
+TEST_F(Om2DumpWireTest, DisabledExceptionAndProfilingDoNotSubmitOrAllocatePayload) {
+  for (const bool exception : {false, true}) {
+    DumpConfig::Instance().SetExceptionDumpEnabled(exception);
+    ProfilingOptions options;
+    options.task_time_enabled = true;
+    ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+    ModelDumpManager manager(42U);
+    ASSERT_EQ(manager.SetModelDumpInfo(model), SUCCESS);
+    ASSERT_EQ(manager.PreprocessOm2TaskInfo(task), SUCCESS);
+    ASSERT_EQ(manager.PostprocessOm2TaskInfo(task), SUCCESS);
+    ASSERT_EQ(manager.DispatchDumpInfo(), SUCCESS);
+    EXPECT_TRUE(runtime->models.empty());
+    EXPECT_TRUE(runtime->custom.empty());
+    EXPECT_EQ(memory->allocations, 0U);
+  }
+}
+
+TEST_F(Om2DumpWireTest, EmptyTaskListAndEmptyIo) {
+  Configure();
+  DataDumpImpl impl;
+  ASSERT_EQ(impl.BuildAndLoadDumpTransportInfo(model), SUCCESS);
+  EXPECT_TRUE(runtime->models.empty());
+  EXPECT_EQ(memory->allocations, 0U);
+  task.input_num = 0;
+  task.output_num = 0;
+  task.inputs = nullptr;
+  task.outputs = nullptr;
+  task.op_name = nullptr;
+  task.op_type = nullptr;
+  ASSERT_EQ(impl.SaveTask(task, ModelTaskType::MODEL_TASK_KERNEL, nullptr, false), SUCCESS);
+  ASSERT_EQ(impl.BuildAndLoadDumpTransportInfo(model), SUCCESS);
+  DumpTransportInfo decoded;
+  Decode(runtime->models.back(), decoded);
+  const DumpTransTaskInfo *read = nullptr;
+  ASSERT_EQ(decoded.GetTask(0, read), DumpTransStatus::kOk);
+  EXPECT_EQ(read->GetInputCount(), 0U);
+  EXPECT_EQ(read->GetOutputCount(), 0U);
+  EXPECT_EQ(ReadDumpField(*read, &DumpTransTaskInfo::GetOpName), "");
+  EXPECT_EQ(ReadDumpField(*read, &DumpTransTaskInfo::GetOpType), "");
+}
+
+TEST_F(Om2DumpWireTest, ModelLoadFailureReleasesPayloadAndAllowsRetry) {
+  Configure();
+  DataDumpImpl impl;
+  ASSERT_EQ(impl.SaveTask(task, ModelTaskType::MODEL_TASK_KERNEL, nullptr, false), SUCCESS);
+  runtime->load_result = static_cast<rtError_t>(1);
+  EXPECT_EQ(impl.BuildAndLoadDumpTransportInfo(model), RT_FAILED);
+  EXPECT_EQ(memory->live.size(), 1U);  // Only the cached step counter survives.
+  runtime->load_result = RT_ERROR_NONE;
+  ASSERT_EQ(impl.BuildAndLoadDumpTransportInfo(model), SUCCESS);
+  EXPECT_EQ(memory->live.size(), 2U);
+  impl.Clear();
+  EXPECT_TRUE(memory->live.empty());
+}
+
+TEST_F(Om2DumpWireTest, CustomLaunchFailureRetainsBothBuffersUntilDestruction) {
+  Configure();
+  {
+    DataDumpImpl impl;
+    DumpOp op;
+    ASSERT_EQ(impl.BuildDumpTransportBasicInfo(model, op.GetDumpTransportInfo()), SUCCESS);
+    ASSERT_EQ(op.BuildTaskInputs(task), SUCCESS);
+    runtime->launch_result = static_cast<rtError_t>(1);
+    EXPECT_NE(op.ExecutorDumpOp("layer1", nullptr), SUCCESS);
+    ASSERT_EQ(runtime->custom.size(), 1U);
+    EXPECT_EQ(memory->live.size(), 3U);
+    EXPECT_EQ(memory->live.at(const_cast<void *>(runtime->custom.back().length_address)), sizeof(uint64_t));
+  }
+  EXPECT_TRUE(memory->live.empty());
+}
+}  // namespace
 }  // namespace dump
 }  // namespace ge

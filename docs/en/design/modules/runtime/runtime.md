@@ -67,6 +67,21 @@ v1 guarantees existing OM model compatibility, v2 provides more flexible infrast
 
 ## 2. v1 Model Loading: Mapping from OM to Device
 
+OM2 Executor dump uses the independent `DumpTransportInfo` TLV internal payload;
+the V1 `DataDumper` path in this section remains unchanged. For model-level dump,
+`DataDumpImpl` continues to send data during loading through `rtDatadumpInfoLoad`.
+For custom dump, `DumpDataInfo` continues to send inputs and outputs before and
+after execution, respectively. The Device payload is retained by its original
+owner, and the custom length memory remains a fixed 8-byte little-endian
+`uint64_t`. The public OM2 C ABI, execution timing, configuration, and dump file
+format remain unchanged.
+
+This transport replacement does not participate in static/dynamic-shape executor
+selection, v2-to-v1 data transfer for dynamic-shape static subgraphs, offline ATC
+compilation, or OM serialization. Both online and offline-loaded OM2 models keep
+the original task collection points. Exception dump and profiling remain separate
+paths. Cross-component releases must use matching Runtime/AICPU decoder versions.
+
 ### 2.1 Loading Flow Overview
 
 ```mermaid

@@ -19,7 +19,7 @@
 #include "framework/runtime/dump/model_dump_manager.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "rt_external_base.h"
-#include "proto/op_mapping.pb.h"
+#include "framework/runtime/dump/dump_transport_info.h"
 
 namespace ge {
 namespace dump {
@@ -31,15 +31,14 @@ class DataDumpImpl {
 
   Status SaveTask(const GertModelTaskDesc &task_info, ModelTaskType task_type, rtStream_t stream, bool is_op_debug);
 
-  Status BuildAndLoadOpMappingInfo(const ModelDumpInfo &model_info);
+  Status BuildAndLoadDumpTransportInfo(const ModelDumpInfo &model_info);
 
   void Clear();
 
   // Overflow dump 相关信息
   void SetOpDebugInfo(uint32_t task_id, uint32_t stream_id, void *debug_addr);
 
-  Status BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
-                                 toolkit::aicpu::dump::OpMappingInfo &dump_op_mapping_info);
+  Status BuildDumpTransportBasicInfo(const ModelDumpInfo &model_info, DumpTransportInfo &dump_transport_info);
 
  private:
   struct InnerTensorInfo {
@@ -70,22 +69,22 @@ class DataDumpImpl {
     std::vector<uint64_t> workspace_sizes;
   };
 
-  Status ExecuteLoadDumpInfo(const toolkit::aicpu::dump::OpMappingInfo &op_mapping_info);
+  Status ExecuteLoadDumpInfo(const std::vector<uint8_t> &payload);
 
-  Status BuildTaskList(toolkit::aicpu::dump::OpMappingInfo &op_mapping_info) const;
+  Status BuildTaskList(DumpTransportInfo &dump_transport_info) const;
 
-  void BuildTaskInputs(const InnerDumpInfo &dump_info, toolkit::aicpu::dump::Task &task) const;
+  void BuildTaskInputs(const InnerDumpInfo &dump_info, DumpTransTaskInfo &task) const;
 
-  void BuildTaskOutputs(const InnerDumpInfo &dump_info, toolkit::aicpu::dump::Task &task) const;
+  void BuildTaskOutputs(const InnerDumpInfo &dump_info, DumpTransTaskInfo &task) const;
 
-  void BuildTaskWorkspaces(const InnerDumpInfo &dump_info, toolkit::aicpu::dump::Task &task) const;
+  void BuildTaskWorkspaces(const InnerDumpInfo &dump_info, DumpTransTaskInfo &task) const;
 
-  void BuildOpDebugTask(toolkit::aicpu::dump::OpMappingInfo &op_mapping_info) const;
+  void BuildOpDebugTask(DumpTransportInfo &dump_transport_info) const;
 
   std::vector<InnerDumpInfo> task_list_;
-  toolkit::aicpu::dump::OpMappingInfo op_mapping_info_;
-  toolkit::aicpu::dump::OpMappingInfo op_mapping_base_info_;
-  bool op_mapping_base_info_initialized_ = false;
+  DumpTransportInfo dump_transport_info_;
+  DumpTransportInfo dump_transport_base_info_;
+  bool dump_transport_base_info_initialized_ = false;
   void *dev_mem_load_ = nullptr;
   void *step_id_dev_addr_ = nullptr;
   bool load_flag_ = false;
