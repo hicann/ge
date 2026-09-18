@@ -68,9 +68,10 @@ std::vector<std::pair<K, V>> SortMapByValue(const std::map<K, V> &input_map, boo
 
 class JitExecutor {
  public:
-  static std::unique_ptr<JitExecutor> Create(GraphManager &graph_manager, UserGraphExecutionQueue &task_queue,
-                                             ExecutionOrder &order, CompileContext &compile_context,
-                                             CompiledModelCache &cmc, std::mutex &mutex);
+  static std::unique_ptr<JitExecutor> Create(
+      GraphManager &graph_manager, UserGraphExecutionQueue &task_queue, ExecutionOrder &order,
+      CompileContext &compile_context, CompiledModelCache &cmc, std::mutex &mutex,
+      const std::map<MemoryType, std::pair<const void *, size_t>> *fixed_feature_memory_settings = nullptr);
 
   Status RunWithCallback(UserGraphExecution &&task);
 
@@ -96,10 +97,12 @@ class JitExecutor {
   };
 
   JitExecutor(GraphManager &graph_manager, UserGraphExecutionQueue &task_queue, ExecutionOrder &order,
-              CompileContext &compile_context, CompiledModelCache &cmc, std::mutex &mutex);
+              CompileContext &compile_context, CompiledModelCache &cmc, std::mutex &mutex,
+              const std::map<MemoryType, std::pair<const void *, size_t>> *fixed_feature_memory_settings = nullptr);
   Status CompileAndLoad(const std::vector<gert::Tensor> &inputs, GuardedExecutionPoint *gep, uint32_t &instance_id,
                         const aclrtStream stream, const std::map<AscendString, AscendString> &load_options,
                         uint64_t session_id);
+  Status ApplyFixedFeatureMemory(uint32_t instance_id) const;
   Status Compile(const std::vector<ge::Tensor> &inputs, GuardedExecutionPoint *gep, uint64_t session_id);
   Status ProcessAndExecuteGraphAsync(UserGraphExecution &task, aclrtStream const stream,
                                      const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs,
@@ -118,6 +121,7 @@ class JitExecutor {
   CompileContext &compile_context_;
   CompiledModelCache &cmc_;
   std::mutex &mutex_;
+  const std::map<MemoryType, std::pair<const void *, size_t>> *fixed_feature_memory_settings_{nullptr};
   std::map<const GuardedExecutionPoint *, uint32_t> geps_to_inner_ge_graph_id_;
   aclrtStream stream_{nullptr};
   std::shared_ptr<ge::Allocator> device_allocator_;

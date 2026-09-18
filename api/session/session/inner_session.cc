@@ -805,7 +805,8 @@ Status InnerSession::GetCompiledGraphSummary(uint32_t graph_id, CompiledGraphSum
 
 Status InnerSession::SetGraphConstMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
   UpdateGlobalSessionContext();
-  const auto ret = graph_manager_.SetConstMemoryBase(graph_id, memory, size);
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  const auto ret = user_graphs_manager_->SetGraphConstMemoryBase(graph_id, memory, size);
   GE_CHK_STATUS_RET(ret, "[Set][Memory]Failed, InnerSession:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu.",
                     session_id_, graph_id, memory, size);
   GELOGI("[InnerSession:%" PRIu64 "]Set graph const memory base success, graph_id:%u, memory:%p, size:%zu.",
@@ -815,7 +816,8 @@ Status InnerSession::SetGraphConstMemoryBase(uint32_t graph_id, const void *cons
 
 Status InnerSession::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
   UpdateGlobalSessionContext();
-  const auto ret = graph_manager_.UpdateFeatureMemoryBase(graph_id, memory, size);
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  const auto ret = user_graphs_manager_->UpdateGraphFeatureMemoryBase(graph_id, memory, size);
   GE_CHK_STATUS_RET(ret, "[Update][Memory]Failed, InnerSession:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu.",
                     session_id_, graph_id, memory, size);
   GELOGI("[InnerSession:%" PRIu64 "]Update graph feature memory base success, graph_id:%u, memory:%p, size:%zu.",
@@ -826,7 +828,8 @@ Status InnerSession::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void 
 Status InnerSession::SetGraphFixedFeatureMemoryBase(uint32_t graph_id, MemoryType type, const void *const memory,
                                                     size_t size) {
   UpdateGlobalSessionContext();
-  const auto ret = graph_manager_.SetFixedFeatureMemoryBase(graph_id, type, memory, size);
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  const auto ret = user_graphs_manager_->SetGraphFixedFeatureMemoryBase(graph_id, type, memory, size);
   GE_CHK_STATUS_RET(ret, "[Set][Memory]Failed, InnerSession:%" PRIu64 ", graph_id:%u, type:%d, memory:%p, size:%zu.",
                     session_id_, graph_id, type, memory, size);
   return SUCCESS;
@@ -834,7 +837,8 @@ Status InnerSession::SetGraphFixedFeatureMemoryBase(uint32_t graph_id, MemoryTyp
 
 Status InnerSession::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
   UpdateGlobalSessionContext();
-  const auto ret = graph_manager_.UpdateRefreshableFeatureMemoryBase(graph_id, memory, size);
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  const auto ret = user_graphs_manager_->UpdateGraphRefreshableFeatureMemoryBase(graph_id, memory, size);
   GE_CHK_STATUS_RET(ret, "[Update][Memory]Failed, InnerSession:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu.",
                     session_id_, graph_id, memory, size);
   GELOGI("[InnerSession:%" PRIu64

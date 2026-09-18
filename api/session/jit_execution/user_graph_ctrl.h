@@ -83,6 +83,10 @@ class UserGraphControl {
   Status ExecuteGraphWithStreamAsync(std::unique_ptr<UserGraphExecution> task);
   Status CompileGraph(uint64_t session_id);
   CompiledGraphSummaryPtr GetCompiledGraphSummary();
+  Status SetGraphConstMemoryBase(const void *const memory, size_t size);
+  Status UpdateGraphFeatureMemoryBase(const void *const memory, size_t size);
+  Status SetGraphFixedFeatureMemoryBase(MemoryType type, const void *const memory, size_t size);
+  Status UpdateGraphRefreshableFeatureMemoryBase(const void *const memory, size_t size);
   Status LoadGraph(const std::map<AscendString, AscendString> &options, void *stream);
   Status DumpDebugJSONPrint(uint32_t flags, AscendString &json_result);
   Status Finalize();
@@ -99,6 +103,7 @@ class UserGraphControl {
   Status EnsureWholeGraphAdded();
   Status EnsureWholeGraphCompiled(const std::vector<gert::Tensor> &inputs, uint64_t session_id);
   Status EnsureWholeGraphLoaded(const std::map<AscendString, AscendString> &options, void *stream);
+  Status GetCompiledGraphId(uint32_t &graph_id);
 
   uint32_t user_graph_id_;
   ComputeGraphPtr compute_graph_;
@@ -120,6 +125,9 @@ class UserGraphControl {
   mutable std::mutex options_mutex_;
   std::map<AscendString, AscendString> load_options_;
   std::map<uint32_t, uint32_t> user_graph_id_to_ins_id;
+  // 用户通过 SetGraphFixedFeatureMemoryBase 设置的 fixed feature memory，
+  // 在 JIT 编译/重编译产生新执行实例后重新应用到该实例上
+  std::map<MemoryType, std::pair<const void *, size_t>> fixed_feature_memory_settings_;
   // std::vector<std::unique_ptr<JitExecutor>> executors_; // 实例
   CompiledModelCache cmc_;
 
