@@ -76,19 +76,20 @@ class DSATaskCodeBuilder : public TaskCodeBuilder {
   FunctionDef *RenderKernelDsaTaskDistribute() const;
   Status RenderDispatchFunc(std::vector<DeclNode *> &items);
   Status RenderDispatchFuncSetup(std::vector<BodyItem> &body, const VarRef &ctx, const ExprRef &dsa_data,
-                                 const VarRef &addrs);
-  Status RenderSqeScalars(std::vector<BodyItem> &body, const ExprRef &dsa_data, const VarRef &dsa_sqe);
+                                 const VarRef &addrs) const;
+  Status RenderSqeScalars(std::vector<BodyItem> &body, const ExprRef &dsa_data, const VarRef &dsa_sqe) const;
   Status RenderSqeAddrFields(std::vector<BodyItem> &body, const ExprRef &dsa_data, const VarRef &ctx,
                              const VarRef &dsa_sqe, const VarRef &addrs);
-  Status RenderHbmIoArgs(std::vector<BodyItem> &body, const ExprRef &dsa_data, const VarRef &ctx, const VarRef &addrs);
+  Status RenderHbmIoArgs(std::vector<BodyItem> &body, const ExprRef &dsa_data, const VarRef &ctx,
+                         const VarRef &addrs) const;
   Status RenderDispatchFuncLaunch(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                  const ExprRef &dsa_data, const VarRef &sqe);
+                                  const ExprRef &dsa_data, const VarRef &sqe) const;
   Status RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
                                   const ExprRef &dsa_data, const VarRef &addrs);
   Status RenderDispatchFuncReportIo(std::vector<BodyItem> &body, const ExprRef &dsa_data, const VarRef &addrs,
                                     const VarRef &dsa_io_tensors, const VarRef &dsa_report_inputs,
                                     const VarRef &dsa_report_outputs, const VarRef &dsa_report_ws_addrs,
-                                    const VarRef &dsa_report_ws_sizes);
+                                    const VarRef &dsa_report_ws_sizes) const;
   // Address semantics
   std::vector<AddrSemantic> input_addrs_;
   std::vector<AddrSemantic> output_addrs_;

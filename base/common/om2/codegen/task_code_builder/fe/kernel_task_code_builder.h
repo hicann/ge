@@ -177,26 +177,26 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   // ── Dispatch helpers ──
   Status RenderDispatchAicore(const VarRef &op, const VarRef &ctx, std::vector<DeclNode *> &items);
   Status RenderDispatchAicpu(const VarRef &op, const VarRef &ctx, std::vector<DeclNode *> &items);
-  std::vector<BodyItem> RenderDispatchSetup(const VarRef &op, const VarRef &ctx);
+  std::vector<BodyItem> RenderDispatchSetup(const VarRef &op, const VarRef &ctx) const;
   BodyItem RenderDispatchLoop(const VarRef &op, const VarRef &ctx);
-  std::vector<BodyItem> RenderDistribution(const VarRef &op, const VarRef &ctx);
-  std::vector<BodyItem> RenderAicpuDispatchSetup(const VarRef &op, const VarRef &ctx);
-  std::vector<BodyItem> RenderAicpuLaunchAndAssemble(const VarRef &op, const VarRef &ctx);
-  std::vector<BodyItem> RenderAicpuLaunchAndReport(const VarRef &op, const VarRef &ctx);
+  std::vector<BodyItem> RenderDistribution(const VarRef &op, const VarRef &ctx) const;
+  std::vector<BodyItem> RenderAicpuDispatchSetup(const VarRef &op, const VarRef &ctx) const;
+  std::vector<BodyItem> RenderAicpuLaunchAndAssemble(const VarRef &op, const VarRef &ctx) const;
+  std::vector<BodyItem> RenderAicpuLaunchAndReport(const VarRef &op, const VarRef &ctx) const;
   Arg RenderAicoreOpDefFields(const AicoreTaskData &data);
   Arg RenderAicpuOpDefFields(const AicpuTaskData &data);
 
   // ── Address resolution handlers (one per OpArgType) ──
-  std::vector<BodyItem> HandleInputOutputArg(const VarRef &a, const VarRef &ctx);
-  std::vector<BodyItem> HandleWorkspaceArg(const VarRef &a, const VarRef &ctx);
-  std::vector<BodyItem> HandleLevel1DescArg(const VarRef &a, const VarRef &ctx);
-  std::vector<BodyItem> HandleShapeInfoOrCustomValueArg(const VarRef &a);
-  std::vector<BodyItem> HandlePlaceholderOrOptionalEmptyArg();
-  std::vector<BodyItem> HandleFftsAddrArg();
-  std::vector<BodyItem> HandleEventAddrArg(const VarRef &a, const VarRef &ctx);
-  std::vector<BodyItem> HandleOverflowAddrArg(const VarRef &ctx);
-  std::vector<BodyItem> HandleTilingArg(const VarRef &a, const VarRef &ctx);
-  std::vector<BodyItem> HandleDefaultArg();
+  std::vector<BodyItem> HandleInputOutputArg(const VarRef &a, const VarRef &ctx) const;
+  std::vector<BodyItem> HandleWorkspaceArg(const VarRef &a, const VarRef &ctx) const;
+  std::vector<BodyItem> HandleLevel1DescArg(const VarRef &a, const VarRef &ctx) const;
+  std::vector<BodyItem> HandleShapeInfoOrCustomValueArg(const VarRef &a) const;
+  std::vector<BodyItem> HandlePlaceholderOrOptionalEmptyArg() const;
+  std::vector<BodyItem> HandleFftsAddrArg() const;
+  std::vector<BodyItem> HandleEventAddrArg(const VarRef &a, const VarRef &ctx) const;
+  std::vector<BodyItem> HandleOverflowAddrArg(const VarRef &ctx) const;
+  std::vector<BodyItem> HandleTilingArg(const VarRef &a, const VarRef &ctx) const;
+  std::vector<BodyItem> HandleDefaultArg() const;
 
   // ── AICPU ext info parsing ──
   Status ParseExtShape(AicpuExtInfo &aicpu_ext_info, const uint32_t num_tensor, const std::string &node_name,

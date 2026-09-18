@@ -139,7 +139,7 @@ Status CmoAddrTaskCodeBuilder::BuildOrderedArgs(TaskSemanticContributeContext &c
   return SUCCESS;
 }
 
-Status CmoAddrTaskCodeBuilder::RenderKernelDistributeFunc(std::vector<DeclNode *> &items) {
+Status CmoAddrTaskCodeBuilder::RenderKernelDistributeFunc(std::vector<DeclNode *> &items) const {
   auto op_name = ast_.Var("const char_t *const", "op_name");
   auto args_addr = ast_.Var("void *", "args_addr");
   auto args_size = ast_.Var("uint32_t", "args_size");
@@ -157,7 +157,7 @@ Status CmoAddrTaskCodeBuilder::RenderKernelDistributeFunc(std::vector<DeclNode *
 }
 
 Status CmoAddrTaskCodeBuilder::RenderKernelLaunch(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                                  const ExprRef &dev_addr_off, const ExprRef &host_addr_off) {
+                                                  const ExprRef &dev_addr_off, const ExprRef &host_addr_off) const {
   (void)body.push_back(ChkStatus(ast_.Call(
       "KernelCmoAddrTaskDistribute",
       {
@@ -191,7 +191,7 @@ Status CmoAddrTaskCodeBuilder::RenderArgsWriteback(std::vector<BodyItem> &body, 
 }
 
 void CmoAddrTaskCodeBuilder::RenderCustomValueWriteback(std::vector<BodyItem> &body, const VarRef &ctx,
-                                                        const ExprRef &args_table_idx) {
+                                                        const ExprRef &args_table_idx) const {
   auto op = ast_.Var("const TaskDispatchInfo *", "op");
   auto host_addr_info = ctx.Attr("args_table").Attr("GetArgsInfo")(args_table_idx).Arrow("host_addr");
   (void)body.emplace_back(ast_.For(

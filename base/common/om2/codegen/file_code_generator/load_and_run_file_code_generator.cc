@@ -293,7 +293,8 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseOutputCopy(std::vector<BodyIt
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyDeclareTensorIoVars(std::vector<BodyItem> &body,
                                                                   const std::vector<ModelIoEntry> &entries,
-                                                                  const VarRef &input_data, const VarRef &output_data) {
+                                                                  const VarRef &input_data,
+                                                                  const VarRef &output_data) const {
   std::set<uint32_t> declared_input_indices;
   std::set<uint32_t> declared_output_indices;
   for (const auto &entry : entries) {
@@ -350,7 +351,7 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyProcessInputsAndAddrRefresh(std::v
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyCopyOutputs(std::vector<BodyItem> &body,
                                                           const std::vector<ModelIoEntry> &entries,
-                                                          const VarRef &exe_stream, bool is_async) {
+                                                          const VarRef &exe_stream, bool is_async) const {
   for (const auto &entry : entries) {
     if (entry.is_input || entry.is_addr_refreshable) {
       continue;

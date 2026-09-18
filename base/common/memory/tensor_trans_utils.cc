@@ -510,21 +510,21 @@ Status TensorTransUtils::AsTensorsView(const std::vector<Tensor> &ge_tensors, st
   return SUCCESS;
 }
 
-Status TensorTransUtils::TransGertTensorToHost(const gert::Tensor &src_tensor, gert::Tensor &dst_tensor) {
+Status TensorTransUtils::TransGertTensorToHost(const gert::Tensor &device_tensor, gert::Tensor &host_tensor) {
   // shape, format, data type
-  dst_tensor.MutableFormat() = src_tensor.GetFormat();
-  dst_tensor.SetDataType(src_tensor.GetDataType());
-  dst_tensor.MutableOriginShape() = src_tensor.GetOriginShape();
-  dst_tensor.MutableStorageShape() = src_tensor.GetStorageShape();
-  dst_tensor.MutableTensorData().SetPlacement(gert::TensorPlacement::kOnHost);
+  host_tensor.MutableFormat() = device_tensor.GetFormat();
+  host_tensor.SetDataType(device_tensor.GetDataType());
+  host_tensor.MutableOriginShape() = device_tensor.GetOriginShape();
+  host_tensor.MutableStorageShape() = device_tensor.GetStorageShape();
+  host_tensor.MutableTensorData().SetPlacement(gert::TensorPlacement::kOnHost);
 
-  const auto shape = ContructGeShapeFromRtShape(src_tensor.GetShape().GetStorageShape());
+  const auto shape = ContructGeShapeFromRtShape(device_tensor.GetShape().GetStorageShape());
   int64_t output_size = -1;
-  if (src_tensor.GetDataType() == DT_STRING) {
-    output_size = static_cast<int64_t>(src_tensor.GetSize());
+  if (device_tensor.GetDataType() == DT_STRING) {
+    output_size = static_cast<int64_t>(device_tensor.GetSize());
   } else {
-    GE_ASSERT_SUCCESS((TensorUtils::CalcTensorMemSize(shape, src_tensor.GetFormat().GetStorageFormat(),
-                                                      src_tensor.GetDataType(), output_size)));
+    GE_ASSERT_SUCCESS((TensorUtils::CalcTensorMemSize(shape, device_tensor.GetFormat().GetStorageFormat(),
+                                                      device_tensor.GetDataType(), output_size)));
   }
   GE_CHECK_GE(output_size, 0L);
   if (output_size > 0L) {
@@ -532,7 +532,7 @@ Status TensorTransUtils::TransGertTensorToHost(const gert::Tensor &src_tensor, g
     GE_CHECK_NOTNULL(aligned_ptr);
     auto data_buf = aligned_ptr->MutableGet();
     GE_CHECK_NOTNULL(data_buf);
-    GE_CHK_ACL_RET(aclrtMemcpy(data_buf, static_cast<uint64_t>(output_size), src_tensor.GetAddr(),
+    GE_CHK_ACL_RET(aclrtMemcpy(data_buf, static_cast<uint64_t>(output_size), device_tensor.GetAddr(),
                                static_cast<uint64_t>(output_size), ACL_MEMCPY_DEVICE_TO_HOST));
 
     // 创建 GeTensor 来持有数据，并使用 TensorWrapper 管理生命周期
@@ -543,13 +543,13 @@ Status TensorTransUtils::TransGertTensorToHost(const gert::Tensor &src_tensor, g
     auto tensor_wrapper = new (std::nothrow) TensorWrapper<GeTensor>(ge_tensor);
     GE_ASSERT_NOTNULL(tensor_wrapper);
     GE_DISMISSABLE_GUARD(free_if_failed, [tensor_wrapper]() { delete tensor_wrapper; });
-    GE_ASSERT_GRAPH_SUCCESS(dst_tensor.MutableTensorData().SetAddr(reinterpret_cast<void *>(tensor_wrapper),
-                                                                   &TensorWrapper<GeTensor>::Manager));
-    dst_tensor.MutableTensorData().SetSize(static_cast<size_t>(output_size));
+    GE_ASSERT_GRAPH_SUCCESS(host_tensor.MutableTensorData().SetAddr(reinterpret_cast<void *>(tensor_wrapper),
+                                                                    &TensorWrapper<GeTensor>::Manager));
+    host_tensor.MutableTensorData().SetSize(static_cast<size_t>(output_size));
     GE_DISMISS_GUARD(free_if_failed);
   } else {
-    dst_tensor.MutableTensorData().SetAddr(nullptr, nullptr);
-    dst_tensor.MutableTensorData().SetSize(0);
+    host_tensor.MutableTensorData().SetAddr(nullptr, nullptr);
+    host_tensor.MutableTensorData().SetSize(0);
   }
   return SUCCESS;
 }

@@ -1521,7 +1521,7 @@ Status KernelTaskCodeBuilder::RenderDispatchAicpu(const VarRef &op, const VarRef
   return TaskCodeBuilderUtil::RenderDispatchFunc(ast_, "DispatchKernelAicpu", body, items);
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarRef &op, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarRef &op, const VarRef &ctx) const {
   auto aicpu = op.Arrow("dispatch_info").Attr("aicpu");
   auto v_a = ast_.Var("", "a");
   auto v_addr = ast_.Var("", "_addr");
@@ -1569,7 +1569,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuDispatchSetup(const VarR
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndAssemble(const VarRef &op, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndAssemble(const VarRef &op, const VarRef &ctx) const {
   return {
       ast_.VarDecl(ast_.Var("LaunchKernelCfgHolder", "aicpu_cfg_holder")),
       ast_.VarDecl(ast_.Var("LaunchKernelConfig", "aicpu_launch_config"),
@@ -1601,7 +1601,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndAssemble(const 
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndReport(const VarRef &op, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndReport(const VarRef &op, const VarRef &ctx) const {
   auto aicpu = op.Arrow("dispatch_info").Attr("aicpu");
   auto args_info = ast_.Var("ArgsInfo *", "aicpu_args_info");
   auto stream = ctx.Attr("stream_list")[aicpu.Attr("stream_id")];
@@ -1655,7 +1655,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndReport(const Va
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::RenderDispatchSetup(const VarRef &op, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::RenderDispatchSetup(const VarRef &op, const VarRef &ctx) const {
   return {
       ast_.VarDecl(ast_.Var("LaunchKernelCfgHolder", "cfg_holder")),
       ast_.VarDecl(ast_.Var("LaunchKernelConfig", "launch_config"),
@@ -1737,7 +1737,7 @@ BodyItem KernelTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRe
                   });
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op, const VarRef &ctx) const {
   auto aicore = op.Arrow("dispatch_info").Attr("aicore");
   auto slot_args = aicore.Attr("slot_args");
   auto task_type = aicore.Attr("task_type");
@@ -1802,7 +1802,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::HandleInputOutputArg(const VarRef &a, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandleInputOutputArg(const VarRef &a, const VarRef &ctx) const {
   return {
       ast_.Assign(
           ast_.Var("", "_addr"),
@@ -1828,7 +1828,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleInputOutputArg(const VarRef &
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::HandleWorkspaceArg(const VarRef &a, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandleWorkspaceArg(const VarRef &a, const VarRef &ctx) const {
   return {
       ast_.Assign(
           ast_.Var("", "_addr"),
@@ -1842,7 +1842,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleWorkspaceArg(const VarRef &a,
       ast_.Break(),
   };
 }
-std::vector<BodyItem> KernelTaskCodeBuilder::HandleLevel1DescArg(const VarRef &a, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandleLevel1DescArg(const VarRef &a, const VarRef &ctx) const {
   return {
       ast_.VarDecl(ast_.Var("void *", "_desc"),
                    ctx.Attr("args_table").Attr("GetDevArgAddr")(a.Attr("data").Attr("custom_value"), 0)),
@@ -1852,21 +1852,21 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleLevel1DescArg(const VarRef &a
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::HandleShapeInfoOrCustomValueArg(const VarRef &a) {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandleShapeInfoOrCustomValueArg(const VarRef &a) const {
   return {
       ast_.Assign(ast_.Var("", "_addr"), a.Attr("data").Attr("custom_value")),
       ast_.Break(),
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::HandlePlaceholderOrOptionalEmptyArg() {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandlePlaceholderOrOptionalEmptyArg() const {
   return {
       ast_.Assign(ast_.Var("", "_addr"), ast_.UInt(0)),
       ast_.Break(),
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::HandleFftsAddrArg() {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandleFftsAddrArg() const {
   return {
       ast_.VarDecl(ast_.Var("void *", "_ffts"), Arg(nullptr)),
       ChkStatus(ast_.Call("aclrtGetHardwareSyncAddr", {ast_.Var("", "_ffts").Addr()})),
@@ -1875,7 +1875,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleFftsAddrArg() {
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::HandleEventAddrArg(const VarRef &a, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandleEventAddrArg(const VarRef &a, const VarRef &ctx) const {
   return {
       ast_.VarDecl(ast_.Var("void *", "_event"), Arg(nullptr)),
       ChkStatus(ast_.Call("GetEventIdAddr", {ast_.Var("", "_event"), ctx.Attr("event_id_mem_map"),
@@ -1886,14 +1886,14 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleEventAddrArg(const VarRef &a,
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::HandleOverflowAddrArg(const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandleOverflowAddrArg(const VarRef &ctx) const {
   return {
       ast_.Assign(ast_.Var("", "_addr"), ast_.ReinterpretCast("uint64_t", ctx.Attr("overflow_addr"))),
       ast_.Break(),
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::HandleTilingArg(const VarRef &a, const VarRef &ctx) {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandleTilingArg(const VarRef &a, const VarRef &ctx) const {
   return {
       ast_.VarDecl(ast_.Var("void *", "_tiling"), Arg(nullptr)),
       ChkStatus(
@@ -1908,7 +1908,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::HandleTilingArg(const VarRef &a, co
   };
 }
 
-std::vector<BodyItem> KernelTaskCodeBuilder::HandleDefaultArg() {
+std::vector<BodyItem> KernelTaskCodeBuilder::HandleDefaultArg() const {
   return {
       ast_.Assign(ast_.Var("", "_addr"), ast_.UInt(0)),
       ast_.Break(),

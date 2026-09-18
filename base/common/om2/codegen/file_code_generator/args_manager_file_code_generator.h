@@ -22,14 +22,14 @@ class ArgsManagerFileCodeGenerator : public CodeGeneratorBase {
   MethodDef *BuildInitMethod(const Om2CodegenModel &codegen_model);
   MethodDef *BuildDestructor();
   MethodDef *BuildGetArgsInfoMethod();
-  MethodDef *BuildGetDevArgAddrMethod();
-  MethodDef *BuildGetHostArgAddrMethod();
+  MethodDef *BuildGetDevArgAddrMethod() const;
+  MethodDef *BuildGetHostArgAddrMethod() const;
   MethodDef *BuildUpdateHostArgsMethod();
-  MethodDef *BuildCopyArgsToDeviceMethod(const Om2CodegenModel &codegen_model);
+  MethodDef *BuildCopyArgsToDeviceMethod(const Om2CodegenModel &codegen_model) const;
 
  private:
-  ExprRef GetHostArgAddr(Arg offset, Arg args_type);
-  ExprRef GetDevArgAddr(Arg offset, Arg args_type);
+  ExprRef GetHostArgAddr(Arg offset, Arg args_type) const;
+  ExprRef GetDevArgAddr(Arg offset, Arg args_type) const;
 
   VarRef args_sizes_;
   VarRef args_info_;

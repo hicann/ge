@@ -52,13 +52,13 @@ class CmoAddrTaskCodeBuilder : public TaskCodeBuilder {
   std::string BuildAutoArgsFormat(const TaskSemanticContributeContext &context) const;
 
   // RenderDistHelper sub-functions
-  Status RenderKernelDistributeFunc(std::vector<DeclNode *> &items);
+  Status RenderKernelDistributeFunc(std::vector<DeclNode *> &items) const;
   Status RenderDispatchFunc(std::vector<DeclNode *> &items);
   Status RenderKernelLaunch(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                            const ExprRef &dev_addr_off, const ExprRef &host_addr_off);
+                            const ExprRef &dev_addr_off, const ExprRef &host_addr_off) const;
   Status RenderArgsWriteback(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx, const VarRef &iow_addr,
                              const ExprRef &args_table_idx);
-  void RenderCustomValueWriteback(std::vector<BodyItem> &body, const VarRef &ctx, const ExprRef &args_table_idx);
+  void RenderCustomValueWriteback(std::vector<BodyItem> &body, const VarRef &ctx, const ExprRef &args_table_idx) const;
 
   std::string args_format_str_;
   std::vector<ArgDesc> arg_descs_;

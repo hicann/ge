@@ -238,7 +238,7 @@ Status DSATaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &items) {
 }
 
 Status DSATaskCodeBuilder::RenderDispatchFuncSetup(std::vector<BodyItem> &body, const VarRef &ctx,
-                                                   const ExprRef &dsa_data, const VarRef &addrs) {
+                                                   const ExprRef &dsa_data, const VarRef &addrs) const {
   (void)body.push_back(ast_.Comment("=== DSA op ==="));
   (void)body.push_back(ast_.VarDecl(addrs));
   (void)body.push_back(ast_.Call("", {addrs.Attr("reserve")(dsa_data.Attr("num_args"))}));
@@ -257,7 +257,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncSetup(std::vector<BodyItem> &body, 
 }
 
 Status DSATaskCodeBuilder::RenderSqeScalars(std::vector<BodyItem> &body, const ExprRef &dsa_data,
-                                            const VarRef &dsa_sqe) {
+                                            const VarRef &dsa_sqe) const {
   (void)body.push_back(ast_.VarDecl(dsa_sqe, ast_.InitList({})));
   (void)body.push_back(ast_.Assign(dsa_sqe.Attr("sqeHeader").Attr("type"), dsa_data.Attr("sqe_type")));
   (void)body.push_back(ast_.Assign(dsa_sqe.Attr("start"), dsa_data.Attr("start")));
@@ -307,7 +307,7 @@ Status DSATaskCodeBuilder::RenderSqeAddrFields(std::vector<BodyItem> &body, cons
 }
 
 Status DSATaskCodeBuilder::RenderHbmIoArgs(std::vector<BodyItem> &body, const ExprRef &dsa_data, const VarRef &ctx,
-                                           const VarRef &addrs) {
+                                           const VarRef &addrs) const {
   auto iov = ast_.Var("std::vector<uint64_t>", "iov");
   (void)body.push_back(ast_.VarDecl(iov));
   (void)body.push_back(ast_.Call("", {iov.Attr("reserve")(dsa_data.Attr("num_args"))}));
@@ -349,7 +349,7 @@ Status DSATaskCodeBuilder::RenderHbmIoArgs(std::vector<BodyItem> &body, const Ex
 }
 
 Status DSATaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                                    const ExprRef &dsa_data, const VarRef &sqe) {
+                                                    const ExprRef &dsa_data, const VarRef &sqe) const {
   (void)dsa_data;
   (void)sqe;
   (void)body.push_back(ChkRt(RtSetTaskTag(op.Arrow("op_name"))));
@@ -428,7 +428,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReportIo(std::vector<BodyItem> &bod
                                                       const VarRef &addrs, const VarRef &dsa_io_tensors,
                                                       const VarRef &dsa_report_inputs, const VarRef &dsa_report_outputs,
                                                       const VarRef &dsa_report_ws_addrs,
-                                                      const VarRef &dsa_report_ws_sizes) {
+                                                      const VarRef &dsa_report_ws_sizes) const {
   (void)body.push_back(ast_.For(
       ast_.VarDecl("uint32_t", "_i", ast_.UInt(0)), ast_.Var("", "_i") < dsa_data.Attr("num_args"),
       ast_.PostInc(ast_.Var("", "_i")),

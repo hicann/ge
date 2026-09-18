@@ -32,7 +32,7 @@ void GlobalDumper::OnGlobalDumperSwitch(void *ins, uint64_t enable_flags) {
   ess->SetEnableFlags(enable_flags);
 }
 
-ge::ExceptionDumper *GlobalDumper::MutableExceptionDumper() {
+ge::ExceptionDumper *GlobalDumper::MutableExceptionDumper() const {
   const std::lock_guard<std::mutex> lk{mutex_};
   return &g_exception_dumper;
 }
