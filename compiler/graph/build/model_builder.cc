@@ -10,6 +10,7 @@
 
 #include "graph/build/model_builder.h"
 #include <securectype.h>
+#include <algorithm>
 #include <cstring>
 #include <iostream>
 #include <set>
@@ -659,26 +660,30 @@ void ModelBuilder::ClearOriginalFormat() const {
   for (const ge::NodePtr &n : compute_graph_->GetNodes(compute_graph_->GetGraphUnknownFlag())) {
     auto node_op_desc = n->GetOpDesc();
     if (node_op_desc != nullptr) {
-      if (node_op_desc->HasAttr(ATTR_NAME_FORMAT)) {
+      const auto &ir_attr_names = node_op_desc->GetIrAttrNames();
+      const auto is_ir_attr = [&ir_attr_names](const std::string &attr_name) {
+        return std::find(ir_attr_names.begin(), ir_attr_names.end(), attr_name) != ir_attr_names.end();
+      };
+      if (node_op_desc->HasAttr(ATTR_NAME_FORMAT) && !is_ir_attr(ATTR_NAME_FORMAT)) {
         if (node_op_desc->DelAttr(ATTR_NAME_FORMAT) != SUCCESS) {
           GELOGW("DelAttr ATTR_NAME_FORMAT failed.");
         }
       }
 
       GE_IF_BOOL_EXEC(
-          node_op_desc->HasAttr(ATTR_NAME_INFERRED_FORMAT),
+          node_op_desc->HasAttr(ATTR_NAME_INFERRED_FORMAT) && !is_ir_attr(ATTR_NAME_INFERRED_FORMAT),
           if (node_op_desc->DelAttr(ATTR_NAME_INFERRED_FORMAT) != SUCCESS) {
             GELOGW("DelAttr ATTR_NAME_INFERRED_FORMAT failed.");
           });
 
       GE_IF_BOOL_EXEC(
-          node_op_desc->HasAttr(ATTR_NAME_PRED_PERMUTE_DELETED),
+          node_op_desc->HasAttr(ATTR_NAME_PRED_PERMUTE_DELETED) && !is_ir_attr(ATTR_NAME_PRED_PERMUTE_DELETED),
           if (node_op_desc->DelAttr(ATTR_NAME_PRED_PERMUTE_DELETED) != SUCCESS) {
             GELOGW("DelAttr ATTR_NAME_PRED_PERMUTE_DELETED failed.");
           });
 
       GE_IF_BOOL_EXEC(
-          node_op_desc->HasAttr(ATTR_NAME_IGNORE_PRED_FORMAT),
+          node_op_desc->HasAttr(ATTR_NAME_IGNORE_PRED_FORMAT) && !is_ir_attr(ATTR_NAME_IGNORE_PRED_FORMAT),
           if (node_op_desc->DelAttr(ATTR_NAME_IGNORE_PRED_FORMAT) != SUCCESS) {
             GELOGW("DelAttr ATTR_NAME_IGNORE_PRED_FORMAT failed.");
           });
