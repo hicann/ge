@@ -23,7 +23,7 @@ static ArgDescInfo CreateHiddenInput(HiddenInputSubType hidden_type)
 
 | 参数 | 输入/输出 | 说明 |
 | --- | --- | --- |
-| hidden_type | 输入 | Hidden输入的的类型，具体类型请参见[HiddenInputSubType](../HiddenInputSubType.md)。 |
+| hidden_type | 输入 | Hidden输入的类型，具体类型请参见[HiddenInputSubType](../HiddenInputSubType.md)。 |
 
 ## 返回值说明
 

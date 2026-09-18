@@ -666,7 +666,8 @@ ge::graphStatus InferShapeForReshape(InferShapeContext *context) {
     return ge::GRAPH_FAILED;
   }
 
-  auto reshape_size = static_cast<int32_t>(shape_tensor->GetShapeSize());if (reshape_size < 1) {
+  auto reshape_size = static_cast<int32_t>(shape_tensor->GetShapeSize());
+  if (reshape_size < 1) {
    // Defensive programming, scenario that shouldn't appear, print error and return failure
     return ge::GRAPH_FAILED;
   }

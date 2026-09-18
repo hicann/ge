@@ -594,7 +594,7 @@ ge::graphStatus InferShapeForFoo(InferShapeContext *context) {
 > **WARNING:**
 >
 > 1. 虽然IMPL_OP本身允许同一个算子的不同实现被定义在不同的文件中，但是私有属性的声明必须在同一个文件中声明完成，否则我们无法确认私有属性的index
-> 2. 私有属性一旦注册，那么必须在Node上可以获取成功，否则lowering报错，程序退出。为了保证私有属性的index是正确的的，框架不可以对无法获得的私有属性做跳过处理。
+> 2. 私有属性一旦注册，那么必须在Node上可以获取成功，否则lowering报错，程序退出。为了保证私有属性的index是正确的，框架不可以对无法获得的私有属性做跳过处理。
 
 ## 可选/动态输入
 
@@ -720,7 +720,7 @@ ge::graphStatus InferShapeForReshape(InferShapeContext *context) {
 > **WARNING**：为了执行效率考虑，runtime2.0的基础API不做RTTI(Runtime Type Identification)，这意味着调用者需要自行保证获取数据类型的正确性。例如：
 >
 > * 只有声明过数据依赖的输入，才可以在执行时InferShape时获取其对应的Tensor数据。若对一个未声明数据依赖的输入获取Tensor数据，那么行为是未定义的。
-> * 从tensor中获取tensor_data时(GetData<int32_t>或GetData<int64_t>)，使用者需要保证获取的数据类型是正确的的，否则行为是未定义的。
+> * 从tensor中获取tensor_data时(GetData\<int32_t>或GetData\<int64_t>)，使用者需要保证获取的数据类型是正确的，否则行为是未定义的。
 >
 > 为了定位方便，runtime2.0未来会在O0编译选项时、或通过额外的编译选项使能RTTI，以提供debug时的类型检查能力。打开RTTI后，类型不匹配的Get操作会导致返回空指针或抛出异常。
 
