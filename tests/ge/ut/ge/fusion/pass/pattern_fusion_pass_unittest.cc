@@ -702,5 +702,69 @@ TEST_F(UtestPatternFusionPass, CycleGuard_DebugLevel_DetectsCyclicGraph) {
   auto ret = transdata_2_relu_pass.Run(target_graph, context);
   EXPECT_EQ(ret, FAILED);
 }
+
+// CanFuse 预检（pattern_fusion_run.cc）：待融合节点 USER_STREAM_LABEL 冲突导致 IsSupportFuse
+// 失败时，跳过该匹配继续扫描，Run 返回 NOT_CHANGED、Replacement 钩子不被调用、图保持不变，
+// 而不是走到 SubgraphRewriter::Replace 内部的 IsSupportFuse 断言使整个 pass 失败。
+TEST_F(UtestPatternFusionPass, CanFuseSkipOnConflictStreamLabel) {
+  class TransDataChainToReluPass : public PatternFusionPass {
+   public:
+    bool replacement_called = false;
+
+   protected:
+    std::vector<PatternUniqPtr> Patterns() override {
+      std::vector<PatternUniqPtr> patterns;
+      auto pattern_graph = ge::es::EsGraphBuilder("pattern");
+      auto esb_graph = pattern_graph.GetCGraphBuilder();
+      auto data = EsCreateGraphInput(esb_graph, 0);
+      auto transdata_1 = EsTransData(data, "0", "29", 0, 0, 0);
+      auto transdata_2 = EsTransData(transdata_1, "0", "29", 0, 0, 0);
+      esb_graph->SetGraphOutput(transdata_2, 0);
+      patterns.emplace_back(std::make_unique<Pattern>(std::move(*pattern_graph.BuildAndReset())));
+      return patterns;
+    }
+    std::unique_ptr<Graph> Replacement(const unique_ptr<MatchResult> &match_result) override {
+      replacement_called = true;
+      auto replace_graph = ge::es::EsGraphBuilder("replacement");
+      auto esb_graph = replace_graph.GetCGraphBuilder();
+      auto data = EsCreateGraphInput(esb_graph, 0);
+      auto relu = EsRelu(data);
+      esb_graph->SetGraphOutput(relu, 0);
+      return replace_graph.BuildAndReset();
+    }
+  };
+
+  auto target_graph_builder = ge::es::EsGraphBuilder("target");
+  auto target_esb_graph = target_graph_builder.GetCGraphBuilder();
+  auto target_data = EsCreateGraphInput(target_esb_graph, 0);
+  auto trans0 = EsTransData(target_data, "0", "29", 0, 0, 0);
+  auto trans1 = EsTransData(trans0, "0", "29", 0, 0, 0);
+  target_esb_graph->SetGraphOutput(trans1, 0);
+  GraphPtr target_graph = target_graph_builder.BuildAndReset();
+  const auto target_compute_graph = GraphUtilsEx::GetComputeGraph(*target_graph);
+  std::vector<NodePtr> trans_nodes;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    if (strcmp(node->GetTypePtr(), TRANSDATA) == 0) {
+      trans_nodes.emplace_back(node);
+    }
+  }
+  ASSERT_EQ(trans_nodes.size(), 2U);
+  // 匹配到的两个节点流标签冲突，IsSupportFuse 判定不可融合。
+  (void)AttrUtils::SetStr(trans_nodes[0]->GetOpDesc(), public_attr::USER_STREAM_LABEL, "stream_a");
+  (void)AttrUtils::SetStr(trans_nodes[1]->GetOpDesc(), public_attr::USER_STREAM_LABEL, "stream_b");
+
+  TransDataChainToReluPass transdata_chain_2_relu_pass;
+  CustomPassContext context;
+  EXPECT_EQ(transdata_chain_2_relu_pass.Run(target_graph, context), NOT_CHANGED);
+  EXPECT_FALSE(transdata_chain_2_relu_pass.replacement_called);
+  size_t transdata_count_after_run = 0U;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    EXPECT_STRNE(node->GetTypePtr(), "Relu");
+    if (strcmp(node->GetTypePtr(), TRANSDATA) == 0) {
+      transdata_count_after_run++;
+    }
+  }
+  EXPECT_EQ(transdata_count_after_run, 2U);
+}
 }  // namespace fusion
 }  // namespace ge

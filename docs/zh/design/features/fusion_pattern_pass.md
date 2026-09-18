@@ -83,7 +83,13 @@ GE 会用 pattern 到真实图里搜索同构结构。可以把它理解为：
 - `true`：这次匹配满足条件，可以进入替换。
 - `false`：跳过这次匹配，继续查找下一处。
 
-在 `MeetRequirements` 通过后、调用 `Replacement` 前，GE 会通过 `FusionUtils::WillCauseCycleIfFuse(match_result)` 检查替换是否会导致环。如果会导致环，则跳过该匹配（`pattern_fusion_run.cc`）。此外，在 DEBUG 日志级别下，替换完成后还会对全图做一次拓扑排序兜底判环，防止局部判断漏网导致带环图流入后续 pass（`pattern_fusion_run.cc`）。
+在 `MeetRequirements` 通过后、调用 `Replacement` 前，GE 会通过 `GraphFuseInspectorUtils::CanFuse` 对匹配到的节点集合做可融合预检（`pattern_fusion_run.cc`）。预检包含三类条件，任一不满足则跳过该匹配并继续扫描下一处：
+
+- 节点归属同一张图（owner graph 一致）；
+- 节点间的执行上下文属性不冲突（`IsSupportFuse`：流标签 `_user_stream_label`、超级核 scope/options、核数、确定性开关/等级等取值需一致，确定性属性还要求格式合法）；
+- 替换不会导致环（`WillCauseCycleIfFuse` 局部判环）。
+
+此外，在 DEBUG 日志级别下，替换完成后还会对全图做一次拓扑排序兜底判环，防止局部判断漏网导致带环图流入后续 pass（`pattern_fusion_run.cc`）。
 
 ### 2.4 用 Replacement 生成替换图
 
