@@ -2610,6 +2610,20 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForTranpose) {
                       .OutputNum(1)
                       .Build();
   ASSERT_EQ(func.first(infer_context), UNSUPPORTED);
+
+  // 4. perm 值存在但非 const（运行时确定的符号），应返回 UNSUPPORTED 走 fallback
+  builder.Destroy();
+  op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("_inserted_by_fe");
+  AttrUtils::SetInt(op_desc, "_inserted_by_fe", 0);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT32));
+  symbol_value = {Symbol("p0"), Symbol("p1"), Symbol("p2")};
+  infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({s0, s1, s2}))
+                      .AppendInputSymbolTensor(gert::SymbolShape(), true, &symbol_value)
+                      .OutputNum(1)
+                      .Build();
+  ASSERT_EQ(func.first(infer_context), UNSUPPORTED);
 }
 
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForTranposeD) {
@@ -6393,7 +6407,7 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForUnsortedSegmentMin) {
   ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
   ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({Symbol(5), s1, s2}).GetDims());
 
-  // 异常场景1：segment_num 维度size不为1
+  // 异常场景1：segment_num 无值（非数据依赖常量），符号化推导不支持，返回 UNSUPPORTED 走 fallback
   builder.Destroy();
   segment_num = gert::SymbolShape({s0, s1});
   infer_context = builder.AppendInputSymbolTensor(input_shape)
@@ -6401,7 +6415,7 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForUnsortedSegmentMin) {
                       .AppendInputSymbolTensor(segment_num)
                       .OutputNum(1)
                       .Build();
-  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+  ASSERT_EQ(func.first(infer_context), ge::UNSUPPORTED);
 
   // 异常场景2：segment_num 维度size为1, value size不为1
   builder.Destroy();
@@ -6413,6 +6427,125 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForUnsortedSegmentMin) {
                       .OutputNum(1)
                       .Build();
   ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForUnsortedSegmentMinScalarNumSegments) {
+  const auto func = GetInferFunc("UnsortedSegmentMin");
+  ASSERT_TRUE(func.first != nullptr);
+
+  InferSymbolShapeContextTestBuilder builder("UnsortedSegmentMin", "unsortedsegmentmin");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 3));
+
+  auto input_shape = gert::SymbolShape({s0, s1, s2});
+  auto segment_ids = gert::SymbolShape({s0});
+  auto segment_val = std::vector<Expression>{Symbol(5)};
+  const auto expect_output = gert::SymbolShape({Symbol(5), s1, s2}).GetDims();
+
+  // Destroy 后 OpDesc 会被重置，每个场景需重建输入 desc
+  auto rebuild_desc = [&builder]() {
+    builder.Destroy();
+    auto desc = builder.GetOrCreateOpDescPtr();
+    desc->AddInputDesc(GeTensorDesc());
+    desc->AddInputDesc(GeTensorDesc());
+    desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT32));
+  };
+
+  // 场景1：num_segments 为 scalar（rank 0），单元素值，应推导成功
+  rebuild_desc();
+  auto segment_num = gert::SymbolShape({});
+  auto infer_context = builder.AppendInputSymbolTensor(input_shape)
+                           .AppendInputSymbolTensor(segment_ids)
+                           .AppendInputSymbolTensor(segment_num, true, &segment_val)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), expect_output);
+
+  // 场景2：num_segments 为 rank 2（如 [1,1]），单元素值，应推导成功
+  rebuild_desc();
+  segment_num = gert::SymbolShape({Symbol(1), Symbol(1)});
+  infer_context = builder.AppendInputSymbolTensor(input_shape)
+                      .AppendInputSymbolTensor(segment_ids)
+                      .AppendInputSymbolTensor(segment_num, true, &segment_val)
+                      .OutputNum(1)
+                      .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), expect_output);
+
+  // 场景3：value 多元素（无论 rank）仍应拒绝
+  rebuild_desc();
+  segment_num = gert::SymbolShape({});
+  auto multi_val = std::vector<Expression>{Symbol(5), Symbol(6)};
+  infer_context = builder.AppendInputSymbolTensor(input_shape)
+                      .AppendInputSymbolTensor(segment_ids)
+                      .AppendInputSymbolTensor(segment_num, true, &multi_val)
+                      .OutputNum(1)
+                      .Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
+
+  // 场景4：value 单元素但非 const（运行时确定的符号），应返回 UNSUPPORTED 走 fallback
+  rebuild_desc();
+  segment_num = gert::SymbolShape({Symbol(1)});
+  auto symbol_val = std::vector<Expression>{Symbol("ns")};
+  infer_context = builder.AppendInputSymbolTensor(input_shape)
+                      .AppendInputSymbolTensor(segment_ids)
+                      .AppendInputSymbolTensor(segment_num, true, &symbol_val)
+                      .OutputNum(1)
+                      .Build();
+  ASSERT_EQ(func.first(infer_context), UNSUPPORTED);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForGatherV2NonConstAxis) {
+  const auto func = GetInferFunc("GatherV2");
+  ASSERT_TRUE(func.first != nullptr);
+
+  InferSymbolShapeContextTestBuilder builder("GatherV2", "gatherv2");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("batch_dims");
+  AttrUtils::SetInt(op_desc, "batch_dims", 0);
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT32));
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 3));
+
+  // axis 值存在但非 const（运行时确定的符号），应返回 UNSUPPORTED 走 fallback
+  auto axis_val = std::vector<Expression>{Symbol("ax")};
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({s0, s1, s2}))
+                           .AppendInputSymbolTensor(gert::SymbolShape())
+                           .AppendInputSymbolTensor(gert::SymbolShape(), true, &axis_val)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), UNSUPPORTED);
+}
+
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForConcatNonConstAxis) {
+  const auto func = GetInferFunc("Concat");
+  ASSERT_TRUE(func.first != nullptr);
+
+  InferSymbolShapeContextTestBuilder builder("Concat", "concat");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT32));
+  op_desc->AddInputDesc(GeTensorDesc());
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(1, 0));
+  auto s1 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(1, 1));
+
+  // axis（输入0）值存在但非 const，应返回 UNSUPPORTED 走 fallback
+  auto axis_val = std::vector<Expression>{Symbol("cd")};
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape(), true, &axis_val)
+                           .AppendInputSymbolTensor(gert::SymbolShape({s0, s1}))
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), UNSUPPORTED);
 }
 
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSparseSoftmaxCrossEntropyWithLogits) {

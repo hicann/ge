@@ -29,13 +29,17 @@ constexpr const char *const kValueDependentIdxsAttr = "_ge_value_dependent_idxs"
 }  // namespace
 
 graphStatus SymbolicInferUtil::GetConstInt(const gert::SymbolTensor *tensor, DataType dt, int64_t &value) {
+  const auto &expr = tensor->GetSymbolicValue()->at(0);
+  if (!expr.IsConstExpr()) {
+    GELOGW("Symbol Infer unsupported, value is not const expression: %s", expr.Serialize().get());
+    return UNSUPPORTED;
+  }
   if (dt == DT_INT32) {
     int32_t tmp_value = 0;
-    GE_ASSERT_TRUE(tensor->GetSymbolicValue()->at(0).GetConstValue<int32_t>(tmp_value),
-                   "error info GetConstValue failed");
+    GE_ASSERT_TRUE(expr.GetConstValue<int32_t>(tmp_value), "const value is not int32");
     value = static_cast<int64_t>(tmp_value);
   } else if (dt == DT_INT64) {
-    GE_ASSERT_TRUE(tensor->GetSymbolicValue()->at(0).GetConstValue<int64_t>(value), "error info GetConstValue failed");
+    GE_ASSERT_TRUE(expr.GetConstValue<int64_t>(value), "const value is not int64");
   } else {
     GELOGE(PARAM_INVALID, "dt must in [int32, int64]");
     return ge::PARAM_INVALID;

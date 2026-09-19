@@ -37,15 +37,11 @@ graphStatus InferShape4UnsortedSegment(gert::InferSymbolShapeContext *context) {
   GE_UNSUPPORTED_IF_NULL(x_shape);
   const auto segment_ids_shape = context->GetInputSymbolShape(1);
   GE_UNSUPPORTED_IF_NULL(segment_ids_shape);
-  const auto num_segments_shape = context->GetInputSymbolShape(INPUT_NUM_SEGMENTS_IDX);
-  GE_UNSUPPORTED_IF_NULL(num_segments_shape);
   const auto num_segments_tensor = context->GetInputSymbolTensor(INPUT_NUM_SEGMENTS_IDX);
   GE_UNSUPPORTED_IF_NULL(num_segments_tensor);
 
   auto output_shape = context->GetOutputSymbolShape(0);
   GE_ASSERT_NOTNULL(output_shape);
-  GE_ASSERT(num_segments_shape->GetDims().size() == 1UL, "The size of num_segments must be 1, it is %zu!",
-            num_segments_shape->GetDims().size());
   const auto num_segments_value = num_segments_tensor->GetSymbolicValue();
   GE_UNSUPPORTED_IF_NULL(num_segments_value);
   GE_ASSERT_EQ(num_segments_value->size(), 1UL);
@@ -53,7 +49,10 @@ graphStatus InferShape4UnsortedSegment(gert::InferSymbolShapeContext *context) {
   GE_ASSERT_NOTNULL(dim_desc);
   const auto dt = dim_desc->GetDataType();
   int64_t num_segments = 0L;
-  GE_ASSERT_GRAPH_SUCCESS(SymbolicInferUtil::GetConstInt(num_segments_tensor, dt, num_segments));
+  const auto status = SymbolicInferUtil::GetConstInt(num_segments_tensor, dt, num_segments);
+  if (status != GRAPH_SUCCESS) {
+    return status;
+  }
   return UnsortedSegmentInferShapeImpl(num_segments, x_shape, segment_ids_shape, output_shape);
 }
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(UnsortedSegmentMax).InferSymbolShape(InferShape4UnsortedSegment);

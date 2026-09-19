@@ -7394,7 +7394,7 @@ TEST_F(SymbolicShapeInferenceST, InferShapeForUnsortedSegmentMinSuccess) {
   EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), expect_shape);
 }
 
-TEST_F(SymbolicShapeInferenceST, InferShapeForUnsortedSegmentMinFail_num_segments_shape_ne_1) {
+TEST_F(SymbolicShapeInferenceST, InferShapeForUnsortedSegmentMinRankTwoNumSegmentsSuccess) {
   auto data0 = builder_->CreateInput(0, "data0");
   data0.SetOriginSymbolShape(std::vector<const char *>({"s2", "s1", "s0"}));
   auto data1 = builder_->CreateInput(1, "data1");
@@ -7404,8 +7404,8 @@ TEST_F(SymbolicShapeInferenceST, InferShapeForUnsortedSegmentMinFail_num_segment
   auto s0 = ge::Symbol("s0");
   auto s1 = ge::Symbol("s1");
   auto s2 = ge::Symbol("s2");
-  std::vector<int32_t> const_data0 = {3, 3, 2, 2};
-  std::vector<int64_t> const_dim = {2, 2};
+  std::vector<int32_t> const_data0 = {3};
+  std::vector<int64_t> const_dim = {1, 1};
   auto const0 = builder_->CreateConst(const_data0, const_dim);
   auto unsortedsegmentmin = es::UnsortedSegmentMin(data0, data1, const0);
 
@@ -7419,7 +7419,11 @@ TEST_F(SymbolicShapeInferenceST, InferShapeForUnsortedSegmentMinFail_num_segment
   ASSERT_NE(op_desc, nullptr);
   op_desc->MutableInputDesc(2)->SetDataType(DT_INT32);
   SymbolicShapeInference ssi;
-  ASSERT_NE(ssi.Infer(cg), ge::SUCCESS);
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  auto expect_shape = gert::SymbolShape({Symbol(3), s1, s0});
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), expect_shape);
 }
 
 TEST_F(SymbolicShapeInferenceST, InferShapeForUnsortedSegmentMinFail_num_segments_value_size_ne_1) {
