@@ -131,7 +131,7 @@ void TracingRecorder::Report() {
       Initialize();
     }
     if (is_ready_) {
-      auto loop_record_num = std::min(records_num, kMaxAtracingProfilingRecordNum);
+      const auto loop_record_num = std::min(records_num, kMaxAtracingProfilingRecordNum);
       Report(&records_[offset], loop_record_num);
       records_num -= loop_record_num;
       offset += loop_record_num;

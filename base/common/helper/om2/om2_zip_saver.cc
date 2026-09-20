@@ -43,7 +43,7 @@ JsonFile SerializeTensorDesc(const ge::Om2TensorDesc &desc) {
 
 Status SerializeCodegenArtifacts(const gert::Om2ModelData &model_data,
                                  const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
-  const size_t model_index = 0UL;
+  constexpr size_t model_index = 0UL;
   const std::string runtime_dir = FormatOm2Path(OM2_RUNTIME_DIR_FORMAT, std::to_string(model_index).c_str());
   const std::string csrc_dir = FormatOm2Path(OM2_RUNTIME_CSRC_DIR_FORMAT, std::to_string(model_index).c_str());
   for (const auto &artifact : model_data.program_body.source_artifacts) {
@@ -68,7 +68,7 @@ Status SerializeWeightData(const gert::Om2ModelData &model_data, const std::shar
   if (!has_internal_const || model_data.constants_data.weight_data == nullptr) {
     return SUCCESS;
   }
-  const size_t model_index = 0UL;
+  constexpr size_t model_index = 0UL;
   const auto constant_file_name = FormatOm2Path("%s%s%zu", OM2_CONSTANTS_DIR, OM2_CONSTANTS_FILE_PREFIX, model_index);
   GE_ASSERT_TRUE(zip_writer->WriteBytes(constant_file_name, model_data.constants_data.weight_data.get(),
                                         model_data.constants_data.internal_weight_size, false));
@@ -77,7 +77,7 @@ Status SerializeWeightData(const gert::Om2ModelData &model_data, const std::shar
 
 Status SerializeConstantsConfig(const gert::Om2ModelData &model_data,
                                 const std::shared_ptr<ZipArchiveWriter> &zip_writer, const bool is_offline) {
-  const size_t model_index = 0UL;
+  constexpr size_t model_index = 0UL;
   JsonFile json_file;
   (void)json_file.Set("internal_weight_size", model_data.constants_data.internal_weight_size);
   auto const_json_object = JsonFile::json::object();
@@ -186,7 +186,7 @@ Status SerializeVarMetas(const gert::Om2ModelData &model_data, const std::shared
 
 Status SerializeKernelBinaries(const gert::Om2ModelData &model_data,
                                const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
-  const auto kernel_bin_dir = OM2_KERNELS_DIR;
+  constexpr auto kernel_bin_dir = OM2_KERNELS_DIR;
   for (const auto &kb : model_data.kernel_binaries) {
     const auto entry_path = kernel_bin_dir + kb.name;
     GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb.data.get(), kb.data_size, false));
@@ -312,7 +312,7 @@ void SerializeAippMeta(const gert::Om2ModelMeta &model_meta, JsonFile &model_met
 }
 
 Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
-  const size_t model_index = 0UL;
+  constexpr size_t model_index = 0UL;
   JsonFile model_meta_info;
   auto input_json_array = JsonFile::json::array();
   for (size_t i = 0UL; i < model_data.model_meta.input_desc.size(); ++i) {
@@ -411,7 +411,7 @@ Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::share
 }
 
 Status SerializeDebugInfo(const gert::Om2ModelData &model_data, const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
-  const size_t model_index = 0UL;
+  constexpr size_t model_index = 0UL;
   // op_attr.json
   const auto &op_attr_json_str = model_data.op_attr_json.empty() ? std::string("{}") : model_data.op_attr_json;
   const auto op_attr_entry_path = FormatOm2Path(OM2_OP_ATTR_PATH_FORMAT, std::to_string(model_index).c_str());

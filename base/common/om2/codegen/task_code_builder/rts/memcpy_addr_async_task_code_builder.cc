@@ -346,7 +346,7 @@ Status MemcpyAddrAsyncTaskCodeBuilder::Init(const domi::TaskDef &task_def,
   GE_ASSERT_TRUE(!iow_addrs.output_logic_addrs.empty(), "[OM2]Op:%s, empty output", op_desc_->GetName().c_str());
 
   const auto &arg = args[static_cast<size_t>(pls_)];
-  size_t align_offset = (arg.dev_addr + kAlignment - 1) / kAlignment * kAlignment - arg.dev_addr;
+  const size_t align_offset = (arg.dev_addr + kAlignment - 1) / kAlignment * kAlignment - arg.dev_addr;
   std::vector<uint64_t> io_addrs;
   std::vector<uint64_t> io_addr_mem_types;
   size_t io_offset = 0;

@@ -713,7 +713,7 @@ static void *DlopenAutofuseSo(const ge::OpDescPtr &op_desc) {
   auto handle = mmDlopen(real_path.data(), static_cast<int32_t>(MMPA_RTLD_NOW));
   if (handle == nullptr) {
     std::string nativeLibPath = *tiling_so_path;
-    size_t so_pos = nativeLibPath.rfind(".so");
+    const size_t so_pos = nativeLibPath.rfind(".so");
     if (so_pos != std::string::npos) {
       nativeLibPath.insert(so_pos, "_native");
       std::array<char_t, MMPA_MAX_PATH> native_real_path{};
@@ -860,7 +860,7 @@ ge::graphStatus AutofuseNodeWithMatmulTiling(const ge::Operator &op, const fe::P
     return HandleAutofuseTilingCallback(kernel_context, run_info, wk_size, aiv_num, op_desc);
   };
   (void)AutofuseNodeTiling(op, ge_platform_infos, callback2, true);
-  uint32_t new_block_dim = aic_num * 2 < aiv_num ? (aiv_num + 1) / 2 : aic_num;
+  const uint32_t new_block_dim = aic_num * 2 < aiv_num ? (aiv_num + 1) / 2 : aic_num;
   GELOGI("Get autofuse matmul op(%s) tiling key: %llu aic_num: %u, aiv_num: %u, fuse_op_block_dim: %u",
          op_desc->GetName().c_str(), run_info.GetTilingKey(), aic_num, aiv_num, new_block_dim);
   GE_ASSERT_TRUE(new_block_dim > 0U);
@@ -888,7 +888,7 @@ ge::graphStatus AutofuseNodeWithConvTiling(const ge::Operator &op, const fe::Pla
     return HandleAutofuseTilingCallback(kernel_context, run_info, wk_size, aiv_num, op_desc);
   };
   (void)AutofuseNodeTiling(op, ge_platform_infos, callback2, true);
-  uint32_t new_block_dim = aic_num * 2 < aiv_num ? (aiv_num + 1) / 2 : aic_num;
+  const uint32_t new_block_dim = aic_num * 2 < aiv_num ? (aiv_num + 1) / 2 : aic_num;
   GELOGI("Get autofuse conv op(%s) tiling key: %llu aic_num: %u, aiv_num: %u, fuse_op_block_dim: %u",
          op_desc->GetName().c_str(), run_info.GetTilingKey(), aic_num, aiv_num, new_block_dim);
   GE_ASSERT_TRUE(new_block_dim > 0U);
@@ -1056,7 +1056,7 @@ ge::graphStatus GetDeterministicLevel(int32_t &deterministic_level, bool &has_de
     deterministic_level = 0;
     return ge::GRAPH_SUCCESS;
   }
-  auto ret = ge::ConvertToInt32(deterministic_level_str, deterministic_level);
+  const auto ret = ge::ConvertToInt32(deterministic_level_str, deterministic_level);
   if (ret != ge::SUCCESS || deterministic_level < 0 || deterministic_level > kMaxDeterministicLevel) {
     std::string readable_name = ge::GEThreadLocalContext().GetReadableName("ge.deterministicLevel");
     std::string error_msg = "Valid values for " + readable_name + " are {0,1,2,3}.";

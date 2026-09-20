@@ -40,9 +40,9 @@ ScopeTracingRecorder::ScopeTracingRecorder(const TracingModule stage, const std:
                  .time_since_epoch()
                  .count()) {}
 ScopeTracingRecorder::~ScopeTracingRecorder() {
-  auto end = std::chrono::time_point_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now())
-                 .time_since_epoch()
-                 .count();
+  const auto end = std::chrono::time_point_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now())
+                       .time_since_epoch()
+                       .count();
   TracingRecorderManager::Instance().RecordDuration(stage_, {msg_}, start_, end - start_);
 }
 }  // namespace ge

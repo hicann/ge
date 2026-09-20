@@ -348,7 +348,7 @@ static aclError GetOppPluginVendors(const std::string &vendorsConfig, std::vecto
   }
   std::vector<std::string> vParts;
   acl::StringUtils::Split(content, '=', vParts);
-  const size_t vendorConfigPartsCount = 2U;
+  constexpr size_t vendorConfigPartsCount = 2U;
   ACL_REQUIRES_TRUE(vParts.size() == vendorConfigPartsCount, ACL_ERROR_FAILURE, "Format of file content is invalid!");
   acl::StringUtils::Split(vParts[1], ',', vendors);
   ACL_REQUIRES_TRUE(!vendors.empty(), ACL_ERROR_FAILURE, "Format of file content is invalid!");

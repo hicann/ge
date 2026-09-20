@@ -23,7 +23,7 @@ Status BarrierTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context
 
   const domi::CmoBarrierTaskDef &barrier_task_def = context.task_def.cmo_barrier_task();
 
-  int32_t barrier_info_count = barrier_task_def.barrier_info_size();
+  const int32_t barrier_info_count = barrier_task_def.barrier_info_size();
   build_data_.barrier_task_info.logicIdNum = static_cast<uint8_t>(barrier_task_def.logic_id_num());
   if ((build_data_.barrier_task_info.logicIdNum != static_cast<uint8_t>(barrier_info_count)) ||
       (barrier_info_count > static_cast<int32_t>(RT_CMO_MAX_BARRIER_NUM))) {

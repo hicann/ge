@@ -375,7 +375,7 @@ Status ModelAdapter::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> 
   copy_host_input_infos_.resize(index_to_data.size());
 
   input_index_to_allocation_ids_.resize(index_to_data.size(), UINT32_MAX);
-  uint32_t input_base_allocation_id = logical_mem_allocations_.size();
+  const uint32_t input_base_allocation_id = logical_mem_allocations_.size();
   for (size_t construct_input_logical_allcation_loop = 0;
        construct_input_logical_allcation_loop < kConstructInputLogicalAllcationLoop;
        construct_input_logical_allcation_loop++) {

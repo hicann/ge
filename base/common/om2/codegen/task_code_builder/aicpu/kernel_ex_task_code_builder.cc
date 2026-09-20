@@ -698,7 +698,7 @@ Status KernelExTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def,
 
   mem_size = (mem_size > mem_size_t) ? mem_size : mem_size_t;
 
-  int32_t deploy_type_flag = static_cast<int32_t>(RT_KERNEL_DEVICE_FIRST);
+  constexpr int32_t deploy_type_flag = static_cast<int32_t>(RT_KERNEL_DEVICE_FIRST);
   task_run_param.args_descs.push_back({static_cast<int64_t>(mem_size) + 8, pls_});
   GELOGI("[OM2] kernel task name %s, args_size %u, args_size_t %u pls %u, deploy_type_flag %d",
          op_desc->GetName().c_str(), mem_size, mem_size_t, static_cast<uint32_t>(pls_), deploy_type_flag);

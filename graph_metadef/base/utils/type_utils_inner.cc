@@ -321,14 +321,14 @@ DataType TypeUtilsInner::SerialStringToDataType(const std::string &str) {
 Format TypeUtilsInner::SerialStringToFormat(const std::string &str) {
   std::string primary_format_str = str;
   int32_t sub_format = 0;
-  graphStatus status = SplitFormatFromStr(str, primary_format_str, sub_format);
+  const graphStatus status = SplitFormatFromStr(str, primary_format_str, sub_format);
   if (status != GRAPH_SUCCESS) {
     GELOGE(GRAPH_FAILED, "[Split][Format] from %s failed", str.c_str());
     return FORMAT_RESERVED;
   }
   const auto it = kStringToFormatMap.find(primary_format_str);
   if (it != kStringToFormatMap.end()) {
-    int32_t primary_format = it->second;
+    const int32_t primary_format = it->second;
     return static_cast<Format>(GetFormatFromSub(primary_format, sub_format));
   } else {
     GELOGW("[Check][Param] Format %s is not supported", str.c_str());

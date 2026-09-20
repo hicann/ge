@@ -543,7 +543,7 @@ Status ModelUtils::GetInputOutputDescAddrs(const RuntimeParam &model_param, cons
   size_t tensor_cnt = 0UL;
   size_t desc_idx = 0UL;
   for (const auto &tensor_desc : tensor_desc_visitor) {
-    size_t cur_desc_idx = desc_idx++;
+    const size_t cur_desc_idx = desc_idx++;
     while ((tensor_cnt < v_addrs.size()) && (tensor_cnt < mem_type.size()) && (mem_type[tensor_cnt] == kFixMemType) &&
            (v_addrs[tensor_cnt] == nullptr)) {
       tensor_cnt++;
@@ -704,7 +704,7 @@ Status ModelUtils::InitRuntimeParams(const GeModelPtr &ge_model, RuntimeParam &r
   runtime_param.fm_memory_infos.clear();
   runtime_param.fixed_fm_memory_infos.clear();
   runtime_param.memory_infos.clear();
-  bool is_fixed_prior_fm = (runtime_param.fixed_mem_base != 0U);
+  const bool is_fixed_prior_fm = (runtime_param.fixed_mem_base != 0U);
   GELOGD("[OM2] runtime_param.fixed_mem_base:0x%" PRIx64 ", is_fixed_prior_fm:%d", runtime_param.fixed_mem_base,
          is_fixed_prior_fm);
 
