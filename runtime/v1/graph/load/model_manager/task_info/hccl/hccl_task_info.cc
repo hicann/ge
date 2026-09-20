@@ -426,6 +426,7 @@ void HcclTaskInfo::PostProcess(const domi::TaskDef &task_def) {
       const std::vector<int64_t> input_dims = {static_cast<int64_t>(hccl_dump_infos_[i].input_size) / type_size};
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
       GeTensorDesc input_desc(GeShape(input_dims), FORMAT_ND, src_data_type);
       TensorUtils::SetSize(input_desc, static_cast<int64_t>(hccl_dump_infos_[i].input_size));
       (void)sdma_op_desc->AddInputDesc(input_desc);
