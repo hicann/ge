@@ -2149,21 +2149,6 @@ TEST_F(UtestModelExecutorOm2Test, RunGraphWithStream_Om2Mode_Success) {
   EXPECT_EQ(model_executor.Finalize(), SUCCESS);
 }
 
-TEST_F(UtestModelExecutorOm2Test, UpdateFeatureMemoryBase_ReturnsUnsupported) {
-  EnvValueGuard guard("ENABLE_RUNTIME_OM2");
-  EnableOm2OnlineMode();
-
-  ModelExecutor model_executor;
-  EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
-
-  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
-  GraphNodePtr graph_node = MakeShared<ge::GraphNode>(1U);
-  graph_node->SetGeRootModel(MakeShared<GeRootModel>());
-
-  EXPECT_EQ(model_executor.UpdateFeatureMemoryBase(graph_node, 0U, 0U), GE_GRAPH_UNSUPPORTED);
-  EXPECT_EQ(model_executor.Finalize(), SUCCESS);
-}
-
 TEST_F(UtestModelExecutorOm2Test, PaRemapped_ReturnsUnsupported) {
   EnvValueGuard guard("ENABLE_RUNTIME_OM2");
   EnableOm2OnlineMode();

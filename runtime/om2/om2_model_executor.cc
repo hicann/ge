@@ -63,6 +63,7 @@ using RunAsyncFunc = int (*)(GertModelHandle model_handle, aclrtStream stream, c
                              struct GertModelRunOutput *output);
 using UnloadFunc = int (*)(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
                            struct GertModelUnloadOutput *output);
+using RefreshFeatureMapFunc = int (*)(GertModelHandle model_handle, uintptr_t base_addr);
 
 struct CustSharedLibInfo {
   std::string so_file;
@@ -84,6 +85,7 @@ struct RunModelInfo {
   UnloadFunc unload_func = nullptr;
   RunFunc run_func = nullptr;
   RunAsyncFunc run_async_func = nullptr;
+  RefreshFeatureMapFunc refresh_feature_map_func = nullptr;
 };
 
 struct ModelMetaInfo {
@@ -1135,6 +1137,8 @@ class Om2ModelExecutor::Impl {
     run_model_info_.run_async_func =
         reinterpret_cast<RunAsyncFunc>(mmDlsym(run_model_info_.so_handle, "GertModelRunAsync"));
     GE_ASSERT_NOTNULL(run_model_info_.run_async_func);
+    run_model_info_.refresh_feature_map_func =
+        reinterpret_cast<RefreshFeatureMapFunc>(mmDlsym(run_model_info_.so_handle, "GertModelRefreshFeatureMap"));
     return ge::SUCCESS;
   }
 
@@ -1359,6 +1363,16 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_SUCCESS(run_model_info_.run_async_func(run_model_info_.model_handle, stream, &config, &output));
     ++step_id_;
     return ge::GRAPH_SUCCESS;
+  }
+
+  ge::Status UpdateFmMemBases(const uintptr_t mem_base, const size_t size) {
+    GE_ASSERT_TRUE(has_model_);
+    GE_ASSERT_TRUE(mem_base != 0U, "[OM2][FeatureMap] Invalid feature memory base.");
+    GE_ASSERT_TRUE(size > 0U, "[OM2][FeatureMap] Invalid feature memory size.");
+    GE_ASSERT_NOTNULL(run_model_info_.refresh_feature_map_func, "[OM2][FeatureMap] Refresh interface is unavailable.");
+    GE_ASSERT_NOTNULL(run_model_info_.model_handle);
+    GE_ASSERT_SUCCESS(run_model_info_.refresh_feature_map_func(run_model_info_.model_handle, mem_base));
+    return ge::SUCCESS;
   }
 
   ge::Status GetDynamicBatchInfo(std::vector<std::vector<int64_t>> &dynamic_batch_info, int32_t &dynamic_type) const {
@@ -1857,6 +1871,10 @@ aclrtStream Om2ModelExecutor::GetOrCreateProfStream() {
 
 uint64_t Om2ModelExecutor::SessionId() const {
   return impl_->SessionId();
+}
+
+ge::Status Om2ModelExecutor::UpdateFmMemBases(const uintptr_t mem_base, const size_t size) {
+  return impl_->UpdateFmMemBases(mem_base, size);
 }
 
 ge::Status LoadOm2DataFromFile(const std::string &model_path, ge::ModelData &model_data) {
