@@ -140,7 +140,7 @@ Example: ge config -i=<ip-address> -u=<username> -p=<password> (Need add escape 
 
 - `-i,  --ip`          : 配置依赖库服务器IP地址；
 - `-u,  --usr`         : 配置依赖库服务器用户名；
-- `-p,  --password`    : 配置依赖库地址；
+- `-p,  --password`    : 配置依赖库服务器密码；
 
 默认：打印帮助信息。
 
