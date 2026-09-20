@@ -68,7 +68,7 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 ## 需求开发与新增功能
 > **触发词**：新增功能/需求/特性、开发新功能/需求/特性、实现功能/需求/特性
 
-**使用技能**: `superpower brainstorming skill`
+**使用技能**: `ge-requirement-design`
 
 ## 架构文档加载
 
@@ -135,9 +135,9 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 
 ### 设计文档检查项（Design Document Checklist）
 
-> **触发词**：设计文档、设计spec、spec输出、design document、设计方案输出、brainstorming 输出文档、写入设计文档、写spec、写设计、保存spec、save spec、save design、写入 docs/superpowers/specs、设计方案、架构设计、技术方案
+> **触发词**：设计文档、设计spec、spec输出、design document、设计方案输出、写入设计文档、写spec、写设计、保存spec、save spec、save design、设计方案、架构设计、技术方案
 
-任何输出设计文档/spec的场景（包括但不限于 superpowers brainstorming skill、用户直接要求写设计文档、输出设计方案），**必须**先读取模板文件 [docs/zh/design/design_document_template.md]，然后按照模板格式输出。模板中的每个章节都必须覆盖。即使 superpowers skill 有自己的格式要求，也要以本模板为准。
+任何输出设计文档/spec的场景（用户直接要求写设计文档、输出设计方案、需求设计等），**必须**先读取模板文件 [docs/zh/design/design_document_template.md]，然后按照模板格式输出。模板中的每个章节都必须覆盖。即使所用技能有自己的格式要求，也要以本模板为准。
 
 同时，**必须**逐项检查以下内容：
 
