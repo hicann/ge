@@ -3,11 +3,11 @@
 如下融合规则关闭后可能会有功能使用上的风险；更多融合规则请参见《[图融合和UB融合规则参考](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/latest/maintenref/graphubfusionref/atlasrr_30_0003.html)》。
 
 <!-- npu="950" id1 -->
-Ascend 950PR/Ascend 950DT不支持UB融合。
+Ascend 950PR&950DT系列产品不支持UB融合。
 <!-- end id1 -->
 
   <!-- npu="950" id3 -->
-- 图融合：Ascend 950PR/Ascend 950DT支持的图融合规则
+- 图融合：Ascend 950PR&950DT系列产品支持的图融合规则
   - AABiasaddConvFusion
   - AddRmsNormFusionGraphPass
   - ADepthwiseFusionPass
@@ -30,7 +30,7 @@ Ascend 950PR/Ascend 950DT不支持UB融合。
 - 图融合：
 
     <!-- npu="950" id2 -->
-    非Ascend 950PR/Ascend 950DT支持的图融合规则
+    非Ascend 950PR&950DT系列产品支持的图融合规则
     <!-- end id2 -->
 
   - AABiasaddConvFusion

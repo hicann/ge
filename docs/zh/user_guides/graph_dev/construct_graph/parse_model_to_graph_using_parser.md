@@ -14,15 +14,15 @@
 - 解析Caffe模型：[aclgrphParseCaffe](../../../api/graph_engine_api/cpp/ge/aclgrphParseCaffe.md)
 
     <!-- npu="910b" id1 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
+    Atlas A2系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
     <!-- end id1 -->
 
     <!-- npu="A3" id2 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
+    Atlas A3系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
     <!-- end id2 -->
 
     <!-- npu="950" id3 -->
-    Ascend 950PR/Ascend 950DT不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
+    Ascend 950PR&950DT系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
     <!-- end id3 -->
 
     <!-- @ref: ge/res/docs/zh/user_guides/graph_dev/parse_model_to_graph_using_parser_res.md#id1 -->
@@ -40,7 +40,7 @@ Parser层目前为用户开放了自定义OpParser和自定义TensorFlow Scope�
 
 >[!NOTE]说明
 > <!-- npu="950" id4 -->
->该说明**不适用于**Ascend 950PR/Ascend 950DT：
+>该说明**不适用于**Ascend 950PR&950DT系列产品：
 > <!-- end id4 -->
 >原始模型转换为Graph时，如果Tensor的shape维度和format维度数量不一致，按照如下表格中的规则理解当前维度：
 >例如，shape只有1维为\[16\]，format为4维，比如NHWC，该场景下可以理解为shape的1维为C轴，其他轴需要补维，补维后格式为\[1,1,1,16\]；

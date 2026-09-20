@@ -149,7 +149,7 @@
   - 设置shape范围。
 
     <!-- npu="310b" id1 -->
-    Atlas 200I/500 A2 推理产品**不支持设置shape范围**。
+    Atlas 200I/500 A2推理产品**不支持设置shape范围**。
     <!-- end id1 -->
 
     <!-- npu="IPV350" id2 -->

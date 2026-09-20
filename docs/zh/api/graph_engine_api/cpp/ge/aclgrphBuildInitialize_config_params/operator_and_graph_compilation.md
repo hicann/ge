@@ -10,15 +10,15 @@
 - **场景1**：针对如下产品，整数1表示算子编译时使用的AI Core中的Cube Core核数，整数2表示算子编译时使用的AI Core中的VectorCore核数，整数1与整数2都需要大于等于0，小于等于AI处理器包含的最大Cube Core和Vector Core数量：
 
     <!-- npu="950" id2 -->
-    Ascend 950PR/Ascend 950DT
+    Ascend 950PR&950DT系列产品
     <!-- end id2 -->
 
     <!-- npu="A3" id3 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id3 -->
 
     <!-- npu="910b" id4 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id4 -->
 <!-- end id1 -->
 
@@ -26,15 +26,15 @@
 - **场景2**：针对如下产品，仅需配置整数1，配置格式为："整数1|"，配置整数2不会生效，表示算子编译时使用的AI Core核数：
 
     <!-- npu="310b" id6 -->
-    Atlas 200I/500 A2 推理产品
+    Atlas 200I/500 A2推理产品
     <!-- end id6 -->
 
     <!-- npu="310p" id7 -->
-    Atlas 推理系列产品
+    Atlas推理系列产品
     <!-- end id7 -->
 
     <!-- npu="910" id8 -->
-    Atlas 训练系列产品
+    Atlas训练系列产品
     <!-- end id8 -->
 
     <!-- npu="IPV350" id9 -->
@@ -109,19 +109,19 @@
 - 当AI数据处理核心单元是AI Core：
   - 在AI Core内，Cube和Vector共用一个Scalar调度单元。
     <!-- npu="910" id14 -->
-    例如Atlas 训练系列产品。
+    例如Atlas训练系列产品。
     <!-- end id14 -->
 
     ![图示](../../../figures/logic_arch_diagram.png)
 
   - 在AI Core内，Cube和Vector都有各自的Scalar调度单元，因此又被称为Cube Core、Vector Core。这时，一个Cube Core和一组Vector Core被定义为一个AI Core，AI Core数量通常是以多少个Cube Core为基准计算的。
     <!-- npu="910b" id15 -->
-     例如Atlas A2 训练系列产品/Atlas A2 推理系列产品。
+     例如Atlas A2系列产品。
      <!-- end id15 -->
 
 - 当AI数据处理核心单元是AI Core以及单独的Vector Core：AI Core和Vector Core都拥有独立的Scalar调度单元。
     <!-- npu="310p" id16 -->
-    例如Atlas 推理系列产品。
+    例如Atlas推理系列产品。
     <!-- end id16 -->
 
     ![](../../../figures/logic_arch_diagram_0.png)
@@ -144,22 +144,22 @@
 **产品支持情况：**
 
 <!-- npu="950" id17 -->
-- Ascend 950PR/Ascend 950DT：不支持
+- Ascend 950PR&950DT系列产品：不支持
 <!-- end id17 -->
 <!-- npu="A3" id18 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：不支持
+- Atlas A3系列产品：不支持
 <!-- end id18 -->
 <!-- npu="910b" id19 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：不支持
+- Atlas A2系列产品：不支持
 <!-- end id19 -->
 <!-- npu="310b" id20 -->
-- Atlas 200I/500 A2 推理产品：不支持
+- Atlas 200I/500 A2推理产品：不支持
 <!-- end id20 -->
 <!-- npu="310p" id21 -->
-- Atlas 推理系列产品：支持
+- Atlas推理系列产品：支持
 <!-- end id21 -->
 <!-- npu="910" id22 -->
-- Atlas 训练系列产品：不支持
+- Atlas训练系列产品：不支持
 <!-- end id22 -->
 <!-- npu="IPV350" id23 -->
 - IPV350：不支持

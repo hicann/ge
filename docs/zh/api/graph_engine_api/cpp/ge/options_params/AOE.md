@@ -3,7 +3,7 @@
 ## ge.mdl\_bank\_path
 
 <!-- npu="950" id1 -->
-Ascend 950PR/Ascend 950DT不支持该参数。
+Ascend 950PR&950DT系列产品不支持该参数。
 <!-- end id1 -->
 
 加载子图调优后自定义知识库的路径。
@@ -31,7 +31,7 @@ Ascend 950PR/Ascend 950DT不支持该参数。
 ## ge.op\_bank\_path
 
 <!-- npu="950" id2 -->
-Ascend 950PR/Ascend 950DT不支持该参数。
+Ascend 950PR&950DT系列产品不支持该参数。
 <!-- end id2 -->
 
 算子调优后自定义知识库路径。

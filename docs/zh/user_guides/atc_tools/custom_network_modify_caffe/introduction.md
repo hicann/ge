@@ -3,13 +3,13 @@
 本章节修改只适用于Caffe网络模型。
 
 <!-- npu="950" id1 -->
-Ascend 950PR/Ascend 950DT不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
+Ascend 950PR&950DT系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
+Atlas A3系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
 <!-- end id2 -->
 <!-- npu="910b" id3 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
+Atlas A2系列产品不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。
 <!-- end id3 -->
 <!-- npu="IPV350" id4 -->
 IPV350：不支持Caffe框架：Caffe框架在该产品形态已不演进，不保证功能可用。

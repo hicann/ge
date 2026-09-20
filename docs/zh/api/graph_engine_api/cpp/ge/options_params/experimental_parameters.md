@@ -76,11 +76,11 @@
 该参数仅适用于如下产品：
 
 <!-- npu="910b" id2 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+Atlas A2系列产品
 <!-- end id2 -->
 
 <!-- npu="A3" id3 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
+Atlas A3系列产品
 <!-- end id3 -->
 <!-- end id1 -->
 
@@ -206,7 +206,7 @@ Atlas A3 训练系列产品/Atlas A3 推理系列产品
 - O1：会关闭所有图融合和UB融合Pass，只做促成静态下沉的相关优化，如InferShape（进行输出Tensor的shape推导）、常量折叠、死边消除等。
 
     <!-- npu="950" id4 -->
-    Ascend 950PR/Ascend 950DT不支持UB融合，只关闭图融合Pass。
+    Ascend 950PR&950DT系列产品不支持UB融合，只关闭图融合Pass。
     <!-- end id4 -->
 
 - O3：（默认值）开启所有优化。

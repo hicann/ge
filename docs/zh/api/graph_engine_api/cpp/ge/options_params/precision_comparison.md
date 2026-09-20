@@ -103,11 +103,11 @@
 针对如下产品，仅支持配置为“all”：
 
 <!-- npu="910b" id2 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+Atlas A2系列产品
 <!-- end id2 -->
 
 <!-- npu="A3" id3 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
+Atlas A3系列产品
 <!-- end id3 -->
 <!-- end id1 -->
 
@@ -223,7 +223,7 @@ dump文件生成在该参数指定的目录下，即\{dump\_path\}/\{time\}/\{de
 }
 ```
 <!-- npu="950" id4 -->
-**Ascend 950PR/Ascend 950DT不支持UB融合，可以不配置UBFusion。**
+**Ascend 950PR&950DT系列产品不支持UB融合，可以不配置UBFusion。**
 <!-- end id4 -->
 
 同时支持用户一键关闭融合规则：
@@ -243,7 +243,7 @@ dump文件生成在该参数指定的目录下，即\{dump\_path\}/\{time\}/\{de
 }
 ```
 <!-- npu="950" id5 -->
-**Ascend 950PR/Ascend 950DT不支持UB融合，可以不配置UBFusion。**
+**Ascend 950PR&950DT系列产品不支持UB融合，可以不配置UBFusion。**
 <!-- end id5 -->
 
 需要注意的是：

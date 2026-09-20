@@ -25,27 +25,27 @@ IPV350：不支持
 昇腾虚拟化实例支持情况如下：
 
 <!-- npu="950" id5 -->
-- Ascend 950PR/Ascend 950DT：不支持
+- Ascend 950PR&950DT系列产品：不支持
 <!-- end id5 -->
 
 <!-- npu="A3" id6 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：不支持
+- Atlas A3系列产品：不支持
 <!-- end id6 -->
 
 <!-- npu="910b" id4 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+- Atlas A2系列产品：支持
 <!-- end id4 -->
 
 <!-- npu="310b" id7 -->
-- Atlas 200I/500 A2 推理产品：不支持
+- Atlas 200I/500 A2推理产品：不支持
 <!-- end id7 -->
 
 <!-- npu="310p" id2 -->
-- Atlas 推理系列产品：支持
+- Atlas推理系列产品：支持
 <!-- end id2 -->
 
 <!-- npu="910" id3 -->
-- Atlas 训练系列产品：支持
+- Atlas训练系列产品：支持
 <!-- end id3 -->
 
 <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/CLI_options/--singleop_res.md#id2 -->
@@ -59,7 +59,7 @@ IPV350：不支持
 使用该参数时，只有如下参数可以配合使用，其中[--output](--output.md)、[--soc\_version](--soc_version.md)为必填。
 
 <!-- npu="950" id14 -->
-- Ascend 950PR/Ascend 950DT可配合使用的参数：
+- Ascend 950PR&950DT系列产品可配合使用的参数：
   - [--output](--output.md)
   - [--soc\_version](--soc_version.md)
   - [--precision\_mode](--precision_mode.md)
@@ -79,7 +79,7 @@ IPV350：不支持
 <!-- end id14 -->
 
 <!-- npu="A3" id13 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品可配合使用的参数：
+- Atlas A3系列产品可配合使用的参数：
   - [--output](--output.md)
   - [--soc\_version](--soc_version.md)
   - [--precision\_mode](--precision_mode.md)
@@ -99,7 +99,7 @@ IPV350：不支持
 <!-- end id13 -->
 
 <!-- npu="910b" id12 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品可配合使用的参数：
+- Atlas A2系列产品可配合使用的参数：
   - [--output](--output.md)
   - [--soc\_version](--soc_version.md)
   - [--precision\_mode](--precision_mode.md)
@@ -119,7 +119,7 @@ IPV350：不支持
 <!-- end id12 -->
 
 <!-- npu="310b" id9 -->
-- Atlas 200I/500 A2 推理产品可配合使用的参数：
+- Atlas 200I/500 A2推理产品可配合使用的参数：
   - [--output](--output.md)
   - [--soc\_version](--soc_version.md)
   - [--precision\_mode](--precision_mode.md)
@@ -138,7 +138,7 @@ IPV350：不支持
 <!-- end id9 -->
 
 <!-- npu="310p" id10 -->
-- Atlas 推理系列产品可配合使用的参数：
+- Atlas推理系列产品可配合使用的参数：
   - [--output](--output.md)
   - [--soc\_version](--soc_version.md)
   - [--core\_type](--core_type.md)
@@ -157,7 +157,7 @@ IPV350：不支持
 <!-- end id10 -->
 
 <!-- npu="910" id11 -->
-- Atlas 训练系列产品可配合使用的参数：
+- Atlas训练系列产品可配合使用的参数：
   - [--output](--output.md)
   - [--soc\_version](--soc_version.md)
   - [--precision\_mode](--precision_mode.md)

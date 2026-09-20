@@ -82,13 +82,13 @@
 <!-- npu="950,A3,910b,310b" id3 -->
 - **bfloat16数据类型仅支持以下产品类型**：
 
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
 
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
 
-    Atlas 200I/500 A2 推理产品
+    Atlas 200I/500 A2推理产品
 
-    Ascend 950PR/Ascend 950DT
+    Ascend 950PR&950DT系列产品
 <!-- end id3 -->
 
 - 该参数默认为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
@@ -186,26 +186,26 @@
 - **bfloat16数据类型仅支持以下产品型号**：
 
     <!-- npu="950" id10 -->
-    Ascend 950PR/Ascend 950DT
+    Ascend 950PR&950DT系列产品
     <!-- end id10 -->
 
     <!-- npu="A3" id11 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id11 -->
 
     <!-- npu="910b" id12 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id12 -->
 
     <!-- npu="310b" id13 -->
-    Atlas 200I/500 A2 推理产品
+    Atlas 200I/500 A2推理产品
     <!-- end id13 -->
 
 <!-- end id9 -->
 <!-- npu="950" id8 -->
 - **hif8数据类型仅支持以下产品型号**：
 
-  Ascend 950PR/Ascend 950DT
+  Ascend 950PR&950DT系列产品
 <!-- end id8 -->
 
 - 该参数默认为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
@@ -242,24 +242,24 @@
     bf16仅在如下产品型号支持：
 
     <!-- npu="950" id16 -->
-    Ascend 950PR/Ascend 950DT
+    Ascend 950PR&950DT系列产品
     <!-- end id16 -->
 
     <!-- npu="A3" id17 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id17 -->
 
     <!-- npu="910b" id18 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id18 -->
 
     <!-- npu="310b" id19 -->
-    Atlas 200I/500 A2 推理产品
+    Atlas 200I/500 A2推理产品
     <!-- end id19 -->
     <!-- end id15 -->
 
     <!-- npu="950" id20 -->
-    hif8仅在Ascend 950PR/Ascend 950DT支持。
+    hif8仅在Ascend 950PR&950DT系列产品支持。
     <!-- end id20 -->
     <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/precision_tuning_res.md#id3 -->
 

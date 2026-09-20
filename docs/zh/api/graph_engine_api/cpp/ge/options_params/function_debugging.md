@@ -56,7 +56,7 @@ std::map<ge::AscendString, ge::AscendString> ge_options = {"ge.exec.enable_excep
 - ub\_fusion：表示UB融合
 
     <!-- npu="950" id1 -->
-    **Ascend 950PR/Ascend 950DT不支持UB融合，不会生成该信息**。
+    **Ascend 950PR&950DT系列产品不支持UB融合，不会生成该信息**。
     <!-- end id1 -->
 
 - match\_times：表示图编译过程中匹配到的融合规则次数。
@@ -64,7 +64,7 @@ std::map<ge::AscendString, ge::AscendString> ge_options = {"ge.exec.enable_excep
 - repository\_hit\_times：优化UB融合知识库命中的次数
 
     <!-- npu="950" id2 -->
-    **Ascend 950PR/Ascend 950DT不支持UB融合，不会生成该信息**。
+    **Ascend 950PR&950DT系列产品不支持UB融合，不会生成该信息**。
     <!-- end id2 -->
 
 **参数取值：**
@@ -94,20 +94,20 @@ std::map<ge::AscendString, ge::AscendString> ge_options = {"ge.exec.enable_excep
 - 1：开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹下**生成**\*.o（算子二进制文件）、\*.json文件（算子描述文件）和TBE指令映射文件（算子cce文件\*.cce和python-cce映射文件\*\_loc.json），用于后续分析AICore Error问题。
 
     <!-- npu="950" id3 -->
-    Ascend 950PR/Ascend 950DT不会生成TBE指令映射文件。
+    Ascend 950PR&950DT系列产品不会生成TBE指令映射文件。
     <!-- end id3 -->
 
 - 2：开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹下**生成**\*.o（算子二进制文件）、\*.json文件（算子描述文件）和TBE指令映射文件（算子cce文件\*.cce和python-cce映射文件\*\_loc.json），用于后续分析AICore Error问题，同时设置为2，还会关闭编译优化开关、开启ccec调试功能（ccec编译器选项设置为-O0-g）。
 
     <!-- npu="950" id4 -->
-    Ascend 950PR/Ascend 950DT不会生成TBE指令映射文件。
+    Ascend 950PR&950DT系列产品不会生成TBE指令映射文件。
     <!-- end id4 -->
 
 - 3：不开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹中**生成**\*.o（算子二进制文件）和\*.json文件（算子描述文件），分析算子问题时可参考。
 - 4：不开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹下**生成**\*.o（算子二进制文件）、\*.json文件（算子描述文件）、TBE指令映射文件（算子cce文件\*.cce）和UB融合计算描述文件（\{$kernel\_name\}\_compute.json），可在分析算子问题时进行问题复现、精度比对时使用。
 
     <!-- npu="950" id5 -->
-    Ascend 950PR/Ascend 950DT不会生成TBE指令映射文件和UB融合计算描述文件。
+    Ascend 950PR&950DT系列产品不会生成TBE指令映射文件和UB融合计算描述文件。
     <!-- end id5 -->
 
 > [!NOTE]说明

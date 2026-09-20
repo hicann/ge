@@ -16,15 +16,15 @@ ini文件中按照算子类型、节点名称设置精度模式，每一行设�
     **该选项仅支持以下产品类型：**
 
     <!-- npu="950" id6 -->
-    Ascend 950PR/Ascend 950DT
+    Ascend 950PR&950DT系列产品
     <!-- end id6 -->
 
     <!-- npu="910b" id7 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id7 -->
 
     <!-- npu="A3" id8 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id8 -->
     <!-- end id1 -->
 
@@ -121,15 +121,15 @@ Tiling下沉调度优化开关。
 该参数仅支持以下产品：
 
 <!-- npu="910b" id3 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+Atlas A2系列产品
 <!-- end id3 -->
 
 <!-- npu="A3" id4 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
+Atlas A3系列产品
 <!-- end id4 -->
 
 <!-- npu="310p" id5 -->
-Atlas 推理系列产品
+Atlas推理系列产品
 <!-- end id5 -->
 <!-- end id2 -->
 

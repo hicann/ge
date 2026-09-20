@@ -3,19 +3,19 @@
 ## 产品支持情况
 
 <!-- npu="A3" id588 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id588 -->
 <!-- npu="910b" id589 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+- Atlas A2系列产品：支持
 <!-- end id589 -->
 <!-- npu="310b" id590 -->
-- Atlas 200I/500 A2 推理产品：支持
+- Atlas 200I/500 A2推理产品：支持
 <!-- end id590 -->
 <!-- npu="310p" id591 -->
-- Atlas 推理系列产品：支持
+- Atlas推理系列产品：支持
 <!-- end id591 -->
 <!-- npu="910" id592 -->
-- Atlas 训练系列产品：支持
+- Atlas训练系列产品：支持
 <!-- end id592 -->
 <!-- npu="IPV350" id593 -->
 - IPV350：不支持
