@@ -38,6 +38,7 @@
 #include "register/custom_pass_context_impl.h"
 #include "graph/ge_local_context.h"
 #include "compiler/graph/fusion/pass/fusion_pass_executor.h"
+#include "compiler/graph/fusion/pass/fusion_priority_cache.h"
 #include "compiler/graph/fusion/pass/pass_plugin_loader.h"
 #include "register/optimization_option_registry.h"
 #include "register/pass_option_utils.h"
@@ -2677,6 +2678,177 @@ TEST_F(UtestFusionPassExecutor, FusionPassRegistrationData_GetDefaultSwitch_Null
   FusionPassRegistrationData reg_data("TestPassNullImpl");
   reg_data.impl_ = nullptr;
   EXPECT_EQ(reg_data.GetDefaultSwitch(), PassSwitch::kOn);
+}
+
+namespace {
+// 记录融合pass实际执行顺序（按首次出现断言，免疫子图重复执行）
+std::vector<std::string> &FusionPrioritySortExecOrder() {
+  static std::vector<std::string> exec_order;
+  return exec_order;
+}
+
+int64_t FusionPrioritySortFirstExecIndex(const std::string &pass_name) {
+  const auto &exec_order = FusionPrioritySortExecOrder();
+  for (size_t i = 0; i < exec_order.size(); ++i) {
+    if (exec_order[i] == pass_name) {
+      return static_cast<int64_t>(i);
+    }
+  }
+  return -1;
+}
+
+class FusionPriorityCacheGuard {
+ public:
+  explicit FusionPriorityCacheGuard(const std::map<std::string, int32_t> &priority_map) {
+    FusionPriorityCache::GetInstance().UpdateGraphFusionPriorityMap(priority_map);
+  }
+  ~FusionPriorityCacheGuard() {
+    FusionPriorityCache::GetInstance().UpdateGraphFusionPriorityMap({});
+  }
+  FusionPriorityCacheGuard(const FusionPriorityCacheGuard &) = delete;
+  FusionPriorityCacheGuard &operator=(const FusionPriorityCacheGuard &) = delete;
+};
+
+// 定义仅记录执行顺序的最小融合pass（不修改图）
+#define DEFINE_PRIO_SORT_PASS(pass_class)                              \
+  class pass_class : public FusionBasePass {                           \
+   public:                                                             \
+    ge::Status Run(ge::GraphPtr &, ge::CustomPassContext &) override { \
+      FusionPrioritySortExecOrder().emplace_back(#pass_class);         \
+      return NOT_CHANGED;                                              \
+    }                                                                  \
+  }
+}  // namespace
+
+// 场景：op_base Priority 配置有条目 → 按数值升序执行（注册顺序不影响）
+TEST_F(UtestFusionPassExecutor, InitPassesIfNeed_PriorityOrder_ByConfigEntries) {
+  DEFINE_PRIO_SORT_PASS(PrioSortCPass);
+  DEFINE_PRIO_SORT_PASS(PrioSortAPass);
+  DEFINE_PRIO_SORT_PASS(PrioSortBPass);
+  REG_FUSION_PASS(PrioSortCPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(PrioSortAPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(PrioSortBPass).Stage(CustomPassStage::kAfterInferShape);
+
+  FusionPriorityCacheGuard cache_guard({{"PrioSortAPass", 4010}, {"PrioSortBPass", 4000}, {"PrioSortCPass", 4001}});
+  FusionPrioritySortExecOrder().clear();
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  // 期望执行序：B(4000) → C(4001) → A(4010)
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortBPass"), 0);
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortCPass"), 1);
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortAPass"), 2);
+}
+
+// 场景：缓存为空（FE未初始化/无条目）→ 名字序兜底（注册顺序不影响）
+TEST_F(UtestFusionPassExecutor, InitPassesIfNeed_NoEntry_NameOrderFallback) {
+  DEFINE_PRIO_SORT_PASS(PrioSortZedPass);
+  DEFINE_PRIO_SORT_PASS(PrioSortMidPass);
+  DEFINE_PRIO_SORT_PASS(PrioSortAlfPass);
+  // 注册顺序刻意与名字序相反：Zed 先注册、Alf 最后注册
+  REG_FUSION_PASS(PrioSortZedPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(PrioSortMidPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(PrioSortAlfPass).Stage(CustomPassStage::kAfterInferShape);
+
+  FusionPriorityCacheGuard cache_guard({});
+  FusionPrioritySortExecOrder().clear();
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  // 期望执行序（名字序兜底）：Alf → Mid → Zed
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortAlfPass"), 0);
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortMidPass"), 1);
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortZedPass"), 2);
+}
+
+// 场景：同 priority 值 → stable_sort 保持输入的 pass 名字序
+TEST_F(UtestFusionPassExecutor, InitPassesIfNeed_SamePriority_NameOrderTieBreak) {
+  DEFINE_PRIO_SORT_PASS(PrioSortTieCPass);
+  DEFINE_PRIO_SORT_PASS(PrioSortTieAPass);
+  DEFINE_PRIO_SORT_PASS(PrioSortTieBPass);
+  REG_FUSION_PASS(PrioSortTieCPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(PrioSortTieAPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(PrioSortTieBPass).Stage(CustomPassStage::kAfterInferShape);
+
+  FusionPriorityCacheGuard cache_guard(
+      {{"PrioSortTieAPass", 4000}, {"PrioSortTieBPass", 4000}, {"PrioSortTieCPass", 4000}});
+  FusionPrioritySortExecOrder().clear();
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  // 期望执行序（同值名字序 tie-break）：TieA → TieB → TieC
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortTieAPass"), 0);
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortTieBPass"), 1);
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortTieCPass"), 2);
+}
+
+// 场景：有条目与无条目混合 → 有条目按数值在前，无条目排最末（内部名字序）
+TEST_F(UtestFusionPassExecutor, InitPassesIfNeed_Mixed_NoEntryLastWithSameValue) {
+  DEFINE_PRIO_SORT_PASS(PrioSortMixZedPass);
+  DEFINE_PRIO_SORT_PASS(PrioSortMixAlfPass);
+  DEFINE_PRIO_SORT_PASS(PrioSortMixMidPass);
+  DEFINE_PRIO_SORT_PASS(PrioSortMixBetPass);
+  REG_FUSION_PASS(PrioSortMixZedPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(PrioSortMixAlfPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(PrioSortMixMidPass).Stage(CustomPassStage::kAfterInferShape);
+  REG_FUSION_PASS(PrioSortMixBetPass).Stage(CustomPassStage::kAfterInferShape);
+
+  FusionPriorityCacheGuard cache_guard({{"PrioSortMixAlfPass", 4000}, {"PrioSortMixZedPass", 4379}});
+  FusionPrioritySortExecOrder().clear();
+
+  auto target_compute_graph = gert::ShareGraph::LstmpGraph();
+  FusionPassExecutor pass_executor;
+  EXPECT_EQ(pass_executor.RunPasses(target_compute_graph, CustomPassStage::kAfterInferShape), SUCCESS);
+
+  // 期望执行序：Alf(4000) → Zed(4379) → Bet(无条目) → Mid(无条目)，无条目内部名字序
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortMixAlfPass"), 0);
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortMixZedPass"), 1);
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortMixBetPass"), 2);
+  EXPECT_EQ(FusionPrioritySortFirstExecIndex("PrioSortMixMidPass"), 3);
+}
+
+class UtestFusionPriorityCache : public testing::Test {
+ protected:
+  void SetUp() override {
+    FusionPriorityCache::GetInstance().UpdateGraphFusionPriorityMap({});
+  }
+  void TearDown() override {
+    FusionPriorityCache::GetInstance().UpdateGraphFusionPriorityMap({});
+  }
+};
+
+TEST_F(UtestFusionPriorityCache, DefaultCacheIsEmpty) {
+  EXPECT_TRUE(FusionPriorityCache::GetInstance().GetGraphFusionPriorityMap().empty());
+}
+
+TEST_F(UtestFusionPriorityCache, UpdateThenGetSnapshot) {
+  const std::map<std::string, int32_t> priority_map = {{"PassB", 4000}, {"PassA", 4010}};
+  auto &cache = FusionPriorityCache::GetInstance();
+  cache.UpdateGraphFusionPriorityMap(priority_map);
+  const auto snapshot = cache.GetGraphFusionPriorityMap();
+  EXPECT_EQ(snapshot.size(), priority_map.size());
+  const auto iter_a = snapshot.find("PassA");
+  ASSERT_NE(iter_a, snapshot.end());
+  EXPECT_EQ(iter_a->second, 4010);
+  const auto iter_b = snapshot.find("PassB");
+  ASSERT_NE(iter_b, snapshot.end());
+  EXPECT_EQ(iter_b->second, 4000);
+}
+
+TEST_F(UtestFusionPriorityCache, UpdateOverwritesPreviousCache) {
+  auto &cache = FusionPriorityCache::GetInstance();
+  cache.UpdateGraphFusionPriorityMap({{"OldPass", 4000}});
+  cache.UpdateGraphFusionPriorityMap({{"NewPass", 4001}});
+  const auto snapshot = cache.GetGraphFusionPriorityMap();
+  EXPECT_EQ(snapshot.size(), 1UL);
+  EXPECT_NE(snapshot.find("NewPass"), snapshot.end());
+  EXPECT_EQ(snapshot.find("OldPass"), snapshot.end());
 }
 
 }  // namespace fusion

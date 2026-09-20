@@ -47,9 +47,9 @@ class MemcpyAsyncTaskCodeBuilder : public TaskCodeBuilder {
   void ResolveInternalIndex(TaskSemanticContributeContext &context);
   void CheckIoRefresh(const TaskSemanticContributeContext &context);
   void SetupIoAddrRefresh(TaskSemanticContributeContext &context);
-  DeclNode *RenderMemcpyAsyncDistribute();
-  BodyItem RenderIoRefreshDispatch(const VarRef &op, const VarRef &ctx);
-  BodyItem RenderDirectDispatch(const VarRef &op, const VarRef &ctx);
+  DeclNode *RenderMemcpyAsyncDistribute() const;
+  BodyItem RenderIoRefreshDispatch(const VarRef &op, const VarRef &ctx) const;
+  BodyItem RenderDirectDispatch(const VarRef &op, const VarRef &ctx) const;
   Status SetIoAddrs(const om2::IowAddrs &iow_addrs);
 
   AddrSemantic input_addr_node_;

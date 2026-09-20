@@ -162,7 +162,7 @@ Status MemcpyAddrAsyncTaskCodeBuilder::BuildOrderedArgs(TaskSemanticContributeCo
   return SUCCESS;
 }
 
-Status MemcpyAddrAsyncTaskCodeBuilder::RenderKernelDistributeFunc(std::vector<DeclNode *> &items) {
+Status MemcpyAddrAsyncTaskCodeBuilder::RenderKernelDistributeFunc(std::vector<DeclNode *> &items) const {
   auto op_name = ast_.Var("const char_t *const", "op_name");
   auto src_addr = ast_.Var("void *", "src_addr");
   auto dst_max = ast_.Var("uint64_t", "dst_max");
@@ -231,7 +231,7 @@ Status MemcpyAddrAsyncTaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *
 }
 
 std::vector<BodyItem> MemcpyAddrAsyncTaskCodeBuilder::RenderIoAddrResolveLoop(const VarRef &ctx,
-                                                                              const ExprRef &memcpy_addr) {
+                                                                              const ExprRef &memcpy_addr) const {
   auto iow_addr = ast_.Var("std::vector<uint64_t>", "iow_addr");
   return {
       ast_.For(
@@ -290,7 +290,8 @@ Status MemcpyAddrAsyncTaskCodeBuilder::RenderOpDefTableFields(std::vector<std::p
 }
 
 Status MemcpyAddrAsyncTaskCodeBuilder::RenderCustomValueWriteback(std::vector<BodyItem> &body, const VarRef &op,
-                                                                  const VarRef &ctx, const ExprRef &args_table_idx) {
+                                                                  const VarRef &ctx,
+                                                                  const ExprRef &args_table_idx) const {
   // 运行时循环：遍历 op->dispatch_info.memcpy_addr.custom_values 写回 CUSTOM_VALUE
   // 等价于 runtime/v1: for (iter : format_) { if (CUSTOM_VALUE) write; GetArgSize(host_addr); }
   const auto memcpy_addr = op.Arrow("dispatch_info").Attr("memcpy_addr");

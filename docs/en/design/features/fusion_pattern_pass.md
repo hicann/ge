@@ -83,7 +83,13 @@ For example, `Add(x, Const)` topology can match all "input plus constant" struct
 - `true`: This match satisfies the conditions and can proceed to replacement.
 - `false`: Skip this match and continue searching for the next one.
 
-After `MeetRequirements` passes and before calling `Replacement`, GE will check whether the replacement would cause a cycle via `FusionUtils::WillCauseCycleIfFuse(match_result)`. If it would cause a cycle, this match is skipped (`pattern_fusion_run.cc`). Additionally, under DEBUG log level, a topological sort is performed on the entire graph after replacement as a safety net to prevent graphs with cycles from leaking into subsequent passes (`pattern_fusion_run.cc`).
+After `MeetRequirements` passes and before calling `Replacement`, GE will run a fusibility pre-check on the matched node set via `GraphFuseInspectorUtils::CanFuse` (`pattern_fusion_run.cc`). The pre-check covers three categories of conditions; if any is not satisfied, this match is skipped and scanning continues to the next one:
+
+- All nodes belong to the same graph (consistent owner graph);
+- Execution context attributes do not conflict among the nodes (`IsSupportFuse`: stream label `_user_stream_label`, super kernel scope/options, core counts, and determinism switch/level must be consistent; determinism attributes must also be well-formed);
+- The replacement will not cause a cycle (`WillCauseCycleIfFuse` local cycle detection).
+
+Additionally, under DEBUG log level, a topological sort is performed on the entire graph after replacement as a safety net to prevent graphs with cycles from leaking into subsequent passes (`pattern_fusion_run.cc`).
 
 ### 2.4 Generate replacement graph with Replacement
 

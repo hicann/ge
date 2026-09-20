@@ -24,11 +24,11 @@ class InterfaceFileCodeGenerator : public CodeGeneratorBase {
   StructDecl *BuildAicpuSessionInfoStruct();
   StructDecl *BuildTfAiCpuExInfoStruct();
   StructDecl *BuildArgsInfoStruct();
-  StructDecl *BuildArgsRefreshInfoStruct();
+  StructDecl *BuildArgsRefreshInfoStruct() const;
   FunctionDef *BuildAclrtMallocFunction() const;
   ClassDecl *BuildOm2ArgsTableClass();
   ClassDecl *BuildOm2ModelClass(const Om2CodegenModel &codegen_model);
-  std::vector<DeclNode *> BuildRtForwardDecls();
+  std::vector<DeclNode *> BuildRtForwardDecls() const;
 
  private:
   void DealParamForOm2ModelClass(std::vector<DeclNode *> &items, const RuntimeResourceSemantic &runtime);

@@ -417,7 +417,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &item
 }
 
 Status KernelExTaskCodeBuilder::RenderDispatchFuncSetup(std::vector<BodyItem> &body, const VarRef &op,
-                                                        const VarRef &ctx) {
+                                                        const VarRef &ctx) const {
   auto num_io = ast_.Var("uint32_t", "num_io");
   (void)body.emplace_back(ast_.VarDecl(num_io, op.Arrow("dispatch_info").Attr("kernel_ex").Attr("args_info_num")));
 
@@ -495,7 +495,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunchConfig(std::vector<BodyI
 }
 
 Status KernelExTaskCodeBuilder::RenderDispatchFuncAssembleExInfo(std::vector<BodyItem> &body, const VarRef &op,
-                                                                 const VarRef &ctx) {
+                                                                 const VarRef &ctx) const {
   auto local_session_id = ast_.Var("uint64_t", "local_session_id");
   (void)body.emplace_back(ast_.VarDecl(local_session_id, ast_.Deref(ctx.Attr("session_id"))));
   (void)body.emplace_back(ChkStatus(
@@ -532,7 +532,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncAssembleExInfo(std::vector<Bod
 }
 
 Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunchTask(std::vector<BodyItem> &body, const VarRef &op,
-                                                             const VarRef &ctx) {
+                                                             const VarRef &ctx) const {
   auto kernel_buf_var = ast_.Var("void *", "kernel_buf");
   (void)body.emplace_back(ChkStatus(AclrtMallocAlign32(
       kernel_buf_var.Addr(), static_cast<int64_t>(sizeof(STR_FWK_OP_KERNEL)), "ACL_MEM_MALLOC_HUGE_FIRST")));
@@ -555,7 +555,7 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunchTask(std::vector<BodyIte
 }
 
 Status KernelExTaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &body, const VarRef &op,
-                                                         const VarRef &ctx) {
+                                                         const VarRef &ctx) const {
   GE_ASSERT_SUCCESS(RenderDispatchFuncLaunchConfig(body, op));
   GE_ASSERT_SUCCESS(RenderDispatchFuncAssembleExInfo(body, op, ctx));
   GE_ASSERT_SUCCESS(RenderDispatchFuncLaunchTask(body, op, ctx));

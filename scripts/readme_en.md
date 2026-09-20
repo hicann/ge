@@ -143,7 +143,7 @@ Parameter detailed explanation:
 
 - `-i,  --ip`          : Configure dependency library server IP address;
 - `-u,  --user`        : Configure dependency library server username;
-- `-p,  --password`    : Configure dependency library address;
+- `-p,  --password`    : Configure dependency library server password;
 
 Default: Print help information.
 

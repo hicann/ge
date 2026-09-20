@@ -17,6 +17,7 @@
 #include "common/configuration.h"
 #include "graph/ge_local_context.h"
 #include "common/fe_context_utils.h"
+#include "fusion_priority_cache.h"
 
 namespace fe {
 namespace {
@@ -41,7 +42,16 @@ FusionPriorityManager::~FusionPriorityManager() = default;
 Status FusionPriorityManager::Initialize() {
   FE_CHECK_NOTNULL(fusion_config_parser_ptr_);
   fusion_config_parser_ptr_->ParseSupportFusionPassFile();
-  return fusion_config_parser_ptr_->ParseFusionConfigFile();
+  if (fusion_config_parser_ptr_->ParseFusionConfigFile() != SUCCESS) {
+    return FAILED;
+  }
+  // 解析成功后刷新进程级 GraphFusion priority 缓存，供 GE FusionPassExecutor 读取（单点加载、双端消费）；
+  // 解析失败时保持旧缓存不更新
+  std::map<std::string, int32_t> graph_fusion_priority_map;
+  if (fusion_config_parser_ptr_->GetFusionPriorityByFusionType(GRAPH_FUSION, graph_fusion_priority_map) == SUCCESS) {
+    ge::fusion::FusionPriorityCache::GetInstance().UpdateGraphFusionPriorityMap(graph_fusion_priority_map);
+  }
+  return SUCCESS;
 }
 
 const std::vector<FusionPassOrRule> &FusionPriorityManager::GetSortedGraphFusionList(const bool is_single_scene) {

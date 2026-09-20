@@ -63,7 +63,7 @@ StructDecl *InterfaceFileCodeGenerator::BuildArgsInfoStruct() {
                                  });
 }
 
-StructDecl *InterfaceFileCodeGenerator::BuildArgsRefreshInfoStruct() {
+StructDecl *InterfaceFileCodeGenerator::BuildArgsRefreshInfoStruct() const {
   return ast_.Struct("ArgsRefreshInfo", {
                                             ast_.Field("uint64_t", "args_offset"),
                                             ast_.Field("uint64_t", "offset"),
@@ -233,7 +233,7 @@ void InterfaceFileCodeGenerator::DealParamForOm2ModelClass(std::vector<DeclNode 
   }
 }
 
-std::vector<DeclNode *> InterfaceFileCodeGenerator::BuildRtForwardDecls() {
+std::vector<DeclNode *> InterfaceFileCodeGenerator::BuildRtForwardDecls() const {
   // rtLabelDevInfo / rtCmoAddrTaskLaunch 不在 rt_external*.h 中，前向声明以供 sizeof/调用使用
   return {
       ast_.Struct("rtLabelDevInfo",

@@ -91,6 +91,7 @@ set(FE_SRC_CC_LIST
         ${FE_ROOT_PATH}/fusion/fusion_config_manager/fusion_config_parser.cc
         ${FE_ROOT_PATH}/fusion/fusion_config_manager/fusion_attr_manager.cc
         ${FE_ROOT_PATH}/fusion/fusion_config_manager/fusion_priority_manager.cc
+        ${AIR_CODE_DIR}/compiler/graph/fusion/pass/fusion_priority_cache.cc
         ${FE_ROOT_PATH}/fusion/fusion_rule_manager/fusion_rule_data/fusion_rule_pattern.cc
         ${FE_ROOT_PATH}/fusion/fusion_rule_manager/fusion_rule_parser/attr_assignment_expression.cc
         ${FE_ROOT_PATH}/fusion/fusion_rule_manager/fusion_rule_parser/fusion_rule_json_pattern.cc

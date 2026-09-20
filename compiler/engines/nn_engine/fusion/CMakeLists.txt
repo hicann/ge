@@ -47,6 +47,7 @@ file(GLOB FUSION_SRC_CPP_1 RELATIVE ${CMAKE_CURRENT_LIST_DIR}
 
 add_library(fusion_pass SHARED
         ${FUSION_SRC_CPP_1}
+        ${AIR_CODE_DIR}/compiler/graph/fusion/pass/fusion_priority_cache.cc
         ${PROTO_HDRS})
 
 add_dependencies(fusion_pass fusion_proto)

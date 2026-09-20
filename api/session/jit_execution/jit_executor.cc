@@ -198,13 +198,15 @@ Status BuildCompileInputs(const std::vector<gert::Tensor> &ori_inputs, const Com
 
 }  // namespace
 JitExecutor::JitExecutor(GraphManager &graph_manager, UserGraphExecutionQueue &task_queue, ExecutionOrder &order,
-                         CompileContext &compile_context, CompiledModelCache &cmc, std::mutex &mutex)
+                         CompileContext &compile_context, CompiledModelCache &cmc, std::mutex &mutex,
+                         const std::map<MemoryType, std::pair<const void *, size_t>> *fixed_feature_memory_settings)
     : graph_manager_(graph_manager),
       task_queue_(task_queue),
       order_(order),
       compile_context_(compile_context),
       cmc_(cmc),
-      mutex_(mutex) {}
+      mutex_(mutex),
+      fixed_feature_memory_settings_(fixed_feature_memory_settings) {}
 
 std::vector<JitExecutor::DataNodeInfo> JitExecutor::GetOrCreateDataNodeInfos(const ComputeGraphPtr &graph) {
   std::lock_guard<std::mutex> locker(guarded_execution_cache_mutex_);
@@ -244,11 +246,12 @@ void JitExecutor::MarkHostTensorOnDataNodes(const std::vector<gert::Tensor> &inp
   }
 }
 
-std::unique_ptr<JitExecutor> JitExecutor::Create(GraphManager &graph_manager, UserGraphExecutionQueue &task_queue,
-                                                 ExecutionOrder &order, CompileContext &compile_context,
-                                                 CompiledModelCache &cmc, std::mutex &mutex) {
-  auto jit =
-      std::unique_ptr<JitExecutor>(new JitExecutor(graph_manager, task_queue, order, compile_context, cmc, mutex));
+std::unique_ptr<JitExecutor> JitExecutor::Create(
+    GraphManager &graph_manager, UserGraphExecutionQueue &task_queue, ExecutionOrder &order,
+    CompileContext &compile_context, CompiledModelCache &cmc, std::mutex &mutex,
+    const std::map<MemoryType, std::pair<const void *, size_t>> *fixed_feature_memory_settings) {
+  auto jit = std::unique_ptr<JitExecutor>(
+      new JitExecutor(graph_manager, task_queue, order, compile_context, cmc, mutex, fixed_feature_memory_settings));
   GE_ASSERT_NOTNULL(jit);
 
   // add rt context before create jix executor
@@ -597,6 +600,7 @@ Status JitExecutor::CompileAndLoad(const std::vector<gert::Tensor> &inputs, Guar
     // todo 编译失败的时候，需要处理死锁问题
     compiled_ge_graph_id_.emplace_back(instance_id);
     GE_ASSERT_TRUE(gep->SetCompiled(instance_id, gep->GetGraph()));
+    GE_ASSERT_SUCCESS(ApplyFixedFeatureMemory(instance_id));
     GE_ASSERT_SUCCESS(compile_context_.Load(instance_id, load_options, stream));
   } else {
     auto iter = geps_to_inner_ge_graph_id_.find(gep);
@@ -604,6 +608,7 @@ Status JitExecutor::CompileAndLoad(const std::vector<gert::Tensor> &inputs, Guar
       instance_id = compile_context_.GenNewGraphId();
       GE_ASSERT_SUCCESS(compile_context_.Fork(gep->GetCompiledGraphId(), instance_id));
       GE_ASSERT_RT_OK(SetDeviceCached(device_id_));
+      GE_ASSERT_SUCCESS(ApplyFixedFeatureMemory(instance_id));
       GE_ASSERT_SUCCESS(compile_context_.Load(instance_id, load_options, stream));
       GE_ASSERT_TRUE(geps_to_inner_ge_graph_id_.emplace(gep, instance_id).second);
       gep->SetForked(instance_id);
@@ -613,6 +618,22 @@ Status JitExecutor::CompileAndLoad(const std::vector<gert::Tensor> &inputs, Guar
   }
   return SUCCESS;
 }
+
+Status JitExecutor::ApplyFixedFeatureMemory(uint32_t instance_id) const {
+  if (fixed_feature_memory_settings_ == nullptr) {
+    return SUCCESS;
+  }
+  for (const auto &setting : *fixed_feature_memory_settings_) {
+    GE_CHK_STATUS_RET(graph_manager_.SetFixedFeatureMemoryBase(instance_id, setting.first, setting.second.first,
+                                                               setting.second.second),
+                      "Apply fixed feature memory base failed, instance_id:%u, type:%d", instance_id,
+                      static_cast<int32_t>(setting.first));
+    GELOGI("Apply fixed feature memory base success, instance_id:%u, type:%d, memory:%p, size:%zu", instance_id,
+           static_cast<int32_t>(setting.first), setting.second.first, setting.second.second);
+  }
+  return SUCCESS;
+}
+
 bool JitExecutor::IsUserGraphNeedRebuild() {
   return std::any_of(compiled_ge_graph_id_.cbegin(), compiled_ge_graph_id_.cend(), [this](uint32_t graph_id) {
     const auto is_graph_need_rebuild = compile_context_.IsGraphNeedRebuild(graph_id);

@@ -36,7 +36,7 @@ class VISIBILITY_EXPORT GlobalDumper {
 
   static void OnGlobalDumperSwitch(void *ins, uint64_t enable_flags);
 
-  ge::ExceptionDumper *MutableExceptionDumper();
+  ge::ExceptionDumper *MutableExceptionDumper() const;
 
   void SetEnableFlags(const uint64_t enable_flags) {
     enable_flags_ = enable_flags;

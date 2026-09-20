@@ -105,7 +105,10 @@ graphStatus InferShape4GatherV2(gert::InferSymbolShapeContext *context) {
   int64_t axis = 0;
   const auto axes_desc = context->GetInputDesc(axes_idx);
   GE_ASSERT_NOTNULL(axes_desc);
-  GE_ASSERT_GRAPH_SUCCESS(SymbolicInferUtil::GetConstInt(axes_tensor, axes_desc->GetDataType(), axis));
+  const auto status = SymbolicInferUtil::GetConstInt(axes_tensor, axes_desc->GetDataType(), axis);
+  if (status != GRAPH_SUCCESS) {
+    return status;
+  }
   const GatherInfo gather_info = {axis, 0};
   return GatherCommonInfer(context, in_shape, indies_shape, gather_info);
 }

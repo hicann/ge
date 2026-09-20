@@ -115,7 +115,7 @@ MethodDef *ArgsManagerFileCodeGenerator::BuildGetArgsInfoMethod() {
                            });
 }
 
-MethodDef *ArgsManagerFileCodeGenerator::BuildGetDevArgAddrMethod() {
+MethodDef *ArgsManagerFileCodeGenerator::BuildGetDevArgAddrMethod() const {
   auto offset = ast_.Var("size_t", "offset");
   auto args_type = ast_.Var("int32_t", "args_type");
   return ast_.DefineMethod("Om2ArgsTable", "GetDevArgAddr", {offset, args_type}, "void *",
@@ -125,7 +125,7 @@ MethodDef *ArgsManagerFileCodeGenerator::BuildGetDevArgAddrMethod() {
                            });
 }
 
-MethodDef *ArgsManagerFileCodeGenerator::BuildGetHostArgAddrMethod() {
+MethodDef *ArgsManagerFileCodeGenerator::BuildGetHostArgAddrMethod() const {
   auto offset = ast_.Var("size_t", "offset");
   auto args_type = ast_.Var("int32_t", "args_type");
   return ast_.DefineMethod("Om2ArgsTable", "GetHostArgAddr", {offset, args_type}, "void *",
@@ -184,7 +184,7 @@ MethodDef *ArgsManagerFileCodeGenerator::BuildUpdateHostArgsMethod() {
       });
 }
 
-MethodDef *ArgsManagerFileCodeGenerator::BuildCopyArgsToDeviceMethod(const Om2CodegenModel &codegen_model) {
+MethodDef *ArgsManagerFileCodeGenerator::BuildCopyArgsToDeviceMethod(const Om2CodegenModel &codegen_model) const {
   if (codegen_model.is_need_va2pa) {
     return ast_.DefineMethod("Om2ArgsTable", "CopyArgsToDevice",
                              {ast_.Var("void *", "stream"), ast_.Var("bool", "is_async")}, "aclError",
@@ -208,11 +208,11 @@ MethodDef *ArgsManagerFileCodeGenerator::BuildCopyArgsToDeviceMethod(const Om2Co
   }
 }
 
-ExprRef ArgsManagerFileCodeGenerator::GetHostArgAddr(Arg offset, Arg args_type) {
+ExprRef ArgsManagerFileCodeGenerator::GetHostArgAddr(Arg offset, Arg args_type) const {
   return ast_.Call("GetHostArgAddr", {offset, args_type});
 }
 
-ExprRef ArgsManagerFileCodeGenerator::GetDevArgAddr(Arg offset, Arg args_type) {
+ExprRef ArgsManagerFileCodeGenerator::GetDevArgAddr(Arg offset, Arg args_type) const {
   return ast_.Call("GetDevArgAddr", {offset, args_type});
 }
 }  // namespace ge

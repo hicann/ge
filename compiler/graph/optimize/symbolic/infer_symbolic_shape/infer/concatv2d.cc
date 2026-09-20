@@ -107,8 +107,7 @@ graphStatus GetConcatDimValue(const gert::InferSymbolShapeContext *context, size
   auto dim_desc = context->GetInputDesc(dim_index);
   GE_ASSERT_NOTNULL(dim_desc);
   auto dt = dim_desc->GetDataType();
-  GE_ASSERT_GRAPH_SUCCESS(SymbolicInferUtil::GetConstInt(concat_dim_tensor, dt, concat_dim));
-  return GRAPH_SUCCESS;
+  return SymbolicInferUtil::GetConstInt(concat_dim_tensor, dt, concat_dim);
 }
 
 graphStatus InferShape4ConcatV2D(gert::InferSymbolShapeContext *context) {

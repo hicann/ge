@@ -22,6 +22,7 @@
 #include "register/graph_optimizer/graph_fusion/fusion_pass_manager/fusion_pass_registry.h"
 #undef private
 #undef protected
+#include "compiler/graph/fusion/pass/fusion_priority_cache.h"
 
 using namespace std;
 using namespace testing;
@@ -104,4 +105,48 @@ TEST_F(UTestFusionPriorityManager, TestInitBuiltInRules_Success) {
   vector<FusionPassOrRule> built_in_pass_or_rule_vec;
   Status status = manager.InitBuiltInRules(built_in_pass_or_rule_vec);
   EXPECT_EQ(status, FAILED);
+}
+
+TEST_F(UTestFusionPriorityManager, TestInitialize_RefreshFusionPriorityCache) {
+  // 解析成功后刷新进程级 FusionPriorityCache（GE FusionPassExecutor 排序的数据源）
+  ge::fusion::FusionPriorityCache::GetInstance().UpdateGraphFusionPriorityMap({});
+  auto &config = Configuration::Instance(fe::AI_CORE_NAME);
+  // 将内置配置定向到测试 fixture（builtin_config/fusion_config.json，含 Priority/GraphFusion 段）
+  const char_t *kBuiltInFileKey = "fusion.config.built-in.file";
+  const char_t *kCompilerFileKey = "fusion.config.compiler.file";
+  const auto builtin_file_iter = config.content_map_.find(kBuiltInFileKey);
+  const bool has_builtin_file = builtin_file_iter != config.content_map_.end();
+  const std::string builtin_file_bak = has_builtin_file ? builtin_file_iter->second : "";
+  const auto compiler_file_iter = config.content_map_.find(kCompilerFileKey);
+  const bool has_compiler_file = compiler_file_iter != config.content_map_.end();
+  const std::string compiler_file_bak = has_compiler_file ? compiler_file_iter->second : "";
+  config.content_map_[kBuiltInFileKey] = "fusion_config.json";
+  config.content_map_[kCompilerFileKey] = "fusion_config.json";
+
+  FEOpsKernelInfoStorePtr ops_kernel_info_store_ptr = std::make_shared<FEOpsKernelInfoStore>(fe::AI_CORE_NAME);
+  std::map<std::string, std::string> options;
+  ops_kernel_info_store_ptr->Initialize(options);
+  FusionRuleManagerPtr fusion_rule_mgr_ptr = std::make_shared<FusionRuleManager>(ops_kernel_info_store_ptr);
+  FusionPriorityManager manager(fe::AI_CORE_NAME, fusion_rule_mgr_ptr);
+  EXPECT_EQ(manager.Initialize(), SUCCESS);
+
+  const auto priority_map = ge::fusion::FusionPriorityCache::GetInstance().GetGraphFusionPriorityMap();
+  const auto momentum_iter = priority_map.find("A_MomentumLossscaleFusionPass");
+  ASSERT_NE(momentum_iter, priority_map.end());
+  EXPECT_EQ(momentum_iter->second, 4000);
+  const auto bn_iter = priority_map.find("BatchNormPreprocessFusionPass");
+  ASSERT_NE(bn_iter, priority_map.end());
+  EXPECT_EQ(bn_iter->second, 4001);
+
+  if (has_builtin_file) {
+    config.content_map_[kBuiltInFileKey] = builtin_file_bak;
+  } else {
+    (void)config.content_map_.erase(kBuiltInFileKey);
+  }
+  if (has_compiler_file) {
+    config.content_map_[kCompilerFileKey] = compiler_file_bak;
+  } else {
+    (void)config.content_map_.erase(kCompilerFileKey);
+  }
+  ge::fusion::FusionPriorityCache::GetInstance().UpdateGraphFusionPriorityMap({});
 }

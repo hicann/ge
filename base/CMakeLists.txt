@@ -58,6 +58,7 @@ set(SRC_LIST
     "common/option_supportion_checker/option_supportion_checker.cc"
     "${AIR_CODE_DIR}/compiler/graph/fusion/pass/fusion_pass_reg.cc"
     "${AIR_CODE_DIR}/compiler/graph/fusion/pass/pass_registry.cc"
+    "${AIR_CODE_DIR}/compiler/graph/fusion/pass/fusion_priority_cache.cc"
 )
 
 file(GLOB_RECURSE OM2_SRCS CONFIGURE_DEPENDS

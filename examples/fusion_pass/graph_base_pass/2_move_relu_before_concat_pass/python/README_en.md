@@ -25,9 +25,7 @@ python/
 ## Prerequisites
 
 - Completed CANN environment variable setup via `source ${ASCEND_PATH}/set_env.sh`. For more guidance, refer to [C++ Example README](../cpp/README.md) environment variable configuration step
-- Python environment can import ES API (usually from run package/ops package):
-  - `ge.es.math.ConcatV2`
-  - `ge.es.nn.Relu` (if this symbol is unavailable, confirm ES Python API installation is complete)
+- Python environment can import ES API (`ConcatV2`, `Relu`): prefers built-in plugins `ge.es.math`/`ge.es.nn` from run package/ops package; falls back to `ge.es.all` (generated via "ES API Missing Handling (Optional)" below) if missing
 - Can import GE Python package (contains `ge.graph`, `ge.passes` and pass loading chain)
 
 Python pass runtime loads precompiled binary components based on `pybind11`. CANN package prioritizes providing artifacts matching current Python version; if no matching artifact, automatically enters fallback compilation flow. Fallback compilation requires `pybind11` installed in current Python environment.
@@ -48,7 +46,7 @@ The following commands are executed in `2_move_relu_before_concat_pass` director
 2. Generate AIR model:
 
     ```bash
-    cd ../cpp/data
+    cd cpp/data
     python es_gen_air.py
     ```
 

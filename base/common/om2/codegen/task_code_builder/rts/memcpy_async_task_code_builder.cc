@@ -99,7 +99,7 @@ void MemcpyAsyncTaskCodeBuilder::SetupIoAddrRefresh(TaskSemanticContributeContex
   *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(entry_->args_size));
 }
 
-DeclNode *MemcpyAsyncTaskCodeBuilder::RenderMemcpyAsyncDistribute() {
+DeclNode *MemcpyAsyncTaskCodeBuilder::RenderMemcpyAsyncDistribute() const {
   auto op_name = ast_.Var("const char_t *const", "op_name");
   auto dst = ast_.Var("void *", "dst");
   auto dest_max = ast_.Var("uint64_t", "destMax");
@@ -127,7 +127,7 @@ DeclNode *MemcpyAsyncTaskCodeBuilder::RenderMemcpyAsyncDistribute() {
                              });
 }
 
-BodyItem MemcpyAsyncTaskCodeBuilder::RenderIoRefreshDispatch(const VarRef &op, const VarRef &ctx) {
+BodyItem MemcpyAsyncTaskCodeBuilder::RenderIoRefreshDispatch(const VarRef &op, const VarRef &ctx) const {
   const auto td = op.Arrow("dispatch_info").Attr("memcpy_async");
 
   // ResolveOpAddr for src / dst
@@ -170,7 +170,7 @@ BodyItem MemcpyAsyncTaskCodeBuilder::RenderIoRefreshDispatch(const VarRef &op, c
   });
 }
 
-BodyItem MemcpyAsyncTaskCodeBuilder::RenderDirectDispatch(const VarRef &op, const VarRef &ctx) {
+BodyItem MemcpyAsyncTaskCodeBuilder::RenderDirectDispatch(const VarRef &op, const VarRef &ctx) const {
   const auto td = op.Arrow("dispatch_info").Attr("memcpy_async");
 
   auto resolve_src =

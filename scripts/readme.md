@@ -110,7 +110,7 @@ Options:
 
 参数详细解释：
 - `-b  -- build` : 依据“scripts/env/Dockerfile”生成需要运行的容器镜像；
-- `-p  -- pull`  : 从本地配置的容器中央仓拉取需要的的容器镜像；
+- `-p  -- pull`  : 从本地配置的容器中央仓拉取需要的容器镜像；
 - `-e  -- enter` : 在本地已有容器镜像的前提下，登录容器运行环境；
 - `-r  -- reset` : 删除本地运行的容器镜像环境；
 
@@ -140,7 +140,7 @@ Example: ge config -i=<ip-address> -u=<username> -p=<password> (Need add escape 
 
 - `-i,  --ip`          : 配置依赖库服务器IP地址；
 - `-u,  --usr`         : 配置依赖库服务器用户名；
-- `-p,  --password`    : 配置依赖库地址；
+- `-p,  --password`    : 配置依赖库服务器密码；
 
 默认：打印帮助信息。
 

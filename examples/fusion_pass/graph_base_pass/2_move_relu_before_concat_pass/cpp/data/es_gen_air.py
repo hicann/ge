@@ -12,17 +12,54 @@
 
 
 from ge.es import GraphBuilder
-from ge.es.all import *
 from ge.graph.types import DataType
+
+try:
+    from ge.es.math import ConcatV2
+except ImportError:
+    try:
+        from ge.es.all import ConcatV2
+    except ImportError:
+        ConcatV2 = None
+
+try:
+    from ge.es.nn import Relu
+except ImportError:
+    try:
+        from ge.es.all import Relu
+    except ImportError:
+        Relu = None
+
+
+def _require_es_apis() -> None:
+    pairs = [
+        ("ConcatV2", ConcatV2),
+        ("Relu", Relu),
+    ]
+    missing = [name for name, obj in pairs if obj is None]
+    if missing:
+        raise RuntimeError(
+            "ES API not found: "
+            + ", ".join(missing)
+            + ". Please source the CANN environment first; if still missing, refer to the README "
+            + "section 'Handling Missing ES APIs (Optional)' to generate and load es_all, then run again."
+        )
 
 
 def build_concat_graph():
+    _require_es_apis()
     # 1、创建图构建器
     builder = GraphBuilder("MakeConcatV2FedtoReluGraph")
     # 2、创建图输入节点
-    tensor_holder1 = builder.create_input(index=0, name="tensor1", data_type=DataType.DT_FLOAT, shape=[8, 64, 128])
-    tensor_holder2 = builder.create_input(index=1, name="tensor2", data_type=DataType.DT_FLOAT, shape=[2, 64, 128])
-    tensor_holder3 = builder.create_input(index=2, name="tensor3", data_type=DataType.DT_FLOAT, shape=[6, 64, 128])
+    tensor_holder1 = builder.create_input(
+        index=0, name="tensor1", data_type=DataType.DT_FLOAT, shape=[8, 64, 128]
+    )
+    tensor_holder2 = builder.create_input(
+        index=1, name="tensor2", data_type=DataType.DT_FLOAT, shape=[2, 64, 128]
+    )
+    tensor_holder3 = builder.create_input(
+        index=2, name="tensor3", data_type=DataType.DT_FLOAT, shape=[6, 64, 128]
+    )
     tensor_holder_list = [tensor_holder1, tensor_holder2, tensor_holder3]
     concat_tensor_holder = ConcatV2(tensor_holder_list, 0, N=3)
     relu_tensor_holder = Relu(concat_tensor_holder)

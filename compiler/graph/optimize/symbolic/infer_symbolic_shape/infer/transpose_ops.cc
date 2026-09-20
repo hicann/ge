@@ -18,12 +18,10 @@
 namespace ge {
 namespace {
 template <typename T>
-bool TransposeInferCommon(gert::InferSymbolShapeContext *context, const gert::SymbolShape *in_shape,
-                          std::vector<Expression> &exprs, gert::SymbolShape *out_shape) {
+graphStatus TransposeInferCommon(gert::InferSymbolShapeContext *context, const gert::SymbolShape *in_shape,
+                                 std::vector<Expression> &exprs, gert::SymbolShape *out_shape) {
   auto attrs = context->GetAttrs();
-  if (attrs == nullptr) {
-    return false;
-  }
+  GE_ASSERT_NOTNULL(attrs);
   int64_t inserted_by_fe = 0;
   if (attrs->GetAttrNum() > 0) {
     auto inserted_by_fe_flag = attrs->GetInt(0);
@@ -34,12 +32,17 @@ bool TransposeInferCommon(gert::InferSymbolShapeContext *context, const gert::Sy
   size_t input_dim_size = in_shape->GetDimNum();
   if (inserted_by_fe == 0) {
     for (auto &expr : exprs) {
-      T perm_v;
-      expr.GetConstValue<T>(perm_v);
-      perm_v = perm_v >= 0 ? perm_v : perm_v + input_dim_size;
-      if (perm_v < 0 || static_cast<size_t>(perm_v) >= input_dim_size) {
-        return false;
+      if (!expr.IsConstExpr()) {
+        GELOGW("Symbol Infer unsupported, perm value is not const expression: %s, node %s[%s]", expr.Serialize().get(),
+               context->GetNodeName(), context->GetNodeType());
+        return UNSUPPORTED;
       }
+      T perm_v;
+      GE_ASSERT_TRUE(expr.GetConstValue<T>(perm_v), "perm const value is invalid, node %s[%s]", context->GetNodeName(),
+                     context->GetNodeType());
+      perm_v = perm_v >= 0 ? perm_v : perm_v + input_dim_size;
+      GE_ASSERT_TRUE(perm_v >= 0 && static_cast<size_t>(perm_v) < input_dim_size, "perm_v is out of range, node %s[%s]",
+                     context->GetNodeName(), context->GetNodeType());
       out_shape->AppendDim(in_shape->GetDim(perm_v));
     }
   } else {
@@ -47,7 +50,7 @@ bool TransposeInferCommon(gert::InferSymbolShapeContext *context, const gert::Sy
       out_shape->AppendDim(in_shape->GetDim(i));
     }
   }
-  return true;
+  return ge::GRAPH_SUCCESS;
 }
 
 /**
@@ -79,13 +82,12 @@ graphStatus InferShape4Transpose(gert::InferSymbolShapeContext *context) {
   GE_ASSERT_NOTNULL(perm_desc);
   auto dt = perm_desc->GetDataType();
   if (dt == DT_INT64) {
-    GE_ASSERT_TRUE(TransposeInferCommon<int64_t>(context, in_shape, perm_tensor_exprs, out_shape));
-  } else if (dt == DT_INT32) {
-    GE_ASSERT_TRUE(TransposeInferCommon<int32_t>(context, in_shape, perm_tensor_exprs, out_shape));
-  } else {
-    return ge::PARAM_INVALID;
+    return TransposeInferCommon<int64_t>(context, in_shape, perm_tensor_exprs, out_shape);
   }
-  return ge::GRAPH_SUCCESS;
+  if (dt == DT_INT32) {
+    return TransposeInferCommon<int32_t>(context, in_shape, perm_tensor_exprs, out_shape);
+  }
+  return ge::PARAM_INVALID;
 }
 
 constexpr size_t kMatmulDimNum = 2U;

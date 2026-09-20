@@ -13,6 +13,7 @@
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "framework/common/debug/ge_log.h"
+#include "ge/fusion/graph_fuse_inspector_utils.h"
 #include "ge/fusion/graph_rewriter.h"
 #include "ge/fusion/pattern_matcher.h"
 #include "ge/fusion/subgraph_boundary.h"
@@ -40,9 +41,11 @@ Status RunPatternFusion(GraphPtr &graph, CustomPassContext &pass_context,
         GELOGD("Match result[%s] is not meet requirements, skip replace.", match_result->ToAscendString().GetString());
         continue;
       }
-      if (FusionUtils::WillCauseCycleIfFuse(match_result)) {
-        GELOGI("[Replace]Skip to replace match result [%s] in case of causing cycle after fusion.",
-               match_result->ToAscendString().GetString());
+      AscendString can_fuse_reason;
+      if (!GraphFuseInspectorUtils::CanFuse(match_result->GetMatchedNodes(), can_fuse_reason)) {
+        const auto *reason = can_fuse_reason.GetString();
+        GELOGI("[Replace]Skip to replace match result [%s], reason: %s", match_result->ToAscendString().GetString(),
+               reason == nullptr ? "" : reason);
         continue;
       }
       auto boundary = match_result->ToSubgraphBoundary();
@@ -75,7 +78,7 @@ Status RunPatternFusion(GraphPtr &graph, CustomPassContext &pass_context,
     GELOGD("GraphId[%d], GraphFusionPass[%s]: pattern=%s, matched_times=%d, effected_times=%d",
            compute_graph->GetGraphID(), pass_name.c_str(), pattern_name.GetString(), match_times, effect_times);
   }
-  // 事后兜底（仅 DEBUG 日志级别）：前置 WillCauseCycleIfFuse 是局部判断，万一漏网，这里复用
+  // 事后兜底（仅 DEBUG 日志级别）：前置 CanFuse（内含 WillCauseCycleIfFuse 局部判环）万一漏网，这里复用
   // TopologicalSorting 做全图判环（有环返回非 success），把成环的融合就地拦下并定位到 pass，
   // 避免带环图流到下游 pass 触发远端 core。release 下不执行，无开销。
   if (is_changed && IsLogEnable(GE_MODULE_NAME, DLOG_DEBUG)) {

@@ -93,7 +93,7 @@ atc --input_shape="data:-1,3,416,416;img_info:-1,4"  --dynamic_batch_size="1,2,4
   - 不支持含有过程动态shape算子（网络中间层shape不固定）的网络。
   - 如果用户设置了动态batch\_size，同时又通过[--insert\_op\_conf](--insert_op_conf.md)参数设置了动态AIPP功能：
 
-    实际推理时，调用[aclmdlSetInputAIPP](../../../api/graph_engine_api/c/acl/aclmdlSetInputAIPP.md)接口设置动态AIPP相关参数值时，需确保batch\_size要设置为最大Batch数。。
+    实际推理时，调用[aclmdlSetInputAIPP](../../../api/graph_engine_api/c/acl/aclmdlSetInputAIPP.md)接口设置动态AIPP相关参数值时，需确保batch\_size要设置为最大Batch数。
 
   - 通过该参数设置动态batch\_size特性后，生成的离线模型网络结构会与固定batch\_size场景下的不同，推理性能可能存在差异。
 

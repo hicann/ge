@@ -2581,6 +2581,28 @@ TEST_F(UtestGeApiV2, SliceSchedule_UnsupportedPaths) {
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
 }
 
+TEST_F(UtestGeApiV2, SliceScheduleMemoryBaseUnsupported) {
+  AutoFuseStubGuard auto_fuse_stub_guard;
+  EnvValueGuard guard("AUTOFUSE_FLAGS");
+  setenv("AUTOFUSE_FLAGS",
+         "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true;"
+         "--enable_slice_schedule=true",
+         1);
+
+  std::map<AscendString, AscendString> options;
+  EXPECT_EQ(GEInitializeV2(options), SUCCESS);
+  GeSession session(options);
+  const auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  const Graph graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+  EXPECT_EQ(session.AddGraph(1, graph), SUCCESS);
+  EXPECT_EQ(session.SetGraphConstMemoryBase(1, nullptr, 0U), UNSUPPORTED);
+  EXPECT_EQ(session.UpdateGraphFeatureMemoryBase(1, nullptr, 0U), UNSUPPORTED);
+  EXPECT_EQ(session.SetGraphFixedFeatureMemoryBaseWithType(1, MemoryType::MEMORY_TYPE_DEFAULT, nullptr, 0U),
+            UNSUPPORTED);
+  EXPECT_EQ(session.UpdateGraphRefreshableFeatureMemoryBase(1, nullptr, 0U), UNSUPPORTED);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
 TEST_F(UtestGeApiV2, RunGraphWithStreamAsync_LoadAndRun) {
   std::map<AscendString, AscendString> options;
   options[ge::OPTION_HOST_ENV_OS] = "linux";

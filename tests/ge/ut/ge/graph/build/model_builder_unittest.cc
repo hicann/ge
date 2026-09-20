@@ -900,4 +900,59 @@ TEST_F(UtestModelBuilderTest, AssignStreamForDynamicShapeGraph_WithHcom) {
   auto ret = builder.AssignStreamForDynamicShapeGraph(graph);
   EXPECT_EQ(ret, SUCCESS);
 }
+
+namespace {
+class UtestClearOriginalFormatBuilder : public ge::ModelBuilder {
+ public:
+  using ModelBuilder::ModelBuilder;
+  void ClearOriginalFormatForTest() const {
+    ClearOriginalFormat();
+  }
+};
+}  // namespace
+
+TEST_F(UtestModelBuilderTest, ClearOriginalFormatKeepIrAttr) {
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("clear_original_format_graph");
+
+  auto ir_format_desc = std::make_shared<ge::OpDesc>("ir_format_node", "CustomOp");
+  EXPECT_TRUE(ge::AttrUtils::SetInt(ir_format_desc, ATTR_NAME_FORMAT, 1));
+  ir_format_desc->AppendIrAttrName(ATTR_NAME_FORMAT);
+  EXPECT_NE(graph->AddNode(ir_format_desc), nullptr);
+
+  auto ir_inferred_format_desc = std::make_shared<ge::OpDesc>("ir_inferred_format_node", "CustomOp");
+  EXPECT_TRUE(ge::AttrUtils::SetInt(ir_inferred_format_desc, ATTR_NAME_INFERRED_FORMAT, 1));
+  ir_inferred_format_desc->AppendIrAttrName(ATTR_NAME_INFERRED_FORMAT);
+  EXPECT_NE(graph->AddNode(ir_inferred_format_desc), nullptr);
+
+  auto ir_pred_permute_deleted_desc = std::make_shared<ge::OpDesc>("ir_pred_permute_deleted_node", "CustomOp");
+  EXPECT_TRUE(ge::AttrUtils::SetBool(ir_pred_permute_deleted_desc, ATTR_NAME_PRED_PERMUTE_DELETED, true));
+  ir_pred_permute_deleted_desc->AppendIrAttrName(ATTR_NAME_PRED_PERMUTE_DELETED);
+  EXPECT_NE(graph->AddNode(ir_pred_permute_deleted_desc), nullptr);
+
+  auto ir_ignore_pred_format_desc = std::make_shared<ge::OpDesc>("ir_ignore_pred_format_node", "CustomOp");
+  EXPECT_TRUE(ge::AttrUtils::SetBool(ir_ignore_pred_format_desc, ATTR_NAME_IGNORE_PRED_FORMAT, true));
+  ir_ignore_pred_format_desc->AppendIrAttrName(ATTR_NAME_IGNORE_PRED_FORMAT);
+  EXPECT_NE(graph->AddNode(ir_ignore_pred_format_desc), nullptr);
+
+  auto normal_format_desc = std::make_shared<ge::OpDesc>("normal_format_node", "CustomOp");
+  EXPECT_TRUE(ge::AttrUtils::SetInt(normal_format_desc, ATTR_NAME_FORMAT, 1));
+  EXPECT_NE(graph->AddNode(normal_format_desc), nullptr);
+
+  UtestClearOriginalFormatBuilder builder(0, graph, subgraphs, stream_max_parallel_num, false);
+  builder.ClearOriginalFormatForTest();
+
+  int64_t value = 0;
+  EXPECT_TRUE(ge::AttrUtils::GetInt(ir_format_desc, ATTR_NAME_FORMAT, value));
+  EXPECT_EQ(value, 1);
+  EXPECT_TRUE(ge::AttrUtils::GetInt(ir_inferred_format_desc, ATTR_NAME_INFERRED_FORMAT, value));
+  EXPECT_EQ(value, 1);
+  bool bool_value = false;
+  EXPECT_TRUE(ge::AttrUtils::GetBool(ir_pred_permute_deleted_desc, ATTR_NAME_PRED_PERMUTE_DELETED, bool_value));
+  EXPECT_TRUE(bool_value);
+  EXPECT_TRUE(ge::AttrUtils::GetBool(ir_ignore_pred_format_desc, ATTR_NAME_IGNORE_PRED_FORMAT, bool_value));
+  EXPECT_TRUE(bool_value);
+  EXPECT_FALSE(normal_format_desc->HasAttr(ATTR_NAME_FORMAT));
+}
 }  // namespace ge

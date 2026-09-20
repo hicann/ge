@@ -55,11 +55,11 @@ class MemcpyAddrAsyncTaskCodeBuilder : public TaskCodeBuilder {
   Status BuildOrderedArgs(TaskSemanticContributeContext &context, const AddrSemantic &src_addr_node,
                           const AddrSemantic &dst_addr_node);
   void PopulateBuildData();
-  Status RenderKernelDistributeFunc(std::vector<DeclNode *> &items);
+  Status RenderKernelDistributeFunc(std::vector<DeclNode *> &items) const;
   Status RenderDispatchFunc(std::vector<DeclNode *> &items);
-  std::vector<BodyItem> RenderIoAddrResolveLoop(const VarRef &ctx, const ExprRef &memcpy_addr);
+  std::vector<BodyItem> RenderIoAddrResolveLoop(const VarRef &ctx, const ExprRef &memcpy_addr) const;
   Status RenderCustomValueWriteback(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                    const ExprRef &args_table_idx);
+                                    const ExprRef &args_table_idx) const;
 
   std::vector<AddrSemantic> ordered_arg_values_;
   std::vector<ArgDesc> arg_descs_;

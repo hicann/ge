@@ -34,6 +34,8 @@ class OpImplModeConfigParser : public BaseConfigParser {
  private:
   Status Initialize(const std::string &op_precision_mode, const std::string &op_select_impl_mode,
                     const std::string &op_type_list_for_impl_mode, const std::string &allow_hf32);
+  Status InitExplicitAllowHF32(const std::string &hf32_val, const std::string &raw_allow_hf32);
+  Status InitDefaultAllowHF32();
   void UpDateDefaultValue(const std::string &op_precision_mode, std::string &op_select_impl_mode,
                           std::string &allow_hf32);
   Status InitOpPrecisionMode(const std::string &op_precision_mode, const std::string &op_select_impl_mode,
@@ -41,10 +43,19 @@ class OpImplModeConfigParser : public BaseConfigParser {
   Status InitOpPrecisionModeByPrecisionMode(const std::string &op_precision_mode);
   Status InitOpPrecisionModeByImplModeAll(const std::string &op_select_impl_mode_all);
   Status InitOpPrecisionModeByImplMode(const std::string &op_select_impl_mode, const std::string &op_type_list_str);
-  Status InitAllowHF32Mode(const std::string &allow_hf32);
+
   void ParseLineContentWithMode(const std::string &line_content, bool parse_by_op_type, const size_t &pos_of_equal);
   Status GetOpPrecisonModeStrFromConfigFile(const std::string &file_path);
   bool CheckConfigImplType(const std::string &impl_mode) const;
+
+  // allow_hf32 新方案：扫描新目录下的 ops_allow_hf32_*.ini
+  Status InitAllowHF32Mode(const std::string &allow_hf32);
+  Status InitAllowHF32NewFiles(const std::string &allow_hf32);
+  Status InitAllowHF32LegacyFiles(const std::string &allow_hf32);
+  Status ParseAllowHF32IniFile(const std::string &file_path);
+  Status ParseAllowHF32IniFileContent(const std::string &file_path, std::ifstream &ifs);
+  bool HasNewAllowHF32Files() const;
+
   std::string ascend_opp_path_;
   std::string op_precision_mode_;
   std::string op_select_impl_mode_;
