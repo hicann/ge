@@ -144,6 +144,12 @@ class SymbolicInferUtil {
   static bool IsValueDependentDataNode(const NodePtr &data_node);
   static Status GetValueDependentInputIdxs(const ComputeGraphPtr &graph, std::set<size_t> &value_dependent_idxs);
 };
+
+// Reshape 未知维度(-1)的整除性求解：total 与 known 的 hint 值满足 total >= 0、known > 0
+// 且整除时经 dynamic_dim 返回商并登记整除性 guard（total == known * dim），避免符号除法
+// 产生 Rational 分数表达式；hint 不可得或不整除返回 UNSUPPORTED 由调用方回退。
+// 不可用 Expression 默认构造表达失败（其 impl 非空，IsValid 恒真，无法与成功区分）
+graphStatus ResolveIntegralDim(const Expression &total, const Expression &known, Expression &dynamic_dim);
 }  // namespace ge
 
 #endif  // AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_SYMBOLIC_INFER_SYMBOLIC_SHAPE_SYMBOLIC_SHAPE_INFER_UTIL_H_

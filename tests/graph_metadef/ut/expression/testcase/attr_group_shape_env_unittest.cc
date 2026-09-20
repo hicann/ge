@@ -56,37 +56,39 @@ TEST_F(AttributeGroupShapeEnvUt, ShapeEnvAttrDeserialize_InvalidExpression) {
     const graphStatus ret = shape_env.Deserialize(attr_group_def, nullptr);
     EXPECT_TRUE(ret == GRAPH_FAILED || ret == PARAM_INVALID) << "ret=" << ret;
   };
+  // "s0*s1" 等非规范但语义良好的串会被 Deserialize 正确接受（见 Deserialize 用例），
+  // 本用例使用残留 token 的截断串 "a(s0)" 覆盖非法表达式的拒绝路径
 
   {
     proto::AttrGroupDef attr_group_def;
-    (*attr_group_def.mutable_shape_env_attr_group()->mutable_symbol_to_value())["s0*s1"] = 1;
+    (*attr_group_def.mutable_shape_env_attr_group()->mutable_symbol_to_value())["a(s0)"] = 1;
     expect_deserialize_failed(attr_group_def);
   }
   {
     proto::AttrGroupDef attr_group_def;
-    (*attr_group_def.mutable_shape_env_attr_group()->mutable_value_to_symbol())[1].add_symbols("s0*s1");
+    (*attr_group_def.mutable_shape_env_attr_group()->mutable_value_to_symbol())[1].add_symbols("a(s0)");
     expect_deserialize_failed(attr_group_def);
   }
   {
     proto::AttrGroupDef attr_group_def;
-    auto &replacement = (*attr_group_def.mutable_shape_env_attr_group()->mutable_replacements())["s0*s1"];
+    auto &replacement = (*attr_group_def.mutable_shape_env_attr_group()->mutable_replacements())["a(s0)"];
     replacement.set_replace_expr("s0");
     expect_deserialize_failed(attr_group_def);
   }
   {
     proto::AttrGroupDef attr_group_def;
     auto &replacement = (*attr_group_def.mutable_shape_env_attr_group()->mutable_replacements())["s0"];
-    replacement.set_replace_expr("s0*s1");
+    replacement.set_replace_expr("a(s0)");
     expect_deserialize_failed(attr_group_def);
   }
   {
     proto::AttrGroupDef attr_group_def;
-    attr_group_def.mutable_shape_env_attr_group()->add_symbol_check_infos()->set_expr("s0*s1");
+    attr_group_def.mutable_shape_env_attr_group()->add_symbol_check_infos()->set_expr("a(s0)");
     expect_deserialize_failed(attr_group_def);
   }
   {
     proto::AttrGroupDef attr_group_def;
-    attr_group_def.mutable_shape_env_attr_group()->add_symbol_assert_infos()->set_expr("s0*s1");
+    attr_group_def.mutable_shape_env_attr_group()->add_symbol_assert_infos()->set_expr("a(s0)");
     expect_deserialize_failed(attr_group_def);
   }
 }
@@ -471,6 +473,26 @@ TEST_F(AttributeGroupShapeEnvUt, CheckReplacementCycleTest) {
   if (shape_env.replacements_.find(s2) != shape_env.replacements_.end()) {
     EXPECT_NE(replacements[s2].replace_expr, (s1 + s2));
   }
+
+  SetCurShapeEnvContext(nullptr);
+}
+
+// 间接环：已有 s3 == Min(2, s2) 的替换（变量 s3 的替换根为复合表达式 Min(2, s2)）时，
+// 再建立 s2 == (s0+s3)*Ceil(s1) 会闭合出 s2 -> 复合 -> s3 -> Min(2, s2) 的替换链环；
+// 检测命中后跳过该条替换（s2 不进入替换集合），既有替换保持不变
+TEST_F(AttributeGroupShapeEnvUt, CheckReplacementCycleIndirectTest) {
+  ShapeEnvAttr shape_env;
+  SetCurShapeEnvContext(&shape_env);
+  Symbol s0 = shape_env.CreateSymbol(1, MakeShared<GraphInputShapeSourceStub>(0, 0));
+  Symbol s1 = shape_env.CreateSymbol(1, MakeShared<GraphInputShapeSourceStub>(0, 1));
+  Symbol s2 = shape_env.CreateSymbol(3, MakeShared<GraphInputShapeSourceStub>(0, 2));
+  Symbol s3 = shape_env.CreateSymbol(2, MakeShared<GraphInputShapeSourceStub>(0, 3));
+
+  EXPECT_EQ(EXPECT_SYMBOL_EQ(s3, sym::Min(Symbol(2), s2)), true);
+  EXPECT_NE(shape_env.replacements_.find(s3), shape_env.replacements_.end());
+
+  EXPECT_EQ(EXPECT_SYMBOL_EQ((s0 + s3) * sym::Ceiling(s1), s2), true);
+  EXPECT_EQ(shape_env.replacements_.find(s2), shape_env.replacements_.end());
 
   SetCurShapeEnvContext(nullptr);
 }

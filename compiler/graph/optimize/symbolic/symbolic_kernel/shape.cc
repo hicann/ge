@@ -42,7 +42,39 @@ bool GetShapeValue(const Expression &expr, DataType dtype, int64_t &value) {
   return false;
 }
 
+// 常量维度直接取值；非常量维度按 hint（运行时真实数据）取值并标记 is_hint_value，
+// 供调用方对 hint 判定结果登记 guard。hint 不可得返回 UNSUPPORTED 由调用方回退。
+graphStatus GetShapeValueWithHint(const Expression &expr, DataType dtype, int64_t &value, bool &is_hint_value) {
+  is_hint_value = false;
+  if (GetShapeValue(expr, dtype, value)) {
+    return GRAPH_SUCCESS;
+  }
+  if (!expr.GetHint(value)) {
+    return UNSUPPORTED;
+  }
+  is_hint_value = true;
+  return GRAPH_SUCCESS;
+}
+
 }  // namespace
+
+// Reshape 未知维度收尾：无未知维度(-1)时登记总量一致 guard；有未知维度时按 hint
+// 整除性求解（见 ResolveIntegralDim）并回填
+graphStatus FinalizeReshapeDims(const gert::InferSymbolComputeContext *context, const Expression &input_size,
+                                const Expression &known, const size_t unknown, std::vector<Expression> &dims) {
+  if (unknown == std::numeric_limits<size_t>::max()) {
+    ASSERT_SYMBOL_EQ(input_size, known);
+    return GRAPH_SUCCESS;
+  }
+  Expression dynamic_dim;
+  if (ResolveIntegralDim(input_size, known, dynamic_dim) != SUCCESS) {
+    GELOGW("Reshape symbolic compute unsupported: cannot infer integral unknown dimension, node %s[%s].",
+           context->GetNodeName(), context->GetNodeType());
+    return UNSUPPORTED;
+  }
+  dims[unknown] = dynamic_dim;
+  return GRAPH_SUCCESS;
+}
 
 graphStatus BuildReshapeDims(gert::InferSymbolComputeContext *context, const gert::SymbolTensor *shape_tensor,
                              std::vector<Expression> &dims) {
@@ -60,31 +92,40 @@ graphStatus BuildReshapeDims(gert::InferSymbolComputeContext *context, const ger
   Expression known(Symbol(1));
   for (size_t i = 0U; i < values->size(); ++i) {
     int64_t dim = 0L;
-    if (!GetShapeValue(values->at(i), desc->GetDataType(), dim)) {
-      dims.emplace_back(values->at(i));
-      known = known * values->at(i);
-    } else if (dim == 0L && i < input_shape.GetDimNum()) {
+    bool is_hint_value = false;
+    const auto &dim_expr = values->at(i);
+    const auto ret = GetShapeValueWithHint(dim_expr, desc->GetDataType(), dim, is_hint_value);
+    if (ret != GRAPH_SUCCESS) {
+      // hint 不可得的维度不再乘进 known 做符号除法（Rational 分数表达式在 symengine
+      // 的 subs/replace 上存在缺陷），直接回退由上层走传统推导
+      return ret;
+    }
+    // hint 来源的取值按分类登记假设 guard：0 为复制输入维度、正数为显式目标维度
+    if (is_hint_value && dim >= 0L) {
+      (void)(dim == 0L ? EXPECT_SYMBOL_EQ(dim_expr, kSymbolZero) : EXPECT_SYMBOL_GT(dim_expr, kSymbolZero));
+    }
+    if (dim == 0L && i < input_shape.GetDimNum()) {
       dims.emplace_back(input_shape.GetDim(i));
       known = known * input_shape.GetDim(i);
     } else if (dim > 0L) {
-      dims.emplace_back(values->at(i));
-      known = known * values->at(i);
+      dims.emplace_back(dim_expr);
+      known = known * dim_expr;
     } else if (dim == -1L && unknown == std::numeric_limits<size_t>::max()) {
+      // hint 来源的 -1 登记 guard：运行时 shape 变为其它等元素量排列时，仅靠
+      // 总元素量约束无法拦截（同 infer 侧 ReshapeInferCommon）
+      if (is_hint_value) {
+        (void)EXPECT_SYMBOL_EQ(dim_expr, Symbol(-1));
+      }
       unknown = i;
       dims.emplace_back(Symbol(1));
     } else {
-      GELOGW("Reshape symbolic compute unsupported: invalid reshape dimension, node %s[%s].", context->GetNodeName(),
-             context->GetNodeType());
-      return UNSUPPORTED;
+      // 第二个及以后的 -1（算子语义非法，兼容 TF 约定 at most one -1）或非法维度值
+      // （负数/0 越界），直接报错
+      GE_ASSERT_TRUE(false, "Reshape symbolic compute: invalid reshape dimension %s, node %s[%s].",
+                     dim_expr.Serialize().get(), context->GetNodeName(), context->GetNodeType());
     }
   }
-  const auto input_size = input_shape.GetSymbolShapeSize();
-  if (unknown != std::numeric_limits<size_t>::max()) {
-    dims[unknown] = input_size / known;
-  } else {
-    ASSERT_SYMBOL_EQ(input_size, known);
-  }
-  return GRAPH_SUCCESS;
+  return FinalizeReshapeDims(context, input_shape.GetSymbolShapeSize(), known, unknown, dims);
 }
 
 /**

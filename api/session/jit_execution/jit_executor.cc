@@ -504,6 +504,11 @@ Status JitExecutor::ProcessAndExecuteGraphAsync(UserGraphExecution &task, const 
   std::vector<gert::Tensor> compile_inputs;
   GE_ASSERT_SUCCESS(BuildCompileInputs(inputs, ep->GetSlicedGraph(), compile_inputs, cond_input_data_cache_,
                                        guarded_execution_cache_mutex_));
+  // 标记必须与编译/执行同用一份 compile_inputs：value-dependent/cond 输入经 D2H 后为 host placement，
+  // 其 Data 节点的 ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT 标记随 sliced graph 进入 GEP 编译，
+  // 供静态图(DavinciModel)加载时将对应 input index 并入随路拷贝集合；
+  // 标记基于原始 inputs 时看不到 D2H 生成的 host 副本，静态场景会退化为零拷贝校验失败
+  MarkHostTensorOnDataNodes(compile_inputs, ep->GetSlicedGraph());
   GuardedExecutionInfo execution_info;
   GE_ASSERT_SUCCESS(GetOrCompileGuardedExecutionPoint(task, compile_inputs, ep, stream, execution_info));
   GELOGD("ExecuteGraphWithStreamAsync GEP[ins_id:%u] of EP[%ld] USER_GRAPH[%u].", execution_info.instance_id,
@@ -513,10 +518,13 @@ Status JitExecutor::ProcessAndExecuteGraphAsync(UserGraphExecution &task, const 
   if (need_malloc_output) {
     GE_ASSERT_SUCCESS(MallocOutputsForStatic(execution_info.instance_id, execution_info.gep, outputs));
   }
-  // 非最后一张slice
-  // graph以外的图需要尝试进行output内存的申请，因为子图间的output是jit内部给的，静态图场景且没有外置allocator时需要手动申请内存
-  JIT_ASSERT_SUCCESS(graph_manager_.ExecuteGraphWithStreamAsync(execution_info.instance_id, stream, inputs, outputs),
-                     task);
+  // value-dependent/cond 输入在 BuildCompileInputs 中已被 D2H 为 host tensor，guard 匹配与 GEP 编译
+  // 均建立在该 host 假设上（符号化推导从 host 数据取值）。执行阶段必须传入同一份 compile_inputs，
+  // 由执行器按 host placement 消化（RT2 动态图走 alloc+H2D，静态图走随路拷贝）。
+  // 若此处传入原始 device inputs，会形成"编译假设 host、执行传入 device"的 placement 不一致：
+  // 真机环境下执行链路按 host 语义消费该输入时解引用 device 地址，导致主进程 coredump。
+  JIT_ASSERT_SUCCESS(
+      graph_manager_.ExecuteGraphWithStreamAsync(execution_info.instance_id, stream, compile_inputs, outputs), task);
   return SUCCESS;
 }
 

@@ -15,7 +15,7 @@
 #include "graph/optimize/symbolic/symbolic_kernel_factory.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "graph_metadef/common/ge_common/util.h"
-#include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
+#include "graph/symbolizer/symbol_checker.h"
 #include <algorithm>
 
 namespace ge {
@@ -37,17 +37,53 @@ bool GetShapeValue(const std::vector<Expression> &symbol_shape, std::vector<int6
   return true;
 }
 
+// 解析 condition 的分支选择：布尔表达式（如比较算子输出的 ExpectLt(y, x)）取整体
+// 真值，数值表达式按非零为真。常量直接取值；非常量时按 hint 选择分支并登记运行时
+// guard（hint 与运行时不符时由 guard 链路拦截：JIT 触发 GEP miss 重编译，hybrid 执行
+// 显式报错）。hint 不可得（表达式含未取值自由符号）时返回 false 交由调用方以
+// UNSUPPORTED 回退，避免按失败值选分支且无 guard 的错误传播（bool 语境不可用
+// GE_ASSERT_TRUE：ErrorResult 会经 operator bool() 静默转为 false，错误被吞）。
+bool GetConditionBranch(const Expression &condition, bool &take_then) {
+  if (condition.IsBooleanExpr()) {
+    if (condition.IsConstExpr()) {
+      bool const_value = false;
+      GE_ASSERT_TRUE(condition.GetConstValue(const_value));
+      take_then = const_value;
+      return true;
+    }
+    bool hint_value = false;
+    if (!condition.GetHint(hint_value)) {
+      return false;
+    }
+    take_then = EXPECT_SYMBOL_AND(condition);
+    return true;
+  }
+  int32_t cond_value = 0;
+  if (condition.GetConstValue(cond_value)) {
+    take_then = cond_value > 0;
+    return true;
+  }
+  // 数值条件按 int 取 hint（代入求值结果为 Integer，GetHint(bool) 的公共实现
+  // 只接受 BooleanAtom），分支判定与 guard 登记统一走 EXPECT_SYMBOL_GT > 0 语义
+  int32_t hint_value = 0;
+  if (!condition.GetHint(hint_value)) {
+    return false;
+  }
+  take_then = EXPECT_SYMBOL_GT(condition, Symbol(0));
+  return true;
+}
+
 bool CalOutputValue(const std::vector<Expression> &condition, const std::vector<Expression> &x1,
                     const std::vector<Expression> &x2, std::vector<Expression> &output) {
   output.reserve(condition.size());
   for (size_t i = 0U; i < condition.size(); ++i) {
-    int32_t cond = 0;
-    GE_ASSERT_TRUE(condition[i].GetConstValue(cond));
-    if (cond > 0) {
-      output.emplace_back(x1[i]);
-    } else {
-      output.emplace_back(x2[i]);
+    bool take_then = false;
+    if (!GetConditionBranch(condition[i], take_then)) {
+      GELOGW("Select/SelectV2 symbolic compute unsupported: condition hint is unavailable, expr: %s.",
+             condition[i].Serialize().get());
+      return false;
     }
+    output.emplace_back(take_then ? x1[i] : x2[i]);
   }
   return true;
 }

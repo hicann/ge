@@ -43,16 +43,18 @@ bool IsUnInferredNode(const NodePtr &node) {
   }
   // 算子的任何一个输出有符号，说明推导成功，需要切到ep中执行
   const auto &outputs = op_desc->GetAllOutputsDescPtr();
-  const bool has_valid_output = std::any_of(outputs.begin(), outputs.end(),
-      [](const GeTensorDescPtr &desc) { return desc->GetAttrsGroup<SymbolicDescAttr>() != nullptr; });
+  const bool has_valid_output = std::any_of(outputs.begin(), outputs.end(), [](const GeTensorDescPtr &desc) {
+    return desc->GetAttrsGroup<SymbolicDescAttr>() != nullptr;
+  });
   if (has_valid_output) {
     GELOGD("[%s][%s] is inferred successfully.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
     return false;
   }
   // 存在空输入，说明是受上游算子影响，切到下一张图
   const auto &inputs = op_desc->GetAllInputsDescPtr();
-  const bool has_empty_input = std::any_of(inputs.begin(), inputs.end(),
-      [](const GeTensorDescPtr &desc) { return desc->GetAttrsGroup<SymbolicDescAttr>() == nullptr; });
+  const bool has_empty_input = std::any_of(inputs.begin(), inputs.end(), [](const GeTensorDescPtr &desc) {
+    return desc->GetAttrsGroup<SymbolicDescAttr>() == nullptr;
+  });
   if (has_empty_input) {
     return true;
   }
@@ -81,7 +83,7 @@ bool ParentNodeInferred(const NodePtr &node, std::vector<NodePtr> &inferred_node
 }
 
 void DeleteNodesWithoutParentNode(std::vector<NodePtr> &inferred_nodes) {
-  // delete nodes whose parents node not infered
+  // delete nodes whose parents node not inferred
   for (auto it = inferred_nodes.begin(); it != inferred_nodes.end();) {
     if (!ParentNodeInferred(*it, inferred_nodes)) {
       GELOGD("Infer node:%s. Parent node uninfered", (*it)->GetName().c_str());
@@ -102,8 +104,11 @@ bool HasUnsuppliableInput(const NodePtr &node, const OpDescPtr &op_desc,
       continue;
     }
     size_t ir_index = 0;
-    const bool has_ir = (OpDescUtils::GetInputIrIndexByInstanceIndex(op_desc, i - invalid_index_num, ir_index) == SUCCESS);
-    if (!has_ir || !func.IsInputDataDependency(ir_index)) { continue; }
+    const bool has_ir =
+        (OpDescUtils::GetInputIrIndexByInstanceIndex(op_desc, i - invalid_index_num, ir_index) == SUCCESS);
+    if (!has_ir || !func.IsInputDataDependency(ir_index)) {
+      continue;
+    }
     const auto source_node = in_anchor->GetPeerOutAnchor()->GetOwnerNode();
     if (source_node == nullptr || ConstantUtils::IsConstant(source_node) ||
         SymbolicKernelFactory::GetInstance().Create(source_node->GetType()) != nullptr) {
@@ -128,7 +133,7 @@ bool ShouldKeepAsCutBoundary(const NodePtr &node, const OpDescPtr &op_desc) {
 }
 
 struct PullableCategories {
-  std::unordered_set<NodePtr> no_callback;        // 没注册回调（无compute且无infer）
+  std::unordered_set<NodePtr> no_callback;         // 没注册回调（无compute且无infer）
   std::unordered_set<NodePtr> unsuppliable_input;  // 值依赖无法满足
   std::unordered_set<NodePtr> no_lowering;         // 没注册lowering
 
@@ -151,10 +156,9 @@ void ClassifyPullable(const NodePtr &node, PullableCategories &categories) {
     return;
   }
   const auto &outputs = op_desc->GetAllOutputsDescPtr();
-  const bool all_static = std::all_of(outputs.begin(), outputs.end(),
-      [](const GeTensorDescPtr &desc) {
-        return desc->IsOriginShapeInitialized() && !desc->GetOriginShape().IsUnknownShape();
-      });
+  const bool all_static = std::all_of(outputs.begin(), outputs.end(), [](const GeTensorDescPtr &desc) {
+    return desc->IsOriginShapeInitialized() && !desc->GetOriginShape().IsUnknownShape();
+  });
   if (all_static) {
     return;
   }
@@ -248,7 +252,9 @@ void PropagatePullable(std::vector<NodePtr> &uninferred_nodes, std::vector<NodeP
       it = uninferred_nodes.erase(it);
       changed = true;
     }
-    if (!changed) { break; }
+    if (!changed) {
+      break;
+    }
   }
 }
 }  // namespace
@@ -274,6 +280,12 @@ Status JitInferUtils::PrepareBeforeInferSymbol(const ComputeGraphPtr &graph, con
   GE_ASSERT_SUCCESS(graph_optimize.HandleSummaryOp(graph));
   graph_prepare.SetGraphNormalized(true);  // to skip GraphOptimize::OptimizeAfterGraphNormalization
   GE_ASSERT_SUCCESS(graph_prepare.NormalizeGraph(graph, graph_node->GetOptions(), inputs));
+  // 与标准编译管线 GraphManager::PreRunOptimizeOriginalGraph 的阶段序列对齐：
+  // 符号推导基于未经 FE prepare 的图进行，而 sliced graph 最终编译时仍会执行这两个
+  // 阶段，会导致"推导图"与"编译图"状态不一致（切图边界与可符号化节点集合错位）。
+  // 两个 pass 均幂等，编译期重复执行无副作用。
+  GE_ASSERT_SUCCESS(graph_optimize.OptimizeGraphInit(graph));
+  GE_ASSERT_SUCCESS(graph_optimize.OptimizeOriginalGraphForQuantize(graph));
   GE_ASSERT_SUCCESS(graph_prepare.PrepareDynShape());
 
   return SUCCESS;

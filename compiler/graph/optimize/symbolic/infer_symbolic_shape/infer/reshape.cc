@@ -35,6 +35,27 @@ graphStatus GetConstInt(const Expression &expr, DataType dt, int64_t &value) {
   return ge::GRAPH_SUCCESS;
 }
 
+// Reshape 尺寸约束收尾：无未知维度(-1)时登记总量一致 guard；有未知维度时按 hint
+// 整除性求解（见 ResolveIntegralDim）并回填该维度
+graphStatus FinalizeReshapeSize(const gert::InferSymbolShapeContext *context, const gert::SymbolShape *in_shape,
+                                gert::SymbolShape *out_shape, size_t unknown_dim_idx) {
+  Expression in_shape_size = in_shape->GetSymbolShapeSize();
+  Expression out_shape_size = out_shape->GetSymbolShapeSize();
+  if (unknown_dim_idx == std::numeric_limits<size_t>::max()) {
+    // 添加guard out_shape_size == in_shape_size
+    ASSERT_SYMBOL_EQ(in_shape_size, out_shape_size);
+    return ge::GRAPH_SUCCESS;
+  }
+  Expression dynamic_dim;
+  if (ResolveIntegralDim(in_shape_size, out_shape_size, dynamic_dim) != SUCCESS) {
+    GELOGW("Symbol Infer unsupported, cannot infer integral unknown dimension, node %s[%s]", context->GetNodeName(),
+           context->GetNodeType());
+    return UNSUPPORTED;
+  }
+  out_shape->MutableDims()[unknown_dim_idx] = dynamic_dim;
+  return ge::GRAPH_SUCCESS;
+}
+
 graphStatus ReshapeInferCommon(const gert::InferSymbolShapeContext *context, const gert::SymbolShape *in_shape,
                                gert::SymbolShape *out_shape, const gert::SymbolTensor *shape_tensor, DataType dt) {
   auto reshape_dim_num = shape_tensor->GetSymbolicValue()->size();
@@ -42,42 +63,52 @@ graphStatus ReshapeInferCommon(const gert::InferSymbolShapeContext *context, con
   // expr可能是常量或者符号
   for (size_t i = 0; i < reshape_dim_num; i++) {
     auto dim_expr = shape_tensor->GetSymbolicValue()->at(i);
+    // 常量维度直接取值；非常量维度尝试按 hint 取值（运行时真实数据），hint 不可得
+    // 时保留符号维度原样传播（合法：符号维度本就可存在于 shape 中，不构成值污染）。
+    int64_t dim = -2;
+    bool has_dim_value = false;
     if (dim_expr.IsConstExpr()) {
       // 如果dim是常量，只能是int32或者int64类型
-      int64_t dim = -2;
       if (GetConstInt(dim_expr, dt, dim) == UNSUPPORTED) {
         GELOGW("Symbol Infer unsupported, get dim at index[%zu] is not constvalue, node %s[%s]", i,
                context->GetNodeName(), context->GetNodeType());
         return UNSUPPORTED;
       }
-      if (dim == 0) {
-        // 输入为0表示使用输入的维度
-        GE_ASSERT_TRUE(i < in_shape->GetDimNum());
-        out_shape->AppendDim(in_shape->GetDim(i));
-      } else if (dim == -1) {
-        // 输入为-1表示该维度不确定需要等其它维度确定后最后计算，先用1占位，并记录该维度
-        GE_ASSERT_TRUE(unknown_dim_idx == std::numeric_limits<size_t>::max());
-        out_shape->AppendDim(Symbol(1));
-        unknown_dim_idx = i;
-      } else {
-        out_shape->AppendDim(dim_expr);
+      has_dim_value = true;
+    } else if (dim_expr.GetHint(dim)) {
+      has_dim_value = true;
+    }
+    if (!has_dim_value) {
+      out_shape->AppendDim(dim_expr);
+      continue;
+    }
+    if (dim == 0) {
+      // 输入为0表示使用输入的维度；hint 判定为 0 时登记 guard 固化该假设
+      if (!dim_expr.IsConstExpr()) {
+        (void)EXPECT_SYMBOL_EQ(dim_expr, kSymbolZero);
       }
+      GE_ASSERT_TRUE(i < in_shape->GetDimNum());
+      out_shape->AppendDim(in_shape->GetDim(i));
+    } else if (dim == -1) {
+      // 输入为-1表示该维度不确定需要等其它维度确定后最后计算，先用1占位，并记录该维度。
+      // 多个 -1 属算子语义非法（兼容 TF 约定 at most one -1：两维未知时总元素量方程
+      // 欠定无唯一解），直接报错
+      GE_ASSERT_TRUE(unknown_dim_idx == std::numeric_limits<size_t>::max(),
+                     "Reshape symbolic infer: more than one -1 in shape, node %s[%s].", context->GetNodeName(),
+                     context->GetNodeType());
+      // hint 来源的 -1 必须登记 guard：运行时 shape 输入变为其它合法排列（如 [-1,3] 变
+      // [2,6]，总元素数不变）时，总元素量约束仍成立，仅靠它无法拦截，需要 Eq(dim, -1)
+      // 假设校验命中旧编译结果
+      if (!dim_expr.IsConstExpr()) {
+        (void)EXPECT_SYMBOL_EQ(dim_expr, Symbol(-1));
+      }
+      out_shape->AppendDim(Symbol(1));
+      unknown_dim_idx = i;
     } else {
       out_shape->AppendDim(dim_expr);
     }
   }
-  Expression in_shape_size = in_shape->GetSymbolShapeSize();
-  Expression out_shape_size = out_shape->GetSymbolShapeSize();
-  if (unknown_dim_idx == std::numeric_limits<size_t>::max()) {
-    // 添加guard out_shape_size == in_shape_size
-    ASSERT_SYMBOL_EQ(in_shape_size, out_shape_size);
-  } else {
-    // todo 添加guard dynamic_dim为整数, 依赖mod运算
-    // 计算不确定的维度
-    auto dynamic_dim = in_shape_size / out_shape_size;
-    out_shape->MutableDims()[unknown_dim_idx] = dynamic_dim;
-  }
-  return ge::GRAPH_SUCCESS;
+  return FinalizeReshapeSize(context, in_shape, out_shape, unknown_dim_idx);
 }
 
 /**

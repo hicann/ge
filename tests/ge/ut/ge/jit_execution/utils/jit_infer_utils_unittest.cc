@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 #include "faker/space_registry_faker.h"
+#include <api/gelib/gelib.h>
 #include "ge_graph_dsl/graph_dsl.h"
 #include "es_ge_test_ops.h"
 #include "graph/utils/graph_utils_ex.h"
@@ -42,8 +43,14 @@ class JitInferUtilsUT : public testing::Test {
     gert::SpaceRegistryFaker::CreateDefaultSpaceRegistry();
     std::map<std::string, std::string> options = {{ge::SOC_VERSION, "Ascend310"}};
     GetThreadLocalContext().SetGlobalOption(options);
+    // PrepareBeforeInferSymbol 对齐标准管线补充的 FE 阶段依赖 GELib 就绪，与生产编译流程保持一致
+    ASSERT_EQ(ge::GELib::Initialize(options), ge::SUCCESS);
   }
-  void TearDown() override {}
+  void TearDown() override {
+    if (ge::GELib::GetInstance() != nullptr) {
+      (void)ge::GELib::GetInstance()->Finalize();
+    }
+  }
 };
 
 /**
@@ -635,23 +642,23 @@ TEST_F(JitInferUtilsUT, graphContainsConstNodeWithControlEdge2) {
 // 验证 Phase A deadend 传播: 值依赖输入来自无kernel的非Const源节点 → deadend传播
 // data → Xop_A(deadend, 无kernel) → Reshape(data=input, shape=Xop_A_out) → output
 TEST_F(JitInferUtilsUT, value_dep_deadend_propagation) {
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   const auto data = EsCreateGraphInput(graph.get(), 0);
   std::vector<int64_t> shape = {-1, -1, -1};
   EsSetShape(data, shape.data(), static_cast<int64_t>(shape.size()));
 
-  auto xop = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder* {
+  auto xop = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder * {
     auto *builder = ge::es::ResolveBuilder(input);
     auto *ge_graph = builder->GetGraph();
     auto node = ge::es::CompliantNodeBuilder(ge_graph)
-        .OpType("XopA")
-        .Name(name)
-        .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-        .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-        .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
-        .Build();
+                    .OpType("XopA")
+                    .Name(name)
+                    .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                    .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                    .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
+                    .Build();
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input->GetProducer(), input->GetOutIndex(), node, 0);
     return builder->GetTensorHolderFromNode(std::move(node), 0);
   };
@@ -660,8 +667,8 @@ TEST_F(JitInferUtilsUT, value_dep_deadend_propagation) {
   const auto reshape = EsReshape(xop_out, xop_out, 3, 3);
   EsSetGraphOutput(reshape, 0);
 
-  const auto ge_graph_ptr = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph_ptr =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph_ptr, nullptr);
   const auto cg = GraphUtilsEx::GetComputeGraph(*ge_graph_ptr);
   ASSERT_NE(cg, nullptr);
@@ -687,23 +694,23 @@ TEST_F(JitInferUtilsUT, value_dep_deadend_propagation) {
 // 验证 HasNoSymbolicCallback: Xop无kernel且全部输出{-2} → deadend传播
 // data → Xop0(deadend) → Xop1(deadend) → Xop2(deadend) → output
 TEST_F(JitInferUtilsUT, no_kernel_all_outputs_unknown) {
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   const auto data = EsCreateGraphInput(graph.get(), 0);
   std::vector<int64_t> shape = {-1, -1};
   EsSetShape(data, shape.data(), static_cast<int64_t>(shape.size()));
 
-  auto xop = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder* {
+  auto xop = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder * {
     auto *builder = ge::es::ResolveBuilder(input);
     auto *ge_graph = builder->GetGraph();
     auto node = ge::es::CompliantNodeBuilder(ge_graph)
-        .OpType("XopB")
-        .Name(name)
-        .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-        .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-        .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
-        .Build();
+                    .OpType("XopB")
+                    .Name(name)
+                    .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                    .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                    .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
+                    .Build();
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input->GetProducer(), input->GetOutIndex(), node, 0);
     return builder->GetTensorHolderFromNode(std::move(node), 0);
   };
@@ -713,8 +720,8 @@ TEST_F(JitInferUtilsUT, no_kernel_all_outputs_unknown) {
   const auto op2 = xop(op1, "XopB_2");
   EsSetGraphOutput(op2, 0);
 
-  const auto ge_graph_ptr = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph_ptr =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph_ptr, nullptr);
   const auto cg = GraphUtilsEx::GetComputeGraph(*ge_graph_ptr);
   ASSERT_NE(cg, nullptr);
@@ -733,8 +740,8 @@ TEST_F(JitInferUtilsUT, no_kernel_all_outputs_unknown) {
 // 验证 IsValueDepOnDeadendSource: 值依赖输入来自有kernel的源 → 不传播
 // Reshape的shape输入源(Relu)无kernel → IsValueDepOnDeadendSource需准确判断
 TEST_F(JitInferUtilsUT, value_dep_from_const_no_propagation) {
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   const auto data = EsCreateGraphInput(graph.get(), 0);
   std::vector<int64_t> shape = {-1, -1, -1};
@@ -744,8 +751,8 @@ TEST_F(JitInferUtilsUT, value_dep_from_const_no_propagation) {
   const auto reshape = EsReshape(relu, relu, 3, 3);
   EsSetGraphOutput(reshape, 0);
 
-  const auto ge_graph_ptr = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph_ptr =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph_ptr, nullptr);
   const auto cg = GraphUtilsEx::GetComputeGraph(*ge_graph_ptr);
   ASSERT_NE(cg, nullptr);
@@ -771,23 +778,23 @@ TEST_F(JitInferUtilsUT, value_dep_from_const_no_propagation) {
 // data → CustomOp(no lowering, breakpoint) → output
 // CustomOp 所有输入有符号但推导失败(breakpoint), 且无 lowering 注册 → 被 no_lowering 逻辑拉入
 TEST_F(JitInferUtilsUT, no_lowering_breakpoint_pulled_in) {
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   const auto data = EsCreateGraphInput(graph.get(), 0);
   std::vector<int64_t> shape = {-1, -1, -1};
   EsSetShape(data, shape.data(), static_cast<int64_t>(shape.size()));
 
-  auto custom_op = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder* {
+  auto custom_op = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder * {
     auto *builder = ge::es::ResolveBuilder(input);
     auto *ge_graph = builder->GetGraph();
     auto node = ge::es::CompliantNodeBuilder(ge_graph)
-        .OpType("CustomNoLowering")
-        .Name(name)
-        .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-        .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-        .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
-        .Build();
+                    .OpType("CustomNoLowering")
+                    .Name(name)
+                    .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                    .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                    .InstanceOutputOriginShape("y", std::vector<int64_t>{-2})
+                    .Build();
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input->GetProducer(), input->GetOutIndex(), node, 0);
     return builder->GetTensorHolderFromNode(std::move(node), 0);
   };
@@ -795,8 +802,8 @@ TEST_F(JitInferUtilsUT, no_lowering_breakpoint_pulled_in) {
   const auto custom_out = custom_op(data, "CustomNoLowering_0");
   EsSetGraphOutput(custom_out, 0);
 
-  const auto ge_graph_ptr = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph_ptr =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph_ptr, nullptr);
   const auto cg = GraphUtilsEx::GetComputeGraph(*ge_graph_ptr);
   ASSERT_NE(cg, nullptr);
@@ -818,24 +825,24 @@ TEST_F(JitInferUtilsUT, no_lowering_breakpoint_pulled_in) {
 // abs 有 lowering 注册, 不会被 no_lowering 拉入
 // 预期: reshape(breakpoint) + opx1(no_lowering拉入) = 2个节点, abs 和 opx2 留在 uninferred
 TEST_F(JitInferUtilsUT, no_lowering_cascade_blocked_by_lowering_op) {
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   const auto data = EsCreateGraphInput(graph.get(), 0);
   std::vector<int64_t> shape = {-1, -1, -1};
   EsSetShape(data, shape.data(), static_cast<int64_t>(shape.size()));
 
   // 自定义算子 opx: 有 symbolic kernel 但返回 UNSUPPORTED (is_deadend=false), 未注册 lowering (no_lowering=true)
-  auto opx = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder* {
+  auto opx = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder * {
     auto *builder = ge::es::ResolveBuilder(input);
     auto *ge_graph = builder->GetGraph();
     auto node = ge::es::CompliantNodeBuilder(ge_graph)
-        .OpType("CustomOp")
-        .Name(name)
-        .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-        .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-        .InstanceOutputOriginShape("y", std::vector<int64_t>{-1})
-        .Build();
+                    .OpType("CustomOp")
+                    .Name(name)
+                    .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                    .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                    .InstanceOutputOriginShape("y", std::vector<int64_t>{-1})
+                    .Build();
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input->GetProducer(), input->GetOutIndex(), node, 0);
     return builder->GetTensorHolderFromNode(std::move(node), 0);
   };
@@ -852,8 +859,8 @@ TEST_F(JitInferUtilsUT, no_lowering_cascade_blocked_by_lowering_op) {
   const auto opx2 = opx(abs_holder.GetCTensorHolder(), "CustomOp_2");
   EsSetGraphOutput(opx2, 0);
 
-  const auto ge_graph_ptr = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph_ptr =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph_ptr, nullptr);
   const auto cg = GraphUtilsEx::GetComputeGraph(*ge_graph_ptr);
   ASSERT_NE(cg, nullptr);
@@ -883,24 +890,24 @@ TEST_F(JitInferUtilsUT, no_lowering_cascade_blocked_by_lowering_op) {
 // reshape 成为断点, 两个 opx 都是 no_lowering=true, is_deadend=false
 // 预期: reshape(breakpoint) + opx1 + opx2 = 3个节点都被拉入
 TEST_F(JitInferUtilsUT, no_lowering_cascade_consecutive) {
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   const auto data = EsCreateGraphInput(graph.get(), 0);
   std::vector<int64_t> shape = {-1, -1, -1};
   EsSetShape(data, shape.data(), static_cast<int64_t>(shape.size()));
 
   // 自定义算子 opx: 有 symbolic kernel 但返回 UNSUPPORTED (is_deadend=false), 未注册 lowering (no_lowering=true)
-  auto opx = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder* {
+  auto opx = [](EsCTensorHolder *input, const char *name) -> EsCTensorHolder * {
     auto *builder = ge::es::ResolveBuilder(input);
     auto *ge_graph = builder->GetGraph();
     auto node = ge::es::CompliantNodeBuilder(ge_graph)
-        .OpType("CustomOp")
-        .Name(name)
-        .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-        .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-        .InstanceOutputOriginShape("y", std::vector<int64_t>{-1})
-        .Build();
+                    .OpType("CustomOp")
+                    .Name(name)
+                    .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                    .IrDefOutputsV2({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                    .InstanceOutputOriginShape("y", std::vector<int64_t>{-1})
+                    .Build();
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input->GetProducer(), input->GetOutIndex(), node, 0);
     return builder->GetTensorHolderFromNode(std::move(node), 0);
   };
@@ -915,8 +922,8 @@ TEST_F(JitInferUtilsUT, no_lowering_cascade_consecutive) {
   const auto opx2 = opx(opx1_holder.GetCTensorHolder(), "CustomOp_2");
   EsSetGraphOutput(opx2, 0);
 
-  const auto ge_graph_ptr = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph_ptr =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph_ptr, nullptr);
   const auto cg = GraphUtilsEx::GetComputeGraph(*ge_graph_ptr);
   ASSERT_NE(cg, nullptr);
@@ -947,8 +954,8 @@ TEST_F(JitInferUtilsUT, no_lowering_cascade_consecutive) {
 // opx 有 symbolic kernel 但返回 UNSUPPORTED (is_deadend=false), 未注册 lowering (no_lowering=true)
 // reshape 是 breakpoint(inferred), opx 的父节点 reshape 在 inferred → opx 被 no_lowering 拉入
 TEST_F(JitInferUtilsUT, no_lowering_pulled_when_parents_inferred) {
-  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(
-      EsCreateGraphBuilder("graph"), EsDestroyGraphBuilder);
+  auto graph = std::unique_ptr<EsCGraphBuilder, void (*)(EsCGraphBuilder *)>(EsCreateGraphBuilder("graph"),
+                                                                             EsDestroyGraphBuilder);
 
   const auto data0 = EsCreateGraphInput(graph.get(), 0);
   std::vector<int64_t> shape = {-1, -1, -1};
@@ -958,18 +965,19 @@ TEST_F(JitInferUtilsUT, no_lowering_pulled_when_parents_inferred) {
   std::vector<int64_t> shape2 = {-1, -1, -1};
   EsSetShape(data1, shape2.data(), static_cast<int64_t>(shape2.size()));
 
-  // 自定义算子 opx: 有 symbolic kernel 但返回 UNSUPPORTED (is_deadend=false), 未注册 lowering (no_lowering=true), 有两个输入
-  auto opx = [](EsCTensorHolder *input0, EsCTensorHolder *input1, const char *name) -> EsCTensorHolder* {
+  // 自定义算子 opx: 有 symbolic kernel 但返回 UNSUPPORTED (is_deadend=false), 未注册 lowering (no_lowering=true),
+  // 有两个输入
+  auto opx = [](EsCTensorHolder *input0, EsCTensorHolder *input1, const char *name) -> EsCTensorHolder * {
     auto *builder = ge::es::ResolveBuilder(input0);
     auto *ge_graph = builder->GetGraph();
     auto node = ge::es::CompliantNodeBuilder(ge_graph)
-        .OpType("CustomOp")
-        .Name(name)
-        .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""},
-                        {"y", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
-        .IrDefOutputsV2({{"z", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
-        .InstanceOutputOriginShape("z", std::vector<int64_t>{-1})
-        .Build();
+                    .OpType("CustomOp")
+                    .Name(name)
+                    .IrDefInputsV2({{"x", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""},
+                                    {"y", ge::es::CompliantNodeBuilder::kEsIrInputRequired, ""}})
+                    .IrDefOutputsV2({{"z", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                    .InstanceOutputOriginShape("z", std::vector<int64_t>{-1})
+                    .Build();
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input0->GetProducer(), input0->GetOutIndex(), node, 0);
     ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, input1->GetProducer(), input1->GetOutIndex(), node, 1);
     return builder->GetTensorHolderFromNode(std::move(node), 0);
@@ -984,8 +992,8 @@ TEST_F(JitInferUtilsUT, no_lowering_pulled_when_parents_inferred) {
   const auto opx_node = opx(reshape_holder.GetCTensorHolder(), data1_holder.GetCTensorHolder(), "CustomOp_0");
   EsSetGraphOutput(opx_node, 0);
 
-  const auto ge_graph_ptr = std::unique_ptr<Graph>(
-      static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
+  const auto ge_graph_ptr =
+      std::unique_ptr<Graph>(static_cast<Graph *>(static_cast<void *>(EsBuildGraphAndReset(graph.get()))));
   ASSERT_NE(ge_graph_ptr, nullptr);
   const auto cg = GraphUtilsEx::GetComputeGraph(*ge_graph_ptr);
   ASSERT_NE(cg, nullptr);

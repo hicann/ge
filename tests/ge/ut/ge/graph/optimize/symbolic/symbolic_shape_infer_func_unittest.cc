@@ -2729,8 +2729,8 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForReshape) {
 
   ASSERT_EQ(out_shape->GetDimNum(), 3);
   ASSERT_EQ(out_shape->GetDim(0), Symbol(1));
-  auto expect_dim = (s0 * s1 * s2) / (Symbol(1) * Symbol(3));
-  ASSERT_EQ(out_shape->GetDim(1), expect_dim);
+  // -1 维度按 hint 整除求解为常量（3*4*5/3=20），不再产生符号除法分数表达式
+  ASSERT_EQ(out_shape->GetDim(1), Symbol(20));
   ASSERT_EQ(out_shape->GetDim(2), Symbol(3));
   // 6. 正常场景：不含-1
   builder.Destroy();
@@ -3842,7 +3842,8 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceRejectsUnknown
   InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_unknown_index_sign");
   BuildStridedSliceInferContext(builder, {Symbol(8)}, {Symbol("dynamic_begin")}, {Symbol(6)}, {Symbol(1)});
   auto infer_context = builder.Build();
-  ASSERT_EQ(func.first(infer_context), UNSUPPORTED);
+  // 无 hint 的裸符号索引属异常场景（符号创建时强制登记值），断言报错而非静默回退
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
 }
 
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceV3RejectsZeroStride) {
@@ -7777,4 +7778,145 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForTensorScatterUpdate) {
   ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
   EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), input_shape.GetDims());
 }
+
+// StridedSlice 符号索引符号性未知时按 hint 归一化：hint 可得则折叠并登记 guard
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceSymbolicIndexNegativeHint) {
+  auto func = GetInferFunc("StridedSlice");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto dim = shape_env.CreateSymbol(6, MakeShared<InputShapeSource>(0, 0));
+  auto begin_sym = shape_env.CreateSymbol(-3, MakeShared<InputShapeSource>(1, 0));
+
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_negative_index_hint");
+  BuildStridedSliceInferContext(builder, {dim}, {begin_sym}, {Symbol(6)}, {Symbol(1)}, 0, 0, 0, 0, 0);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), SUCCESS);
+  // begin 归一化为 begin_sym + dim（hint=-3<0），输出维度 6-(begin_sym+dim)
+  const auto out_dims = infer_context->GetOutputSymbolShape(0)->GetDims();
+  ASSERT_EQ(out_dims.size(), 1UL);
+  // begin 归一化为 begin_sym + dim（hint=-3<0），end 常量 6 经上界比较折叠为 dim，
+  // 输出维度 dim - (begin_sym + dim)
+  EXPECT_EQ(out_dims[0].Compare(dim - (begin_sym + dim)), 0);
+  // 折叠假设登记为运行时 guard
+  const auto guards = shape_env.GetAllSymbolCheckInfos();
+  bool has_begin_negative_guard = false;
+  for (const auto &guard : guards) {
+    const std::string guard_str(guard.expr.Serialize().get());
+    if (guard_str.find(begin_sym.Serialize().get()) != std::string::npos) {
+      has_begin_negative_guard = true;
+    }
+  }
+  EXPECT_TRUE(has_begin_negative_guard);
+}
+
+// StridedSlice 符号索引超上界时按 hint clamp 到 upper
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceSymbolicIndexAboveUpperHintClamp) {
+  auto func = GetInferFunc("StridedSlice");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto dim = shape_env.CreateSymbol(6, MakeShared<InputShapeSource>(0, 0));
+  auto begin_sym = shape_env.CreateSymbol(10, MakeShared<InputShapeSource>(1, 0));
+
+  InferSymbolShapeContextTestBuilder builder("StridedSlice", "stridedslice_above_upper_hint");
+  BuildStridedSliceInferContext(builder, {dim}, {begin_sym}, {Symbol(6)}, {Symbol(1)}, 0, 0, 0, 0, 0);
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), SUCCESS);
+  // begin(hint=10) > dim(hint=6)：按 hint clamp 到 upper=dim，输出维度 6-6=0
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{Symbol(0)}));
+  // 符号性/下界/上界三处比较各登记一条 guard，上界那条同时含 dim 与 begin
+  const auto guards = shape_env.GetAllSymbolCheckInfos();
+  ASSERT_EQ(guards.size(), 3UL);
+  bool has_above_upper_guard = false;
+  for (const auto &guard : guards) {
+    const std::string guard_str(guard.expr.Serialize().get());
+    if (guard_str.find(dim.Serialize().get()) != std::string::npos &&
+        guard_str.find(begin_sym.Serialize().get()) != std::string::npos) {
+      has_above_upper_guard = true;
+    }
+  }
+  EXPECT_TRUE(has_above_upper_guard);
+}
+
+// Reshape 的 -1 维度来自 hint 时登记 Eq(dim, -1) guard：
+// 运行时 shape 变为等元素量排列（如 [-1,3] 变 [2,6]）时，总元素量约束仍成立，
+// 仅靠它无法拦截，Eq(dim,-1) 是唯一能拦截的假设校验
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForReshapeMinusOneHintGuardRegistered) {
+  auto func = GetInferFunc("Reshape");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 0));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
+  auto minus_one = shape_env.CreateSymbol(-1, MakeShared<InputShapeSource>(1, 0));
+
+  InferSymbolShapeContextTestBuilder builder("Reshape", "reshape_minus_one_hint_guard");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT32));
+  std::vector<Expression> symbol_value = {Symbol(2), minus_one};
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({s0, s1}))
+                           .AppendInputSymbolTensor(gert::SymbolShape(), true, &symbol_value)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  // hint 整除求解：(4*3)/(2*1) = 6
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{Symbol(2), Symbol(6)}));
+  // -1 假设登记为 guard
+  const auto guards = shape_env.GetAllSymbolCheckInfos();
+  ASSERT_EQ(guards.size(), 1UL);
+  const std::string guard_str(guards.front().expr.Serialize().get());
+  EXPECT_NE(guard_str.find(minus_one.Serialize().get()), std::string::npos);
+}
+
+// Reshape 含 -1 但总元素量不能被已知维度整除：回退 UNSUPPORTED（不产生分数维度）
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForReshapeNonDivisibleUnknownDim) {
+  auto func = GetInferFunc("Reshape");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 0));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
+  auto minus_one = shape_env.CreateSymbol(-1, MakeShared<InputShapeSource>(1, 0));
+
+  InferSymbolShapeContextTestBuilder builder("Reshape", "reshape_non_divisible");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AddInputDesc(GeTensorDesc());
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(), FORMAT_ND, DT_INT32));
+  std::vector<Expression> symbol_value = {Symbol(4), minus_one};
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({s0, s1}))
+                           .AppendInputSymbolTensor(gert::SymbolShape(), true, &symbol_value)
+                           .OutputNum(1)
+                           .Build();
+  // 5*3=15 不能被 4 整除，无整数解，回退
+  ASSERT_EQ(func.first(infer_context), ge::UNSUPPORTED);
+}
+
+// PadV2 与 Pad 的 paddings 布局一致（恒 contiguous，constant_values 不影响 shape），复用 Pad 推导
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForPadV2) {
+  auto func = GetInferFunc("PadV2");
+  ASSERT_TRUE(func.first != nullptr);
+
+  InferSymbolShapeContextTestBuilder builder("PadV2", "padv2");
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto s0 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  auto s1 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 2));
+  auto s2 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 3));
+
+  auto input_shape = gert::SymbolShape({s0, s1, s2});
+  auto paddings_shape = gert::SymbolShape({ge::Symbol(3), ge::Symbol(2)});
+  auto paddings = std::vector<Expression>{Symbol(1), Symbol(2), Symbol(2), Symbol(1), Symbol(3), Symbol(3)};
+  auto infer_context = builder.AppendInputSymbolTensor(input_shape)
+                           .AppendInputSymbolTensor(paddings_shape, true, &paddings)
+                           .OutputNum(1)
+                           .Build();
+
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  auto expect_shape = gert::SymbolShape(
+      {s0 + ge::Symbol(1) + ge::Symbol(2), s1 + ge::Symbol(2) + ge::Symbol(1), s2 + ge::Symbol(3) + ge::Symbol(3)});
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), expect_shape.GetDims());
+}
+
 }  // namespace ge

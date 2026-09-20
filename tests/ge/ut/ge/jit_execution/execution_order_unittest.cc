@@ -16,6 +16,7 @@
 #include "jit_execution/exe_points/execution_order.h"
 #include "ge_common/debug/ge_log.h"
 #include "faker/space_registry_faker.h"
+#include <api/gelib/gelib.h>
 #include "graph/ge_local_context.h"
 #include <vector>
 using namespace std;
@@ -28,9 +29,15 @@ class ExecutionOrderUT : public testing::Test {
     gert::SpaceRegistryFaker::CreateDefaultSpaceRegistry();
     std::map<std::string, std::string> options = {{ge::SOC_VERSION, "Ascend310"}};
     GetThreadLocalContext().SetGlobalOption(options);
+    // PrepareBeforeInferSymbol 对齐标准管线补充的 FE 阶段依赖 GELib 就绪，与生产编译流程保持一致
+    ASSERT_EQ(ge::GELib::Initialize(options), ge::SUCCESS);
     es_graph_ = std::unique_ptr<es::EsGraphBuilder>(new es::EsGraphBuilder("Hi Lowering graph"));
   }
-  void TearDown() override {}
+  void TearDown() override {
+    if (ge::GELib::GetInstance() != nullptr) {
+      (void)ge::GELib::GetInstance()->Finalize();
+    }
+  }
   std::unique_ptr<es::EsGraphBuilder> es_graph_;
 };
 

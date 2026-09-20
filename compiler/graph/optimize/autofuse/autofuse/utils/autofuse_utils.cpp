@@ -947,7 +947,10 @@ graphStatus AutofuseUtils::GetListIntByInputOrAttr(const NodePtr &node, std::vec
   return GetListIntFromInput(node, value_vec, input);
 }
 
-static std::vector<std::string> view_type = {"ExpandDims", "Reshape", "Squeeze", "Unsqueeze"};
+// 纯view算子（只改变维度形态不起计算kernel），从compute统计中剔除；SqueezeV3/UnsqueezeV3
+// 为对应V3变体，同样属于纯view算子
+static std::vector<std::string> view_type = {"ExpandDims", "Reshape",   "Squeeze",
+                                             "Unsqueeze",  "SqueezeV3", "UnsqueezeV3"};
 std::vector<const ge::Node *> AutofuseUtils::GetComputeOps(const std::vector<const ge::Node *> &nodes) {
   std::vector<const ge::Node *> compute_ops;
   for (auto &node : nodes) {

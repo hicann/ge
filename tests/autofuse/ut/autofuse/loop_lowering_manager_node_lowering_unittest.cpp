@@ -3742,4 +3742,105 @@ TEST_F(LoopNodeLoweringUT, AscendQuantLoweringDstTypeFloat16) {
             "tmp8 = ops.Cast(tmp7, DT_FLOAT16)\n"
             "tmp9 = ops.Store(\"AscendQuant_0:0\", tmp8)\n");
 }
+
+namespace {
+template <typename T>
+es::Tensor CreateConstTensor(es::Graph &graph, ge::DataType dtype, const std::vector<int64_t> &dims,
+                             std::vector<T> value) {
+  auto result = es::FileConstant(graph, dims, dtype);
+  GeTensorDesc desc(GeShape(dims), ge::FORMAT_ND, dtype);
+  GeTensorPtr tensor =
+      std::make_shared<GeTensor>(desc, reinterpret_cast<uint8_t *>(value.data()), sizeof(T) * value.size());
+  AttrUtils::SetTensor(result.GetEsbTensor()->GetProducer()->GetOpDesc(), "value", tensor);
+  result.GetEsbTensor()->GetProducer()->GetOpDesc()->SetType(ge::CONSTANT);
+  return result;
+}
+}  // namespace
+
+// UnsqueezeV3 负 axis 按最终输出 rank 归一化：unsqueeze(x, -1) 得到 [a, b, 1]（而非 [a, 1, b]）
+TEST_F(LoopNodeLoweringUT, UnsqueezeV3NegativeAxisFinalRank) {
+  auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+  data0.SetSymbolShape({"s0", "s1"});
+  auto axes = CreateConstTensor(*es_graph_, DT_INT64, {1}, std::vector<int64_t>{-1});
+  auto unsqueeze = es::UnsqueezeV3(data0, axes);
+  unsqueeze.SetSymbolShape({"s0", "s1", "1"});
+  es_graph_->SetOutput(unsqueeze, 0);
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto node = cg->FindFirstNodeMatchType("UnsqueezeV3");
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_EQ(LoweringManager::Lowering(node), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+  const std::string readable = kernel.Readable();
+  // 负 axis=-1 归一化为 2（最终 rank 3 的末位），而不是按中间态 rank 归一化为 1
+  EXPECT_EQ(readable.find("Unsqueeze(tmp0, 1)"), std::string::npos);
+  EXPECT_NE(readable.find("Unsqueeze(tmp0, 2)"), std::string::npos);
+}
+
+// SqueezeV3 的 axes 已连接但为空 tensor：按缺省语义收集全部值为 1 的维度（而非恒等不 squeeze）
+TEST_F(LoopNodeLoweringUT, SqueezeV3EmptyAxesTensorCollectsUnitDims) {
+  auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+  data0.SetSymbolShape({"s0", "1", "s1"});
+  auto axes = CreateConstTensor(*es_graph_, DT_INT64, {0}, std::vector<int64_t>{});
+  auto squeeze = es::SqueezeV3(data0, axes);
+  squeeze.SetSymbolShape({"s0", "s1"});
+  es_graph_->SetOutput(squeeze, 0);
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto node = cg->FindFirstNodeMatchType("SqueezeV3");
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_EQ(LoweringManager::Lowering(node), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+  const std::string readable = kernel.Readable();
+  // 空 axes 收集 dim1（值为 1），生成 Squeeze(..., 1) 而非恒等
+  EXPECT_NE(readable.find("Squeeze(tmp0, 1)"), std::string::npos);
+}
+
+// Adds 标量经 scientific 格式定点字符串构造：小值不丢精度（fixed(7) 会输出 0.0000000）
+TEST_F(LoopNodeLoweringUT, AddsSmallValueKeepsPrecision) {
+  auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+  data0.SetSymbolShape({"s0"});
+  auto adds = es::Adds(data0, 1e-8f);
+  adds.SetSymbolShape({"s0"});
+  es_graph_->SetOutput(adds, 0);
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto node = cg->FindFirstNodeMatchType("Adds");
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_EQ(LoweringManager::Lowering(node), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+  const std::string readable = kernel.Readable();
+  // scientific 格式保留有效数字（fixed(7) 会静默输出 0.0000000）：float(1e-8) 规范化为
+  // 9.99999993922529029078e-09
+  EXPECT_NE(readable.find("e-09"), std::string::npos);
+}
+
+// Expand lowering：与 BroadcastTo 同构（shape 输入的值已由符号化推导固化为输出维度）
+TEST_F(LoopNodeLoweringUT, ExpandBroadcast) {
+  auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+  data0.SetSymbolShape({"s0", "1"});
+  auto shape = CreateConstTensor(*es_graph_, DT_INT32, {2}, std::vector<int32_t>{4, 4});
+  auto expand = es::Expand(data0, shape);
+  expand.SetSymbolShape({"s0", "4"});
+  es_graph_->SetOutput(expand, 0);
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto node = cg->FindFirstNodeMatchType("Expand");
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_EQ(LoweringManager::Lowering(node), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+}
+
 }  // namespace ge

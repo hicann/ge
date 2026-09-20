@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <vector>
+#include "graph/symbolizer/symbol_checker.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/attr_utils.h"
@@ -217,6 +218,18 @@ Status SymbolicInferUtil::GetValueDependentInputIdxs(const ComputeGraphPtr &grap
   std::vector<int64_t> cached_vec(computed_idxs.cbegin(), computed_idxs.cend());
   (void)ge::AttrUtils::SetListInt(graph, kValueDependentIdxsAttr, cached_vec);
   value_dependent_idxs.insert(computed_idxs.cbegin(), computed_idxs.cend());
+  return SUCCESS;
+}
+
+graphStatus ResolveIntegralDim(const Expression &total, const Expression &known, Expression &dynamic_dim) {
+  int64_t total_value = 0L;
+  int64_t known_value = 0L;
+  if (!total.GetHint(total_value) || !known.GetHint(known_value) || known_value <= 0L || total_value < 0L ||
+      (total_value % known_value) != 0L) {
+    return UNSUPPORTED;
+  }
+  dynamic_dim = Symbol(total_value / known_value);
+  ASSERT_SYMBOL_EQ(total, known * dynamic_dim);
   return SUCCESS;
 }
 

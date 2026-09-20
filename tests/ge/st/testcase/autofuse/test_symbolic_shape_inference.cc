@@ -2900,7 +2900,7 @@ TEST_F(SymbolicShapeInferenceST, test_guard_check_graph1) {
   EXPECT_EQ(std::string(reshape_symbol_shape.GetDim(1).Serialize().get()), "1");
   EXPECT_EQ(std::string(reshape_symbol_shape.GetDim(2).Serialize().get()), "3");
   EXPECT_EQ(std::string(reshape_symbol_shape.GetDim(3).Serialize().get()), "3");
-  EXPECT_EQ(std::string(reshape_symbol_shape.GetDim(4).Serialize().get()), "(Rational(1 , 9) * s5 * s6)");
+  EXPECT_EQ(std::string(reshape_symbol_shape.GetDim(4).Serialize().get()), "4");
   auto matmul_node = cg->FindFirstNodeMatchType("BatchMatMulV2");
   ASSERT_NE(matmul_node, nullptr);
   auto matmul_op_desc = matmul_node->GetOpDesc();
@@ -2913,7 +2913,7 @@ TEST_F(SymbolicShapeInferenceST, test_guard_check_graph1) {
   EXPECT_EQ(std::string(matmul_symbol_shape.GetDim(1).Serialize().get()), "s0");
   EXPECT_EQ(std::string(matmul_symbol_shape.GetDim(2).Serialize().get()), "3");
   EXPECT_EQ(std::string(matmul_symbol_shape.GetDim(3).Serialize().get()), "s1");
-  EXPECT_EQ(std::string(matmul_symbol_shape.GetDim(4).Serialize().get()), "(Rational(1 , 9) * s5 * s6)");
+  EXPECT_EQ(std::string(matmul_symbol_shape.GetDim(4).Serialize().get()), "4");
 
   auto squeeze_node = cg->FindFirstNodeMatchType("Squeeze");
   ASSERT_NE(squeeze_node, nullptr);
@@ -2926,28 +2926,20 @@ TEST_F(SymbolicShapeInferenceST, test_guard_check_graph1) {
   EXPECT_EQ(std::string(squeeze_symbol_shape.GetDim(0).Serialize().get()), "s0");
   EXPECT_EQ(std::string(squeeze_symbol_shape.GetDim(1).Serialize().get()), "3");
   EXPECT_EQ(std::string(squeeze_symbol_shape.GetDim(2).Serialize().get()), "s1");
-  EXPECT_EQ(std::string(squeeze_symbol_shape.GetDim(3).Serialize().get()), "(Rational(1 , 9) * s5 * s6)");
+  EXPECT_EQ(std::string(squeeze_symbol_shape.GetDim(3).Serialize().get()), "4");
 
   const std::vector<SymbolCheckInfo> assert_guard_infos = shape_env_attr->GetAllSymbolAssertInfos();
-  ASSERT_EQ(assert_guard_infos.size(), 0);
+  ASSERT_EQ(assert_guard_infos.size(), 1);
+  // Reshape -1 维度按 hint 整除求解后登记的总元素量固化断言
+  ASSERT_EQ(std::string(assert_guard_infos[0].expr.Serialize().get()), "ExpectEq((s5 * s6), 36)");
 
   const std::vector<SymbolCheckInfo> guard_infos = shape_env_attr->GetAllSymbolCheckInfos();
-  ASSERT_EQ(guard_infos.size(), 15);
-  const std::set<std::string> expect_guard = {"ExpectNe((Rational(1 , 9) * s5 * s6), 1)",
-                                              "ExpectNe(1, s1)",
-                                              "ExpectEq(3, s3)",
-                                              "ExpectNe(1, s3)",
-                                              "ExpectNe(1, s0)",
-                                              "ExpectNe(s1, s4)",
-                                              "ExpectEq(1, s4)",
-                                              "ExpectEq(3, s2)",
-                                              "ExpectNe(0, s0)",
-                                              "ExpectNe(0, s1)",
-                                              "ExpectNe(0, s2)",
-                                              "ExpectNe(0, s3)",
-                                              "ExpectNe(0, s4)",
-                                              "ExpectNe(0, s5)",
-                                              "ExpectNe(0, s6)"};
+  // 旧符号除法产生的分数维度被 Squeeze 登记的 Ne guard 随常量化消失（常量路径不登记）
+  ASSERT_EQ(guard_infos.size(), 14);
+  const std::set<std::string> expect_guard = {
+      "ExpectNe(1, s1)", "ExpectEq(3, s3)", "ExpectNe(1, s3)", "ExpectNe(1, s0)", "ExpectNe(s1, s4)",
+      "ExpectEq(1, s4)", "ExpectEq(3, s2)", "ExpectNe(0, s0)", "ExpectNe(0, s1)", "ExpectNe(0, s2)",
+      "ExpectNe(0, s3)", "ExpectNe(0, s4)", "ExpectNe(0, s5)", "ExpectNe(0, s6)"};
   for (auto &iter : guard_infos) {
     const std::string guard_str = std::string(iter.expr.Serialize().get());
     std::cout << "guard info: " << guard_str << std::endl;
@@ -6853,6 +6845,47 @@ TEST_F(SymbolicShapeInferenceST, InferSymbolicShapeForGatherShapesSuccess) {
   ASSERT_NE(attr, nullptr);
   auto expect_shape = std::vector<Expression>{Symbol(2)};
   EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(), expect_shape);
+}
+
+// GatherShapes 符号值计算：按 axes 逐项收集输入维度表达式，输出 shape 为 [axes_size,]
+TEST_F(SymbolicShapeInferenceST, InferSymbolicShapeForGatherShapesSymbolicValue) {
+  std::vector<vector<int64_t>> axes = {{0, 1}, {0, 2}};
+  auto gatherShapes = OP_CFG("GatherShapes").InCnt(1).OutCnt(1).Build("GatherShapes");
+  DEF_GRAPH(g1) {
+    CHAIN(NODE(data)->EDGE(0, 0)->NODE(gatherShapes));
+    CHAIN(NODE(gatherShapes)->NODE("NetOutput", NETOUTPUT));
+    CHAIN(NODE(data)->EDGE(0, 0)->NODE(gatherShapes)->EDGE(0, 0)->NODE("NetOutput", NETOUTPUT));
+  };
+  auto graph = ToComputeGraph(g1);
+  auto gatherShapes_node = graph->FindFirstNodeMatchType("GatherShapes");
+  ASSERT_NE(gatherShapes_node, nullptr);
+  gatherShapes_node->GetOpDesc()->MutableInputDesc(0)->SetFormat(FORMAT_ND);
+  gatherShapes_node->GetOpDesc()->SetAttr("axes", GeAttrValue::CreateFrom<std::vector<std::vector<int64_t>>>(axes));
+  auto data_node = graph->FindFirstNodeMatchType(DATA);
+  ASSERT_NE(data_node, nullptr);
+  // data 的符号 shape 与符号值同时就绪：GatherShapes 收集的是输入维度的表达式
+  gert::SymbolShape symbol_shape({Symbol("s0"), Symbol("s1"), Symbol("s2")});
+  data_node->GetOpDesc()
+      ->MutableOutputDesc(0)
+      ->GetOrCreateAttrsGroup<SymbolicDescAttr>()
+      ->symbolic_tensor.SetSymbolShape(symbol_shape);
+  data_node->GetOpDesc()->MutableOutputDesc(0)->SetOriginShape(GeShape({-1, -1, -1}));
+  gatherShapes_node->GetOpDesc()->MutableOutputDesc(0)->SetOriginShape(GeShape({-1}));
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(graph), ge::SUCCESS);
+  gatherShapes_node = graph->FindFirstNodeMatchType("GatherShapes");
+  ASSERT_NE(gatherShapes_node, nullptr);
+  auto op_desc = gatherShapes_node->GetOpDesc();
+  auto attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  auto expect_shape = std::vector<Expression>{Symbol(2)};
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(), expect_shape);
+  // axes [[0,1],[0,2]]：输出值 = [输入 dim(0,1), 输入 dim(0,2)] = [s1, s2]
+  const auto *symbolic_value = attr->symbolic_tensor.GetSymbolicValue();
+  ASSERT_NE(symbolic_value, nullptr);
+  ASSERT_EQ(symbolic_value->size(), 2UL);
+  EXPECT_EQ((*symbolic_value)[0].Compare(Symbol("s1")), 0);
+  EXPECT_EQ((*symbolic_value)[1].Compare(Symbol("s2")), 0);
 }
 
 TEST_F(SymbolicShapeInferenceST, InferSymbolicShapeForSparseToDenseSuccess) {

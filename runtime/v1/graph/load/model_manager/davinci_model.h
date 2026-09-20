@@ -1520,7 +1520,7 @@ class DavinciModel {
                              ExtraOpInfo &extra_dump_info) const;
   uint32_t GetGraphId() const;
   std::string GetWeightsMemId() const;
-  Status ParseHostInputIndexOption(const size_t input_num);
+  Status GenHostInputIndexes(const std::map<uint32_t, OpDescPtr> &index_to_data);
 
   std::string FindAddrRefreshKernelFile(const std::string &npu_arch) const;
   Status LoadAndRegisterAddrRefreshKernel(const std::string &file_path);

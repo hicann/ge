@@ -594,13 +594,52 @@ TEST_F(UtestExpression, Serialize_And_Deserialize) {
   EXPECT_EQ(std::string(var_b.GetName().get()), "b");
 }
 
-// 如果不是按照序列化出来的字符串去进行反序列化，反序列化会失败
+// 非规范但语义良好的串（SymEngine 规范打印会重排负系数 Add 项与交换律参数）被正确
+// 接受（重解析后 Compare 语义树相等）；残留 token 的截断串与非法 token 被拒绝
 TEST_F(UtestExpression, Deserialize_Invalid) {
-  auto failed_parser = Expression::Deserialize("s0*s1");
+  auto parser = Expression::Deserialize("s0*s1");
+  EXPECT_EQ(parser.IsValid(), true);
+  parser = Expression::Deserialize("a+2");
+  EXPECT_EQ(parser.IsValid(), true);
+
+  auto failed_parser = Expression::Deserialize("a(s0)");
   EXPECT_EQ(failed_parser.IsValid(), false);
 
-  failed_parser = Expression::Deserialize("a+2");
+  failed_parser = Expression::Deserialize("s0++");
   EXPECT_EQ(failed_parser.IsValid(), false);
+}
+
+// SymEngine 规范打印会重排负系数 Add 项：语义相等但字节不等的合法串（如来自
+// 不同打印路径的 guard 序列化串）经重解析+Compare 接受（曾因字节不等被拒返回
+// 空表达式，上层 guard 集合比较器解引用空指针断言崩溃）
+TEST_F(UtestExpression, Deserialize_SemanticEqualReorderedStr) {
+  auto s0 = Symbol("s0");
+  auto s1 = Symbol("s1");
+  const auto parsed = Expression::Deserialize("-(2 * s1) + s0");
+  EXPECT_EQ(parsed.IsValid(), true);
+  EXPECT_EQ(parsed, s0 - Mul(Symbol(2), s1));
+}
+
+// 打印侧将 Pow(E, x) 输出为 Exp(x)、Pow(x, 1/2) 输出为 Sqrt(x)：含这两种形态的
+// 序列化串经 Deserialize 还原为等价 Pow 表达式，序列化-反序列化往返闭环
+TEST_F(UtestExpression, ExpSqrtSerializeAndDeserialize_RoundTrip) {
+  auto s0 = Symbol("s0");
+  auto s1 = Symbol("s1");
+
+  const auto exp_expr = sym::Exp(s0);
+  const std::string exp_str = std::string(exp_expr.Serialize().get());
+  EXPECT_EQ(exp_str, "Exp(s0)");
+  EXPECT_EQ(Expression::Deserialize(exp_str.c_str()), exp_expr);
+
+  const auto sqrt_expr = sym::Pow(s1, sym::Div(Symbol(1), Symbol(2)));
+  const std::string sqrt_str = std::string(sqrt_expr.Serialize().get());
+  EXPECT_EQ(sqrt_str, "Sqrt(s1)");
+  EXPECT_EQ(Expression::Deserialize(sqrt_str.c_str()), sqrt_expr);
+
+  const auto guard = Eq(exp_expr, sqrt_expr);
+  const std::string guard_str = std::string(guard.Serialize().get());
+  EXPECT_EQ(guard_str, "ExpectEq(Exp(s0), Sqrt(s1))");
+  EXPECT_EQ(Expression::Deserialize(guard_str.c_str()), guard);
 }
 
 TEST_F(UtestExpression, EqualAndNotEqual) {
@@ -2136,8 +2175,11 @@ TEST_F(UtestExpression, SimplifyWithShapeEnv) {
   SetCurShapeEnvContext(&shape_env);
 
   auto expr = sym::Ceiling(sym::Sub(sym::Ceiling(sym::Mul(sym::Rational(1, 2), Symbol("s0"))), Symbol(20)));
+  // SymEngine 构造 ceiling(ceiling(x)-20) 时移出整数产生未化简的两层嵌套形态，解析路径
+  // 幂等化简为一层，二者数学等价（ceiling 幂等）；旧字节精确匹配碰巧拒绝，新实现按
+  // 语义相等接受（返回树与原树 Compare 不等，属 SymEngine canonical form 不唯一的既有缺陷）
   auto expr1 = Expression::Deserialize(expr.Str().get());
-  EXPECT_EQ(expr1.impl_, nullptr);
+  EXPECT_NE(expr1.impl_, nullptr);
   auto expr2 = Expression::Deserialize(expr.Simplify().Str().get());
   EXPECT_NE(expr2.impl_, nullptr);
 }
