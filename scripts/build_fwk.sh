@@ -299,6 +299,12 @@ build_graphengine()
       ENABLE_ASAN=${ASAN_MODE}
     fi
   fi
+  # Only preload libasan for the leak check when this is actually an ASAN build.
+  # Preloading libasan into a non-ASAN build makes every system()/fork+exec spawned by
+  # test fixtures stall (~4s each), which blows past the ctest per-test timeout.
+  if [[ "X${ENABLE_ASAN}" != "Xtrue" ]]; then
+    USE_ASAN=""
+  fi
   # Recreate CMake's configure state without changing global CMake initialization.
   CMAKE_FRESH_OPTION=""
   if cmake --help | grep -q -- "--fresh"; then
