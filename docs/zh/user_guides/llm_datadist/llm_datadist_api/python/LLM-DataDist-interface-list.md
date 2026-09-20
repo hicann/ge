@@ -3,8 +3,8 @@
 LLM-DataDist：大模型分布式集群和数据加速组件，提供了集群KV数据管理能力，以支持全量图和增量图分离部署。
 
 - 支持的产品形态如下：
-  - Atlas A2 推理系列产品
-  - Atlas A3 训练系列产品/Atlas A3 推理系列产品
+  - Atlas A2推理系列产品
+  - Atlas A3系列产品
 
 - 当前仅支持Python3.9与Python3.11。安装方法请参考Python官网[https://www.python.org/](https://www.python.org/)。
 - 最大注册50GB的Device内存。注册内存越大，占用的OS内存越多。

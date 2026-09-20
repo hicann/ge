@@ -120,13 +120,13 @@ numa\_config.json全量字段含义如表1所示。
 |node_type|String|是|节点类型。示例如：Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下：ATLAS900。|
 |resource_type|String|是|UDF可部署的架构和CPU资源类型。取值为X86或者Aarch。|
 |support_links|String|是|节点内通信方式。如[HCCS,PCIE,ROCE]。|
-|item_type|String|是|节点内加速卡类型。示例：Atlas A2 训练系列产品/Atlas A2 推理系列产品场景：Ascend*xxx*B1、Ascend*xxx*B2、Ascend*xxx*B3、Ascend*xxx*B4。Atlas A3 训练系列产品/Atlas A3 推理系列产品场景：Ascend910_*xx*|
+|item_type|String|是|节点内加速卡类型。示例：Atlas A2 训练系列产品/Atlas A2 推理系列产品场景：Ascend*xxx*B1、Ascend*xxx*B2、Ascend*xxx*B3、Ascend*xxx*B4。Atlas A3系列产品场景：Ascend910_*xx*|
 |inter_item_memory_access_mode|String|是|Server内不同device的地址互访方式。取值范围：NUMA或者UMA。|
 |h2d_bw|String|否|HOST-DEVICE间带宽如PCIE:100Gb。|
 |item_topology|item_topologyitem_topology详细信息请参见表6。|否|节点内不同加速卡间互联信息。Atlas A2 训练系列产品/Atlas A2 推理系列产品云场景下，按照1/2/4/8卡发放加速卡，故若只有1张卡则不涉及多卡拓扑。|
 |**item_def：node内同种类型的加速卡的公共属性**|-|-|-|
 |item_type|String|是|节点内加速卡类型。示例：Atlas A2 训练系列产品/Atlas A2 推理系列产品场景：Ascend*xxx*B1、Ascend*xxx*B2、Ascend*xxx*B3、Ascend*xxx*B4。|
-|memory|String|是|整芯片总内存。 Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，请配置为[DDR:64GB]。Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下，请配置为[DDR:31GB]。|
+|memory|String|是|整芯片总内存。 Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，请配置为[DDR:64GB]。Atlas A3系列产品场景下，请配置为[DDR:31GB]。|
 |aic_type|String|是|加速卡计算核类型和核数。如[DAVINCI_V100:32]。|
 |resource_type|String|是|UDF可部署的Ascend资源类型。请配置为Ascend。|
 
@@ -302,7 +302,7 @@ numa\_config.json示例如下，全量字段含义如表1所示。
 
 <!-- npu="A3" id10 -->
 
-**Atlas A3 训练系列产品/Atlas A3 推理系列产品场景下的numa\_config.json示例**
+**Atlas A3系列产品场景下的numa\_config.json示例**
 
 numa\_config.json示例如下，全量字段含义如表1所示。
 

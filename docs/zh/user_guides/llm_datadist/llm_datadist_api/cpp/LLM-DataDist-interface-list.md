@@ -4,8 +4,8 @@ LLM-DataDist：大模型分布式集群和数据加速组件，提供了集群KV
 
 支持的产品形态如下：
 
-- Atlas A2 推理系列产品
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品
+- Atlas A2推理系列产品
+- Atlas A3系列产品
 
 LLM-DataDist V1 C++ 接口计划废弃，相关头文件不再随ge_compiler安装，如需使用LLM-DataDist头文件，请安装toolkit与hixl。
 
