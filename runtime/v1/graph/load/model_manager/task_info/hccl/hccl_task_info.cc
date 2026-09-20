@@ -424,11 +424,14 @@ void HcclTaskInfo::PostProcess(const domi::TaskDef &task_def) {
 
       // sdma dump format always are FORMAT_ND
       const std::vector<int64_t> input_dims = {static_cast<int64_t>(hccl_dump_infos_[i].input_size) / type_size};
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
       GeTensorDesc input_desc(GeShape(input_dims), FORMAT_ND, src_data_type);
       TensorUtils::SetSize(input_desc, static_cast<int64_t>(hccl_dump_infos_[i].input_size));
       (void)sdma_op_desc->AddInputDesc(input_desc);
       const std::vector<int64_t> output_dims = {static_cast<int64_t>(hccl_dump_infos_[i].output_size) / type_size};
       GeTensorDesc output_desc(GeShape(output_dims), FORMAT_ND, src_data_type);
+#pragma GCC diagnostic pop
       TensorUtils::SetSize(output_desc, static_cast<int64_t>(hccl_dump_infos_[i].output_size));
       (void)sdma_op_desc->AddOutputDesc(output_desc);
 
