@@ -43,7 +43,7 @@ typedef enum {
 数字越小优先级越高，取值[0,7]，默认值为0。
 
 <!-- npu="910" id1 -->
-Atlas 训练系列产品，docker容器内安装CANN，且配置算力分组的场景，该枚举值不生效。
+Atlas训练系列产品，docker容器内安装CANN，且配置算力分组的场景，该枚举值不生效。
 <!-- end id1 -->
 
 ## ACL\_MDL\_LOAD\_TYPE\_SIZET取值说明

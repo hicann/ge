@@ -214,9 +214,9 @@ N表示该台Server上的可用AI处理器个数。
 - INT64
 - DOUBLE
 <!-- npu="950" id1 -->
-- HIF8：仅Ascend 950PR/Ascend 950DT支持该类型。
-- FP8E5M2：仅Ascend 950PR/Ascend 950DT支持该类型。
-- FP8E4M3FN：仅Ascend 950PR/Ascend 950DT支持该类型。
+- HIF8：仅Ascend 950PR&950DT系列产品支持该类型。
+- FP8E5M2：仅Ascend 950PR&950DT系列产品支持该类型。
+- FP8E4M3FN：仅Ascend 950PR&950DT系列产品支持该类型。
 <!-- end id1 -->
 图编译后，在对应的子图文件中，上述数据类型分别呈现方式如下：
 

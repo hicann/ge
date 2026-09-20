@@ -718,7 +718,7 @@ DataFlow离线编译是指在开发环境编译，在运行环境上加载和部
 
         将开发环境中graph\_compiler\_cache\_dir路径下的模型缓存文件、索引文件和变量格式文件拷贝到运行环境的graph\_compiler\_cache\_dir路径。具体文件请参考“缓存文件生成规则”。
 
-        Atlas A2 训练系列产品/Atlas A2 推理系列产品下的约束条件如下：
+        Atlas A2系列产品下的约束条件如下：
 
         执行环境的numa\_config.json需要和编译时候保持一致，ipaddr字段除外。
 

@@ -21,7 +21,7 @@
   - 设置shape范围（动态shape）。
 
     <!-- npu="310b" id1 -->
-    Atlas 200I/500 A2 推理产品**不支持设置shape范围**。
+    Atlas 200I/500 A2推理产品**不支持设置shape范围**。
     <!-- end id1 -->
 
     设置INPUT\_SHAPE参数时，可将对应维度的值设置为范围，例如1\~10，**设置的range值范围必须有效**。
@@ -104,30 +104,30 @@
 <!-- end id48 -->
 
 <!-- npu="950" id3 -->
-- 针对Ascend 950PR/Ascend 950DT，档位数约束为：档位数取值范围为\(1, 256\]，即必须设置至少2个档位，最多支持256档配置；每个档位数值建议限制为：\[1\~2048\]。
+- 针对Ascend 950PR&950DT系列产品，档位数约束为：档位数取值范围为\(1, 256\]，即必须设置至少2个档位，最多支持256档配置；每个档位数值建议限制为：\[1\~2048\]。
 <!-- end id3 -->
 
 <!-- npu="A3,910b,910,310p,310b" id4 -->
 - 针对如下产品，档位数约束为：档位数取值范围为\(1,100\]，即必须设置至少2个档位，最多支持100档配置；每个档位数值建议限制为：\[1\~2048\]。
 
     <!-- npu="A3" id5 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id5 -->
 
     <!-- npu="310b" id6 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id6 -->
 
     <!-- npu="310b" id7 -->
-    Atlas 200I/500 A2 推理产品
+    Atlas 200I/500 A2推理产品
     <!-- end id7 -->
 
     <!-- npu="310p" id8 -->
-    Atlas 推理系列产品
+    Atlas推理系列产品
     <!-- end id8 -->
 
     <!-- npu="910" id9 -->
-    Atlas 训练系列产品
+    Atlas训练系列产品
     <!-- end id9 -->
 <!-- end id4 -->
 
@@ -148,22 +148,22 @@ INPUT\_SHAPE中的“-1”表示设置动态batch。
 **产品支持情况：**
 
 <!-- npu="950" id1 -->
-- Ascend 950PR/Ascend 950DT：支持
+- Ascend 950PR&950DT系列产品：支持
 <!-- end id1 -->
 <!-- npu="A3" id2 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id2 -->
 <!-- npu="910b" id3 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+- Atlas A2系列产品：支持
 <!-- end id3 -->
 <!-- npu="310b" id4 -->
-- Atlas 200I/500 A2 推理产品：支持
+- Atlas 200I/500 A2推理产品：支持
 <!-- end id4 -->
 <!-- npu="310p" id5 -->
-- Atlas 推理系列产品：支持
+- Atlas推理系列产品：支持
 <!-- end id5 -->
 <!-- npu="910" id6 -->
-- Atlas 训练系列产品：支持
+- Atlas训练系列产品：支持
 <!-- end id6 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/dynamic_shape_res.md#id2 -->
 
@@ -182,30 +182,30 @@ INPUT\_SHAPE中的“-1”表示设置动态batch。
 <!-- end id46 -->
 
 <!-- npu="950" id10 -->
-- 针对Ascend 950PR/Ascend 950DT，档位数约束为：档位数取值范围为\(1, 256\]，即必须设置至少2个档位，最多支持256档配置。
+- 针对Ascend 950PR&950DT系列产品，档位数约束为：档位数取值范围为\(1, 256\]，即必须设置至少2个档位，最多支持256档配置。
 <!-- end id10 -->
 
 <!-- npu="A3,910b,910,310p,310b" id11 -->
 - 针对如下产品，档位数约束为：档位数取值范围为\(1,100\]，即必须设置至少2个档位，最多支持100档配置。
 
     <!-- npu="A3" id12 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id12 -->
 
     <!-- npu="910b" id13 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id13 -->
 
     <!-- npu="310b" id14 -->
-    Atlas 200I/500 A2 推理产品
+    Atlas 200I/500 A2推理产品
     <!-- end id14 -->
 
     <!-- npu="310p" id15 -->
-    Atlas 推理系列产品
+    Atlas推理系列产品
     <!-- end id15 -->
 
     <!-- npu="910" id16 -->
-    Atlas 训练系列产品
+    Atlas训练系列产品
     <!-- end id16 -->
 <!-- end id11 -->
 
@@ -226,22 +226,22 @@ INPUT\_SHAPE中的“-1”表示设置动态分辨率。
 **产品支持情况：**
 
 <!-- npu="950" id17 -->
-- Ascend 950PR/Ascend 950DT：支持
+- Ascend 950PR&950DT系列产品：支持
 <!-- end id17 -->
 <!-- npu="A3" id18 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id18 -->
 <!-- npu="910b" id19 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+- Atlas A2系列产品：支持
 <!-- end id19 -->
 <!-- npu="310b" id20 -->
-- Atlas 200I/500 A2 推理产品：支持
+- Atlas 200I/500 A2推理产品：支持
 <!-- end id20 -->
 <!-- npu="310p" id21 -->
-- Atlas 推理系列产品：支持
+- Atlas推理系列产品：支持
 <!-- end id21 -->
 <!-- npu="910" id22 -->
-- Atlas 训练系列产品：支持
+- Atlas训练系列产品：支持
 <!-- end id22 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/dynamic_shape_res.md#id4 -->
 
@@ -260,30 +260,30 @@ INPUT\_SHAPE中的“-1”表示设置动态分辨率。
 <!-- end id47 -->
 
 <!-- npu="950" id24 -->
-- 针对Ascend 950PR/Ascend 950DT，档位数约束为：档位数取值范围为\(1, 256\]，即必须设置至少2个档位，最多支持256档配置，建议配置为3\~4档。
+- 针对Ascend 950PR&950DT系列产品，档位数约束为：档位数取值范围为\(1, 256\]，即必须设置至少2个档位，最多支持256档配置，建议配置为3\~4档。
 <!-- end id24 -->
 
 <!-- npu="A3,910b,910,310p,310b" id25 -->
 - 针对如下产品，档位数约束为：档位数取值范围为\(1,100\]，即必须设置至少2个档位，最多支持100档配置，建议配置为3\~4档。
 
     <!-- npu="A3" id26 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id26 -->
 
     <!-- npu="910b" id27 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id27 -->
 
     <!-- npu="310b" id28 -->
-    Atlas 200I/500 A2 推理产品
+    Atlas 200I/500 A2推理产品
     <!-- end id28 -->
 
     <!-- npu="310p" id29 -->
-    Atlas 推理系列产品
+    Atlas推理系列产品
     <!-- end id29 -->
 
     <!-- npu="910" id30 -->
-    Atlas 训练系列产品
+    Atlas训练系列产品
     <!-- end id30 -->
 
 <!-- end id25 -->
@@ -307,22 +307,22 @@ INPUT\_SHAPE中的“-1”表示设置动态分辨率。
 **产品支持情况：**
 
 <!-- npu="950" id31 -->
-- Ascend 950PR/Ascend 950DT：支持
+- Ascend 950PR&950DT系列产品：支持
 <!-- end id31 -->
 <!-- npu="A3" id32 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id32 -->
 <!-- npu="910b" id33 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+- Atlas A2系列产品：支持
 <!-- end id33 -->
 <!-- npu="310b" id34 -->
-- Atlas 200I/500 A2 推理产品：支持
+- Atlas 200I/500 A2推理产品：支持
 <!-- end id34 -->
 <!-- npu="310p" id35 -->
-- Atlas 推理系列产品：支持
+- Atlas推理系列产品：支持
 <!-- end id35 -->
 <!-- npu="910" id36 -->
-- Atlas 训练系列产品：支持
+- Atlas训练系列产品：支持
 <!-- end id36 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/dynamic_shape_res.md#id6 -->
 
@@ -350,21 +350,21 @@ INPUT\_SHAPE中的“-1”表示设置动态分辨率。
 **产品支持情况：**
 
 <!-- npu="950" id39 -->
-- Ascend 950PR/Ascend 950DT：支持
+- Ascend 950PR&950DT系列产品：支持
 <!-- end id39 -->
 <!-- npu="A3" id40 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id40 -->
 <!-- npu="910b" id41 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+- Atlas A2系列产品：支持
 <!-- end id41 -->
 <!-- npu="310b" id42 -->
-- Atlas 200I/500 A2 推理产品：不支持
+- Atlas 200I/500 A2推理产品：不支持
 <!-- end id42 -->
 <!-- npu="310p" id43 -->
-- Atlas 推理系列产品：支持
+- Atlas推理系列产品：支持
 <!-- end id43 -->
 <!-- npu="910" id44 -->
-- Atlas 训练系列产品：支持
+- Atlas训练系列产品：支持
 <!-- end id44 -->
 <!-- @ref: ge/res/docs/zh/api/graph_engine_api/cpp/ge/aclgrphBuildModel_config_params/dynamic_shape_res.md#id8 -->

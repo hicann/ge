@@ -282,7 +282,7 @@ g++ -std=c++14 -shared $SOURCE_FILES -o outputs/libcustom_ops.so -fPIC ${TF_CFLA
     <!-- npu="A3" id1 -->
     **说明：**
 
-    如果设备是Atlas A3 训练系列产品/Atlas A3 推理系列产品，则上述代码中的部分结构体片段，需替换为如下形式，其他产品型号无需修改：
+    如果设备是Atlas A3系列产品，则上述代码中的部分结构体片段，需替换为如下形式，其他产品型号无需修改：
 
     ```c++
     struct __attribute__((packed)) {

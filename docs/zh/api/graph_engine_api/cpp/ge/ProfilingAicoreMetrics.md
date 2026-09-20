@@ -19,17 +19,17 @@ enum ProfilingAicoreMetrics {
 <!-- npu="950,A3,910b,310b" id1 -->
 kAicoreL2Cache参数支持的产品为：
 
-Atlas 200I/500 A2 推理产品
+Atlas 200I/500 A2推理产品
 
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+Atlas A2系列产品
 
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
+Atlas A3系列产品
 
-Ascend 950PR/Ascend 950DT
+Ascend 950PR&950DT系列产品
 <!-- end id1 -->
 
 <!-- npu="310b" id2 -->
 kAicorePipelineExecuteUtilization参数支持的产品为：
 
-Atlas 200I/500 A2 推理产品
+Atlas 200I/500 A2推理产品
 <!-- end id2 -->

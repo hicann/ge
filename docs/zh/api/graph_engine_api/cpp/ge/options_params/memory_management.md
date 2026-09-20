@@ -258,11 +258,11 @@ Host侧输入数据搬运到Device侧时，是否开启批量内存拷贝功能�
 <!-- npu="950,A3,910b" id1 -->
 - 该参数仅支持如下产品：
 
-    Ascend 950PR/Ascend 950DT
+    Ascend 950PR&950DT系列产品
 
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
 
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
 <!-- end id1 -->
 
 - 该特性通常在多Session场景下使用，考虑到不同Session中的输入个数可能不同，因此推荐配置为session级，根据输入情况按需启用，不建议配置为全局级别或者graph级别。

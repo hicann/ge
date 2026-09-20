@@ -10,15 +10,15 @@
 - **场景1**：针对如下产品，整数1表示算子编译时使用的AI Core中的Cube Core核数，整数2表示算子编译时使用的AI Core中的Vector Core核数，整数1与整数2都需要大于等于0，小于等于AI处理器包含的最大Cube Core和Vector Core数量：
 
     <!-- npu="950" id5 -->
-    Ascend 950PR/Ascend 950DT
+    Ascend 950PR&950DT系列产品
     <!-- end id5 -->
 
     <!-- npu="A3" id6 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id6 -->
 
     <!-- npu="910b" id7 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id7 -->
     <!-- end id1 -->
 
@@ -26,11 +26,11 @@
 - **场景2**：针对如下产品，仅需配置整数1，配置格式为："整数1|"，配置整数2不会生效，表示算子编译时使用的AI Core核数：
 
     <!-- npu="310p" id3 -->
-    Atlas 推理系列产品
+    Atlas推理系列产品
     <!-- end id3 -->
 
     <!-- npu="910" id4 -->
-    Atlas 训练系列产品
+    Atlas训练系列产品
     <!-- end id4 -->
 <!-- end id2 -->
 
@@ -98,19 +98,19 @@
 - 当AI数据处理核心单元是AI Core：
   - 在AI Core内，Cube和Vector共用一个Scalar调度单元.
     <!-- npu="910" id12 -->
-    例如Atlas 训练系列产品
+    例如Atlas训练系列产品
     <!-- end id12 -->
 
     ![图示](../../../figures/logic_arch_diagram.png)
 
   - 在AI Core内，Cube和Vector都有各自的Scalar调度单元，因此又被称为Cube Core、Vector Core。这时，一个Cube Core和一组Vector Core被定义为一个AI Core，AI Core数量通常是以多少个Cube Core为基准计算的。
     <!-- npu="910b" id13 -->
-    例如Atlas A2 训练系列产品/Atlas A2 推理系列产品。
+    例如Atlas A2系列产品。
     <!-- end id13 -->
 
 - 当AI数据处理核心单元是AI Core以及单独的Vector Core：AI Core和Vector Core都拥有独立的Scalar调度单元。
     <!-- npu="310p" id14 -->
-    例如Atlas 推理系列产品。
+    例如Atlas推理系列产品。
     <!-- end id14 -->
 
     ![图示](../../../figures/logic_arch_diagram_1.png)

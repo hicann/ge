@@ -12,16 +12,16 @@ numa\_config.json全量字段含义如表1所示。
 |cluster_nodes|Array of cluster_nodeCluster_node详细介绍请参见表2。|是|集群资源信息描述。|
 |nodes_topology|nodes_topologynodes_topology详细介绍请参见表5。|否|跨节点通信拓扑。如两台AISERVER间参数面通信拓扑。|
 |**node_def：集群内同种类型node的公共属性**|-|-|-|
-|node_type|String|是|节点类型。示例: Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下：ATLAS900。|
+|node_type|String|是|节点类型。示例: Atlas A2系列产品场景下：ATLAS900。|
 |resource_type|String|是|UDF可部署的架构和CPU资源类型。取值为X86或者Aarch。|
 |support_links|String|是|节点内通信方式。如[HCCS,PCIE,ROCE]。|
-|item_type|String|是|节点内加速卡类型。示例: Atlas A2 训练系列产品/Atlas A2 推理系列产品场景：Ascend*xxx*B1、Ascend*xxx*B2、Ascend*xxx*B3、Ascend*xxx*B4。 Atlas A3系列产品场景：Ascend910_*xx*|
+|item_type|String|是|节点内加速卡类型。示例: Atlas A2系列产品场景：Ascend*xxx*B1、Ascend*xxx*B2、Ascend*xxx*B3、Ascend*xxx*B4。 Atlas A3系列产品场景：Ascend910_*xx*|
 |inter_item_memory_access_mode|String|是|Server内不同device的地址互访方式。取值范围：NUMA或者UMA。|
 |h2d_bw|String|否|HOST-DEVICE间带宽如PCIE:100Gb。|
-|item_topology|item_topologyitem_topology详细信息请参见表6。|否|节点内不同加速卡间互联信息。 Atlas A2 训练系列产品/Atlas A2 推理系列产品云场景下，按照1/2/4/8卡发放加速卡，故若只有1张卡则不涉及多卡拓扑。|
+|item_topology|item_topologyitem_topology详细信息请参见表6。|否|节点内不同加速卡间互联信息。 Atlas A2系列产品云场景下，按照1/2/4/8卡发放加速卡，故若只有1张卡则不涉及多卡拓扑。|
 |**item_def：node内同种类型的加速卡的公共属性**|-|-|-|
-|item_type|String|是|节点内加速卡类型。示例: Atlas A2 训练系列产品/Atlas A2 推理系列产品场景：Ascend*xxx*B1、Ascend*xxx*B2、Ascend*xxx*B3、Ascend*xxx*B4。|
-|memory|String|是|整芯片总内存。Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下，请配置为[DDR:64GB]。Atlas A3系列产品场景下，请配置为[DDR:31GB]。|
+|item_type|String|是|节点内加速卡类型。示例: Atlas A2系列产品场景：Ascend*xxx*B1、Ascend*xxx*B2、Ascend*xxx*B3、Ascend*xxx*B4。|
+|memory|String|是|整芯片总内存。Atlas A2系列产品场景下，请配置为[DDR:64GB]。Atlas A3系列产品场景下，请配置为[DDR:31GB]。|
 |aic_type|String|是|加速卡计算核类型和核数。如[DAVINCI_V100:32]。|
 |resource_type|String|是|UDF可部署的Ascend资源类型。请配置为Ascend。|
 
@@ -30,7 +30,7 @@ numa\_config.json全量字段含义如表1所示。
 |**名称**|**类型**|**是否必选**|**描述**|
 |--|--|--|--|
 |node_id|Integer|是|集群内节点编号，一般0作为主节点。|
-|node_type|String|是|节点类型。示例: Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下：ATLAS900。|
+|node_type|String|是|节点类型。示例: Atlas A2系列产品场景下：ATLAS900。|
 |ipaddr|String|是|节点控制面通信的IP。如训练服务器为HOST IP。|
 |port|Integer|是|节点控制面通信的端口。|
 |data_panel|NetworkInfo|否|数据面通信信息。|
@@ -85,7 +85,7 @@ numa\_config.json全量字段含义如表1所示。
 
 <!-- npu="910b" id7 -->
 
-**Atlas A2 训练系列产品/Atlas A2 推理系列产品场景下的numa\_config.json示例**
+**Atlas A2系列产品场景下的numa\_config.json示例**
 
 numa\_config.json示例如下，全量字段含义如表1所示。
 

@@ -2,9 +2,9 @@
 
 ## 接口
 
-- [aclopExecute](aclopExecute_deprecated.md)接口
+- 单算子调用接口
 
-    此接口后续版本会废弃，请使用[aclopExecuteV2](aclopExecuteV2.md)接口。
+    单算子调用接口后续版本会废弃，请根据[废弃接口替换方案](./deprecated_APIs_replacement_scheme.md)使用新接口。
 
 - [aclGetTensorDescDim](aclGetTensorDescDim_deprecated.md)接口
 
@@ -17,10 +17,6 @@
 - [aclSetTensorStorageFormat](aclSetTensorStorageFormat_deprecated.md)接口
 
     此接口后续版本会废弃，请使用[aclSetTensorFormat](aclSetTensorFormat.md)接口。
-
-- [aclopSetCompileFlag](aclopSetCompileFlag_deprecated.md)接口
-
-    此接口后续版本会废弃，请使用[aclSetCompileopt](aclSetCompileopt.md)接口设置编译选项。
 
 ## 返回码
 

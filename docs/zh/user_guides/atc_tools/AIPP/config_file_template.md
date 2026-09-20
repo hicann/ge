@@ -12,7 +12,7 @@ AIPP配置文件通过本章节给出的模板进行配置，内容需要满足p
 
 <!-- npu="950,A3,910b,910,310p,310b" id3 -->
 - 抠图约束如下：
-  - 若input_format取值为YUV420SP_U8，load_start_pos_w、load_start_pos_h必须为偶数，Ascend 950PR/Ascend 950DT无偶数要求；若input_format取值为其他值，对load_start_pos_w、load_start_pos_h无约束。
+  - 若input_format取值为YUV420SP_U8，load_start_pos_w、load_start_pos_h必须为偶数，Ascend 950PR&950DT系列产品无偶数要求；若input_format取值为其他值，对load_start_pos_w、load_start_pos_h无约束。
   - 若开启抠图功能，则src_image_size[W|H] >= crop_size[W|H]+load_start_pos[W|H]。
 <!-- end id3 -->
 
@@ -22,10 +22,10 @@ AIPP配置文件通过本章节给出的模板进行配置，内容需要满足p
   - AIPP经过padding后，输出的H和W要与模型需要的H和W保持一致。
   <!-- @ref: ge/res/docs/zh/user_guides/atc_tools/AIPP/config_file_template_res.md#id4 -->
   <!-- npu="910,310p" id4 -->
-  - 针对Atlas 推理系列产品、Atlas 训练系列产品，W取值要<=1080。
+  - 针对Atlas推理系列产品、Atlas训练系列产品，W取值要<=1080。
   <!-- end id4 -->
   <!-- npu="950,A3,910b,310b" id5 -->
-  - 针对Atlas 200I/500 A2 推理产品、Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品、Ascend 950PR/Ascend 950DT，W取值要<=4096。
+  - 针对Atlas 200I/500 A2推理产品、Atlas A2系列产品、Atlas A3系列产品、Ascend 950PR&950DT系列产品，W取值要<=4096。
   <!-- end id5 -->
 <!-- npu="950,A3,910b,910,310p,310b" id1 -->
 - 该版本不支持raw_rgbir_to_f16_n配置项。

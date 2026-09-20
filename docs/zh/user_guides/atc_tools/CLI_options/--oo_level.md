@@ -21,7 +21,7 @@
 - O1：会关闭所有图融合和UB融合Pass，只做促成静态下沉的相关优化，如InferShape（进行输出Tensor的shape推导）、常量折叠、死边消除等。
 
     <!-- npu="950" id1 -->
-    Ascend 950PR/Ascend 950DT不支持UB融合，只关闭图融合Pass。
+    Ascend 950PR&950DT系列产品不支持UB融合，只关闭图融合Pass。
     <!-- end id1 -->
 
 - O3：（默认值）开启所有优化。
