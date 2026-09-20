@@ -58,6 +58,23 @@ static bool IsDataDumpOpen(const ge::DumpConfig &dump_config) {
   return (((dump_config.dump_status == kDeviceDumpOn) || (dump_config.dump_status == kDumpOn)) &&
           !IsExceptionDumpOpen(dump_config));
 }
+
+// dump path always ends with a timestamp directory appended by CurrentTimeInStr(),
+// strip the last layer before sending it to adx
+static std::string StripTailDir(const std::string &dump_path) {
+  if (dump_path.empty()) {
+    return dump_path;
+  }
+  const auto last_not_slash = dump_path.find_last_not_of('/');
+  if (last_not_slash == std::string::npos) {
+    return dump_path;
+  }
+  const auto sep = dump_path.find_last_of('/', last_not_slash);
+  if (sep == std::string::npos) {
+    return "";
+  }
+  return dump_path.substr(0UL, sep + 1UL);
+}
 }  // namespace
 
 DumpManager &DumpManager::GetInstance() {
@@ -463,7 +480,7 @@ Status DumpManager::AddDumpProperties(uint64_t session_id, const DumpProperties 
   if (dump_properties.IsDumpOpen()) {
     Adx::DumpConfig config;
     config.dumpStatus = "on";
-    config.dumpPath = dump_properties.GetDumpPath();
+    config.dumpPath = StripTailDir(dump_properties.GetDumpPath());
     config.dumpMode = dump_properties.GetDumpMode();
     config.dumpData = dump_properties.GetDumpData();
     config.dumpSwitch = Adx::OPERATOR_OP_DUMP;
@@ -474,7 +491,7 @@ Status DumpManager::AddDumpProperties(uint64_t session_id, const DumpProperties 
   } else if (dump_properties.IsOpDebugOpen()) {
     Adx::DumpConfig config;
     config.dumpStatus = "on";
-    config.dumpPath = dump_properties.GetDumpPath();
+    config.dumpPath = StripTailDir(dump_properties.GetDumpPath());
     config.dumpMode = dump_properties.GetDumpMode();
     config.dumpData = dump_properties.GetDumpData();
     config.dumpSwitch = kDumpSwitchOff;
