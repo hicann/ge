@@ -28,7 +28,7 @@ class GraphPass : public Pass<ge::ComputeGraph> {
    * @return NOT_CHANGED, the graph did not change
    * @return FAILED, fail to modify graph
    */
-  virtual Status Run(ge::ComputeGraph &graph) override = 0;
+  Status Run(ge::ComputeGraph &graph) override = 0;
 };
 
 }  // namespace fe

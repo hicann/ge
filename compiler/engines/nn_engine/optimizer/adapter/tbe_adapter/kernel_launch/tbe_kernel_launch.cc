@@ -69,7 +69,7 @@ Status TbeKernelLaunch::DealKernelLaunch(const ge::Node &node, const void *args,
 }
 
 void TbeKernelLaunch::PrintAllArgs(const string &op_name, const string &op_type, const void *all_args_buff,
-                                   uint32_t args_size) {
+                                   uint32_t args_size) const {
   for (size_t i = 0; i != args_size / sizeof(uint64_t); ++i) {
     uint64_t value = *(reinterpret_cast<uint64_t *>(reinterpret_cast<uintptr_t>(all_args_buff) + i * sizeof(uint64_t)));
     FE_LOGD("Op[name=%s, type=%s]: args[%zu]=[%lu].", op_name.c_str(), op_type.c_str(), i, value);

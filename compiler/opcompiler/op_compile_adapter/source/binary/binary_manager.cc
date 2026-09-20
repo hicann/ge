@@ -1400,7 +1400,7 @@ bool BinaryManager::MatchSimplifiedKey(const OpBuildTaskPtr &opTask, string &jso
   return GenerateAndMatchSimpleKey(opNode, opInfo, binaryInfoPtr, isSuperKernel, jsonFilePath);
 }
 
-bool BinaryManager::GenerateAndMatchSimpleKey(ge::Node *opNode, const TbeOpInfoPtr &opInfo,
+bool BinaryManager::GenerateAndMatchSimpleKey(const ge::Node *opNode, const TbeOpInfoPtr &opInfo,
                                               BinaryInfoBasePtr &binaryInfoPtr, bool &isSuperKernel,
                                               std::string &jsonFilePath) const {
   const std::string &opType = opInfo->GetOpType();

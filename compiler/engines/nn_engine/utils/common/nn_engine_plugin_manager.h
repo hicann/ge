@@ -61,7 +61,7 @@ class PluginManager {
    */
   template <typename R, typename... Types>
   Status GetFunction(const string &func_name, function<R(Types... args)> &func) const {
-    func = (R (*)(Types...))mmDlsym(handle, func_name.c_str());
+    func = reinterpret_cast<R (*)(Types...)>(mmDlsym(handle, func_name.c_str()));
 
     FE_CHECK(func == nullptr, FE_LOGW("Failed to get function %s in %s!", func_name.c_str(), so_name.c_str()),
              return FAILED);

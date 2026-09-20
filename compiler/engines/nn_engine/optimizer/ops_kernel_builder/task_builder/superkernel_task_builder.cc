@@ -529,6 +529,45 @@ bool IsEventRecordTask(domi::TaskDef &task_temp) {
          (task_temp.type() == static_cast<uint32_t>(RT_MODEL_TASK_NOTIFY_RECORD));
 }
 
+Status SuperkernelTaskBuilder::UpdateSubTaskEventId(const ge::Node &node, const std::vector<ge::Node *> &sub_nodes,
+                                                    std::vector<std::vector<domi::TaskDef>> &sub_tasks) {
+  for (size_t i = 0; i < sub_tasks.size(); ++i) {
+    const auto sub_kernel_op_desc = sub_nodes[i]->GetOpDesc();
+    const auto super_kernel_op_desc = node.GetOpDesc();
+    auto &sub_task_vec = sub_tasks[i];
+    for (auto &single_task : sub_task_vec) {
+      if (!IsEventWaitTask(single_task) && !IsEventRecordTask(single_task)) {
+        continue;
+      }
+      const int cur_task_stream_id = single_task.stream_id();
+      const int sk_node_stream_id = super_kernel_op_desc->GetStreamId();
+      FE_LOGD("cur_task_stream_id %u, sk_node_stream_id %u", cur_task_stream_id, sk_node_stream_id);
+      if (cur_task_stream_id != sk_node_stream_id) {
+        single_task.set_event_id(other_stream_event_id);
+        other_stream_event_id++;
+        continue;
+      }
+      // Ensure the record/wait task shares the same stream_id come into the aicore task.
+      single_task.set_event_id(cur_stream_event_id);
+      FE_CHECK_NOTNULL(sub_kernel_op_desc);
+      std::vector<uint32_t> sk_custom_event_ids;
+      (void)ge::AttrUtils::GetListInt(sub_kernel_op_desc, "_sk_custom_event_ids", sk_custom_event_ids);
+      FE_LOGD("Get sk_custom_event_ids from the sub node %s, sk_custom_event_ids size %d, event id %u.",
+              sub_kernel_op_desc->GetName().c_str(), sk_custom_event_ids.size(), cur_stream_event_id);
+      sk_custom_event_ids.emplace_back(cur_stream_event_id);
+      if (!ge::AttrUtils::SetListInt(sub_kernel_op_desc, "_sk_custom_event_ids", sk_custom_event_ids)) {
+        FE_LOGE("Failed to set sk_custom_event_ids for the sub node %s, sk_custom_event_ids size %d, event id %u.",
+                sub_kernel_op_desc->GetName().c_str(), sk_custom_event_ids.size(), cur_stream_event_id);
+        return FAILED;
+      }
+      FE_LOGD("Set _sk_custom_event_ids from the sub node %s, sk_custom_event_ids size %d, event id %u.",
+              sub_kernel_op_desc->GetName().c_str(), sk_custom_event_ids.size(), cur_stream_event_id);
+      cur_stream_event_id++;
+    }
+  }
+  return SUCCESS;
+}
+
 Status SuperkernelTaskBuilder::GenerateSubKernelTask(const ge::Node &node, const ge::ComputeGraphPtr &sub_graph,
                                                      ge::RunContext &context, std::vector<ge::Node *> &sub_nodes,
                                                      std::vector<std::vector<domi::TaskDef>> &sub_tasks) {
@@ -571,42 +610,7 @@ Status SuperkernelTaskBuilder::GenerateSubKernelTask(const ge::Node &node, const
       FE_LOGI("SPK sub node[%s, %s] set task type wait.", sub_node->GetNamePtr(), sub_node->GetTypePtr());
     }
   }
-  for (uint32_t i = 0; i < sub_tasks.size(); ++i) {
-    const auto sub_kernel_op_desc = sub_nodes[i]->GetOpDesc();
-    const auto super_kernel_op_desc = node.GetOpDesc();
-    std::string sub_arg_format;
-    auto sub_node = const_cast<ge::Node *>(sub_nodes[i])->shared_from_this();
-    auto &subTaskVec = sub_tasks[i];
-    for (auto &single_task : subTaskVec) {
-      if (IsEventWaitTask(single_task) || IsEventRecordTask(single_task)) {
-        int cur_task_stream_id = single_task.stream_id();
-        int sk_node_stream_id = super_kernel_op_desc->GetStreamId();
-        FE_LOGD("cur_task_stream_id %u, sk_node_stream_id %u", cur_task_stream_id, sk_node_stream_id);
-        if (cur_task_stream_id == sk_node_stream_id) {
-          // Ensure the record/wait task shares the same stream_id come into the aicore task.
-          single_task.set_event_id(cur_stream_event_id);
-          FE_CHECK_NOTNULL(sub_kernel_op_desc);
-          std::vector<uint32_t> sk_custom_event_ids;
-          (void)ge::AttrUtils::GetListInt(sub_kernel_op_desc, "_sk_custom_event_ids", sk_custom_event_ids);
-          FE_LOGD("Get sk_custom_event_ids from the sub node %s, sk_custom_event_ids size %d, event id %u.",
-                  sub_kernel_op_desc->GetName().c_str(), sk_custom_event_ids.size(), cur_stream_event_id);
-          sk_custom_event_ids.emplace_back(cur_stream_event_id);
-          if (!ge::AttrUtils::SetListInt(sub_kernel_op_desc, "_sk_custom_event_ids", sk_custom_event_ids)) {
-            FE_LOGE("Failed to set sk_custom_event_ids for the sub node %s, sk_custom_event_ids size %d, event id %u.",
-                    sub_kernel_op_desc->GetName().c_str(), sk_custom_event_ids.size(), cur_stream_event_id);
-            return ge::FAILED;
-          }
-          FE_LOGD("Set _sk_custom_event_ids from the sub node %s, _sk_custom_event_ids size %d, event id %u.",
-                  sub_kernel_op_desc->GetName().c_str(), sk_custom_event_ids.size(), cur_stream_event_id);
-          cur_stream_event_id++;
-        } else {
-          single_task.set_event_id(other_stream_event_id);
-          other_stream_event_id++;
-        }
-      }
-    }
-  }
-  return SUCCESS;
+  return UpdateSubTaskEventId(node, sub_nodes, sub_tasks);
 }
 
 Status SuperkernelTaskBuilder::GenerateSuperKernelTask(const ge::Node &node, ge::RunContext &context,
