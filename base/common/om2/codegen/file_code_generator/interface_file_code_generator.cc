@@ -121,16 +121,19 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ArgsTableClass() {
       ast_.DeclareMethod("GetArgsInfo", {ast_.Var("size_t", "index")}, "ArgsInfo *"),
       ast_.DeclareMethod("GetDevArgAddr", {ast_.Var("size_t", "offset"), ast_.Var("int32_t", "args_type")}, "void *"),
       ast_.DeclareMethod("GetHostArgAddr", {ast_.Var("size_t", "offset"), ast_.Var("int32_t", "args_type")}, "void *"),
-
+      ast_.DeclareMethod("RefreshFeatureMap", {ast_.Var("const uintptr_t", "base_addr")}, "aclError"),
       ast_.DeclareMethod(
           "UpdateHostArgs",
           {ast_.Var("int32_t", "type"), ast_.Var("size_t", "index"), ast_.Var("const uintptr_t", "addr")}, "aclError"),
       ast_.DeclareMethod("CopyArgsToDevice", {ast_.Var("void *", "stream"), ast_.Var("bool", "is_async")}, "aclError"),
       ast_.Private(),
-      ast_.Field("std::array<int64_t,  static_cast<size_t>(4)>", "args_sizes_{}"),
-      ast_.Field("std::array<std::vector<uint8_t>, static_cast<size_t>(4)>", "host_args_{}"),
-      ast_.Field("std::array<void *, static_cast<size_t>(4)>", "dev_args_{}"),
+      // sqe会合并到hbm中
+      ast_.Field("std::array<int64_t,  static_cast<size_t>(3)>", "args_sizes_{}"),
+      ast_.Field("std::array<int64_t,  static_cast<size_t>(3)>", "args_types_{}"),
+      ast_.Field("std::array<std::vector<uint8_t>, static_cast<size_t>(3)>", "host_args_{}"),
+      ast_.Field("std::array<void *, static_cast<size_t>(3)>", "dev_args_{}"),
       ast_.Field("std::vector<ArgsInfo>", "args_info_"),
+      ast_.Field("std::vector<uint32_t>", "refreshable_fm_index_to_allocation_ids_"),
       ast_.Field("std::vector<uint32_t>", "input_index_to_allocation_ids_"),
       ast_.Field("std::vector<uint32_t>", "output_index_to_allocation_ids_"),
       ast_.Field("std::vector<std::vector<ArgsRefreshInfo>>", "allocation_ids_to_model_args_refresh_infos_addr_all_"),
@@ -159,6 +162,7 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
       ast_.DeclareMethod("RegisterKernels", {}, "aclError"),
       ast_.DeclareMethod("Load", {ast_.Var("const GertModelLoadCallbacks *", "callbacks")}, "aclError"),
       ast_.DeclareMethod("GetRtModelHandle", {}, "aclmdlRI"),
+      ast_.DeclareMethod("RefreshFeatureMap", {ast_.Var("const uintptr_t", "base_addr")}, "aclError"),
       ast_.DeclareMethod(
           "Run",
           {ast_.Var("size_t", "input_count"), ast_.Var("gert::Tensor **", "input_data"),

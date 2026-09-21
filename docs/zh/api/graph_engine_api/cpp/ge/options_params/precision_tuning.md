@@ -171,19 +171,19 @@ true：白名单；false：黑名单；不配置：灰名单。
 **参数默认值：**
 
 <!-- npu="910" id1 -->
-训练场景下，针对Atlas 训练系列产品，参数默认值为“allow\_fp32\_to\_fp16”。
+训练场景下，针对Atlas训练系列产品，参数默认值为“allow\_fp32\_to\_fp16”。
 <!-- end id1 -->
 
 <!-- npu="910b" id2 -->
-训练场景下，针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，参数默认值为“must\_keep\_origin\_dtype”。
+训练场景下，针对Atlas A2系列产品，参数默认值为“must\_keep\_origin\_dtype”。
 <!-- end id2 -->
 
 <!-- npu="A3" id3 -->
-训练场景下，针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，参数默认值为“must\_keep\_origin\_dtype”。
+训练场景下，针对Atlas A3系列产品，参数默认值为“must\_keep\_origin\_dtype”。
 <!-- end id3 -->
 
 <!-- npu="950" id4 -->
-训练场景下，针对Ascend 950PR/Ascend 950DT，参数默认值为“must\_keep\_origin\_dtype”。
+训练场景下，针对Ascend 950PR&950DT系列产品，参数默认值为“must\_keep\_origin\_dtype”。
 <!-- end id4 -->
 
 在线推理场景下，参数默认值为“force\_fp16”。
@@ -194,11 +194,11 @@ true：白名单；false：黑名单；不配置：灰名单。
 
 **bfloat16数据类型仅支持以下产品**：
 
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+Atlas A2系列产品
 
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
+Atlas A3系列产品
 
-Ascend 950PR/Ascend 950DT
+Ascend 950PR&950DT系列产品
 <!-- end id5 -->
 
 **配置示例：**
@@ -286,19 +286,19 @@ Ascend 950PR/Ascend 950DT
 **参数默认值：**
 
 <!-- npu="910" id6 -->
-训练场景下，针对Atlas 训练系列产品，该配置项无默认取值，以“precision\_mode”参数的默认值为准，即“allow\_fp32\_to\_fp16”。
+训练场景下，针对Atlas训练系列产品，该配置项无默认取值，以“precision\_mode”参数的默认值为准，即“allow\_fp32\_to\_fp16”。
 <!-- end id6 -->
 
 <!-- npu="910b" id7 -->
-训练场景下，针对Atlas A2 训练系列产品/Atlas A2 推理系列产品，参数默认值为“origin”。
+训练场景下，针对Atlas A2系列产品，参数默认值为“origin”。
 <!-- end id7 -->
 
 <!-- npu="A3" id8 -->
-训练场景下，针对Atlas A3 训练系列产品/Atlas A3 推理系列产品，参数默认值为“origin”。
+训练场景下，针对Atlas A3系列产品，参数默认值为“origin”。
 <!-- end id8 -->
 
 <!-- npu="950" id9 -->
-训练场景下，针对Ascend 950PR/Ascend 950DT，参数默认值为“origin”。
+训练场景下，针对Ascend 950PR&950DT系列产品，参数默认值为“origin”。
 <!-- end id9 -->
 
 在线推理场景下，参数默认值为“fp16”。
@@ -308,11 +308,11 @@ Ascend 950PR/Ascend 950DT
 
 **bfloat16数据类型仅支持以下产品**：
 
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+Atlas A2系列产品
 
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
+Atlas A3系列产品
 
-Ascend 950PR/Ascend 950DT
+Ascend 950PR&950DT系列产品
 <!-- end id10 -->
 
 **配置示例：**

@@ -41,7 +41,7 @@ atc --virtual_type=1 ...
 - 针对MindSpore框架：
   - **ReduceMean**算子不支持使用--virtual\_type参数。
   <!-- npu="910,310p" id2 -->
-  - **ReverseV2**算子仅在Atlas 推理系列产品、Atlas 训练系列产品支持使用--virtual\_type参数。
+  - **ReverseV2**算子仅在Atlas推理系列产品、Atlas训练系列产品支持使用--virtual\_type参数。
   <!-- end id2 -->
 
 - 若使用[--virtual\_type](--virtual_type.md)=1进行模型转换，则转换后离线模型参与计算的逻辑AI Core核数可能比实际aicore\_num核数大，为aicore\_num支持配置范围的最小公倍数：
@@ -59,7 +59,7 @@ atc --virtual_type=1 ...
   - DynamicGRUV
 
     <!-- npu="950" id4 -->
-    Ascend 950PR/Ascend 950DT不支持该约束。
+    Ascend 950PR&950DT系列产品不支持该约束。
     <!-- end id4 -->
 
 <!-- end id3 -->

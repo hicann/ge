@@ -706,18 +706,6 @@ void ModelArgsManager::InitForUpdate() {
   }
 }
 
-Status ModelArgsManager::TaskArgsVa2PaAssociatedWithModelIO(aclrtStream const stm) const {
-  auto &model_update_data = update_policies_to_model_data_[kUpdateModelIo];
-  GE_ASSERT_NOTNULL(model_update_data, "Failed to exe model args va 2 pa, policy %s does not exist",
-                    GetUpdatePolicyStr(kUpdateModelIo));
-
-  for (const auto &cp_data : model_update_data->h2d_copy_datas) {
-    GE_ASSERT_RT_OK(rtDevVA2PA(cp_data.device_addr, cp_data.len, stm, davinci_model_->GetAsyncMode()));
-  }
-
-  return SUCCESS;
-}
-
 void ModelArgsManager::UpdateHostArgs(uint64_t *active_mem_base_addr) {
   dfx_info_.update_addr_num = 0UL;
   const size_t size = davinci_model_->GetLogicalMemAllocation().size();
@@ -907,9 +895,6 @@ Status ModelArgsManager::UpdateForExecute(uint32_t &up, aclrtStream const stm, c
     GE_ASSERT_TRUE(up_ < kUpdatePolicyEnd);
     GetStageTimeInfo(kStageUpdateHostArgsBegin);
     if (up_ == kNoNeedUpdate) {
-      if (need_dev_va_2_pa_ && (model_io_hit_count_ != 0UL)) {
-        GE_ASSERT_SUCCESS(TaskArgsVa2PaAssociatedWithModelIO(stm));
-      }
       return SUCCESS;
     }
     auto &model_update_data = update_policies_to_model_data_[up_];
@@ -942,9 +927,6 @@ Status ModelArgsManager::UpdateForExecute(uint32_t &up, aclrtStream const stm, c
 
     GE_ASSERT_TRUE(up_ < kUpdatePolicyEnd);
     if (up_ == kNoNeedUpdate) {
-      if (need_dev_va_2_pa_ && (model_io_hit_count_ != 0UL)) {
-        GE_ASSERT_SUCCESS(TaskArgsVa2PaAssociatedWithModelIO(stm));
-      }
       return SUCCESS;
     }
 
@@ -975,9 +957,6 @@ Status ModelArgsManager::UpdateForExecute(uint32_t &up, aclrtStream const stm, c
     }
     GE_ASSERT_TRUE(up_ < kUpdatePolicyEnd);
     if (up_ == kNoNeedUpdate) {
-      if (need_dev_va_2_pa_ && (model_io_hit_count_ != 0UL)) {
-        GE_ASSERT_SUCCESS(TaskArgsVa2PaAssociatedWithModelIO(stm));
-      }
       return SUCCESS;
     }
 

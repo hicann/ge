@@ -21,7 +21,7 @@ Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, gert::Om
   Om2CodegenArtifacts &artifacts = model_data.program_body.source_artifacts;
   auto &const_metas = model_data.constants_data.consts;
   std::vector<Om2VarMeta> &var_metas = model_data.var_metas;
-  bool has_custom_kernel = !model_data.custom_kernel_binaries.empty();
+  const bool has_custom_kernel = !model_data.custom_kernel_binaries.empty();
   artifacts.clear();
   const_metas.clear();
   var_metas.clear();

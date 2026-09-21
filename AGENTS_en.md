@@ -69,7 +69,7 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 >
 > **Trigger Words**: Add new feature/requirement/capability, develop new feature/requirement/capability, implement feature/requirement/capability
 
-**Use Skill**: `superpower brainstorming skill`
+**Use Skill**: `ge-requirement-design`
 
 ## Architecture Document Loading
 
@@ -131,9 +131,9 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 
 ### Design Document Checklist
 
-> **Trigger Words**: Design document, design spec, spec output, design document, design solution output, brainstorming output document, write design document, write spec, write design, save spec, save spec, save design, write to docs/superpowers/specs, design solution, architecture design, technical solution
+> **Trigger Words**: Design document, design spec, spec output, design document, design solution output, write design document, write spec, write design, save spec, save spec, save design, design solution, architecture design, technical solution
 
-Any scenario that outputs design documents/specs (including but not limited to superpowers brainstorming skill, user directly requesting design document writing, design solution output), **must** first read the template file [docs/en/design/design_document_template.md], then output according to the template format. Each section of the template must be covered. Even if superpowers skill has its own format requirements, this template must be followed.
+Any scenario that outputs design documents/specs (user directly requesting design document writing, design solution output, requirement design, etc.), **must** first read the template file [docs/en/design/design_document_template.md], then output according to the template format. Each section of the template must be covered. Even if the skill in use has its own format requirements, this template must be followed.
 
 Also, **must** check the following items one by one:
 

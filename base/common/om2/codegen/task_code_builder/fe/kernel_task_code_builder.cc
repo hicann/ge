@@ -167,7 +167,7 @@ void KernelTaskCodeBuilder::HandleShapeInfoBufferArg(const AddrSemantic &addr, u
   if (!addr.shape_info.has_value()) {
     return;
   }
-  for (int64_t dim : *addr.shape_info) {
+  for (const int64_t dim : *addr.shape_info) {
     OpArgDesc shape_arg;
     shape_arg.type = OP_ARG_SHAPE_INFO;
     shape_arg.custom_value = static_cast<uint64_t>(dim);
@@ -286,7 +286,7 @@ Status KernelTaskCodeBuilder::ReadFusionOpInfo(const OpDescPtr &op_desc) {
     int64_t tensor_size = 0;
     const auto tensor_desc = op_desc->MutableInputDesc(static_cast<uint32_t>(i));
     if (tensor_desc != nullptr && TensorUtils::GetSize(*tensor_desc, tensor_size) == GRAPH_SUCCESS) {
-      auto tensor_mem = static_cast<uint64_t>(tensor_size);
+      const auto tensor_mem = static_cast<uint64_t>(tensor_size);
       input_mem += tensor_mem;
       if (i < is_const.size() && is_const[i]) {
         weight_mem += tensor_mem;
@@ -2069,7 +2069,7 @@ Status KernelTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, c
   task_type_ = static_cast<ModelTaskType>(task_def.type());
   GE_CHECK_NOTNULL(&rts_param);
   domi::KernelContext context;
-  size_t extra_name_size = 0U;
+  constexpr size_t extra_name_size = 0U;
   if (Om2CodegenUtils::IsAllKernel(task_type_)) {
     const domi::KernelDefWithHandle &kernel_def = task_def.kernel_with_handle();
     args_size_ = static_cast<uint32_t>(kernel_def.args().size());
@@ -2581,7 +2581,7 @@ Status KernelTaskCodeBuilder::Init(const domi::TaskDef &task_def,
 
   if ((kernel_type_ == ccKernelType::AI_CPU) || (kernel_type_ == ccKernelType::CUST_AI_CPU) ||
       (kernel_type_ == ccKernelType::AI_CPU_KFC)) {
-    uint32_t pls = static_cast<uint32_t>(args_placement_);
+    const uint32_t pls = static_cast<uint32_t>(args_placement_);
     GE_ASSERT_TRUE(args[pls].len >= args_offset_from_pls_);
   }
   return SUCCESS;

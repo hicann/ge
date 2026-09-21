@@ -153,20 +153,20 @@ typedef enum {
 - 1：开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹下**生成**\*.o（算子二进制文件）、\*.json文件（算子描述文件）和TBE指令映射文件（算子cce文件\*.cce和python-cce映射文件\*\_loc.json），用于后续分析AICore Error问题。
 
     <!-- npu="950" id5 -->
-    Ascend 950PR/Ascend 950DT不会生成TBE指令映射文件。
+    Ascend 950PR&950DT系列产品不会生成TBE指令映射文件。
     <!-- end id5 -->
 
 - 2：开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹下**生成**\*.o（算子二进制文件）、\*.json文件（算子描述文件）和TBE指令映射文件（算子cce文件\*.cce和python-cce映射文件\*\_loc.json），用于后续分析AICore Error问题，同时设置为2，还会关闭编译优化开关、开启ccec调试功能（ccec编译器选项设置为-O0-g）。
 
     <!-- npu="950" id6 -->
-    Ascend 950PR/Ascend 950DT不会生成TBE指令映射文件。
+    Ascend 950PR&950DT系列产品不会生成TBE指令映射文件。
     <!-- end id6 -->
 
 - 3：不开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹中**生成**\*.o（算子二进制文件）和\*.json文件（算子描述文件），分析算子问题时可参考。
 - 4：不开启算子debug功能，在当前执行路径生成kernel\_meta文件夹，并在该文件夹下**生成**\*.o（算子二进制文件）、\*.json文件（算子描述文件）、TBE指令映射文件（算子cce文件\*.cce）和UB融合计算描述文件（\{$kernel\_name\}\_compute.json），可在分析算子问题时进行问题复现、精度比对时使用。
 
     <!-- npu="950" id7 -->
-    Ascend 950PR/Ascend 950DT不会生成TBE指令映射文件和UB融合计算描述文件。
+    Ascend 950PR&950DT系列产品不会生成TBE指令映射文件和UB融合计算描述文件。
     <!-- end id7 -->
 
 **配置约束如下：**
@@ -280,27 +280,27 @@ typedef enum {
 各产品型号的默认值不同：
 
 <!-- npu="950" id8 -->
-Ascend 950PR/Ascend 950DT，该选项默认值为disable。
+Ascend 950PR&950DT系列产品，该选项默认值为disable。
 <!-- end id8 -->
 
 <!-- npu="A3" id9 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品，该选项默认值为disable。
+Atlas A3系列产品，该选项默认值为disable。
 <!-- end id9 -->
 
 <!-- npu="910b" id10 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品，该选项默认值为disable。
+Atlas A2系列产品，该选项默认值为disable。
 <!-- end id10 -->
 
 <!-- npu="310b" id11 -->
-Atlas 200I/500 A2 推理产品，该选项默认值为enable。
+Atlas 200I/500 A2推理产品，该选项默认值为enable。
 <!-- end id11 -->
 
 <!-- npu="910" id12 -->
-Atlas 训练系列产品，该选项默认值为enable。
+Atlas训练系列产品，该选项默认值为enable。
 <!-- end id12 -->
 
 <!-- npu="310p" id13 -->
-Atlas 推理系列产品，该选项默认值为enable。
+Atlas推理系列产品，该选项默认值为enable。
 <!-- end id13 -->
 
 <!-- npu="950,A3,910b,910,310p,310b" id17 -->
@@ -341,7 +341,7 @@ Atlas 推理系列产品，该选项默认值为enable。
     <!-- npu="A3,910b" id14 -->
 - enable\_float\_32\_execution：算子内部处理时使用FP32数据类型功能，该场景下FP32数据类型不会自动转换为HF32数据类型；若使用HF32计算，精度损失超过预期时，可启用该配置，指定部分算子内部计算时使用FP32，保持精度。
 
-    **该选项仅Atlas A2 训练系列产品/Atlas A2 推理系列产品、Atlas A3 训练系列产品/Atlas A3 推理系列产品支持。**
+    **该选项仅Atlas A2系列产品、Atlas A3系列产品支持。**
 
     <!-- end id14 -->
 - enable\_hi\_float\_32\_execution：算子内部处理时使用HF32数据类型功能，启用此配置后，FP32数据类型自动转换为HF32数据类型；该机制可以降低数据所占空间大小，实现性能提升。

@@ -15,11 +15,11 @@
 - **Caffe框架在如下产品形态已不演进，不保证功能可用：**
 
     <!-- npu="A3" id3 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id3 -->
 
     <!-- npu="910b" id2 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id2 -->
 
     <!-- npu="IPV350" id16 -->
@@ -61,15 +61,15 @@
 针对BatchMatMulV2量化层，两路输入都为变量tensor量化场景，只在以下产品能获得收益，其他产品量化后精度会下降：
 
 <!-- npu="A3" id6 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
+Atlas A3系列产品
 <!-- end id6 -->
 
 <!-- npu="910b" id7 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+Atlas A2系列产品
 <!-- end id7 -->
 
 <!-- npu="310b" id8 -->
-Atlas 200I/500 A2 推理产品
+Atlas 200I/500 A2推理产品
 <!-- end id8 -->
 <!-- end id5 -->
 
@@ -95,15 +95,15 @@ Atlas 200I/500 A2 推理产品
 针对MatMul量化层，两路输入都为变量tensor量化场景，只在以下产品能获得收益，其他产品量化后精度会下降：
 
 <!-- npu="A3" id24 -->
-Atlas A3 训练系列产品/Atlas A3 推理系列产品
+Atlas A3系列产品
 <!-- end id24 -->
 
 <!-- npu="910b" id25 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+Atlas A2系列产品
 <!-- end id25 -->
 
 <!-- npu="310b" id26 -->
-Atlas 200I/500 A2 推理产品
+Atlas 200I/500 A2推理产品
 <!-- end id26 -->
 <!-- end id23 -->
 
@@ -133,11 +133,11 @@ Atlas 200I/500 A2 推理产品
 **仅权重量化特性，仅支持以下产品类型：**
 
 <!-- npu="310p" id13 -->
-Atlas 推理系列产品
+Atlas推理系列产品
 <!-- end id13 -->
 
 <!-- npu="910b" id14 -->
-Atlas A2 训练系列产品/Atlas A2 推理系列产品
+Atlas A2系列产品
 <!-- end id14 -->
 <!-- end id22 -->
 
@@ -158,5 +158,5 @@ Atlas A2 训练系列产品/Atlas A2 推理系列产品
   - false：表示权重量化使用对称量化。
   - true和false表示权重量化支持对称量化和非对称量化。
 <!-- npu="910b" id4 -->
-- FFN算子量化仅Atlas A2 训练系列产品/Atlas A2 推理系列产品支持。
+- FFN算子量化仅Atlas A2系列产品支持。
 <!-- end id4 -->

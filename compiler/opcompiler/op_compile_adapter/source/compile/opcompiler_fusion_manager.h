@@ -277,12 +277,8 @@ class TeFusionManager {
 
   static bool IsOpdebugCompile(const std::vector<ge::Node *> &nodes);
 
-  TeFusionManager &operator=(const TeFusionManager &op) {
-    if (&op == this) {
-      return *this;
-    }
-    return *this;
-  }
+  TeFusionManager(const TeFusionManager &op) = delete;
+  TeFusionManager &operator=(const TeFusionManager &op) = delete;
 
   // Op->Kernel map
   std::unordered_map<std::string,  // kernelName

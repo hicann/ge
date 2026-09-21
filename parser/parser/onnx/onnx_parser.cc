@@ -560,21 +560,13 @@ Status OnnxModelParser::SetOperatorInputs() {
         const std::string src_op_type = ParserUtils::GetOperatorType(src_op);
         const std::string dst_name = dst_op_desc->GetInputNameByIndex(dst_index);
         const std::string src_name = src_op_desc->GetOutputNameByIndex(src_index);
-        if (dst_name.empty() || src_name.empty()) {
-          REPORT_INNER_ERR_MSG("E19999",
-                               "Resolve operator IO name failed, tensor[%s], "
-                               "src op[%s:%s], src index[%d], src name[%s], "
-                               "dst op[%s:%s], dst index[%d], dst name[%s].",
-                               in_iter->first.c_str(), src_op_name.c_str(), src_op_type.c_str(), src_index,
-                               src_name.c_str(), dst_op_name.c_str(), dst_op_type.c_str(), dst_index, dst_name.c_str());
-          GELOGE(PARAM_INVALID,
-                 "[Get][IOName] failed, tensor[%s], "
-                 "src op[%s:%s], src index[%d], src name[%s], "
-                 "dst op[%s:%s], dst index[%d], dst name[%s].",
-                 in_iter->first.c_str(), src_op_name.c_str(), src_op_type.c_str(), src_index, src_name.c_str(),
-                 dst_op_name.c_str(), dst_op_type.c_str(), dst_index, dst_name.c_str());
-          return PARAM_INVALID;
-        }
+        GELOGD(
+            "[Get][IOName] failed, tensor[%s], "
+            "src op[%s:%s], src index[%d], src name[%s], "
+            "dst op[%s:%s], dst index[%d], dst name[%s].",
+            in_iter->first.c_str(), src_op_name.c_str(), src_op_type.c_str(), src_index, src_name.c_str(),
+            dst_op_name.c_str(), dst_op_type.c_str(), dst_index, dst_name.c_str());
+
         dst_op.SetInput(dst_name.c_str(), src_op, src_name.c_str());
       }
     }

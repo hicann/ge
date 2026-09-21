@@ -42,8 +42,8 @@ graphStatus GenerateJsonFile(const KernelRegisterInfo &register_info, std::strin
   std::string so_name = aicpu_register_info->so_name;
   std::string kernel_name = aicpu_register_info->kernel_name;
   std::string op_type = aicpu_register_info->op_type;
-  auto ret = snprintf_s(json_data, kMaxJsonFileLen, kMaxJsonFileLen - 1U, json_data_format.c_str(), op_type.c_str(),
-                        op_kernel_lib.c_str(), so_name.c_str(), kernel_name.c_str());
+  const auto ret = snprintf_s(json_data, kMaxJsonFileLen, kMaxJsonFileLen - 1U, json_data_format.c_str(),
+                              op_type.c_str(), op_kernel_lib.c_str(), so_name.c_str(), kernel_name.c_str());
   GE_ASSERT_TRUE(ret >= 0, "snprintf_s failed, ret: %d", ret);
   std::ofstream ofs(json_path.c_str(), std::ios::trunc);
   GE_ASSERT_TRUE(ofs, "Cannot open kernel json file: %s", json_path.c_str());

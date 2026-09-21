@@ -423,12 +423,12 @@ void HcclTaskInfo::PostProcess(const domi::TaskDef &task_def) {
       GE_CHECK_NOTNULL_JUST_RETURN(sdma_op_desc);
 
       // sdma dump format always are FORMAT_ND
-      const std::vector<int64_t> input_dims = {static_cast<int64_t>(hccl_dump_infos_[i].input_size) / type_size};
-      GeTensorDesc input_desc(GeShape(input_dims), FORMAT_ND, src_data_type);
+      std::vector<int64_t> input_dims = {static_cast<int64_t>(hccl_dump_infos_[i].input_size) / type_size};
+      GeTensorDesc input_desc(GeShape(std::move(input_dims)), FORMAT_ND, src_data_type);
       TensorUtils::SetSize(input_desc, static_cast<int64_t>(hccl_dump_infos_[i].input_size));
       (void)sdma_op_desc->AddInputDesc(input_desc);
-      const std::vector<int64_t> output_dims = {static_cast<int64_t>(hccl_dump_infos_[i].output_size) / type_size};
-      GeTensorDesc output_desc(GeShape(output_dims), FORMAT_ND, src_data_type);
+      std::vector<int64_t> output_dims = {static_cast<int64_t>(hccl_dump_infos_[i].output_size) / type_size};
+      GeTensorDesc output_desc(GeShape(std::move(output_dims)), FORMAT_ND, src_data_type);
       TensorUtils::SetSize(output_desc, static_cast<int64_t>(hccl_dump_infos_[i].output_size));
       (void)sdma_op_desc->AddOutputDesc(output_desc);
 

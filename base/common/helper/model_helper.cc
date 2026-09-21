@@ -763,7 +763,7 @@ Status ModelHelper::SetModelAttributes(const GeModelPtr &ge_model) const {
                    GELOGE(FAILED, "SetStr for atc_cmdline failed.");
                    return FAILED);
   std::string cur_version;
-  auto ret = GetOppVersion(cur_version);
+  const auto ret = GetOppVersion(cur_version);
   if ((ret != SUCCESS) || (!ge::AttrUtils::SetStr(*(ge_model.get()), ATTR_MODEL_OPP_VERSION, cur_version))) {
     GELOGW("Ge model set opp version unsuccessful!");
   }

@@ -17,7 +17,7 @@
     从这个过程会发现A的结果从Unified Buffer-\>Global Memory-\>Unified Buffer-\>Global Memory。这个经过Global Memory进行数据搬移的过程是浪费的，因此将A和B算子合并成一个算子，省去了数据搬移的过程叫UB融合。UB融合可以减少整网中数据搬移的时间（Global Memory\>Unified Buffer，Unified Buffer-\>Global Memory），提高运算效率，有效降低带宽。
 
     <!-- npu="950" id1 -->
-    Ascend 950PR/Ascend 950DT不支持UB融合。
+    Ascend 950PR&950DT系列产品不支持UB融合。
     <!-- end id1 -->
 
 ## 关联参数
@@ -118,7 +118,7 @@ atc --fusion_switch_file=$HOME/module/fusion_switch.cfg ...
 - AMCT对原始框架模型进行量化时，会插入量化和反量化算子，而使用ATC工具进行模型转换过程中，会对插入的量化和反量化算子进行融合，此情况下再进行量化后模型dump结果与原始模型dump结果的比对可能不准确，因此如果用户想使用AMCT量化后的模型进行精度比对，则需要通过[--fusion\_switch\_file](--fusion_switch_file.md)参数关闭部分融合功能，该场景下需要关闭的融合规则如下：
 
     <!-- npu="910" id4 -->
-    Atlas 训练系列产品场景必须关闭的融合规则：
+    Atlas训练系列产品场景必须关闭的融合规则：
 
     ```text
     V100RequantFusionPass:off
@@ -138,7 +138,7 @@ atc --fusion_switch_file=$HOME/module/fusion_switch.cfg ...
     <!-- end id4 -->
 
     <!-- npu="310p" id5 -->
-    Atlas 推理系列产品必须关闭的融合规则：
+    Atlas推理系列产品必须关闭的融合规则：
 
     ```text
     V200RequantFusionPass:off
@@ -158,7 +158,7 @@ atc --fusion_switch_file=$HOME/module/fusion_switch.cfg ...
     <!-- end id5 -->
 
     <!-- npu="910b,310b" id6 -->
-    Atlas 200I/500 A2 推理产品、Atlas A2 训练系列产品/Atlas A2 推理系列产品必须关闭的融合规则：
+    Atlas 200I/500 A2推理产品、Atlas A2系列产品必须关闭的融合规则：
 
     ```text
     ConvConcatFusionPass:off
@@ -177,7 +177,7 @@ atc --fusion_switch_file=$HOME/module/fusion_switch.cfg ...
     <!-- end id6 -->
 
     <!-- npu="A3" id7 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品必须关闭的融合规则：
+    Atlas A3系列产品必须关闭的融合规则：
 
     ```text
     ConvConcatFusionPass:off
@@ -202,7 +202,7 @@ atc --fusion_switch_file=$HOME/module/fusion_switch.cfg ...
 
     图融合规则，在AscendDequant的输入插入RequantHostCpuOpV2算子。
 
-    该融合规则仅在Atlas 训练系列产品、Atlas 推理系列产品支持。
+    该融合规则仅在Atlas训练系列产品、Atlas推理系列产品支持。
   <!-- end id10 -->
 
   <!-- npu="310p" id9 -->
@@ -210,7 +210,7 @@ atc --fusion_switch_file=$HOME/module/fusion_switch.cfg ...
 
     图融合规则，将AscendDequant和AscendQuant融合成AscendRequant，在AscendDequant的输入插入RequantHostCpuOpV2Re算子。
 
-    该融合规则仅在Atlas 推理系列产品支持。
+    该融合规则仅在Atlas推理系列产品支持。
   <!-- end id9 -->
 
   - ConvConcatFusionPass

@@ -45,7 +45,7 @@ class BroadcastFormatProcess : public FormatProcessBase {
  private:
   Status ProcessSameShape(const ge::OpDesc &op_desc, const FormatProccessArgs &args,
                           const std::set<size_t> &scalar_input_index, size_t input_size, size_t output_size,
-                          FormatProccessResult &result);
+                          FormatProccessResult &result) const;
   Status ProcessScalarInputs(const ge::OpDesc &op_desc, const FormatProccessArgs &args,
                              const std::set<size_t> &scalar_input_index, FormatProccessResult &result);
   void GetScalarInputIndex(const std::vector<ge::GeShape> &shapes, std::set<size_t> &scalar_input_index) const;

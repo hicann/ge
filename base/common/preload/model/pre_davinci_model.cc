@@ -232,7 +232,7 @@ Status PreDavinciModel::GetEngineNameAndOpDescByType(
 
   engine_name = it->second.first;
   op_desc = nullptr;
-  int64_t op_index = it->second.second(task_def);
+  const int64_t op_index = it->second.second(task_def);
   if (op_index != -1) {
     op_desc = GetOpByIndex(static_cast<uint32_t>(op_index));
     GE_ASSERT_NOTNULL(op_desc, "[Call][GetOpByIndex] get op fail, op index is %u", op_index);

@@ -79,4 +79,14 @@ ge::Status Om2ModelManager::UnloadModel(uint32_t model_id) {
 uint32_t Om2ModelManager::GenModelId() {
   return max_model_id_.fetch_add(1);
 }
+
+Status Om2ModelManager::UpdateFeatureMemoryBase(const uint32_t model_id, const uintptr_t mem_base, const size_t size) {
+  const std::lock_guard<std::mutex> lock(mutex_);
+  const auto iter = model_map_.find(model_id);
+  if (iter == model_map_.end()) {
+    return GE_RTI_MODEL_NOT_LOADED;
+  }
+  return iter->second->UpdateFmMemBases(mem_base, size);
+}
+
 }  // namespace ge

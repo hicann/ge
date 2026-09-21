@@ -3,22 +3,22 @@
 ## 产品支持情况
 
 <!-- npu="950" id1063 -->
-- Ascend 950PR/Ascend 950DT：支持
+- Ascend 950PR&950DT系列产品：支持
 <!-- end id1063 -->
 <!-- npu="A3" id1064 -->
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：支持
+- Atlas A3系列产品：支持
 <!-- end id1064 -->
 <!-- npu="910b" id1065 -->
-- Atlas A2 训练系列产品/Atlas A2 推理系列产品：支持
+- Atlas A2系列产品：支持
 <!-- end id1065 -->
 <!-- npu="310b" id1066 -->
-- Atlas 200I/500 A2 推理产品：支持
+- Atlas 200I/500 A2推理产品：支持
 <!-- end id1066 -->
 <!-- npu="310p" id1067 -->
-- Atlas 推理系列产品：支持
+- Atlas推理系列产品：支持
 <!-- end id1067 -->
 <!-- npu="910" id1068 -->
-- Atlas 训练系列产品：支持
+- Atlas训练系列产品：支持
 <!-- end id1068 -->
 <!-- npu="IPV350" id1069 -->
 - IPV350：支持

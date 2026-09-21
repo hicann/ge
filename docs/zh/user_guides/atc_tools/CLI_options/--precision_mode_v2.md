@@ -90,26 +90,26 @@
 - **bfloat16数据类型仅支持以下产品型号**：
 
     <!-- npu="910b" id1 -->
-    Atlas A2 训练系列产品/Atlas A2 推理系列产品
+    Atlas A2系列产品
     <!-- end id1 -->
 
     <!-- npu="A3" id2 -->
-    Atlas A3 训练系列产品/Atlas A3 推理系列产品
+    Atlas A3系列产品
     <!-- end id2 -->
 
     <!-- npu="310b" id3 -->
-    Atlas 200I/500 A2 推理产品
+    Atlas 200I/500 A2推理产品
     <!-- end id3 -->
 
     <!-- npu="950" id4 -->
-    Ascend 950PR/Ascend 950DT
+    Ascend 950PR&950DT系列产品
     <!-- end id4 -->
 <!-- end id8 -->
 
 <!-- npu="950" id5 -->
 - **hif8数据类型仅支持以下产品型号**：
 
-    Ascend 950PR/Ascend 950DT
+    Ascend 950PR&950DT系列产品
 
 <!-- end id5 -->
 - 该参数默认为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。

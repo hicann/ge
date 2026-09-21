@@ -43,7 +43,7 @@ class TbeKernelLaunch {
   int32_t input_num_;
 
  private:
-  void PrintAllArgs(const string &op_name, const string &op_type, const void *all_args_buff, uint32_t args_size);
+  void PrintAllArgs(const string &op_name, const string &op_type, const void *all_args_buff, uint32_t args_size) const;
 };
 }  // namespace fe
 #endif  // AIR_COMPILER_GRAPHCOMPILER_ENGINES_NNENG_OPTIMIZER_ADAPTER_TBE_ADAPTER_KERNEL_LAUNCH_TBE_KERNEL_LAUNCH_H_

@@ -302,7 +302,7 @@ Status CmoAddrTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, 
   auto format_str = task_def.cmo_addr_task().args_format();
   if (format_str.empty()) {
     const GeTensorDesc &tensor_desc = op_desc_->GetInputDesc(0U);
-    int64_t num_cnt = tensor_desc.GetShape().IsScalar() ? 1 : tensor_desc.GetShape().GetShapeSize();
+    const int64_t num_cnt = tensor_desc.GetShape().IsScalar() ? 1 : tensor_desc.GetShape().GetShapeSize();
     int64_t shape_len = GetSizeInBytes(num_cnt, tensor_desc.GetDataType());
     GE_ASSERT_TRUE(shape_len > 0);
     int64_t offset{0};
@@ -321,7 +321,7 @@ Status CmoAddrTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, 
     if (max_size == 0) {
       max_size = kMaxPrefetchLen;
     }
-    uint32_t len_inner = std::min(static_cast<uint32_t>(shape_len), max_size);
+    const uint32_t len_inner = std::min(static_cast<uint32_t>(shape_len), max_size);
     format_str = "{}{.32b}{#.32b" + std::to_string(len_inner) + "}{i_instance0*}{}";
     GELOGI("Generating format_str for op: %s, shape_len: %" PRId64 ", offset: %" PRId64
            ", max_size: %u, len_inner: %u, format_str: %s",
@@ -371,7 +371,7 @@ Status CmoAddrTaskCodeBuilder::Init(const domi::TaskDef &task_def,
     }
     if (iter.addr_type == AddrType::INPUT_INSTANCE) {
       GE_ASSERT_TRUE(static_cast<size_t>(iter.ir_idx) < iow_addrs.input_logic_addrs.size());
-      uint64_t base_addr = iow_addrs.input_logic_addrs[iter.ir_idx].logic_addr;
+      const uint64_t base_addr = iow_addrs.input_logic_addrs[iter.ir_idx].logic_addr;
       io_addrs_.push_back(base_addr);
       io_addr_mem_types_.push_back(iow_addrs.input_logic_addrs[iter.ir_idx].memory_type);
     }

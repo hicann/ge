@@ -338,7 +338,6 @@ class ModelArgsManager {
   void DebugLogTaskUpdatePolicies(const TaskNodeMap &task_node_map, const TriggerPolicies &upis,
                                   size_t task_index) const;
   Status ValidateTaskRunParam(const std::vector<TaskArgsDesc> &args_descs) const;
-  Status TaskArgsVa2PaAssociatedWithModelIO(aclrtStream const stm) const;
   void GetStageTimeInfo(ModelArgsManagerStage stage);
   void UpdateHostArgs(uint64_t *active_mem_base_addr);
 

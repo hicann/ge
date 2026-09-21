@@ -737,8 +737,9 @@ Status Om2PackageHelper::BuildCustomKernelBinaries(const GeRootModelPtr &ge_root
     const size_t hash_id = std::hash<std::string>{}(std::string(kb.data.get(), kb.data.get() + kb.data_size));
     const auto entry_path = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";
     kb.name = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";
+    const size_t kb_data_size = kb.data_size;
     kernel_binaries.push_back(std::move(kb));
-    GELOGD("[OM2] Serialized custom op '%s', bin size:%zu", op_type.c_str(), kb.data_size);
+    GELOGD("[OM2] Serialized custom op '%s', bin size:%zu", op_type.c_str(), kb_data_size);
   }
   GELOGI("[OM2] Successfully built custom kernel binaries, count=%zu", kernel_binaries.size());
   return SUCCESS;

@@ -15,7 +15,7 @@
 - ub\_fusion：表示UB融合
 
     <!-- npu="950" id1 -->
-    **Ascend 950PR/Ascend 950DT不支持UB融合，不会生成该信息**。
+    **Ascend 950PR&950DT系列产品不支持UB融合，不会生成该信息**。
     <!-- end id1 -->
 
 - match\_times：表示图编译过程中匹配到的融合规则次数。
@@ -23,7 +23,7 @@
 - repository\_hit\_times：优化UB融合知识库命中的次数
 
     <!-- npu="950" id2 -->
-    **Ascend 950PR/Ascend 950DT不支持UB融合，不会生成该信息**。
+    **Ascend 950PR&950DT系列产品不支持UB融合，不会生成该信息**。
     <!-- end id2 -->
 
 ## 关联参数

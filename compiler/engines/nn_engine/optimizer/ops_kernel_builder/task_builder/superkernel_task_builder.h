@@ -37,6 +37,8 @@ class SuperkernelTaskBuilder {
                              const std::map<int64_t, std::vector<domi::TaskDef>> &scope_task_defs_map,
                              std::vector<domi::TaskDef> &task_defs);
   static Status FillupFusionTask(const ge::OpDescPtr &op_desc, domi::TaskDef &task_def);
+  static Status UpdateSubTaskEventId(const ge::Node &node, const std::vector<ge::Node *> &sub_nodes,
+                                     std::vector<std::vector<domi::TaskDef>> &sub_tasks);
 };
 }  // namespace fe
 #endif  // AIR_COMPILER_GRAPHCOMPILER_ENGINES_NNENG_OPTIMIZER_OPS_KERNEL_BUILDER_TASK_BUILDER_SUPERKERNEL_TASK_BUILDER_H_

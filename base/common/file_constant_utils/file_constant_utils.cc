@@ -520,7 +520,7 @@ Status FileConstantUtils::SaveWeightToOneFileWithReuse(const ConstNodeWeightHash
   }
 
   std::string om_name = StringUtils::GetFileName(model_file_name_prefix);
-  auto pos = om_name.rfind('.');
+  const auto pos = om_name.rfind('.');
   if (pos != std::string::npos) {
     om_name = om_name.substr(0, pos);
   }

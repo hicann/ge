@@ -335,7 +335,7 @@ Status DumpOp::GetProtoCapacity(size_t &proto_capacity) const {
   // Address fields use protobuf varint encoding. Reserve the serialized size for the
   // largest possible address values while keeping proto_dev_mem_ at a stable address.
   auto max_op_mapping_info = op_mapping_info_;
-  const auto max_address = std::numeric_limits<uintptr_t>::max();
+  constexpr auto max_address = std::numeric_limits<uintptr_t>::max();
   const std::vector<uintptr_t> max_input_addrs(op_desc_->GetAllInputsSize(), max_address);
   const std::vector<uintptr_t> max_output_addrs(op_desc_->GetAllOutputsDescPtr().size(), max_address);
   for (auto &task : *max_op_mapping_info.mutable_task()) {

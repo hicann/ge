@@ -92,7 +92,7 @@ Status BroadcastFormatProcess::Process(const ge::OpDesc &op_desc, const FormatPr
 
 Status BroadcastFormatProcess::ProcessSameShape(const ge::OpDesc &op_desc, const FormatProccessArgs &args,
                                                 const std::set<size_t> &scalar_input_index, size_t input_size,
-                                                size_t output_size, FormatProccessResult &result) {
+                                                size_t output_size, FormatProccessResult &result) const {
   auto op_name = op_desc.GetName();
   auto op_type = op_desc.GetType();
   auto input_shapes = args.origin_info_ptr->input_shapes;

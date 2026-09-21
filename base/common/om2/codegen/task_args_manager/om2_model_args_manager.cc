@@ -166,12 +166,13 @@ Status ModelArgsManager::GenModelArgsRefreshInfosForTask(std::vector<TaskArgsRef
         node->GetOpDesc()->GetName().c_str(), node->GetOpDesc()->GetType().c_str(), pls,
         PtrToValue(pls_to_args[pls].host_addr), pls_to_args[pls].dev_addr, info.ToString().c_str(),
         m_info.ToString().c_str());
+    const auto m_info_id = m_info.id;
     if (info.args_format_policy == ArgsFormatPolicy::kAddrAll) {
-      (void)allocation_ids_to_model_args_refresh_infos_addr_all[m_info.id].emplace_back(std::move(m_info));
+      (void)allocation_ids_to_model_args_refresh_infos_addr_all[m_info_id].emplace_back(std::move(m_info));
     } else if (info.args_format_policy == ArgsFormatPolicy::kAddrLow32Bit) {
-      (void)allocation_ids_to_model_args_refresh_infos_addr_low_32bit[m_info.id].emplace_back(std::move(m_info));
+      (void)allocation_ids_to_model_args_refresh_infos_addr_low_32bit[m_info_id].emplace_back(std::move(m_info));
     } else if (info.args_format_policy == ArgsFormatPolicy::kAddrHigh32Bit) {
-      (void)allocation_ids_to_model_args_refresh_infos_addr_high_32bit[m_info.id].emplace_back(std::move(m_info));
+      (void)allocation_ids_to_model_args_refresh_infos_addr_high_32bit[m_info_id].emplace_back(std::move(m_info));
     }
   }
   return SUCCESS;
@@ -276,7 +277,7 @@ Status ModelArgsManager::AllocModelArgs(const ModelArgsLayoutPlannedResult &layo
       GE_ASSERT_TRUE(!AddOverflow(len, partition_len, len));
     }
     const size_t built_in_len = static_cast<size_t>(len);
-    const size_t reserved_len = 0UL;
+    constexpr size_t reserved_len = 0UL;
     if (built_in_len == 0UL) {
       continue;
     }
@@ -298,9 +299,9 @@ Status ModelArgsManager::AllocModelArgs(const ModelArgsLayoutPlannedResult &layo
     GELOGI("[OM2] Alloc model args built_in=%zu, reserved=%zu, placement=%s, addr=0x%llx for model_name=%s",
            built_in_len, reserved_len, GetArgsPlacementStr(placed_model_args.placement),
            placed_model_args.model_args_device_addr, model_adapter_.GetOmName().c_str());
+    pls = placed_model_args.placement;
     (void)model_args.emplace_back(std::move(placed_model_args));
     (void)model_args_len.emplace_back(static_cast<size_t>(len));
-    pls = placed_model_args.placement;
   }
   return SUCCESS;
 }
@@ -669,6 +670,10 @@ Status ModelArgsManager::GenerateArgsDataForProgramGenerator(Om2CodegenModel &co
 
   // 组装output index和allocation id的关系
   args_table.output_index_to_allocation_ids = model_adapter_.GetOutputIndexToAllocationIds();
+
+  // 组装fm index和allocation id的关系
+  args_table.refreshable_fm_index_and_allocation_ids = model_adapter_.GetRefreshableFmIndexAndAllocationIds();
+
   return SUCCESS;
 }
 }  // namespace om2
