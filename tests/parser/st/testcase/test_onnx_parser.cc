@@ -21,6 +21,7 @@
 #include "parser/common/op_registration_tbe.h"
 #include "parser/onnx_parser.h"
 #include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
+#include "parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_registrar.h"
 #include "st/parser_st_utils.h"
 #include "ge/ge_api_types.h"
 #include "depends/ops_stub/ops_stub.h"
@@ -516,11 +517,12 @@ void VerifyBridgePluginCallbacks() {
   ASSERT_NE(parse_operator_return, nullptr);
   EXPECT_NE(parse_operator_return(source_op, operator_target), SUCCESS);
 
-  using InitBridgeFunc = Status (*)();
-  const auto init_bridge = reinterpret_cast<InitBridgeFunc>(dlsym(RTLD_DEFAULT, "InitOnnxPluginBridge"));
-  ASSERT_NE(init_bridge, nullptr);
-  EXPECT_EQ(init_bridge(), SUCCESS);
-  EXPECT_EQ(LoadOnnxPythonPluginBridge(), SUCCESS);
+  using RegisterBridgeFunc = Status (*)(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *);
+  const auto register_plugins =
+      reinterpret_cast<RegisterBridgeFunc>(dlsym(RTLD_DEFAULT, "RegisterOnnxPluginBridgePlugins"));
+  ASSERT_NE(register_plugins, nullptr);
+  EXPECT_EQ(register_plugins(GetOnnxPluginBridgeRegistrar()), SUCCESS);
+  EXPECT_EQ(LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()), SUCCESS);
   using ResetBridgeFunc = void (*)();
   const auto reset_bridge = reinterpret_cast<ResetBridgeFunc>(dlsym(RTLD_DEFAULT, "ResetOnnxPluginBridgeState"));
   ASSERT_NE(reset_bridge, nullptr);

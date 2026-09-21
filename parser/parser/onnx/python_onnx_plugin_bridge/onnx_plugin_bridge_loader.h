@@ -14,8 +14,12 @@
 #include "ge/ge_api_types.h"
 
 namespace ge {
+namespace onnx_plugin_bridge {
+struct PythonOnnxPluginRegistrar;
+}  // namespace onnx_plugin_bridge
 
-__attribute__((visibility("default"))) Status LoadOnnxPythonPluginBridge();
+__attribute__((visibility("default"))) Status
+LoadOnnxPythonPluginBridge(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *registrar);
 __attribute__((visibility("default"))) void UnloadOnnxPythonPluginBridge();
 
 }  // namespace ge

@@ -19,7 +19,7 @@
 #include "common/python_runtime/ge_python_runtime_manager.h"
 #include "common/python_runtime/python_artifact_utils.h"
 #include "common/python_runtime/python_bridge_loader_utils.h"
-#include "framework/common/debug/ge_log.h"
+#include "common/ge_common/debug/ge_log.h"
 #include "graph/def_types.h"
 #include "graph_metadef/graph/utils/file_utils.h"
 #include "parser/parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_c_api.h"
@@ -71,9 +71,13 @@ class OnnxPluginBridgeLoader {
     return loader;
   }
 
-  Status Load() {
+  Status Load(const onnx_bridge::PythonOnnxPluginRegistrar *registrar) {
     if (!NeedLoad()) {
       return SUCCESS;
+    }
+    if (registrar == nullptr) {
+      GELOGE(PARAM_INVALID, "Register Python ONNX plugins without a registrar.");
+      return PARAM_INVALID;
     }
     if (GePythonRuntimeManager::Instance().EnsureReady() != SUCCESS) {
       GELOGE(FAILED, "Prepare Python runtime for ONNX plugin bridge failed.");
@@ -84,7 +88,7 @@ class OnnxPluginBridgeLoader {
     if (EnsureLoaded() != SUCCESS) {
       return FAILED;
     }
-    const auto ret = api_->register_plugins();
+    const auto ret = api_->register_plugins(registrar);
     if (ret == SUCCESS) {
       bridge_active_ = true;
     }
@@ -149,8 +153,8 @@ class OnnxPluginBridgeLoader {
 
 }  // namespace
 
-Status LoadOnnxPythonPluginBridge() {
-  return OnnxPluginBridgeLoader::Instance().Load();
+Status LoadOnnxPythonPluginBridge(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *registrar) {
+  return OnnxPluginBridgeLoader::Instance().Load(registrar);
 }
 
 void UnloadOnnxPythonPluginBridge() {
