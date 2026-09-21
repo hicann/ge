@@ -371,6 +371,43 @@ ComputeGraphPtr BuildGraphWithIfSubgraph() {
   return root_graph;
 }
 
+/*
+ * const - bitcast(reuse_input) - netoutput
+ */
+ComputeGraphPtr BuildGraph_ConstReuseInputOp() {
+  auto builder = ut::GraphBuilder("test");
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1);
+  auto bitcast = builder.AddNode("bitcast", "Bitcast", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 1);
+  builder.AddDataEdge(const1, 0, bitcast, 0);
+  builder.AddDataEdge(bitcast, 0, netoutput, 0);
+  // 模拟 OptimizeWholeGraph 设置的 reuse_input 属性
+  const auto &output_desc = bitcast->GetOpDesc()->MutableOutputDesc(0);
+  ge::TensorUtils::SetReuseInput(*output_desc, true);
+  ge::TensorUtils::SetReuseInputIndex(*output_desc, 0U);
+  return builder.GetGraph();
+}
+
+/*
+ * const - bitcast(reuse_input) - squeeze(reuse_input) - netoutput
+ */
+ComputeGraphPtr BuildGraph_ConstChainedReuseInputOps() {
+  auto builder = ut::GraphBuilder("test");
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1);
+  auto bitcast = builder.AddNode("bitcast", "Bitcast", 1, 1);
+  auto squeeze = builder.AddNode("squeeze", "Squeeze", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 1);
+  builder.AddDataEdge(const1, 0, bitcast, 0);
+  builder.AddDataEdge(bitcast, 0, squeeze, 0);
+  builder.AddDataEdge(squeeze, 0, netoutput, 0);
+  for (const auto &node : {bitcast, squeeze}) {
+    const auto &output_desc = node->GetOpDesc()->MutableOutputDesc(0);
+    ge::TensorUtils::SetReuseInput(*output_desc, true);
+    ge::TensorUtils::SetReuseInputIndex(*output_desc, 0U);
+  }
+  return builder.GetGraph();
+}
+
 }  // namespace
 // const -> allreduce
 // const -> Identity -> allreduce
@@ -381,6 +418,76 @@ TEST(UtestGraphPassesHcclMemcpyPass, testReadonlyScopeWriteConflict) {
   EXPECT_EQ(ret, SUCCESS);
   auto allreduce = graph->FindNode("allreduce");
   EXPECT_EQ(allreduce->GetInDataNodes().at(0)->GetType(), IDENTITY);
+}
+
+// 验收标准 2/3/4：Const 与 ReuseInput 算子之间插 Identity、Identity 打
+// CANNOT_BE_DELETED 标、Bitcast 不设置 ATTR_NAME_REFERENCE
+TEST(UtestGraphPassesHcclMemcpyPass, testConstToReuseInputOpInsertIdentity) {
+  ComputeGraphPtr graph = BuildGraph_ConstReuseInputOp();
+  GraphOptimize graph_optimizer;
+  EXPECT_EQ(graph_optimizer.HandleMemoryRWConflict(graph), SUCCESS);
+  auto bitcast = graph->FindNode("bitcast");
+  ASSERT_NE(bitcast, nullptr);
+  auto in_node = bitcast->GetInDataNodes().at(0);
+  EXPECT_EQ(in_node->GetType(), IDENTITY);
+  EXPECT_EQ(in_node->GetInDataNodes().at(0)->GetType(), CONSTANT);
+  bool cannot_be_deleted = false;
+  EXPECT_TRUE(AttrUtils::GetBool(in_node->GetOpDesc(), ATTR_NAME_CANNOT_BE_DELETED, cannot_be_deleted));
+  EXPECT_TRUE(cannot_be_deleted);
+  EXPECT_FALSE(AttrUtils::HasAttr(bitcast->GetOpDesc(), ATTR_NAME_REFERENCE));
+}
+
+// 多个 ReuseInput 算子串联：仅 Const→Bitcast 插 Identity
+TEST(UtestGraphPassesHcclMemcpyPass, testChainedReuseInputOpsOnlyFirstInsert) {
+  ComputeGraphPtr graph = BuildGraph_ConstChainedReuseInputOps();
+  GraphOptimize graph_optimizer;
+  EXPECT_EQ(graph_optimizer.HandleMemoryRWConflict(graph), SUCCESS);
+  auto bitcast = graph->FindNode("bitcast");
+  ASSERT_NE(bitcast, nullptr);
+  EXPECT_EQ(bitcast->GetInDataNodes().at(0)->GetType(), IDENTITY);
+  auto squeeze = graph->FindNode("squeeze");
+  ASSERT_NE(squeeze, nullptr);
+  EXPECT_EQ(squeeze->GetInDataNodes().at(0)->GetType(), std::string("Bitcast"));
+}
+
+// 非 Const 输入：根图 Data 输出 kWriteable + Bitcast 输入 kWriteable = DO_NOTHING
+TEST(UtestGraphPassesHcclMemcpyPass, testDataToReuseInputOpNoInsert) {
+  auto builder = ut::GraphBuilder("test");
+  auto data0 = builder.AddNode("data0", DATA, 0, 1);
+  auto bitcast = builder.AddNode("bitcast", "Bitcast", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 1);
+  builder.AddDataEdge(data0, 0, bitcast, 0);
+  builder.AddDataEdge(bitcast, 0, netoutput, 0);
+  const auto &output_desc = bitcast->GetOpDesc()->MutableOutputDesc(0);
+  ge::TensorUtils::SetReuseInput(*output_desc, true);
+  ge::TensorUtils::SetReuseInputIndex(*output_desc, 0U);
+  auto graph = builder.GetGraph();
+
+  GraphOptimize graph_optimizer;
+  EXPECT_EQ(graph_optimizer.HandleMemoryRWConflict(graph), SUCCESS);
+  auto bitcast_node = graph->FindNode("bitcast");
+  ASSERT_NE(bitcast_node, nullptr);
+  EXPECT_EQ(bitcast_node->GetInDataNodes().at(0)->GetType(), DATA);
+}
+
+// Variable 输出 kWriteable + ReuseInput 输入 kWriteable = DO_NOTHING，不插 Identity
+TEST(UtestGraphPassesHcclMemcpyPass, testVariableToReuseInputOpNoInsert) {
+  auto builder = ut::GraphBuilder("test");
+  auto var0 = builder.AddNode("var0", VARIABLE, 0, 1);
+  auto bitcast = builder.AddNode("bitcast", "Bitcast", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 1);
+  builder.AddDataEdge(var0, 0, bitcast, 0);
+  builder.AddDataEdge(bitcast, 0, netoutput, 0);
+  const auto &output_desc = bitcast->GetOpDesc()->MutableOutputDesc(0);
+  ge::TensorUtils::SetReuseInput(*output_desc, true);
+  ge::TensorUtils::SetReuseInputIndex(*output_desc, 0U);
+  auto graph = builder.GetGraph();
+
+  GraphOptimize graph_optimizer;
+  EXPECT_EQ(graph_optimizer.HandleMemoryRWConflict(graph), SUCCESS);
+  auto bitcast_node = graph->FindNode("bitcast");
+  ASSERT_NE(bitcast_node, nullptr);
+  EXPECT_EQ(bitcast_node->GetInDataNodes().at(0)->GetType(), VARIABLE);
 }
 TEST(UtestGraphPassesHcclMemcpyPass, testIdentiytSplit) {
   ComputeGraphPtr graph = BuildGraph_Identiyt_Split();

@@ -362,11 +362,20 @@ graphStatus GeLocalOpsKernelBuilderCalcOpParam::CalcPhonySplitNodeOffset(const N
 graphStatus GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput(const Node &node) {
   auto owner_graph = node.GetOwnerComputeGraphBarePtr();
   GE_ASSERT_NOTNULL(owner_graph);
-  if (!owner_graph->GetGraphUnknownFlag()) {
-    auto op_desc = node.GetOpDescBarePtr();
-    GE_ASSERT_NOTNULL(op_desc);
-    const auto &output_desc = op_desc->MutableOutputDesc(0);
-    GE_ASSERT_NOTNULL(output_desc);
+  auto op_desc = node.GetOpDescBarePtr();
+  GE_ASSERT_NOTNULL(op_desc);
+  const auto &output_desc = op_desc->MutableOutputDesc(0);
+  GE_ASSERT_NOTNULL(output_desc);
+  if (owner_graph->GetGraphUnknownFlag()) {
+    // 动态 Shape 兜底：清除 OptimizeWholeGraph 等阶段可能残留的 reuse_input 属性，
+    // 防止动态图错误地按"输出复用输入地址"执行
+    ge::TensorUtils::SetReuseInput(*output_desc, false);
+    ge::TensorUtils::SetReuseInputIndex(*output_desc, 0U);
+    GELOGI("GeLocal Op %s type %s clear residual reuse input for unknown graph.", node.GetName().c_str(),
+           node.GetType().c_str());
+  } else {
+    // 静态图：幂等设置（与 OptimizeWholeGraph 行为一致），并对 OptimizeWholeGraph
+    // 之后新增的 ReuseInput 算子兜底生效
     ge::TensorUtils::SetReuseInput(*output_desc, true);
     ge::TensorUtils::SetReuseInputIndex(*output_desc, 0);
     GELOGI("GeLocal Op %s type %s set reuse input.", node.GetName().c_str(), node.GetType().c_str());

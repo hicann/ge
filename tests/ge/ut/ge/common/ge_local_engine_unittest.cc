@@ -10,13 +10,16 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <memory>
 #include <vector>
 
 #include "macro_utils/dt_public_scope.h"
 #include "engines/local_engine/engine/ge_local_engine.h"
+#include "engines/local_engine/ops_kernel_store/ge_local_ops_kernel_calc_op_param.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_utils_ex.h"
+#include "graph/debug/ge_op_types.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph/passes/graph_builder_utils.h"
 #include "macro_utils/dt_public_unscope.h"
@@ -65,10 +68,11 @@ TEST_F(UtestGeLocalEngine, GeLocalGraphOptimizer_Normal) {
   std::map<std::string, std::string> options;
   EXPECT_EQ(optimizer.Initialize(options, nullptr), SUCCESS);
 
-  ComputeGraph *graph = nullptr;
-  EXPECT_EQ(optimizer.OptimizeOriginalGraph(*graph), SUCCESS);
-  EXPECT_EQ(optimizer.OptimizeFusedGraph(*graph), SUCCESS);
-  EXPECT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+  // OptimizeWholeGraph 已有实现，需传入真实图（原用例对空指针解引用，依赖空实现侥幸通过）
+  auto empty_graph = std::make_shared<ComputeGraph>("empty_graph");
+  EXPECT_EQ(optimizer.OptimizeOriginalGraph(*empty_graph), SUCCESS);
+  EXPECT_EQ(optimizer.OptimizeFusedGraph(*empty_graph), SUCCESS);
+  EXPECT_EQ(optimizer.OptimizeWholeGraph(*empty_graph), SUCCESS);
 
   GraphOptimizerAttribute attrs;
   EXPECT_EQ(optimizer.GetAttributes(attrs), SUCCESS);
@@ -117,6 +121,63 @@ TEST_F(UtestGeLocalEngine, GeLocalGraphOptimizer_JudegInsert) {
   EXPECT_EQ(bool_attr, true);
   EXPECT_EQ(ge::AttrUtils::GetInt(node_phony_split->GetOpDesc(), ATTR_NAME_REUSE_INPUT_ON_DIM_INDEX, int_attr), true);
   EXPECT_EQ(int_attr, 0);
+}
+
+namespace {
+ComputeGraphPtr BuildGraph_ConstBitcastNetOutput(const std::string &graph_name) {
+  ut::GraphBuilder builder(graph_name);
+  auto const1 = builder.AddNode("const1", CONSTANT, 0, 1);
+  auto bitcast = builder.AddNode("bitcast", "Bitcast", 1, 1);
+  auto netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 1);
+  builder.AddDataEdge(const1, 0, bitcast, 0);
+  builder.AddDataEdge(bitcast, 0, netoutput, 0);
+  return builder.GetGraph();
+}
+}  // namespace
+
+// 验收标准 5：静态图设置 reuse_input / 动态图不设置
+TEST_F(UtestGeLocalEngine, OptimizeWholeGraph_SetReuseInputForStaticGraph) {
+  GeLocalGraphOptimizer optimizer;
+  auto graph = BuildGraph_ConstBitcastNetOutput("static_graph");
+  EXPECT_EQ(optimizer.OptimizeWholeGraph(*graph), SUCCESS);
+  auto bitcast = graph->FindNode("bitcast");
+  ASSERT_NE(bitcast, nullptr);
+  bool reuse_input = false;
+  uint32_t reuse_input_index = 0U;
+  EXPECT_EQ(TensorUtils::GetReuseInput(bitcast->GetOpDesc()->GetOutputDesc(0), reuse_input), GRAPH_SUCCESS);
+  EXPECT_TRUE(reuse_input);
+  EXPECT_EQ(TensorUtils::GetReuseInputIndex(bitcast->GetOpDesc()->GetOutputDesc(0), reuse_input_index), GRAPH_SUCCESS);
+  EXPECT_EQ(reuse_input_index, 0U);
+
+  auto dyn_graph = BuildGraph_ConstBitcastNetOutput("dynamic_graph");
+  dyn_graph->SetGraphUnknownFlag(true);
+  EXPECT_EQ(optimizer.OptimizeWholeGraph(*dyn_graph), SUCCESS);
+  auto dyn_bitcast = dyn_graph->FindNode("bitcast");
+  ASSERT_NE(dyn_bitcast, nullptr);
+  bool dyn_reuse_input = false;
+  EXPECT_EQ(TensorUtils::GetReuseInput(dyn_bitcast->GetOpDesc()->GetOutputDesc(0), dyn_reuse_input), GRAPH_SUCCESS);
+  EXPECT_FALSE(dyn_reuse_input);
+}
+
+// 功能需求 3：动态图清理残留 + 静态图幂等
+TEST_F(UtestGeLocalEngine, CalcNodeOffsetByReuseInput_ClearResidualForUnknownGraph) {
+  auto graph = BuildGraph_ConstBitcastNetOutput("clear_residual_graph");
+  graph->SetGraphUnknownFlag(true);
+  auto bitcast = graph->FindNode("bitcast");
+  ASSERT_NE(bitcast, nullptr);
+  const auto &output_desc = bitcast->GetOpDesc()->MutableOutputDesc(0);
+  ge::TensorUtils::SetReuseInput(*output_desc, true);
+  ge::TensorUtils::SetReuseInputIndex(*output_desc, 0U);
+
+  EXPECT_EQ(GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput(*bitcast), GRAPH_SUCCESS);
+  bool reuse_input = true;
+  EXPECT_EQ(TensorUtils::GetReuseInput(bitcast->GetOpDesc()->GetOutputDesc(0), reuse_input), GRAPH_SUCCESS);
+  EXPECT_FALSE(reuse_input);
+
+  graph->SetGraphUnknownFlag(false);
+  EXPECT_EQ(GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput(*bitcast), GRAPH_SUCCESS);
+  EXPECT_EQ(TensorUtils::GetReuseInput(bitcast->GetOpDesc()->GetOutputDesc(0), reuse_input), GRAPH_SUCCESS);
+  EXPECT_TRUE(reuse_input);
 }
 
 }  // namespace ge

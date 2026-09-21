@@ -11,12 +11,24 @@
 #ifndef GE_GE_LOCAL_ENGINE_OPS_KERNEL_CALC_OP_PARAM_H_
 #define GE_GE_LOCAL_ENGINE_OPS_KERNEL_CALC_OP_PARAM_H_
 
+#include <string>
+#include <unordered_set>
+
 #include "ge/ge_api_error_codes.h"
 #include "graph/node.h"
 #include "external/ge_common/ge_common_api_types.h"
 
 namespace ge {
 namespace ge_local {
+// ReuseInput 类算子类型列表：输出地址复用输入地址的零拷贝形状变换算子。
+// 供 GeLocalGraphOptimizer::OptimizeWholeGraph（前置设置属性）与
+// CalcNodeOffsetByReuseInput（Build 阶段兜底）共同引用，新增/删除类型时只维护本列表。
+// 使用 inline 变量：libge_local_engine.so 与 libge_local_opskernel_builder.so 分别编译，
+// 外部变量会在 -fvisibility=hidden 且插件 dlopen 顺序不确定时引发跨 so 符号解析失败。
+inline const std::unordered_set<std::string> kReuseInputOpTypes = {
+    "Bitcast",   "Flatten",   "FlattenV2", "ExpandDims",  "ReFormat",   "Squeeze",
+    "Unsqueeze", "SqueezeV2", "SqueezeV3", "UnsqueezeV2", "UnsqueezeV3"};
+
 class GE_FUNC_VISIBILITY GeLocalOpsKernelBuilderCalcOpParam {
  public:
   static graphStatus CalcPhonyConcatNodeOffset(const Node &node);
