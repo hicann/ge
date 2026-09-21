@@ -28,6 +28,7 @@
 #include "register/graph_register.h"
 #include "register/op_kernel_registry.h"
 #include "graph/utils/constant_utils.h"
+#include "graph/operator_reg.h"
 #include "api/gelib/gelib.h"
 #include "securec.h"
 #include "macro_utils/dt_public_unscope.h"
@@ -94,6 +95,14 @@ REG_OP_WITH_PRIORITY(TestHostCustomFoldOp, "PriorityMaskHostFold", ge::OpBackend
                      ge::OpRegistrationPriority::kBottom, ge::OpEngine::kHostCpu);
 REG_OP_WITH_PRIORITY(TestHostCustomFoldFailureOp, "PriorityMaskHostFold", ge::OpBackend::kHostCPU,
                      ge::OpRegistrationPriority::kTop, ge::OpEngine::kHostCpu);
+
+REG_OP(IrDefinedHostFold)
+    .INPUT(x1, TensorType({DT_UINT8}))
+    .OPTIONAL_INPUT(bias, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(IrDefinedHostFold)
+
+        REG_OP_BACKEND(TestHostCustomFoldOp, "IrDefinedHostFold", ge::OpBackend::kHostCPU);
 
 class TestNonHostCustomFoldOp final : public BaseCustomOp {};
 
@@ -1293,7 +1302,7 @@ TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op
   std::vector<GeTensorPtr> outputs;
   inputs.emplace_back(input_tensor);
   auto ret = pass.ComputeWithHostCpuCustomOp(output, inputs, outputs);
-  EXPECT_EQ(ret, PARAM_INVALID);
+  EXPECT_EQ(ret, UNSUPPORTED);
 
   CustomOpFactory::RemoveCustomOps({op_type});
 }
@@ -1315,7 +1324,7 @@ TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op
   ConstantFoldingPass pass;
   std::vector<ConstGeTensorPtr> inputs{input_tensor};
   std::vector<GeTensorPtr> outputs;
-  EXPECT_EQ(pass.ComputeWithHostCpuCustomOp(output, inputs, outputs), PARAM_INVALID);
+  EXPECT_EQ(pass.ComputeWithHostCpuCustomOp(output, inputs, outputs), FAILED);
   CustomOpFactory::RemoveCustomOps({op_type});
 }
 
@@ -1336,7 +1345,7 @@ TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op
   ConstantFoldingPass pass;
   std::vector<ConstGeTensorPtr> inputs{input_tensor};
   std::vector<GeTensorPtr> outputs;
-  EXPECT_EQ(pass.ComputeWithHostCpuCustomOp(output, inputs, outputs), PARAM_INVALID);
+  EXPECT_EQ(pass.ComputeWithHostCpuCustomOp(output, inputs, outputs), UNSUPPORTED);
   CustomOpFactory::RemoveCustomOps({op_type});
 }
 
@@ -1486,5 +1495,25 @@ TEST_F(UtestGraphPassesConstantFoldingPass, test_folding_with_data_input_no_outp
   names_to_pass.push_back({"ConstantFoldingPass", new ConstantFoldingPass});
   GEPass pass(graph);
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+}
+
+TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op_recovers_ir_definitions) {
+  TestHostCustomFoldOp::execute_count_ = 0;
+  const std::string op_type = "IrDefinedHostFold";
+  auto node = BuildHostCpuFoldNode(op_type);
+  ASSERT_NE(node, nullptr);
+  ASSERT_TRUE(node->GetOpDesc()->GetIrInputs().empty());
+  ASSERT_TRUE(node->GetOpDesc()->GetIrOutputs().empty());
+
+  auto input_tensor = MakeHostCpuInputTensor();
+  ASSERT_NE(input_tensor, nullptr);
+  std::vector<ConstGeTensorPtr> inputs{input_tensor};
+  std::vector<GeTensorPtr> outputs;
+
+  ConstantFoldingPass pass;
+  EXPECT_EQ(pass.ComputeWithHostCpuCustomOp(node, inputs, outputs), SUCCESS);
+  EXPECT_EQ(TestHostCustomFoldOp::execute_count_, 1);
+  EXPECT_FALSE(node->GetOpDesc()->GetIrInputs().empty());
+  EXPECT_FALSE(node->GetOpDesc()->GetIrOutputs().empty());
 }
 }  // namespace ge

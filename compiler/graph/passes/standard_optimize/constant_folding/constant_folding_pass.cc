@@ -25,6 +25,7 @@
 #include "graph/custom_op/cast.h"
 #include "graph/custom_op_factory.h"
 #include "graph/ge_tensor.h"
+#include "graph/ir_definitions_recover.h"
 #include "graph/op_desc.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/constant_utils.h"
@@ -155,17 +156,31 @@ Status BuildHostCpuOpContext(const NodePtr &node, const std::vector<ConstGeTenso
                              gert::KernelContextHolder &context_holder) {
   const auto op_desc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
+  const graphStatus recover_ret = ge::RecoverOpDescIrDefinition(op_desc, op_desc->GetTypePtr());
+  if (recover_ret != GRAPH_SUCCESS) {
+    GELOGW("Recover ir definition failed for node %s, ret:%d.", node->GetName().c_str(), recover_ret);
+    return UNSUPPORTED;
+  }
   const size_t input_num = inputs.size();
   const size_t output_num = op_desc->GetOutputsSize();
   input_tensors.resize(input_num);
   output_tensors.resize(output_num);
 
   for (size_t i = 0U; i < input_num; ++i) {
-    GE_ASSERT_SUCCESS(TensorTransUtils::GeTensor2GertTensor(*inputs[i], input_tensors[i]));
+    const Status convert_ret = TensorTransUtils::GeTensor2GertTensor(*inputs[i], input_tensors[i]);
+    if (convert_ret != SUCCESS) {
+      GELOGW("Convert input[%zu] to gert tensor failed for node %s.", i, node->GetName().c_str());
+      return UNSUPPORTED;
+    }
   }
 
   for (size_t i = 0U; i < output_num; ++i) {
-    GE_ASSERT_SUCCESS(TensorTransUtils::GeTensor2GertTensor(GeTensor(op_desc->GetOutputDesc(i)), output_tensors[i]));
+    const Status convert_ret =
+        TensorTransUtils::GeTensor2GertTensor(GeTensor(op_desc->GetOutputDesc(i)), output_tensors[i]);
+    if (convert_ret != SUCCESS) {
+      GELOGW("Convert output[%zu] to gert tensor failed for node %s.", i, node->GetName().c_str());
+      return UNSUPPORTED;
+    }
   }
 
   std::vector<void *> input_ptrs;
@@ -184,8 +199,8 @@ Status BuildHostCpuOpContext(const NodePtr &node, const std::vector<ConstGeTenso
   context_holder =
       gert::KernelRunContextBuilder().Inputs(std::move(input_ptrs)).Outputs(std::move(output_ptrs)).Build(op_desc);
   if (context_holder.GetKernelContext() == nullptr) {
-    GELOGE(FAILED, "Build HostCpu op context failed for node %s.", node->GetName().c_str());
-    return FAILED;
+    GELOGW("Build HostCpu op context failed for node %s.", node->GetName().c_str());
+    return UNSUPPORTED;
   }
   return SUCCESS;
 }
@@ -194,24 +209,39 @@ Status ExecuteHostCpuCustomOp(const NodePtr &node, BaseCustomOp *base_custom_op,
                               const std::vector<ConstGeTensorPtr> &inputs, std::vector<GeTensorPtr> &outputs) {
   GE_ASSERT_NOTNULL(base_custom_op, "Host cpu custom op for node %s is null.", node->GetName().c_str());
   auto *host_custom_op = CustomOpCast<HostCpuExecuteOp>(base_custom_op);
-  GE_ASSERT_NOTNULL(host_custom_op, "Host cpu custom op for node %s does not implement HostCpuExecuteOp.",
-                    node->GetName().c_str());
+  if (host_custom_op == nullptr) {
+    GELOGW("Host cpu custom op for node %s does not implement HostCpuExecuteOp.", node->GetName().c_str());
+    return UNSUPPORTED;
+  }
 
   std::vector<gert::Tensor> input_tensors;
   std::vector<gert::Tensor> output_tensors;
   HostCpuConstFoldingMemGertAllocator allocator;
   gert::KernelContextHolder context_holder;
-  GE_ASSERT_SUCCESS(BuildHostCpuOpContext(node, inputs, input_tensors, output_tensors, allocator, context_holder));
+  const Status build_ret =
+      BuildHostCpuOpContext(node, inputs, input_tensors, output_tensors, allocator, context_holder);
+  if (build_ret != SUCCESS) {
+    GELOGW("Build HostCpu op context failed for node %s, ret:%d.", node->GetName().c_str(), build_ret);
+    return UNSUPPORTED;
+  }
   auto *host_context = reinterpret_cast<gert::HostCpuOpExecutionContext *>(context_holder.GetKernelContext());
   GE_ASSERT_NOTNULL(host_context);
-  GE_ASSERT_SUCCESS(host_custom_op->Execute(host_context));
+  const graphStatus execute_ret = host_custom_op->Execute(host_context);
+  if (execute_ret != GRAPH_SUCCESS) {
+    GELOGW("Host cpu custom op [%s] execute failed, ret:%d.", node->GetName().c_str(), execute_ret);
+    return FAILED;
+  }
 
   outputs.clear();
   outputs.reserve(output_tensors.size());
   for (const auto &output_tensor : output_tensors) {
     GeTensorPtr output = MakeShared<GeTensor>();
     GE_ASSERT_NOTNULL(output);
-    GE_ASSERT_SUCCESS(TensorTransUtils::GertTensor2GeTensor(output_tensor, *output));
+    const Status convert_ret = TensorTransUtils::GertTensor2GeTensor(output_tensor, *output);
+    if (convert_ret != SUCCESS) {
+      GELOGW("Convert output to ge tensor failed for node %s.", node->GetName().c_str());
+      return UNSUPPORTED;
+    }
     outputs.emplace_back(std::move(output));
   }
   return SUCCESS;
@@ -301,8 +331,10 @@ Status ConstantFoldingPass::ComputeWithHostCpuCustomOp(const NodePtr &node, cons
     return UNSUPPORTED;
   }
   auto base_custom_op = CustomOpFactory::CreateOrGetCustomOp(op_type_str, OpBackend::kHostCPU);
-  GE_ASSERT_NOTNULL(base_custom_op, "Op %s is registered as host cpu custom op but create instance failed.",
-                    op_type.c_str());
+  if (base_custom_op == nullptr) {
+    GELOGW("Op %s is registered as host cpu custom op but create instance failed.", op_type.c_str());
+    return UNSUPPORTED;
+  }
   return ExecuteHostCpuCustomOp(node, base_custom_op, inputs, outputs);
 }
 
@@ -353,8 +385,7 @@ Status ConstantFoldingPass::RunOpKernel(const NodePtr &node, const std::vector<C
     auto *bottom_op = CustomOpFactory::CreateOrGetCustomOp(op_type_str, OpBackend::kHostCPU,
                                                            OpRegistrationPriority::kBottom, OpEngine::kHostCpu);
     if (bottom_op == nullptr) {
-      GELOGE(GRAPH_FAILED, "Failed to create bottom priority host cpu op. op type = %s, engine = %s.", op_type.c_str(),
-             "HOST_CPU");
+      GELOGW("Failed to create bottom priority host cpu op. op type = %s, engine = %s.", op_type.c_str(), "HOST_CPU");
       return UNSUPPORTED;
     }
     return ExecuteHostCpuCustomOp(node, bottom_op, inputs, outputs);
