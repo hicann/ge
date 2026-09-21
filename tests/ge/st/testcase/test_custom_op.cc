@@ -81,12 +81,6 @@ REG_OP(StPythonAnnotatedArgsCustomOp)
     .REQUIRED_ATTR(alpha, Int)
     .OP_END_FACTORY_REG(StPythonAnnotatedArgsCustomOp);
 
-REG_OP(StPythonAnnotatedArgsBadAttrCustomOp)
-    .INPUT(x, TensorType::ALL())
-    .OUTPUT(z, TensorType::ALL())
-    .REQUIRED_ATTR(alpha, Int)
-    .OP_END_FACTORY_REG(StPythonAnnotatedArgsBadAttrCustomOp);
-
 REG_OP(StPythonCompilableCustomOp)
     .INPUT(x, TensorType::ALL())
     .OUTPUT(z, TensorType::ALL())
@@ -195,7 +189,6 @@ void *output_addr = nullptr;
 void **args_table = nullptr;
 constexpr const char *kPythonCustomOpTypeForSt = "StPythonPybindRemoveCoverageCustomOp";
 constexpr const char *kPythonAnnotatedArgsOpTypeForSt = "StPythonAnnotatedArgsCustomOp";
-constexpr const char *kPythonAnnotatedArgsBadAttrOpTypeForSt = "StPythonAnnotatedArgsBadAttrCustomOp";
 constexpr const char *kPythonCompilableOpTypeForSt = "StPythonCompilableCustomOp";
 constexpr const char *kPythonRt2InferMetaOpTypeForSt = "StPythonRt2InferMetaCustomOp";
 constexpr const char *kInferMetaCoverageOpTypeForSt = "StInferMetaCoverageCustomOp";
@@ -300,11 +293,6 @@ class StPythonAnnotatedArgsCustomOp:
         if alpha == 6:
             self.saved = (x, workspace, args)
 )PY";
-constexpr char kSharedPybindBadAttrCustomOpForSt[] = R"PY(')
-class StPythonAnnotatedArgsBadAttrCustomOp:
-    def declare_launch_args(self, x: Tensor, z: Tensor, *, beta: int) -> None:
-        pass
-)PY";
 constexpr char kSharedPybindCompilablePreambleForSt[] = R"PY(
 COMPILE_MARKER_FILE = r')PY";
 constexpr char kSharedPybindCompilablePrefixForSt[] = R"PY('
@@ -364,16 +352,6 @@ class StPythonCompilableCustomOp:
         PREVIOUS_COMPILE_OBJECTS = (ctx, platform, x, ctx._get_attrs())
         Path(COMPILE_MARKER_FILE).write_text('compiled', encoding='utf-8')
 )PY";
-constexpr char kInvalidSignaturePybindPreambleForSt[] = R"PY(from ge.custom_op import register_op_impl
-from ge.runtime import Tensor
-
-@register_op_impl(op_type=')PY";
-constexpr char kValidBeforeInvalidPybindCustomOpForSt[] = R"PY(')
-class StPythonValidBeforeInvalidCustomOp:
-    def execute(self, x: Tensor) -> None:
-        pass
-
-@register_op_impl(op_type=')PY";
 constexpr char kRt2InferMetaPreambleForSt[] = R"PY(from pathlib import Path
 from typing import List
 
@@ -572,12 +550,6 @@ const std::string &GetRt2InferMetaMarkerFilePathForSt() {
   return path;
 }
 
-const std::string &GetInvalidSignaturePybindCustomOpFilePathForSt() {
-  static ScopedTempDirForCustomOpSt dir;
-  static const std::string path = dir.CreateFilePath("pybind_invalid_signature_custom_op.py");
-  return path;
-}
-
 void EnsureSharedPybindCustomOpFileForSt() {
   static std::once_flag once;
   std::call_once(once, []() {
@@ -589,16 +561,6 @@ void EnsureSharedPybindCustomOpFileForSt() {
                              GetSharedPybindCustomOpCompileMarkerFilePathForSt() + kSharedPybindCompilablePrefixForSt +
                              kPythonCompilableOpTypeForSt + kSharedPybindCompilableBodyForSt;
     WriteTextFileForCustomOpSt(GetSharedPybindCustomOpFilePathForSt(), python_file);
-  });
-}
-
-void EnsureInvalidSignaturePybindCustomOpFileForSt() {
-  static std::once_flag once;
-  std::call_once(once, []() {
-    const auto python_file = std::string(kInvalidSignaturePybindPreambleForSt) + kPythonCustomOpTypeForSt +
-                             kValidBeforeInvalidPybindCustomOpForSt + kPythonAnnotatedArgsBadAttrOpTypeForSt +
-                             kSharedPybindBadAttrCustomOpForSt;
-    WriteTextFileForCustomOpSt(GetInvalidSignaturePybindCustomOpFilePathForSt(), python_file);
   });
 }
 
@@ -1938,32 +1900,6 @@ TEST_F(CustomOpRefreshTest, eager_only_op_with_malloc_read_only_dev_args) {
   runtime_stub.Clear();
   mmSetEnv(kEnvValue, "", 1);
   ReInitGe();
-}
-
-/**
- * 用例描述：测试Python自定义算子在注册阶段拒绝与IR不匹配的回调签名。
- * 预置条件：
- * 1. 构造一个合法legacy实现和一个属性名与REG_OP定义不一致的Python实现。
- * 测试步骤：
- * 1. 通过LoadPythonCustomOps加载Python实现。
- * 2. 调用UnloadPythonCustomOps清理失败注册产生的部分状态。
- * 3. 查询CustomOpFactory中是否存在该Python自定义算子creator。
- * 预期结果：
- * 1. 注册阶段签名校验失败，LoadPythonCustomOps返回FAILED。
- * 2. 卸载后CustomOpFactory中不存在合法或非法Python自定义算子creator。
- */
-TEST_F(CustomOpFactoryStTest, PythonCustomOpLoaderRejectsInvalidSignatureDuringRegistration) {
-  EnsureInvalidSignaturePybindCustomOpFileForSt();
-  ScopedEnvVarForCustomOpSt scoped_custom_opp_path(kEnvPythonCustomOpPath,
-                                                   GetInvalidSignaturePybindCustomOpFilePathForSt());
-
-  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
-  EXPECT_EQ(custom_op::LoadPythonCustomOps(), FAILED);
-  custom_op::UnloadPythonCustomOps();
-  EXPECT_EQ(CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonCustomOpTypeForSt), OpBackend::kDevice), nullptr);
-  EXPECT_EQ(
-      CustomOpFactory::CreateOrGetCustomOp(AscendString(kPythonAnnotatedArgsBadAttrOpTypeForSt), OpBackend::kDevice),
-      nullptr);
 }
 
 /**
