@@ -723,7 +723,7 @@ std::string RealPath(const std::string &path) {
   if (realpath(path.c_str(), resoved_path) != nullptr) {
     res = resoved_path;
   } else {
-    DVPP_ENGINE_LOG_INFO("path %s is not exist.", path.c_str());
+    DVPP_ENGINE_LOG_INFO("The path %s does not exist.", path.c_str());
   }
 
   return res;
