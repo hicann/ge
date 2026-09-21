@@ -12,7 +12,10 @@
 #include "ge_graph_dsl/graph_dsl.h"
 #include "es_ge_test_ops.h"
 #include "graph/utils/graph_utils_ex.h"
+#define private public
 #include "jit_execution/user_graphs_manager.h"
+#include "jit_execution/user_graph_ctrl.h"
+#undef private
 #include "stub/gert_runtime_stub.h"
 #include <vector>
 #include "jit_share_graph.h"
@@ -728,16 +731,136 @@ TEST_F(UserGraphsManagerlUT, set_memory_skip_by_slice_scheduler_enable) {
   EXPECT_EQ(UNSUPPORTED, session.UpdateGraphRefreshableFeatureMemoryBase(graph_id, nullptr, 0));
 
   std::vector<std::string> expect_log_list = {
-      "SetGraphConstMemoryBase does not support the JIT executor currently",
-      "UpdateGraphFeatureMemoryBase does not support the JIT executor currently",
-      "SetGraphFixedFeatureMemoryBaseWithType does not support the JIT executor currently",
-      "UpdateGraphRefreshableFeatureMemoryBase does not support the JIT executor currently"};
+      "SetGraphConstMemoryBase does not support slice schedule currently",
+      "UpdateGraphFeatureMemoryBase does not support slice schedule currently",
+      "SetGraphFixedFeatureMemoryBaseWithType does not support slice schedule currently",
+      "UpdateGraphRefreshableFeatureMemoryBase does not support slice schedule currently"};
   for (auto &it : expect_log_list) {
     EXPECT_NE(gert_stub_.GetSlogStub().FindLog(-1, it.c_str()), -1);
   }
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
   EXPECT_EQ(GEFinalize(), SUCCESS);
   unsetenv("AUTOFUSE_FLAGS");
+}
+
+TEST_F(UserGraphsManagerlUT, set_graph_const_memory_base_success_after_compile) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
+
+  uint32_t user_graph_id = 0u;
+  auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
+  const std::map<std::string, std::string> options;
+  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
+
+  CompiledGraphSummaryPtr summary;
+  EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
+  ASSERT_NE(summary, nullptr);
+
+  std::vector<uint8_t> const_mem(1024, 0U);
+  EXPECT_EQ(user_graph_manager.SetGraphConstMemoryBase(user_graph_id, const_mem.data(), const_mem.size()), SUCCESS);
+
+  auto *user_graph_control = user_graph_manager.GetUserGraphControl(user_graph_id);
+  ASSERT_NE(user_graph_control, nullptr);
+  uint32_t compiled_graph_id = 0U;
+  EXPECT_EQ(user_graph_control->GetCompiledGraphId(compiled_graph_id), SUCCESS);
+  GraphNodePtr graph_node = nullptr;
+  EXPECT_EQ(graph_manager.GetGraphNode(compiled_graph_id, graph_node), SUCCESS);
+  ASSERT_NE(graph_node, nullptr);
+  EXPECT_EQ(graph_node->GetConstMemoryBase().first, const_mem.data());
+  EXPECT_EQ(graph_node->GetConstMemoryBase().second, const_mem.size());
+
+  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}
+
+TEST_F(UserGraphsManagerlUT, update_feature_memory_base_success_after_compile) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
+
+  uint32_t user_graph_id = 0u;
+  auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
+  const std::map<std::string, std::string> options;
+  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
+
+  std::vector<uint8_t> mem(1024, 0U);
+  EXPECT_EQ(user_graph_manager.UpdateGraphFeatureMemoryBase(user_graph_id, mem.data(), mem.size()), SUCCESS);
+
+  auto *user_graph_control = user_graph_manager.GetUserGraphControl(user_graph_id);
+  ASSERT_NE(user_graph_control, nullptr);
+  uint32_t compiled_graph_id = 0U;
+  EXPECT_EQ(user_graph_control->GetCompiledGraphId(compiled_graph_id), SUCCESS);
+  GraphNodePtr graph_node = nullptr;
+  EXPECT_EQ(graph_manager.GetGraphNode(compiled_graph_id, graph_node), SUCCESS);
+  ASSERT_NE(graph_node, nullptr);
+  EXPECT_EQ(graph_node->GetFeatureMemoryBase().first, mem.data());
+  EXPECT_EQ(graph_node->GetFeatureMemoryBase().second, mem.size());
+
+  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}
+
+TEST_F(UserGraphsManagerlUT, set_fixed_feature_memory_base_success_after_compile) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
+
+  uint32_t user_graph_id = 0u;
+  auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
+  const std::map<std::string, std::string> options;
+  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
+
+  std::vector<uint8_t> mem(1024, 0U);
+  EXPECT_EQ(user_graph_manager.SetGraphFixedFeatureMemoryBase(user_graph_id, MemoryType::MEMORY_TYPE_DEFAULT,
+                                                              mem.data(), mem.size()),
+            SUCCESS);
+
+  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}
+
+TEST_F(UserGraphsManagerlUT, update_refreshable_feature_memory_base_success_after_compile) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
+
+  uint32_t user_graph_id = 0u;
+  auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
+  const std::map<std::string, std::string> options;
+  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
+
+  std::vector<uint8_t> mem(1024, 0U);
+  EXPECT_EQ(user_graph_manager.UpdateGraphRefreshableFeatureMemoryBase(user_graph_id, mem.data(), mem.size()), SUCCESS);
+
+  auto *user_graph_control = user_graph_manager.GetUserGraphControl(user_graph_id);
+  ASSERT_NE(user_graph_control, nullptr);
+  uint32_t compiled_graph_id = 0U;
+  EXPECT_EQ(user_graph_control->GetCompiledGraphId(compiled_graph_id), SUCCESS);
+  GraphNodePtr graph_node = nullptr;
+  EXPECT_EQ(graph_manager.GetGraphNode(compiled_graph_id, graph_node), SUCCESS);
+  ASSERT_NE(graph_node, nullptr);
+  EXPECT_EQ(graph_node->GetRefreshableFeatureMemoryBase().first, mem.data());
+  EXPECT_EQ(graph_node->GetRefreshableFeatureMemoryBase().second, mem.size());
+
+  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 
 // 跳过断图调度的场景 - 降级到传统模式

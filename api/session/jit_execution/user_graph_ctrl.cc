@@ -200,7 +200,8 @@ void UserGraphControl::SetRunGraphMode(const RunGraphMode &mode) {
 }
 
 Status UserGraphControl::AddGraphInstance() {
-  auto jit_executor = JitExecutor::Create(graph_manager_, executions_, order_, compile_context_, cmc_, compile_mutex_);
+  auto jit_executor = JitExecutor::Create(graph_manager_, executions_, order_, compile_context_, cmc_, compile_mutex_,
+                                          &fixed_feature_memory_settings_);
   JIT_CTRL_ASSERT_NOTNULL(jit_executor, "[UserGraph:%u]Failed to create jit executor instance.", user_graph_id_);
   JIT_CTRL_ASSERT_SUCCESS(jit_executor_pool_.AddJitExecutor(jit_executor));
   const auto size = jit_executor_pool_.Size();
@@ -282,34 +283,84 @@ CompiledGraphSummaryPtr UserGraphControl::GetCompiledGraphSummary() {
     return ret;
   }
 
+  uint32_t graph_id = 0U;
+  if (GetCompiledGraphId(graph_id) != SUCCESS) {
+    GELOGI("compiled graph id unavailable, user_graph_id:%u", user_graph_id_);
+    return nullptr;
+  }
+  GELOGI("get summary, user_graph_id:%u, compiled_graph_id:%u", user_graph_id_, graph_id);
+  GE_ASSERT_SUCCESS(compile_context_.GetCompiledGraphSummary(graph_id, ret));
+  return ret;
+}
+
+Status UserGraphControl::GetCompiledGraphId(uint32_t &graph_id) {
+  const auto instance_it = user_graph_id_to_ins_id.find(user_graph_id_);
+  if (instance_it != user_graph_id_to_ins_id.end()) {
+    graph_id = instance_it->second;
+    GELOGI("fallback mapping, user_graph_id:%u, compiled_graph_id:%u", user_graph_id_, graph_id);
+    return SUCCESS;
+  }
+
   bool is_unknown_input_shape{false};
   const auto &inputs = order_.GetInputTensors(is_unknown_input_shape);
   if (is_unknown_input_shape) {
-    GELOGI("dynamic graph %u skip.", user_graph_id_);
-    return nullptr;
+    GELOGI("dynamic graph has no fallback mapping, user_graph_id:%u", user_graph_id_);
+    return GE_GRAPH_NOT_BUILT;
   }
-
-  GELOGI("GetCompiledGraphSummary USER_GRAPH[%u]", user_graph_id_);
   ExecutionPoint *ep = order_.GetFirstPoint();
-  if (ep == nullptr) {
-    GELOGI("CompiledGraph does not exist. USER_GRAPH[%u]", user_graph_id_);
-    return nullptr;
+  if ((ep == nullptr) || !ep->IsLast()) {
+    GELOGI("graph is not whole graph, user_graph_id:%u", user_graph_id_);
+    return GE_GRAPH_NOT_BUILT;
   }
-  GELOGD("Get EP[%ld] of USER_GRAPH[%u] for GetCompiledGraphSummary", ep->GetId(), user_graph_id_);
-  if (!ep->IsLast()) {
-    GELOGD("CompiledGraph is not last");
-    return nullptr;
+  auto *gep = ep->FindGuarded(inputs);
+  if ((gep == nullptr) || !gep->Compiled()) {
+    GELOGI("GEP is not compiled, user_graph_id:%u", user_graph_id_);
+    return GE_GRAPH_NOT_BUILT;
   }
+  graph_id = gep->GetCompiledGraphId();
+  GELOGI("JIT mapping, user_graph_id:%u, compiled_graph_id:%u", user_graph_id_, graph_id);
+  return SUCCESS;
+}
 
-  auto gep = ep->FindGuarded(inputs);
-  if (gep == nullptr || !gep->Compiled()) {
-    GELOGD("Guard does not exist or Compiled");
-    return nullptr;
-  }
-  GELOGD("Get GEP[compiled_graph_id:%u] [compiled? %d] of EP[%ld] USER_GRAPH[%u].", gep->GetCompiledGraphId(),
-         gep->Compiled(), ep->GetId(), user_graph_id_);
-  GE_ASSERT_SUCCESS(compile_context_.GetCompiledGraphSummary(gep->GetCompiledGraphId(), ret));
-  return ret;
+Status UserGraphControl::SetGraphConstMemoryBase(const void *const memory, size_t size) {
+  uint32_t graph_id = 0U;
+  GE_CHK_STATUS_RET(GetCompiledGraphId(graph_id),
+                    "[UserGraph:%u]Get compiled graph id failed before setting const memory base.", user_graph_id_);
+  GELOGI("SetGraphConstMemoryBase, user_graph_id:%u, graph_id:%u, memory:%p, size:%zu", user_graph_id_, graph_id,
+         memory, size);
+  return graph_manager_.SetConstMemoryBase(graph_id, memory, size);
+}
+
+Status UserGraphControl::UpdateGraphFeatureMemoryBase(const void *const memory, size_t size) {
+  uint32_t graph_id = 0U;
+  GE_CHK_STATUS_RET(GetCompiledGraphId(graph_id),
+                    "[UserGraph:%u]Get compiled graph id failed before updating feature memory base.", user_graph_id_);
+  GELOGI("UpdateGraphFeatureMemoryBase, user_graph_id:%u, graph_id:%u, memory:%p, size:%zu", user_graph_id_, graph_id,
+         memory, size);
+  return graph_manager_.UpdateFeatureMemoryBase(graph_id, memory, size);
+}
+
+Status UserGraphControl::SetGraphFixedFeatureMemoryBase(MemoryType type, const void *const memory, size_t size) {
+  uint32_t graph_id = 0U;
+  GE_CHK_STATUS_RET(GetCompiledGraphId(graph_id),
+                    "[UserGraph:%u]Get compiled graph id failed before setting fixed feature memory base.",
+                    user_graph_id_);
+  GELOGI(
+      "SetGraphFixedFeatureMemoryBaseWithType, user_graph_id:%u, graph_id:%u, type:%d, memory:%p, "
+      "size:%zu",
+      user_graph_id_, graph_id, type, memory, size);
+  fixed_feature_memory_settings_[type] = std::make_pair(memory, size);
+  return graph_manager_.SetFixedFeatureMemoryBase(graph_id, type, memory, size);
+}
+
+Status UserGraphControl::UpdateGraphRefreshableFeatureMemoryBase(const void *const memory, size_t size) {
+  uint32_t graph_id = 0U;
+  GE_CHK_STATUS_RET(GetCompiledGraphId(graph_id),
+                    "[UserGraph:%u]Get compiled graph id failed before updating refreshable feature memory base.",
+                    user_graph_id_);
+  GELOGI("UpdateGraphRefreshableFeatureMemoryBase, user_graph_id:%u, graph_id:%u, memory:%p, size:%zu", user_graph_id_,
+         graph_id, memory, size);
+  return graph_manager_.UpdateRefreshableFeatureMemoryBase(graph_id, memory, size);
 }
 
 Status UserGraphControl::LoadGraph(const std::map<AscendString, AscendString> &options, void *stream) {

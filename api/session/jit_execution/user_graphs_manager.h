@@ -42,6 +42,10 @@ class UserGraphsManager {
   Status Finalize();
   Status CompileGraph(uint32_t user_graph_id, uint64_t session_id, const vector<ge::Tensor> &inputs);
   Status GetCompiledGraphSummary(uint32_t user_graph_id, CompiledGraphSummaryPtr &summary);
+  Status SetGraphConstMemoryBase(uint32_t user_graph_id, const void *const memory, size_t size);
+  Status UpdateGraphFeatureMemoryBase(uint32_t user_graph_id, const void *const memory, size_t size);
+  Status SetGraphFixedFeatureMemoryBase(uint32_t user_graph_id, MemoryType type, const void *const memory, size_t size);
+  Status UpdateGraphRefreshableFeatureMemoryBase(uint32_t user_graph_id, const void *const memory, size_t size);
   Status LoadGraph(const uint32_t user_graph_id, const std::map<AscendString, AscendString> &options, void *stream);
   Status ExecuteGraphWithStreamAsync(uint32_t user_graph_id, void *stream, const std::vector<gert::Tensor> &inputs,
                                      std::vector<gert::Tensor> &outputs, uint64_t session_id);

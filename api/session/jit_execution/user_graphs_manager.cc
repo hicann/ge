@@ -126,6 +126,36 @@ Status UserGraphsManager::GetCompiledGraphSummary(uint32_t user_graph_id, Compil
   return SUCCESS;
 }
 
+Status UserGraphsManager::SetGraphConstMemoryBase(uint32_t user_graph_id, const void *const memory, size_t size) {
+  if (!EnableAutoFuse()) {
+    return graph_manager_.SetConstMemoryBase(user_graph_id, memory, size);
+  }
+  return GetUserGraphControl(user_graph_id)->SetGraphConstMemoryBase(memory, size);
+}
+
+Status UserGraphsManager::UpdateGraphFeatureMemoryBase(uint32_t user_graph_id, const void *const memory, size_t size) {
+  if (!EnableAutoFuse()) {
+    return graph_manager_.UpdateFeatureMemoryBase(user_graph_id, memory, size);
+  }
+  return GetUserGraphControl(user_graph_id)->UpdateGraphFeatureMemoryBase(memory, size);
+}
+
+Status UserGraphsManager::SetGraphFixedFeatureMemoryBase(uint32_t user_graph_id, MemoryType type,
+                                                         const void *const memory, size_t size) {
+  if (!EnableAutoFuse()) {
+    return graph_manager_.SetFixedFeatureMemoryBase(user_graph_id, type, memory, size);
+  }
+  return GetUserGraphControl(user_graph_id)->SetGraphFixedFeatureMemoryBase(type, memory, size);
+}
+
+Status UserGraphsManager::UpdateGraphRefreshableFeatureMemoryBase(uint32_t user_graph_id, const void *const memory,
+                                                                  size_t size) {
+  if (!EnableAutoFuse()) {
+    return graph_manager_.UpdateRefreshableFeatureMemoryBase(user_graph_id, memory, size);
+  }
+  return GetUserGraphControl(user_graph_id)->UpdateGraphRefreshableFeatureMemoryBase(memory, size);
+}
+
 Status UserGraphsManager::LoadGraph(const uint32_t user_graph_id, const std::map<AscendString, AscendString> &options,
                                     void *stream) {
   if (!EnableAutoFuse()) {
