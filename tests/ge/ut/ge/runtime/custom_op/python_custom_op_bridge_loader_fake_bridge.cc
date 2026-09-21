@@ -23,12 +23,16 @@ constexpr const char *kScenarioEnvName = "GE_PYTHON_CUSTOM_OP_LOADER_UT_SCENARIO
 constexpr const char *kMultiProtoFailure = "multi_proto_failure";
 constexpr const char *kAdapterFailure = "adapter_failure";
 constexpr const char *kSuccess = "success";
+constexpr const char *kDualBackendSuccess = "dual_backend_success";
+constexpr const char *kHostCompileSuccess = "host_compile_success";
 constexpr const char *kCppProtoImpl = "cpp_proto_impl";
 
 constexpr const char *kMultiProtoOp = "PythonLoaderMultiProtoRollbackUt";
 constexpr const char *kAdapterOpA = "PythonLoaderAdapterRollbackAUt";
 constexpr const char *kAdapterOpB = "PythonLoaderAdapterRollbackBUt";
 constexpr const char *kSuccessOp = "PythonLoaderSuccessUt";
+constexpr const char *kDualBackendOp = "PythonLoaderDualBackendUt";
+constexpr const char *kHostCompileOp = "PythonLoaderHostCompileUt";
 constexpr const char *kCppProtoOp = "PythonLoaderCppProtoOwnershipUt";
 
 constexpr const char *kMultiProtoKey = "loader_ut:multi_proto";
@@ -38,6 +42,9 @@ constexpr const char *kAdapterImplKeyA = "loader_ut:adapter_impl_a";
 constexpr const char *kAdapterImplKeyB = "loader_ut:adapter_impl_b";
 constexpr const char *kSuccessProtoKey = "loader_ut:success_proto";
 constexpr const char *kSuccessImplKey = "loader_ut:success_impl";
+constexpr const char *kDualBackendProtoKey = "loader_ut:dual_backend_proto";
+constexpr const char *kDualBackendImplKey = "loader_ut:dual_backend_impl";
+constexpr const char *kHostCompileImplKey = "loader_ut:host_compile_impl";
 constexpr const char *kCppProtoImplKey = "loader_ut:cpp_proto_impl";
 
 std::atomic<uint32_t> g_register_count{0U};
@@ -58,9 +65,14 @@ PythonCustomOpProtoDescriptorView MakeProto(const char *descriptor_key, const ch
       StringView(descriptor_key), StringView(op_type), nullptr, 0U, nullptr, 0U, nullptr, 0U, &InferMeta};
 }
 
+PythonCustomOpAdapterDescriptorView MakeAdapterWithCapabilities(const char *op_type, const char *impl_key,
+                                                                const CustomOpCapabilityMask capabilities) {
+  return PythonCustomOpAdapterDescriptorView{StringView(op_type), StringView(impl_key), capabilities};
+}
+
 PythonCustomOpAdapterDescriptorView MakeAdapter(const char *op_type, const char *impl_key) {
-  return PythonCustomOpAdapterDescriptorView{StringView(op_type), StringView(impl_key),
-                                             static_cast<CustomOpCapabilityMask>(CustomOpCapability::kEagerExecute)};
+  return MakeAdapterWithCapabilities(op_type, impl_key,
+                                     static_cast<CustomOpCapabilityMask>(CustomOpCapability::kEagerExecute));
 }
 
 void *CreateImplHolder(const PythonCustomOpAdapterDescriptorView *desc) {
@@ -76,6 +88,16 @@ graphStatus Execute(const void *holder, gert::EagerOpExecutionContext *ctx) {
   return (holder == nullptr) ? GRAPH_FAILED : GRAPH_SUCCESS;
 }
 
+graphStatus HostExecute(const void *holder, gert::HostCpuOpExecutionContext *ctx) {
+  (void)ctx;
+  return (holder == nullptr) ? GRAPH_FAILED : GRAPH_SUCCESS;
+}
+
+graphStatus Compile(const void *holder, gert::OpCompileContext *ctx) {
+  (void)ctx;
+  return (holder == nullptr) ? GRAPH_FAILED : GRAPH_SUCCESS;
+}
+
 PythonCustomOpAdapterCallbacks MakeCallbacks(const bool reject) {
   PythonCustomOpAdapterCallbacks callbacks;
   callbacks.create_impl_holder = &CreateImplHolder;
@@ -85,6 +107,20 @@ PythonCustomOpAdapterCallbacks MakeCallbacks(const bool reject) {
     callbacks.create_impl_holder = nullptr;
   }
   (void)reject;
+  return callbacks;
+}
+
+PythonCustomOpAdapterCallbacks MakeDualBackendCallbacks() {
+  auto callbacks = MakeCallbacks(false);
+  callbacks.host_cpu_execute = &HostExecute;
+  return callbacks;
+}
+
+PythonCustomOpAdapterCallbacks MakeHostCompileCallbacks() {
+  auto callbacks = MakeCallbacks(false);
+  callbacks.execute = nullptr;
+  callbacks.host_cpu_execute = &HostExecute;
+  callbacks.compile_impl = &Compile;
   return callbacks;
 }
 
@@ -132,6 +168,30 @@ Status RegisterSuccess(const PythonCustomOpRegistrar &registrar) {
   return static_cast<Status>(registrar.register_op_impl(&adapter, &callbacks) ? GRAPH_SUCCESS : GRAPH_FAILED);
 }
 
+Status RegisterDualBackendSuccess(const PythonCustomOpRegistrar &registrar) {
+  const auto proto = MakeProto(kDualBackendProtoKey, kDualBackendOp);
+  if (!registrar.register_op_proto(&proto)) {
+    return static_cast<Status>(GRAPH_FAILED);
+  }
+  const auto callbacks = MakeDualBackendCallbacks();
+  auto adapter = MakeAdapter(kDualBackendOp, kDualBackendImplKey);
+  AddCustomOpCapability(adapter.capabilities, CustomOpCapability::kHostCpuExecute);
+  return static_cast<Status>(registrar.register_op_impl(&adapter, &callbacks) ? GRAPH_SUCCESS : GRAPH_FAILED);
+}
+
+Status RegisterHostCompileSuccess(const PythonCustomOpRegistrar &registrar) {
+  const auto proto = MakeProto("loader_ut:host_compile_proto", kHostCompileOp);
+  if (!registrar.register_op_proto(&proto)) {
+    return static_cast<Status>(GRAPH_FAILED);
+  }
+  const auto callbacks = MakeHostCompileCallbacks();
+  const auto adapter =
+      MakeAdapterWithCapabilities(kHostCompileOp, kHostCompileImplKey,
+                                  static_cast<CustomOpCapabilityMask>(CustomOpCapability::kHostCpuExecute) |
+                                      static_cast<CustomOpCapabilityMask>(CustomOpCapability::kCompilable));
+  return static_cast<Status>(registrar.register_op_impl(&adapter, &callbacks) ? GRAPH_SUCCESS : GRAPH_FAILED);
+}
+
 Status RegisterCppProtoImpl(const PythonCustomOpRegistrar &registrar) {
   const auto callbacks = MakeCallbacks(false);
   const auto adapter = MakeAdapter(kCppProtoOp, kCppProtoImplKey);
@@ -155,6 +215,12 @@ Status RegisterCustomOps(const PythonCustomOpRegistrar *registrar) {
   }
   if (std::strcmp(scenario, kSuccess) == 0) {
     return RegisterSuccess(*registrar);
+  }
+  if (std::strcmp(scenario, kDualBackendSuccess) == 0) {
+    return RegisterDualBackendSuccess(*registrar);
+  }
+  if (std::strcmp(scenario, kHostCompileSuccess) == 0) {
+    return RegisterHostCompileSuccess(*registrar);
   }
   if (std::strcmp(scenario, kCppProtoImpl) == 0) {
     return RegisterCppProtoImpl(*registrar);

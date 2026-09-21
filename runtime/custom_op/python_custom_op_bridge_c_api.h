@@ -38,7 +38,7 @@ struct PythonCustomOpBridgeApi {
   void (*shutdown_bridge)();
 };
 
-constexpr uint32_t kPythonCustomOpBridgeAbiVersion = 1U;
+constexpr uint32_t kPythonCustomOpBridgeAbiVersion = 2U;
 constexpr const char *kPythonCustomOpBridgeGetApiSymbol = "GeGetPythonCustomOpBridgeApi";
 }  // namespace custom_op
 }  // namespace ge

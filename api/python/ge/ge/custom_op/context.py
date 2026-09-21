@@ -17,19 +17,20 @@ from __future__ import annotations
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Union
 
 from ._native import (
     AnnotatedArgsContext,
     CompilePlatformInfo,
     EagerOpExecutionContext,
+    HostCpuOpExecutionContext,
     OpCompileContext,
 )
 
 
 @dataclass
 class _ExecuteContextBinding:
-    ctx: EagerOpExecutionContext
+    ctx: Union[EagerOpExecutionContext, HostCpuOpExecutionContext]
     active: bool = True
 
 
@@ -38,8 +39,8 @@ _CURRENT_EXECUTE_CONTEXT: ContextVar[Optional[_ExecuteContextBinding]] = Context
 )
 
 
-def get_execute_ctx() -> EagerOpExecutionContext:
-    """Return the borrowed context of the active schema-bound execute callback."""
+def get_execute_ctx() -> Union[EagerOpExecutionContext, HostCpuOpExecutionContext]:
+    """Return the borrowed Eager or Host CPU context of the active execute callback."""
 
     binding = _CURRENT_EXECUTE_CONTEXT.get()
     if binding is None or not binding.active:
@@ -50,7 +51,9 @@ def get_execute_ctx() -> EagerOpExecutionContext:
 
 
 @contextmanager
-def _execute_ctx_scope(ctx: EagerOpExecutionContext) -> Iterator[None]:
+def _execute_ctx_scope(
+    ctx: Union[EagerOpExecutionContext, HostCpuOpExecutionContext],
+) -> Iterator[None]:
     binding = _ExecuteContextBinding(ctx=ctx)
     token = _CURRENT_EXECUTE_CONTEXT.set(binding)
     try:

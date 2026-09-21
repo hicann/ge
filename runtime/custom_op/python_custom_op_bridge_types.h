@@ -21,6 +21,7 @@
 namespace gert {
 class AnnotatedArgsContext;
 class EagerOpExecutionContext;
+class HostCpuOpExecutionContext;
 class OpCompileContext;
 class InferShapeContext;
 class StorageShape;
@@ -131,18 +132,21 @@ struct PythonCustomOpAdapterDescriptorView {
 using PythonCustomOpImplHolderCreateFn = void *(*)(const PythonCustomOpAdapterDescriptorView *desc);
 using PythonCustomOpImplHolderDestroyFn = void (*)(void *holder);
 using PythonCustomOpImplExecuteFn = graphStatus (*)(const void *holder, gert::EagerOpExecutionContext *ctx);
+using PythonCustomOpImplHostExecuteFn = graphStatus (*)(const void *holder, gert::HostCpuOpExecutionContext *ctx);
 using PythonCustomOpImplDeclareLaunchArgsFn = graphStatus (*)(const void *holder, gert::AnnotatedArgsContext *ctx);
 using PythonCustomOpImplCompileFn = graphStatus (*)(const void *holder, gert::OpCompileContext *ctx);
 struct PythonCustomOpAdapterCallbacks {
   PythonCustomOpImplHolderCreateFn create_impl_holder{nullptr};
   PythonCustomOpImplHolderDestroyFn destroy_impl_holder{nullptr};
   PythonCustomOpImplExecuteFn execute{nullptr};
+  PythonCustomOpImplHostExecuteFn host_cpu_execute{nullptr};
   PythonCustomOpImplDeclareLaunchArgsFn declare_launch_args{nullptr};
   PythonCustomOpImplCompileFn compile_impl{nullptr};
   PythonCustomOpInferMetaFn infer_meta{nullptr};
 
   bool IsValid(CustomOpCapabilityMask capabilities) const {
     const auto supported_capabilities = static_cast<CustomOpCapabilityMask>(CustomOpCapability::kEagerExecute) |
+                                        static_cast<CustomOpCapabilityMask>(CustomOpCapability::kHostCpuExecute) |
                                         static_cast<CustomOpCapabilityMask>(CustomOpCapability::kCompilable) |
                                         static_cast<CustomOpCapabilityMask>(CustomOpCapability::kAnnotatedArgs);
     if ((capabilities == 0U) || ((capabilities & (~supported_capabilities)) != 0U)) {
@@ -152,6 +156,9 @@ struct PythonCustomOpAdapterCallbacks {
       return false;
     }
     if (HasCustomOpCapability(capabilities, CustomOpCapability::kEagerExecute) && (execute == nullptr)) {
+      return false;
+    }
+    if (HasCustomOpCapability(capabilities, CustomOpCapability::kHostCpuExecute) && (host_cpu_execute == nullptr)) {
       return false;
     }
     if (HasCustomOpCapability(capabilities, CustomOpCapability::kAnnotatedArgs) && (declare_launch_args == nullptr)) {

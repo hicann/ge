@@ -391,10 +391,9 @@ class PythonCustomOpBridgeLoader {
     return true;
   }
 
-  Status RegisterPythonCustomOpCreator(const PythonCustomOpAdapterDescriptor &desc) {
+  Status RegisterPythonCustomOpCreator(const PythonCustomOpAdapterDescriptor &desc, const OpBackend backend) {
     const auto ret = CustomOpFactory::RegisterCustomOpCreator(
-        AscendString(desc.op_type.c_str()), OpBackend::kDevice,
-        [registered_desc = desc]() -> std::unique_ptr<BaseCustomOp> {
+        AscendString(desc.op_type.c_str()), backend, [registered_desc = desc]() -> std::unique_ptr<BaseCustomOp> {
           auto *adapter = new (std::nothrow) PythonCustomOpAdapter(registered_desc);
           if ((adapter == nullptr) || (!adapter->IsValid())) {
             delete adapter;
@@ -406,8 +405,8 @@ class PythonCustomOpBridgeLoader {
       GELOGE(ret, "Register python custom op creator failed, op type[%s].", desc.op_type.c_str());
       return FAILED;
     }
-    registered_op_type_to_adapter_.insert(desc.op_type);
-    GELOGI("Python custom op creator is registered, op type[%s].", desc.op_type.c_str());
+    GELOGI("Python custom op creator is registered, op type[%s], backend[%u].", desc.op_type.c_str(),
+           static_cast<uint32_t>(backend));
     return SUCCESS;
   }
 
@@ -428,9 +427,32 @@ class PythonCustomOpBridgeLoader {
       if (!BuildAdapterDescriptor(registration, desc)) {
         return FAILED;
       }
-      if (RegisterPythonCustomOpCreator(desc) != SUCCESS) {
-        return FAILED;
+      const auto device_capabilities = static_cast<CustomOpCapabilityMask>(CustomOpCapability::kEagerExecute) |
+                                       static_cast<CustomOpCapabilityMask>(CustomOpCapability::kArgsUpdater) |
+                                       static_cast<CustomOpCapabilityMask>(CustomOpCapability::kAnnotatedArgs);
+      const bool has_device_capability = (desc.capabilities & device_capabilities) != 0U;
+      const bool has_host_capability = HasCustomOpCapability(desc.capabilities, CustomOpCapability::kHostCpuExecute);
+      if (has_device_capability) {
+        if (RegisterPythonCustomOpCreator(desc, OpBackend::kDevice) != SUCCESS) {
+          return FAILED;
+        }
       }
+      if (has_host_capability) {
+        if (RegisterPythonCustomOpCreator(desc, OpBackend::kHostCPU) != SUCCESS) {
+          if (has_device_capability) {
+            // The device creator is not committed to the ownership set
+            CustomOpFactory::RemoveCustomOps({AscendString(op_type.c_str())});
+          }
+          return FAILED;
+        }
+      }
+      // Keep the existing device anchor behavior for descriptors that only provide common capabilities.
+      if (!has_device_capability && !has_host_capability && (desc.capabilities != 0U)) {
+        if (RegisterPythonCustomOpCreator(desc, OpBackend::kDevice) != SUCCESS) {
+          return FAILED;
+        }
+      }
+      registered_op_type_to_adapter_.insert(op_type);
     }
     return SUCCESS;
   }
@@ -505,9 +527,11 @@ class PythonCustomOpBridgeLoader {
               runtime_key, candidate, deps, &IsBridgeApiValid, loaded_bridge);
       if (status != bridge_loader::BridgeLoadStatus::kSuccess) {
         const auto error_suffix = bridge_loader::BuildBridgeLoadErrorSuffix(status, dlerror());
-        GELOGW("Skip python custom op bridge candidate[%s], artifact_root[%s], native_module[%s], status[%s]%s.",
-               candidate.bridge_path.c_str(), candidate.artifact_root.c_str(), candidate.native_module_path.c_str(),
-               bridge_loader::BridgeLoadStatusToString(status), error_suffix.c_str());
+        GELOGW(
+            "Skip python custom op bridge candidate[%s], artifact_root[%s], native_module[%s], "
+            "expected bridge ABI[%u], status[%s]%s.",
+            candidate.bridge_path.c_str(), candidate.artifact_root.c_str(), candidate.native_module_path.c_str(),
+            kPythonCustomOpBridgeAbiVersion, bridge_loader::BridgeLoadStatusToString(status), error_suffix.c_str());
         continue;
       }
       handle_ = loaded_bridge.handle;

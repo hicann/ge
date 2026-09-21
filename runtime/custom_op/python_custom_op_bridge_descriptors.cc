@@ -26,6 +26,7 @@ namespace py = pybind11;
 namespace {
 constexpr const char *kInterfaceAnnotatedArgs = "annotated_args";
 constexpr const char *kInterfaceEagerExecute = "eager_execute";
+constexpr const char *kInterfaceHostCpuExecute = "host_cpu_execute";
 constexpr const char *kInterfaceCompilable = "compilable";
 
 PythonCustomOpStringView MakeStringView(const std::string &value) {
@@ -69,6 +70,8 @@ Status ParseInterfaces(const py::object &interfaces_obj, CustomOpCapabilityMask 
     const std::string interface_name = py::str(item);
     if (interface_name == kInterfaceEagerExecute) {
       AddCustomOpCapability(capabilities, CustomOpCapability::kEagerExecute);
+    } else if (interface_name == kInterfaceHostCpuExecute) {
+      AddCustomOpCapability(capabilities, CustomOpCapability::kHostCpuExecute);
     } else if (interface_name == kInterfaceAnnotatedArgs) {
       AddCustomOpCapability(capabilities, CustomOpCapability::kAnnotatedArgs);
     } else if (interface_name == kInterfaceCompilable) {

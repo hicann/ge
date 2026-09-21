@@ -20,6 +20,7 @@ __all__: List[str] = [
     "AnnotatedKernelArgs",
     "AnnotatedKernelLaunchInfo",
     "EagerOpExecutionContext",
+    "HostCpuOpExecutionContext",
     "CompilePlatformInfo",
     "OpCompileContext",
     "WorkspaceAddr",
@@ -44,7 +45,7 @@ class EagerOpExecutionContext:
 
     **Example**
 
-        def execute(self, x):
+        def execute(self, x) -> None:
             from ge.custom_op import get_execute_ctx
             ctx = get_execute_ctx()
             y = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
@@ -87,6 +88,68 @@ class EagerOpExecutionContext:
 
     def get_stream(self) -> int:
         """Return the execution stream address as an integer."""
+        ...
+
+    def _invalidate(self) -> None:
+        """Invalidate this context and all derived borrowed views.
+
+        GE bridge only; user custom op code should not call this method.
+        """
+        ...
+
+
+class HostCpuOpExecutionContext:
+    """Host CPU op execution context (Python view of ``gert::HostCpuOpExecutionContext``).
+
+    Borrowed execution view available through ``ge.custom_op.get_execute_ctx()``
+    while a schema-bound host-backend ``execute`` callback is running. It
+    supports querying output tensors, allocating host output memory, and making
+    an output reuse an input's address. Inputs and attributes are delivered as
+    ``execute`` parameters by the bridge, so input/attr query APIs are
+    bridge-internal and not part of the public surface. It does not provide
+    device stream or workspace access.
+
+    **Constraints**
+
+    - Use only inside the current ``execute`` callback. The bridge calls
+      ``_invalidate()`` in ``finally`` after the callback returns or raises.
+    - All ``Tensor`` objects returned from this context share the same validity
+      marker and expire with the context.
+
+    **Example**
+
+        def execute(self, x) -> None:
+            from ge.custom_op import get_execute_ctx
+            ctx = get_execute_ctx()
+            y = ctx.malloc_output_tensor(0, x.shape, x.format, x.data_type)
+    """
+
+    def malloc_output_tensor(
+        self,
+        index: int,
+        shape: StorageShape,
+        format: StorageFormat,
+        dtype: DataType,
+    ) -> Tensor:
+        """Allocate host memory for one output tensor and initialize its metadata.
+
+        Raises ``RuntimeError`` if allocation or initialization fails. The output tensor
+        memory is managed by the context provider and must not be freed by Python code.
+        """
+        ...
+
+    def make_output_ref_input(self, output_index: int, input_index: int) -> Tensor:
+        """Make an output tensor reuse the memory address of an input tensor.
+
+        Raises ``RuntimeError`` if output or input tensor lookup fails.
+        """
+        ...
+
+    def get_output_tensor(self, index: int) -> Tensor:
+        """Return output tensor by output index.
+
+        Raises ``RuntimeError`` if the output tensor is unavailable.
+        """
         ...
 
     def _invalidate(self) -> None:

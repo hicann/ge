@@ -26,7 +26,7 @@ from ge._internal.artifact_utils import (
     load_module_from_path,
 )
 
-BRIDGE_ABI_VERSION = 1
+BRIDGE_ABI_VERSION = 2
 NATIVE_MODULE_NAME = "ge.custom_op._ge_custom_op_native"
 
 

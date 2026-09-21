@@ -19,6 +19,7 @@ __all__ = [
     "AnnotatedKernelArgs",
     "AnnotatedKernelLaunchInfo",
     "EagerOpExecutionContext",
+    "HostCpuOpExecutionContext",
     "CompilePlatformInfo",
     "OpCompileContext",
     "WorkspaceAddr",
@@ -31,6 +32,7 @@ from .fallback_runtime import SPEC
 _native = ensure_native_module(SPEC)
 
 EagerOpExecutionContext = _native.EagerOpExecutionContext
+HostCpuOpExecutionContext = _native.HostCpuOpExecutionContext
 CompilePlatformInfo = _native.CompilePlatformInfo
 AnnotatedArgsContext = _native.AnnotatedArgsContext
 AnnotatedKernelArgs = _native.AnnotatedKernelArgs

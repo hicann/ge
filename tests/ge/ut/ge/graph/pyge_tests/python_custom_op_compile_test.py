@@ -143,6 +143,9 @@ def test_callable_compile_declares_capability():
             pass
 
     assert CompilableOnly.__ge_op_impl_descriptor__.interfaces == ["compilable"]
+    assert "kernel_backends" not in (
+        CompilableOnly.__ge_op_impl_descriptor__.to_bridge_dict()
+    )
 
 
 @pytest.mark.parametrize("method_kind", ["inherited", "staticmethod", "classmethod"])

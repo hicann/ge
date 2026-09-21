@@ -8,7 +8,9 @@
 
 Python自定义算子的运行时执行回调。将实现类通过[register_op_impl](register_op_impl.md)注册并提供可调用的`execute`方法后，GE根据算子原型组装输入和属性参数，并在算子执行阶段调用该方法。
 
-`execute`回调不接收输出参数，也不通过返回值传递输出。可通过[get_execute_ctx](get_execute_ctx.md)获取`EagerOpExecutionContext`，申请输出内存或建立输出与输入之间的Ref关系。
+可通过[register_kernel](register_kernel.md)显式声明执行backend，未装饰时默认按device backend执行。
+
+`execute`回调不接收输出参数，也不通过返回值传递输出。可通过[get_execute_ctx](get_execute_ctx.md)获取执行上下文，申请输出内存或建立输出与输入之间的Ref关系。
 
 ## 函数原型
 
@@ -35,7 +37,7 @@ def execute(self, input_0, ..., *, attr_0, ...) -> None
 - 回调不得声明可变位置参数或可变关键字参数。输入和属性的数量、顺序或属性名称不匹配时，抛出`TypeError`。
 - `execute`无需为输入参数指定类型提示；但是，任何指定的类型提示都将根据算子原型进行验证，以确保一致性。
 - 回调返回值必须为`None`，并且必须声明`-> None`返回注解。
-- `get_execute_ctx()`只能在当前同步`execute`回调内调用。返回的`EagerOpExecutionContext`及由它返回的`Tensor`等借用对象只能在当前回调内使用，回调返回或抛出异常后失效。
+- `get_execute_ctx()`只能在当前同步`execute`回调内调用。返回的执行上下文及由它返回的`Tensor`等借用对象只能在当前回调内使用，回调返回或抛出异常后失效。
 
 ## 调用示例
 
