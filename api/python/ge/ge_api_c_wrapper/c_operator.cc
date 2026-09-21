@@ -27,17 +27,17 @@ class AnyOperator : public Operator {
   using Operator::OptionalInputRegister;
   using Operator::OutputRegister;
 
-  static void RegisterInput(Operator *op, const char_t *name) {
+  static void RegisterInput(const Operator *op, const char_t *name) {
     AnyOperator any_operator(*op);
     any_operator.InputRegister(name, "");
   }
 
-  static void RegisterOptionalInput(Operator *op, const char_t *name) {
+  static void RegisterOptionalInput(const Operator *op, const char_t *name) {
     AnyOperator any_operator(*op);
     any_operator.OptionalInputRegister(name, "");
   }
 
-  static void RegisterOutput(Operator *op, const char_t *name) {
+  static void RegisterOutput(const Operator *op, const char_t *name) {
     AnyOperator any_operator(*op);
     any_operator.OutputRegister(name, "");
   }
@@ -79,21 +79,21 @@ graphStatus GeApiWrapper_Operator_SetAttr(Operator *op, const char *key, void *a
   return GRAPH_SUCCESS;
 }
 
-graphStatus GeApiWrapper_Operator_InputRegister(Operator *op, const char *name) {
+graphStatus GeApiWrapper_Operator_InputRegister(const Operator *op, const char *name) {
   GE_ASSERT_NOTNULL(op);
   GE_ASSERT_NOTNULL(name);
   AnyOperator::RegisterInput(op, name);
   return GRAPH_SUCCESS;
 }
 
-graphStatus GeApiWrapper_Operator_OptionalInputRegister(Operator *op, const char *name) {
+graphStatus GeApiWrapper_Operator_OptionalInputRegister(const Operator *op, const char *name) {
   GE_ASSERT_NOTNULL(op);
   GE_ASSERT_NOTNULL(name);
   AnyOperator::RegisterOptionalInput(op, name);
   return GRAPH_SUCCESS;
 }
 
-graphStatus GeApiWrapper_Operator_OutputRegister(Operator *op, const char *name) {
+graphStatus GeApiWrapper_Operator_OutputRegister(const Operator *op, const char *name) {
   GE_ASSERT_NOTNULL(op);
   GE_ASSERT_NOTNULL(name);
   AnyOperator::RegisterOutput(op, name);
