@@ -62,6 +62,7 @@ function executSt(){
     else
        DP_ASSERT_EQUAL "$ret" "0" "Run ST testcase" "true"
     fi
+    /usr/local/ccache/bin/ccache -s
     cd ${WORKSPACE}
     check_slow_tests "${TEST_LOG_FILE}" 1000 "${WORKSPACE}" || ret=1
     coverage_info=$(find ${WORKSPACE} -name "coverage.info" | head -n1)
