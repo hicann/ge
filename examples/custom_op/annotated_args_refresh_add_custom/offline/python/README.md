@@ -72,7 +72,8 @@ annotated_args_refresh_add_custom
     ├── README_en.md
     ├── run.sh                          # ES、AIR、ATC 和 ACL 验证入口
     ├── proto
-    │   └── add_custom.h                # gen_esb 使用的 C++ 构图原型
+    │   ├── add_custom.h                # gen_esb 使用的 C++ 构图原型
+    │   └── add_custom.cc               # 用于编译生成 so 的 C++ 源代码
     └── src
         ├── build_graph.py              # Python 构图并生成 AIR
         ├── run_model.py                # ACL 两轮离线 NPU 执行

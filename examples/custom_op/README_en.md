@@ -44,7 +44,7 @@ Currently provided interface functionality:
 Interface combination selection by scenario:
 
 | Scenario | Recommended Implementation |
-|---------|---------------------------|
+|---------|----------------------------|
 | HostCpu constant folding | `HostCpuExecuteOp` + `ShapeInferOp(optional)` |
 | Dynamic graph online execution | `EagerExecuteOp` + `ShapeInferOp(optional)` |
 | Dynamic graph online execution + operator online compilation | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(optional)` |

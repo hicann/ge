@@ -44,7 +44,7 @@ This sample demonstrates a minimum runnable type III custom operator execution p
 
 ## Quick Run
 
-Execute in `examples/custom_op/data_dependent_shape_custom` directory:
+Execute in `examples/custom_op/data_dependent_shape_custom` directory
 
 ### Recommended Method
 

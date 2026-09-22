@@ -3,7 +3,7 @@
 ## 样例概述
 
 - 构图入口：`PyTorch + TorchAir`
-- 算子编成语言：`Ascend C`
+- 算子编程语言：`Ascend C`
 - 编译方式：`预编译/直接调用`
 - 模型下沉能力：`不涉及`
 - 核心链路：`Ascend C kernel -> GE 交付件 -> TorchAir 入图 -> 图模式执行`
