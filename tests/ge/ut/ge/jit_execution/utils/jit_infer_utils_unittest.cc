@@ -24,6 +24,9 @@
 #include "tests/framework/ge_runtime_stub/include/faker/space_registry_faker.h"
 #include "graph/ge_local_context.h"
 #include "jit_execution/common_setup.h"
+#include "graph/passes/graph_builder_utils.h"
+#include "graph/debug/ge_attr_define.h"
+#include "jit_execution/utils/partitioner/binary_partitioner.h"
 #include <vector>
 #include <stack>
 using namespace std;
@@ -1018,4 +1021,118 @@ TEST_F(JitInferUtilsUT, no_lowering_pulled_when_parents_inferred) {
   // data0 + data1 + Relu(inferred) + Reshape(breakpoint) + CustomOp(no_lowering拉入) + NetOutput = 6
   // CustomOp 的父节点 Reshape 在 inferred → 被 no_lowering 拉入
   ASSERT_EQ(infered_nodes.size(), 6);
+}
+
+/*
+ * RED用例: DeleteNodesWithoutParentNode的单遍级联删除依赖inferred_nodes的遍历顺序为拓扑序,
+ * 而该顺序继承自图的GetDirectNode插入序, 无任何显式保证。AddDataEdge可在节点全部创建后
+ * 任意时刻调用, 故AddNode可按非拓扑序插入(h2先于其父h):
+ *
+ *   数据流: data0 → opa(Abs,推导成功)
+ *                → f1(ReduceSum, axes非常量推导失败, breakpoint归inferred)
+ *                → f2(Abs, 输入无符号推导失败, uninferred)
+ *                → h(Abs, 输出静态推导成功, inferred, 父f2失败将被Delete删除)
+ *                → h2(Abs, 输出静态推导成功, inferred, 应随h级联删除)
+ *                → netoutput(应随h2级联删除)
+ *   插入序: [data0, opa, f1, f2, h2, h, netoutput]  ← h2先于父h
+ *
+ * 契约: Delete后inferred集合必须父链封闭, 否则悬空节点导致BinaryPartitioner::
+ * CheckNodesContainsCycle失败, Partition返回GRAPH_PARAM_INVALID, 整个JIT执行报错。
+ * 缺陷: 单遍遍历中h2先于h被检查(此时h还在inferred), h2被保留; h删除后h2悬空。
+ */
+TEST_F(JitInferUtilsUT, delete_nodes_without_parent_non_topological_order) {
+  // 直接使用底层API构图: ut::GraphBuilder::GetGraph会强制TopologicalSorting洗掉插入序,
+  // 而DeleteNodesWithoutParentNode的输入顺序继承GetDirectNode插入序, 必须保持乱序才能覆盖缺陷
+  const auto graph = std::make_shared<ComputeGraph>("non_topo_delete_graph");
+  const auto add_node = [&graph](const std::string &name, const std::string &type, const int32_t in_cnt,
+                                 const int32_t out_cnt) {
+    auto op_desc = std::make_shared<OpDesc>(name, type);
+    for (int32_t i = 0; i < in_cnt; ++i) {
+      op_desc->AddInputDesc(GeTensorDesc());
+    }
+    for (int32_t i = 0; i < out_cnt; ++i) {
+      op_desc->AddOutputDesc(GeTensorDesc());
+    }
+    op_desc->AddInferFunc([](Operator &) { return GRAPH_SUCCESS; });
+    return graph->AddNode(op_desc);
+  };
+  const auto data0 = add_node("data0", DATA, 1, 1);
+  const auto opa = add_node("opa", "Abs", 1, 1);
+  const auto f1 = add_node("f1", "ReduceSum", 2, 1);
+  const auto f2 = add_node("f2", "Abs", 1, 1);
+  const auto h2 = add_node("h2", "Abs", 1, 1);
+  const auto h = add_node("h", "Abs", 1, 1);
+  const auto netoutput = add_node("netoutput", NETOUTPUT, 1, 0);
+
+  const auto set_desc = [](const NodePtr &node, const size_t idx, const bool is_input,
+                           const std::vector<int64_t> &shape, const DataType dtype) {
+    auto desc = is_input ? node->GetOpDesc()->MutableInputDesc(idx) : node->GetOpDesc()->MutableOutputDesc(idx);
+    desc->SetShape(GeShape(shape));
+    desc->SetOriginShape(GeShape(shape));
+    desc->SetDataType(dtype);
+    desc->SetOriginDataType(dtype);
+    desc->SetFormat(FORMAT_ND);
+    desc->SetOriginFormat(FORMAT_ND);
+  };
+  set_desc(data0, 0, false, {-1, -1, -1}, DT_FLOAT);
+  (void)AttrUtils::SetInt(data0->GetOpDesc(), ge::ATTR_NAME_INDEX, 0);
+  set_desc(opa, 0, true, {-1, -1, -1}, DT_FLOAT);
+  set_desc(opa, 0, false, {-1, -1, -1}, DT_FLOAT);
+  set_desc(f1, 0, true, {-1, -1, -1}, DT_FLOAT);
+  set_desc(f1, 1, true, {-1}, DT_INT32);
+  set_desc(f1, 0, false, {-2}, DT_FLOAT);
+  set_desc(f2, 0, true, {-1}, DT_FLOAT);
+  set_desc(f2, 0, false, {-2}, DT_FLOAT);
+  set_desc(h, 0, true, {2, 3}, DT_FLOAT);
+  set_desc(h, 0, false, {2, 3}, DT_FLOAT);
+  set_desc(h2, 0, true, {2, 3}, DT_FLOAT);
+  set_desc(h2, 0, false, {2, 3}, DT_FLOAT);
+  set_desc(netoutput, 0, true, {2, 3}, DT_FLOAT);
+
+  // 手工构图的op_desc缺IR输入注册, 推导的context构造依赖op ir map, 需补充
+  opa->GetOpDesc()->AppendIrInput("x", ge::kIrInputRequired);
+  f1->GetOpDesc()->AppendIrInput("x", ge::kIrInputRequired);
+  f1->GetOpDesc()->AppendIrInput("axes", ge::kIrInputRequired);
+  f2->GetOpDesc()->AppendIrInput("x", ge::kIrInputRequired);
+  h->GetOpDesc()->AppendIrInput("x", ge::kIrInputRequired);
+  h2->GetOpDesc()->AppendIrInput("x", ge::kIrInputRequired);
+
+  GraphUtils::AddEdge(data0->GetOutDataAnchor(0), opa->GetInDataAnchor(0));
+  GraphUtils::AddEdge(opa->GetOutDataAnchor(0), f1->GetInDataAnchor(0));
+  GraphUtils::AddEdge(opa->GetOutDataAnchor(0), f1->GetInDataAnchor(1));
+  GraphUtils::AddEdge(f1->GetOutDataAnchor(0), f2->GetInDataAnchor(0));
+  GraphUtils::AddEdge(f2->GetOutDataAnchor(0), h->GetInDataAnchor(0));
+  GraphUtils::AddEdge(h->GetOutDataAnchor(0), h2->GetInDataAnchor(0));
+  GraphUtils::AddEdge(h2->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
+  // 故意不调用TopologicalSorting, 保持AddNode插入序(非拓扑序)
+
+  std::vector<GeTensor> inputs;
+  GeTensorDesc td;
+  td.SetShape(GeShape({4, 5, 6}));
+  td.SetOriginShape(GeShape({4, 5, 6}));
+  inputs.emplace_back(td);
+
+  std::vector<NodePtr> infered_nodes;
+  ASSERT_EQ(JitInferUtils::InferGraphAndGetInferredNodes(graph, inputs, infered_nodes), SUCCESS);
+
+  const auto in_inferred = [&infered_nodes](const NodePtr &n) {
+    return std::find(infered_nodes.begin(), infered_nodes.end(), n) != infered_nodes.end();
+  };
+  ASSERT_FALSE(in_inferred(f2));  // f2输入无符号推导失败, uninferred
+  ASSERT_FALSE(in_inferred(h));   // h的父f2是uninferred, 被Delete正确删除
+
+  // 真实挂点: 悬空的infered_nodes流入BinaryPartitioner后, CheckNodesContainsCycle命中
+  // (inferred的h2依赖uninferred的h), Partition返回GRAPH_PARAM_INVALID,
+  // 生产链路中对应ExecutionOrder::AddNewSlice的GE_ASSERT_SUCCESS硬报错, 整个JIT执行失败。
+  // 期望行为: Delete正确级联删除h2/netoutput后, inferred父链封闭, Partition应成功
+  PartionResult partition_result;
+  EXPECT_EQ(BinaryPartitioner::Partition(graph, infered_nodes, partition_result), SUCCESS)
+      << "infered_nodes contains dangling node, CheckNodesContainsCycle failed in BinaryPartitioner";
+  if (::testing::Test::HasFailure() == false) {
+    // 修复后h/h2/netoutput应全部级联删除, EP0={data0, opa, f1(breakpoint)}, h2正确退回remaining
+    EXPECT_NE(partition_result.sliced_graph->FindNode("f1"), nullptr);
+    EXPECT_EQ(partition_result.sliced_graph->FindNode("h2"), nullptr);
+    EXPECT_NE(partition_result.remaining_graph->FindNode("f2"), nullptr);
+    EXPECT_NE(partition_result.remaining_graph->FindNode("h2"), nullptr);
+  }
 }
