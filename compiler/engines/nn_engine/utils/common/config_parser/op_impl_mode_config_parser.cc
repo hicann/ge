@@ -157,14 +157,13 @@ Status OpImplModeConfigParser::Initialize(const std::string &op_precision_mode, 
   op_type_select_impl_mode_map_.clear();
 
   // Step 1: 加载 allow_hf32 (最高优先级)
-  if (enable_allow_hf32 && !tmp_allow_hf32.empty()) {
-    if (InitExplicitAllowHF32(tmp_allow_hf32, allow_hf32) != SUCCESS) {
+  if (enable_allow_hf32 && !allow_hf32.empty()) {
+    if (InitExplicitAllowHF32(allow_hf32) != SUCCESS) {
       return FAILED;
     }
   }
 
   // Step 2: 加载 op_precision_mode (中优先级)
-  // 使用 insert 而非 emplace， 避免覆盖 Step 1 已加载的 allow_hf32 配置
   Status status = InitOpPrecisionMode(op_precision_mode, op_select_impl_mode, op_type_list_for_impl_mode);
   if (status != SUCCESS) {
     return status;
@@ -179,7 +178,7 @@ Status OpImplModeConfigParser::Initialize(const std::string &op_precision_mode, 
   return SUCCESS;
 }
 
-Status OpImplModeConfigParser::InitExplicitAllowHF32(const std::string &hf32_val, const std::string &raw_allow_hf32) {
+Status OpImplModeConfigParser::InitExplicitAllowHF32(const std::string &hf32_val) {
   if (HasNewAllowHF32Files()) {
     FE_LOGI("[Init][AllowHF32] Found new %s*.ini files, using new allow_hf32 config.", kAllowHF32NewFilePrefix);
     if (InitAllowHF32NewFiles(hf32_val) != SUCCESS) {
@@ -189,11 +188,11 @@ Status OpImplModeConfigParser::InitExplicitAllowHF32(const std::string &hf32_val
     FE_LOGI("[Init][AllowHF32] No new allow_hf32 files found, fallback to legacy files.");
     if (InitAllowHF32LegacyFiles(hf32_val) != SUCCESS) {
       ErrorMessageDetail err_msg(EM_INPUT_OPTION_INVALID,
-                                 {raw_allow_hf32, ge::ALLOW_HF32, "The current value is not within the valid range"});
+                                 {hf32_val, ge::ALLOW_HF32, "The current value is not within the valid range"});
       ReportErrorMessage(err_msg);
       REPORT_FE_ERROR(
           "[GraphOpt][Init][InitAllowHF32] ge.exec.allow_hf32[%s] is invalid, only support [0,00,01,10,11,1].",
-          raw_allow_hf32.c_str());
+          hf32_val.c_str());
       return FAILED;
     }
   }
@@ -529,9 +528,9 @@ void OpImplModeConfigParser::ParseLineContentWithMode(const std::string &line_co
     return;
   }
   if (parse_by_op_type) {
-    op_type_select_impl_mode_map_.insert(std::make_pair(op_type_or_name, impl_mode));
+    op_type_select_impl_mode_map_.emplace(op_type_or_name, impl_mode);
   } else {
-    op_name_select_impl_mode_map_.insert(std::make_pair(op_type_or_name, impl_mode));
+    op_name_select_impl_mode_map_.emplace(op_type_or_name, impl_mode);
   }
   return;
 }
