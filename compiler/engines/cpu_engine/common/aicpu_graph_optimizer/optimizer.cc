@@ -71,7 +71,7 @@ void Optimizer::GetTfOpFussionOoLevel() {
   auto status = GetThreadLocalContext().GetOo().GetValue(kTfOpFussion, opt_value);
   AICPUE_LOGI("Get option[%s], opt_value[%s], status[%u].", kTfOpFussion.c_str(), opt_value.c_str(), status);
   if (opt_value == "false") {
-    AICPUE_LOGI("Tf op fussion may be disable in current level.");
+    AICPUE_LOGI("Tf op fusion may be disabled in current level.");
     is_tf_op_fussion_oo_enable_ = false;
   } else {
     is_tf_op_fussion_oo_enable_ = true;
