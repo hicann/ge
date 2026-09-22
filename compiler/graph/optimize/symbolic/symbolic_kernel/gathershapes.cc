@@ -43,7 +43,7 @@ graphStatus GatherShapesSymbolicKernelCompute(gert::InferSymbolComputeContext *c
     GE_ASSERT_NOTNULL(axis);
     GE_ASSERT_TRUE(axis->GetSize() == kAxesPairSize, "GatherShapes axes[%zu] should contain input and dimension index.",
                    i);
-    const auto *data = reinterpret_cast<const uint64_t *>(axis->GetData());
+    const auto *data = static_cast<const uint64_t *>(axis->GetData());
     GE_ASSERT_NOTNULL(data);
     const auto input_index = data[0U];
     const auto dim_index = data[1U];

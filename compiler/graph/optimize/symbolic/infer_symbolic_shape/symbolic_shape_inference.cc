@@ -225,7 +225,6 @@ std::unique_ptr<gert::SymbolTensor> GetInputSymbolTensorHolder(const Operator &o
       auto size = tensor.GetTensorDesc().GetShape().GetShapeSize();
       if (tensor.GetTensorDesc().GetShape().GetDims().empty() && tensor.GetSize() != 0U) {
         size = 1;  // 处理scalar场景
-        symbolic_shape.AppendDim(Symbol(1));
       } else {
         for (const auto dim : tensor.GetTensorDesc().GetShape().GetDims()) {
           symbolic_shape.AppendDim(Symbol(dim));

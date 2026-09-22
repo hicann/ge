@@ -50,6 +50,10 @@ class SliceResultMocker {
 
   static std::unordered_map<std::string, uint32_t> gep_graph_key_to_pattern_map_;
 
+  // GEP按指针注册在GuardedExecutionPointUtil的静态map中，GenSlicingResultFiles的局部order析构会使注册
+  // 条目悬挂，后续新建GEP若复用同一堆地址会错误继承旧key，导致om文件被覆盖与pattern比对错位
+  static std::vector<std::unique_ptr<ExecutionPoint>> keep_alive_eps_;
+
   std::string user_graph_key_;
 
   uint32_t num_eps_;

@@ -376,7 +376,18 @@ Status StridedSliceOutputSymbolsValue(const std::vector<Expression> &input_x_sym
              index_input.start_indexes[i]);
       return SUCCESS;
     }
-    int64_t block_size = std::accumulate(input_dims.begin() + i + 1, input_dims.end(), 1, std::multiplies<int64_t>());
+    // 空tensor(后缀维为0，合法图)与溢出防护：除数来自输入dim，无防护会除零SIGFPE或迭代器越界
+    int64_t block_size = 1L;
+    for (size_t k = i + 1UL; k < input_dims.size(); ++k) {
+      if (input_dims[k] != 0L && block_size > INT64_MAX / input_dims[k]) {
+        return UNSUPPORTED;
+      }
+      block_size *= input_dims[k];
+    }
+    if (input_dims[i] <= 0L || block_size <= 0L ||
+        static_cast<int64_t>(last_output_symbols.size()) % block_size != 0L) {
+      return UNSUPPORTED;
+    }
     int64_t block_num = static_cast<int64_t>(last_output_symbols.size()) / block_size / input_dims[i];
     GELOGI("block num: %lld, input_dims: %lld block size[%zu] : %lld", block_num, input_dims[i], i, block_size);
     for (int64_t j = 0L; j < block_num; j++) {
@@ -610,8 +621,11 @@ graphStatus ComputeStridedSliceOutput(gert::InferSymbolComputeContext *context, 
   GE_ASSERT_NOTNULL(out_symbols_tensor->MutableSymbolicValue());
   out_symbols_tensor->MutableOriginSymbolShape().MutableDims() = output_symbols_shape;
   auto output_symbols_value = out_symbols_tensor->MutableSymbolicValue();
-  GE_ASSERT_SUCCESS(
-      StridedSliceOutputSymbolsValue(*input_x_symbols, input_append_axis_shape, index_input, *output_symbols_value));
+  // StridedSliceOutputSymbolsValue对空tensor(后缀维为0)/溢出返回UNSUPPORTED，需透传降级
+  if (StridedSliceOutputSymbolsValue(*input_x_symbols, input_append_axis_shape, index_input, *output_symbols_value) !=
+      SUCCESS) {
+    return UNSUPPORTED;
+  }
   GELOGD("%s[%s] kernel success, %s", context->GetNodeName(), context->GetNodeType(),
          SymbolicInferUtil::DumpSymbolTensor(*out_symbols_tensor).c_str());
   return SUCCESS;
@@ -714,8 +728,10 @@ static graphStatus StridedSliceV3SymbolicKernelCompute(gert::InferSymbolComputeC
   out_symbols_tensor->MutableOriginSymbolShape().MutableDims() = output_symbols_shape;
   if (input_x_symbols != nullptr) {
     auto output_symbols_value = out_symbols_tensor->MutableSymbolicValue();
-    GE_ASSERT_SUCCESS(
-        StridedSliceOutputSymbolsValue(*input_x_symbols, input_x_dims, index_input, *output_symbols_value));
+    // StridedSliceOutputSymbolsValue对空tensor(后缀维为0)/溢出返回UNSUPPORTED，需透传降级
+    if (StridedSliceOutputSymbolsValue(*input_x_symbols, input_x_dims, index_input, *output_symbols_value) != SUCCESS) {
+      return UNSUPPORTED;
+    }
   }
   GELOGD("%s[%s] kernel success, %s", context->GetNodeName(), context->GetNodeType(),
          SymbolicInferUtil::DumpSymbolTensor(*out_symbols_tensor).c_str());

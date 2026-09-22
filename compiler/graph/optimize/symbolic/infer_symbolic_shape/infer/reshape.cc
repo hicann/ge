@@ -13,6 +13,7 @@
 #include "exe_graph/runtime/infer_symbol_shape_context.h"
 #include "common/checker.h"
 #include "common/framework_types_internal.h"
+#include "graph/utils/type_utils.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
 
 namespace ge {
@@ -29,8 +30,11 @@ graphStatus GetConstInt(const Expression &expr, DataType dt, int64_t &value) {
       return UNSUPPORTED;
     }
   } else {
-    GELOGE(PARAM_INVALID, "dt must in [int32, int64]");
-    return ge::PARAM_INVALID;
+    // pass创建的算子shape输入可能是int32/int64之外的dtype，属不支持形态而非非法图，
+    // 降级UNSUPPORTED由上层回退传统推导，不打挂整个符号推导
+    GELOGW("Symbol Infer unsupported, dt must in [int32, int64], actual dt %s.",
+           TypeUtils::DataTypeToSerialString(dt).c_str());
+    return UNSUPPORTED;
   }
   return ge::GRAPH_SUCCESS;
 }
@@ -68,11 +72,12 @@ graphStatus ReshapeInferCommon(const gert::InferSymbolShapeContext *context, con
     int64_t dim = -2;
     bool has_dim_value = false;
     if (dim_expr.IsConstExpr()) {
-      // 如果dim是常量，只能是int32或者int64类型
-      if (GetConstInt(dim_expr, dt, dim) == UNSUPPORTED) {
-        GELOGW("Symbol Infer unsupported, get dim at index[%zu] is not constvalue, node %s[%s]", i,
-               context->GetNodeName(), context->GetNodeType());
-        return UNSUPPORTED;
+      // 常量维度取值失败(非常量类型或非法dtype)统一降级UNSUPPORTED，由上层回退传统推导
+      const auto ret = GetConstInt(dim_expr, dt, dim);
+      if (ret != ge::GRAPH_SUCCESS) {
+        GELOGW("Symbol Infer unsupported, get dim at index[%zu] failed, node %s[%s]", i, context->GetNodeName(),
+               context->GetNodeType());
+        return ret;
       }
       has_dim_value = true;
     } else if (dim_expr.GetHint(dim)) {
