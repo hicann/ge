@@ -12,6 +12,7 @@
 #define GE_INC_FRAMEWORK_RUNTIME_ARGS_HANDLER_H_
 
 #include <deque>
+#include "framework/runtime/attached_stream_provider.h"
 #include "exe_graph/runtime/kernel_args.h"
 
 namespace gert {
@@ -32,6 +33,11 @@ class ArgsHandler {
   /// @param placement kPlacementHost 或 kPlacementDevice
   /// @return KernelArgs deque 的引用（支持多次 malloc，deque push_back 不失效已有元素指针）
   virtual const std::deque<KernelArgs> &GetKernelArgs(Placement placement) const = 0;
+
+  /// 获取 eager 自定义算子的辅流申请器；不支持时返回 nullptr。
+  virtual AttachedStreamProvider *GetAttachedStreamProvider() {
+    return nullptr;
+  }
 };
 
 }  // namespace gert

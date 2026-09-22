@@ -90,6 +90,7 @@ set(COMMON_TEST_FILES
 set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "${AIR_CODE_DIR}/tests/ge/ut/ge/test_tools_task_info.cc"
     "graph/load/aipp_utils_unittest.cc"
+    "runtime/eager_op_execution_context_unittest.cc"
     "graph/load/data_dumper_unittest.cc"
     "graph/load/model_manager_unittest.cc"
     "graph/load/new_model_manager_model_manager_aicpu_unittest.cc"
@@ -107,6 +108,7 @@ set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "graph/load/task_info_unittest.cc"
     "graph/load/hccl_task_info_unittest.cc"
     "graph/load/custom_task_info_unittest.cc"
+    "graph/load/attached_stream_collection_unittest.cc"
     "graph/load/kernel_ex_task_info_unittest.cc"
     "graph/load/kernel_task_info_unittest.cc"
     "graph/load/kernel_manager_unittest.cc"

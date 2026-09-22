@@ -562,8 +562,10 @@ Status CustomTaskInfo::Distribute() {
 
   GE_ASSERT_SUCCESS(ConstructCustomKernelContextInputsOutputs(op_desc_, inputs_holder_, outputs_holder_));
 
-  args_handler_ = ge::ComGraphMakeUnique<SinkOpArgsHandler>(this);
-  GE_ASSERT_NOTNULL(args_handler_);
+  auto sink_args_handler = ge::ComGraphMakeUnique<SinkOpArgsHandler>(this);
+  GE_ASSERT_NOTNULL(sink_args_handler);
+  sink_args_handler->SetAttachedStreamProvider(davinci_model_->GetAttachedStreamProvider());
+  args_handler_ = std::move(sink_args_handler);
   std::vector<void *> additional_inputs = {sink_only_allocator_.get(), stream_};
   std::vector<void *> additional_outputs = {&ws_vec_, args_handler_.get()};
 

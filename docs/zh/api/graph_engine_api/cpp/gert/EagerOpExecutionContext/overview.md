@@ -21,6 +21,7 @@ const Tensor *GetDynamicInputTensor(size_t ir_index, size_t relative_index) cons
 Tensor *MallocOutputTensor(size_t index, const StorageShape &shape, const StorageFormat &format, ge::DataType dtype)
 Tensor *MakeOutputRefInput(size_t output_index, size_t input_index) const
 const KernelArgs* MallocReadOnlyDevArgs(void *host_args, size_t args_size) const
+rtStream RequestAttachedStream(const ge::AscendString &key)
 void *MallocWorkSpace(size_t size)
 const Tensor *GetOutputTensor(size_t index) const
 ```

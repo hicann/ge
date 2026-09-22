@@ -23,9 +23,16 @@ class SinkOpArgsHandler : public gert::ArgsHandler {
 
   const gert::KernelArgs *MallocReadOnlyDevArgs(void *host_args, size_t args_size) override;
   const std::deque<gert::KernelArgs> &GetKernelArgs(gert::Placement placement) const override;
+  gert::AttachedStreamProvider *GetAttachedStreamProvider() override {
+    return attached_stream_provider_;
+  }
+  void SetAttachedStreamProvider(gert::AttachedStreamProvider *provider) {
+    attached_stream_provider_ = provider;
+  }
 
  private:
   CustomTaskInfo *task_info_;
+  gert::AttachedStreamProvider *attached_stream_provider_{nullptr};
 };
 
 }  // namespace ge
