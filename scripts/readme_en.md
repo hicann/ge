@@ -1,5 +1,7 @@
 # Graph Engine Personal Developer Toolchain Usage Guide
 
+English | [简体中文](./readme.md)
+
 GE Developer Toolchain is an automated script toolchain in graph engine designed for individual developers.
 
 Currently supports a series of common developer functions including container-based development environment preparation, automatic download/installation/configuration of build dependencies, code formatting, compilation, testing, code coverage checking, document generation, etc.

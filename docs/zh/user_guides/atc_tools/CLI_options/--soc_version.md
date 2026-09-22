@@ -29,13 +29,13 @@
 参数值查询方法如下：
 
 <!-- npu="950" id9 -->
-- 针对Ascend 950PR&950DT系列产品，在安装AI处理器的服务器执行**npu-smi info -t board -i **_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。
+- 针对Ascend 950PR&950DT系列产品，在安装AI处理器的服务器执行**npu-smi info -t board -i _id_** 命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。
 
-    其中，id为设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
+  其中，id为设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
 <!-- end id9 -->
 
 <!-- npu="A3" id8 -->
-- 针对Atlas A3系列产品，在安装AI处理器的服务器执行**npu-smi info -t board -i ***id*** -c **_chip\_id_命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。其中：
+- 针对Atlas A3系列产品，在安装AI处理器的服务器执行**npu-smi info -t board -i _id_ -c _chip\_id_** 命令进行查询，获取**Chip Name**和**NPU Name**信息，实际配置值为Chip Name\_NPU Name。例如**Chip Name**取值为Ascendxxx，**NPU Name**取值为1234，实际配置值为Ascendxxx\_1234。其中：
 
   - id：设备id，通过**npu-smi info -l**命令查出的NPU ID即为设备id。
 

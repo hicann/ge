@@ -1,5 +1,7 @@
 # 项目文档
 
+简体中文 | [English](./README_en.md)
+
 ## 目录结构
 
 ```tree
