@@ -513,9 +513,9 @@ def test_public_stub_hides_bridge_private_attr_readers():
     assert "get_attrs" not in custom_op.__all__
 
 
-def test_python_artifact_uses_bridge_abi_v1():
+def test_python_artifact_uses_bridge_abi_v2():
     artifact_utils = importlib.import_module("ge.custom_op._artifact_utils")
-    assert artifact_utils.BRIDGE_ABI_VERSION == 1
+    assert artifact_utils.BRIDGE_ABI_VERSION == 2
 
 
 def test_launch_info_owns_and_validates_fields():

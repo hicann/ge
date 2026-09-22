@@ -32,6 +32,7 @@
 #include "common/checker.h"
 #include "common/ge_common/debug/ge_log.h"
 #include "graph/custom_op/infer_meta.h"
+#include "exe_graph/runtime/host_cpu_op_execution_context.h"
 #include "graph/utils/ir_definitions_query.h"
 #include "graph/operator_factory.h"
 #include "pybind11/embed.h"
@@ -416,26 +417,17 @@ class PythonCustomOpPybindBridge {
   }
 
   graphStatus Execute(const PythonCustomOpBridgeHolder *holder, gert::EagerOpExecutionContext *ctx) {
-    if ((holder == nullptr) || (ctx == nullptr)) {
-      GELOGE(GRAPH_FAILED, "Python custom op bridge holder or context is null.");
-      return GRAPH_FAILED;
-    }
-    const auto prepare_ret = EnsureBridgeReady();
-    if (prepare_ret != SUCCESS) {
-      GELOGE(prepare_ret, "Prepare python custom op bridge failed.");
+    if (PrepareOpImplCall(holder, ctx) != SUCCESS) {
       return GRAPH_FAILED;
     }
     py::gil_scoped_acquire gil;
     try {
-      const bool created =
-          bridge_module_.attr("create_op_impl_holder")(holder->instance_id, holder->descriptor_key).cast<bool>();
-      if (!created) {
-        GELOGE(GRAPH_FAILED, "Ensure python custom op holder failed, descriptor key[%s], instance id[%s].",
-               holder->descriptor_key.c_str(), holder->instance_id.c_str());
+      if (!EnsureOpImplHolderCreated(holder)) {
         return GRAPH_FAILED;
       }
-      py::object result = bridge_module_.attr("call_execute")(
-          holder->instance_id, BuildPythonIrMeta(holder->ir_meta.get()), BuildPythonContext(ctx));
+      py::object result = bridge_module_.attr("call_execute")(holder->instance_id, py::str("device"),
+                                                              BuildPythonIrMeta(holder->ir_meta.get()),
+                                                              BuildPythonEagerExecutionContext(ctx));
       return TranslateStatusLike(result);
     } catch (const py::error_already_set &err) {
       GELOGE(GRAPH_FAILED, "Execute python custom op failed, descriptor key[%s], instance id[%s]: %s",
@@ -443,6 +435,30 @@ class PythonCustomOpPybindBridge {
       return GRAPH_FAILED;
     } catch (const std::exception &err) {
       GELOGE(GRAPH_FAILED, "Execute python custom op failed, descriptor key[%s], instance id[%s]: %s",
+             holder->descriptor_key.c_str(), holder->instance_id.c_str(), err.what());
+      return GRAPH_FAILED;
+    }
+  }
+
+  graphStatus HostExecute(const PythonCustomOpBridgeHolder *holder, gert::HostCpuOpExecutionContext *ctx) {
+    if (PrepareOpImplCall(holder, ctx) != SUCCESS) {
+      return GRAPH_FAILED;
+    }
+    py::gil_scoped_acquire gil;
+    try {
+      if (!EnsureOpImplHolderCreated(holder)) {
+        return GRAPH_FAILED;
+      }
+      py::object result = bridge_module_.attr("call_execute")(holder->instance_id, py::str("host"),
+                                                              BuildPythonIrMeta(holder->ir_meta.get()),
+                                                              BuildPythonHostExecutionContext(ctx));
+      return TranslateStatusLike(result);
+    } catch (const py::error_already_set &err) {
+      GELOGE(GRAPH_FAILED, "Execute python host custom op failed, descriptor key[%s], instance id[%s]: %s",
+             holder->descriptor_key.c_str(), holder->instance_id.c_str(), err.what());
+      return GRAPH_FAILED;
+    } catch (const std::exception &err) {
+      GELOGE(GRAPH_FAILED, "Execute python host custom op failed, descriptor key[%s], instance id[%s]: %s",
              holder->descriptor_key.c_str(), holder->instance_id.c_str(), err.what());
       return GRAPH_FAILED;
     }
@@ -496,22 +512,12 @@ class PythonCustomOpPybindBridge {
   }
 
   graphStatus DeclareLaunchArgs(const PythonCustomOpBridgeHolder *holder, gert::AnnotatedArgsContext *ctx) {
-    if ((holder == nullptr) || (ctx == nullptr)) {
-      GELOGE(GRAPH_FAILED, "Python custom op bridge holder or context is null.");
-      return GRAPH_FAILED;
-    }
-    const auto prepare_ret = EnsureBridgeReady();
-    if (prepare_ret != SUCCESS) {
-      GELOGE(prepare_ret, "Prepare python custom op bridge failed.");
+    if (PrepareOpImplCall(holder, ctx) != SUCCESS) {
       return GRAPH_FAILED;
     }
     py::gil_scoped_acquire gil;
     try {
-      const bool created =
-          bridge_module_.attr("create_op_impl_holder")(holder->instance_id, holder->descriptor_key).cast<bool>();
-      if (!created) {
-        GELOGE(GRAPH_FAILED, "Ensure python custom op holder failed, descriptor key[%s], instance id[%s].",
-               holder->descriptor_key.c_str(), holder->instance_id.c_str());
+      if (!EnsureOpImplHolderCreated(holder)) {
         return GRAPH_FAILED;
       }
       py::object result = bridge_module_.attr("call_declare_launch_args")(
@@ -528,23 +534,13 @@ class PythonCustomOpPybindBridge {
   }
 
   graphStatus Compile(const PythonCustomOpBridgeHolder *holder, gert::OpCompileContext *ctx) {
-    if ((holder == nullptr) || (ctx == nullptr)) {
-      GELOGE(GRAPH_FAILED, "Python custom op bridge holder or compile context is null.");
-      return GRAPH_FAILED;
-    }
-    const auto prepare_ret = EnsureBridgeReady();
-    if (prepare_ret != SUCCESS) {
-      GELOGE(prepare_ret, "Prepare python custom op bridge failed.");
+    if (PrepareOpImplCall(holder, ctx) != SUCCESS) {
       return GRAPH_FAILED;
     }
     py::gil_scoped_acquire gil;
     py::object compile_ctx = py::none();
     try {
-      const bool created =
-          bridge_module_.attr("create_op_impl_holder")(holder->instance_id, holder->descriptor_key).cast<bool>();
-      if (!created) {
-        GELOGE(GRAPH_FAILED, "Ensure python custom op holder failed, descriptor key[%s], instance id[%s].",
-               holder->descriptor_key.c_str(), holder->instance_id.c_str());
+      if (!EnsureOpImplHolderCreated(holder)) {
         return GRAPH_FAILED;
       }
       // Build and validate the canonical metadata before creating a borrowed
@@ -572,6 +568,29 @@ class PythonCustomOpPybindBridge {
   }
 
  private:
+  graphStatus PrepareOpImplCall(const PythonCustomOpBridgeHolder *holder, const void *ctx) {
+    if ((holder == nullptr) || (ctx == nullptr)) {
+      GELOGE(GRAPH_FAILED, "Python custom op bridge holder or context is null.");
+      return GRAPH_FAILED;
+    }
+    const auto prepare_ret = EnsureBridgeReady();
+    if (prepare_ret != SUCCESS) {
+      GELOGE(prepare_ret, "Prepare python custom op bridge failed.");
+      return GRAPH_FAILED;
+    }
+    return SUCCESS;
+  }
+
+  bool EnsureOpImplHolderCreated(const PythonCustomOpBridgeHolder *holder) {
+    const bool created =
+        bridge_module_.attr("create_op_impl_holder")(holder->instance_id, holder->descriptor_key).cast<bool>();
+    if (!created) {
+      GELOGE(GRAPH_FAILED, "Ensure python custom op holder failed, descriptor key[%s], instance id[%s].",
+             holder->descriptor_key.c_str(), holder->instance_id.c_str());
+    }
+    return created;
+  }
+
   Status CollectAndRegisterProtoDescriptors(const py::dict &descriptors,
                                             const PythonCustomOpRegistrar &registrar) const {
     const auto callbacks = GetCallbacks();
@@ -777,9 +796,15 @@ class PythonCustomOpPybindBridge {
     return result;
   }
 
-  static py::object BuildPythonContext(gert::EagerOpExecutionContext *ctx) {
+  static py::object BuildPythonEagerExecutionContext(gert::EagerOpExecutionContext *ctx) {
     py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
     return native_module.attr("_borrow_eager_op_execution_context")(py::capsule(ctx, "gert::EagerOpExecutionContext"));
+  }
+
+  static py::object BuildPythonHostExecutionContext(gert::HostCpuOpExecutionContext *ctx) {
+    py::module_ native_module = py::module_::import(kCustomOpNativeModuleName);
+    return native_module.attr("_borrow_host_cpu_op_execution_context")(
+        py::capsule(ctx, "gert::HostCpuOpExecutionContext"));
   }
 
   static void InvalidateBorrowedCompileContext(const py::object &ctx) noexcept {
@@ -835,6 +860,10 @@ class PythonCustomOpPybindBridge {
     callbacks.execute = [](const void *holder, gert::EagerOpExecutionContext *ctx) -> graphStatus {
       return PythonCustomOpPybindBridge::GetInstance().Execute(static_cast<const PythonCustomOpBridgeHolder *>(holder),
                                                                ctx);
+    };
+    callbacks.host_cpu_execute = [](const void *holder, gert::HostCpuOpExecutionContext *ctx) -> graphStatus {
+      return PythonCustomOpPybindBridge::GetInstance().HostExecute(
+          static_cast<const PythonCustomOpBridgeHolder *>(holder), ctx);
     };
     callbacks.declare_launch_args = [](const void *holder, gert::AnnotatedArgsContext *ctx) -> graphStatus {
       return PythonCustomOpPybindBridge::GetInstance().DeclareLaunchArgs(

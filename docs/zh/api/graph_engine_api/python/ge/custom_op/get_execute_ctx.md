@@ -6,12 +6,12 @@
 
 ## 功能说明
 
-获取当前`execute`的运行时执行上下文。通过返回的`EagerOpExecutionContext`可以查询输出`Tensor`、申请输出和workspace内存，并获取执行流句柄。
+获取当前`execute`的运行时执行上下文。
 
 ## 函数原型
 
 ```python
-get_execute_ctx() -> EagerOpExecutionContext
+get_execute_ctx() -> EagerOpExecutionContext | HostCpuOpExecutionContext
 ```
 
 ## 参数说明
@@ -22,7 +22,8 @@ get_execute_ctx() -> EagerOpExecutionContext
 
 | 类型 | 说明 |
 | :--- | :--- |
-| EagerOpExecutionContext | 当前`execute`的执行上下文。 |
+| [EagerOpExecutionContext](EagerOpExecutionContext/overview.md) | device kernel的执行上下文。 |
+| [HostCpuOpExecutionContext](HostCpuOpExecutionContext/overview.md) | host kernel的执行上下文。 |
 
 ## 调用示例
 
@@ -41,4 +42,4 @@ class AddPythonCustomOp:
 ## 约束说明
 
 - 仅可在当前`execute`调用栈内调用。
-- 返回的`EagerOpExecutionContext`只能在当前`execute`内使用；由其返回的`Tensor`也只能在当前`execute`内使用。
+- 返回的执行上下文只能在当前`execute`内使用；由其返回的`Tensor`也只能在当前`execute`内使用。

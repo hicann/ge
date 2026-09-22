@@ -567,7 +567,7 @@ TEST(UtestCustomOpCast, releases_runtime_lease_when_holder_creation_fails) {
   {
     PythonCustomOpAdapter adapter(execute_desc);
     ASSERT_TRUE(adapter.IsValid());
-    EXPECT_EQ(adapter.Execute(nullptr), GRAPH_FAILED);
+    EXPECT_EQ(adapter.Execute(static_cast<gert::EagerOpExecutionContext *>(nullptr)), GRAPH_FAILED);
   }
   EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(execute_desc.impl_descriptor_key));
 }

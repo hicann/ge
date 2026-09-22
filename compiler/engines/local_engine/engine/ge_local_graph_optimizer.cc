@@ -12,6 +12,8 @@
 #include "graph/debug/ge_op_types.h"
 #include "graph/compute_graph.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/utils/tensor_utils.h"
+#include "engines/local_engine/ops_kernel_store/ge_local_ops_kernel_calc_op_param.h"
 #include "framework/common/debug/ge_log.h"
 
 namespace ge {
@@ -64,7 +66,26 @@ ge::Status GeLocalGraphOptimizer::OptimizeFusedGraph(ge::ComputeGraph &graph) {
 }
 
 ge::Status GeLocalGraphOptimizer::OptimizeWholeGraph(ge::ComputeGraph &graph) {
-  (void)graph;
+  GELOGD("GeLocalGraphOptimizer OptimizeWholeGraph in.");
+  for (const auto &node : graph.GetAllNodes()) {
+    GE_CHECK_NOTNULL(node);
+    if (ge_local::kReuseInputOpTypes.count(node->GetType()) == 0U) {
+      continue;
+    }
+    // 与 CalcNodeOffsetByReuseInput 保持一致：按节点所属图判定动静态，保证幂等；
+    // 动态图中拆分出的静态子图（owner graph flag=false）正常设置。
+    const auto &owner_graph = node->GetOwnerComputeGraph();
+    if ((owner_graph == nullptr) || owner_graph->GetGraphUnknownFlag()) {
+      continue;
+    }
+    const auto &op_desc = node->GetOpDesc();
+    GE_CHECK_NOTNULL(op_desc);
+    const auto &output_desc = op_desc->MutableOutputDesc(0);
+    GE_CHECK_NOTNULL(output_desc);
+    ge::TensorUtils::SetReuseInput(*output_desc, true);
+    ge::TensorUtils::SetReuseInputIndex(*output_desc, 0U);
+    GELOGD("GeLocal Op %s type %s set reuse input in OptimizeWholeGraph.", node->GetNamePtr(), node->GetTypePtr());
+  }
   return SUCCESS;
 }
 

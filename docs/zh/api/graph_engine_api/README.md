@@ -1018,6 +1018,14 @@
       - [get\_output\_tensor](python/ge/custom_op/EagerOpExecutionContext/get_output_tensor.md)
       - [get\_stream](python/ge/custom_op/EagerOpExecutionContext/get_stream.md)
 
+    - [HostCpuOpExecutionContext](python/ge/custom_op/HostCpuOpExecutionContext/HostCpuOpExecutionContext.md)
+      - [简介](python/ge/custom_op/HostCpuOpExecutionContext/overview.md)
+      - [malloc\_output\_tensor](python/ge/custom_op/HostCpuOpExecutionContext/malloc_output_tensor.md)
+      - [make\_output\_ref\_input](python/ge/custom_op/HostCpuOpExecutionContext/make_output_ref_input.md)
+      - [get\_output\_tensor](python/ge/custom_op/HostCpuOpExecutionContext/get_output_tensor.md)
+
+    - [OpBackend](python/ge/custom_op/OpBackend.md)
+
     - [AnnotatedKernelArgs](python/ge/custom_op/AnnotatedKernelArgs/AnnotatedKernelArgs.md)
       - [简介](python/ge/custom_op/AnnotatedKernelArgs/overview.md)
       - [append\_input](python/ge/custom_op/AnnotatedKernelArgs/append_input.md)
@@ -1238,6 +1246,7 @@
     - [register\_decompose\_pass](python/ge/passes/register_decompose_pass.md)
     - [register\_fusion\_pass](python/ge/passes/register_fusion_pass.md)
     - [register\_op](python/ge/custom_op/register_op.md)
+    - [register\_kernel](python/ge/custom_op/register_kernel.md)
     - [register\_op\_impl](python/ge/custom_op/register_op_impl.md)
     - [compile](python/ge/custom_op/compile.md)
     - [declare\_launch\_args](python/ge/custom_op/declare_launch_args.md)

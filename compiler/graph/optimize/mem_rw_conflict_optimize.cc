@@ -102,6 +102,22 @@ Status MarkRefRelations(const ComputeGraphPtr &compute_graph) {
         is_ref = true;
       }
     }
+    // reuse_input 属性表达"输出复用第 reuse_input_index 个输入的内存"的地址共享关系。
+    // 仅填充映射表使 RW 类型分类为 kWriteable，从而触发 kReadOnlyConst + kWriteable =
+    // INSERT_IDENTITY；不设置 ATTR_NAME_REFERENCE，避免 Inplace/PrunePass/内存分配等
+    // 16+ 处消费该属性的逻辑产生不相关副作用。
+    const size_t output_num = op_desc->GetOutputsSize();
+    for (size_t i = 0U; i < output_num; ++i) {
+      const auto &output_desc = op_desc->GetOutputDesc(static_cast<uint32_t>(i));
+      bool reuse_input = false;
+      uint32_t reuse_input_index = 0U;
+      if ((TensorUtils::GetReuseInput(output_desc, reuse_input) != GRAPH_SUCCESS) || !reuse_input) {
+        continue;
+      }
+      (void)TensorUtils::GetReuseInputIndex(output_desc, reuse_input_index);
+      refs_output_2_input_[op_desc->GetName()].emplace(static_cast<uint32_t>(i), reuse_input_index);
+      refs_input_2_output_[op_desc->GetName()].emplace(reuse_input_index, static_cast<uint32_t>(i));
+    }
     if (is_ref) {
       AttrUtils::SetBool(op_desc, ATTR_NAME_REFERENCE, is_ref);
       GELOGI("Node %s is reference node, set attribute %s to be true.", node->GetName().c_str(),
@@ -859,6 +875,10 @@ Status CreateIdentityAndInsertBefore(const NodePtr &dst, const InDataAnchorPtr &
                                      const OutDataAnchorPtr &src_anchor) {
   auto identity_op = CreateIdentityOpDesc(src, src_anchor->GetIdx());
   GE_CHECK_NOTNULL(identity_op);
+  // 冲突隔离 Identity 不允许被后续优化 Pass 删除，否则冲突重新出现
+  // （与 mem_layout_conflict_util 的 SolveConflict 打标行为保持一致）。
+  (void)AttrUtils::SetBool(identity_op, ATTR_NAME_CANNOT_BE_DELETED, true);
+  (void)AttrUtils::SetBool(identity_op, ATTR_NO_NEED_CONSTANT_FOLDING, true);
   GE_ASSERT_NOTNULL(GraphUtils::InsertNodeBefore(dst_anchor, identity_op, kIdentityAnchorIndex, kIdentityAnchorIndex));
   GELOGI("Insert Identity %s between %s:%d and %s:%d to handle memory conflict.", identity_op->GetName().c_str(),
          src->GetName().c_str(), src_anchor->GetIdx(), dst->GetName().c_str(), dst_anchor->GetIdx());

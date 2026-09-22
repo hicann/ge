@@ -273,7 +273,7 @@ bool PythonCustomOpAdapter::HasCapability(CustomOpCapability capability) const {
 
 graphStatus PythonCustomOpAdapter::Execute(gert::EagerOpExecutionContext *ctx) {
   if (!HasCapability(CustomOpCapability::kEagerExecute)) {
-    return ReportUnsupported(CustomOpCapability::kEagerExecute, "Execute");
+    return ReportUnsupported(CustomOpCapability::kEagerExecute, "EagerExecute");
   }
   if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
       (holder_->GetCallbacks().execute == nullptr)) {
@@ -282,6 +282,19 @@ graphStatus PythonCustomOpAdapter::Execute(gert::EagerOpExecutionContext *ctx) {
     return GRAPH_FAILED;
   }
   return holder_->GetCallbacks().execute(holder_->GetHolder(), ctx);
+}
+
+graphStatus PythonCustomOpAdapter::Execute(gert::HostCpuOpExecutionContext *ctx) {
+  if (!HasCapability(CustomOpCapability::kHostCpuExecute)) {
+    return ReportUnsupported(CustomOpCapability::kHostCpuExecute, "HostCpuExecute");
+  }
+  if ((holder_ == nullptr) || (!holder_->IsValid()) || (holder_->GetHolder() == nullptr) ||
+      (holder_->GetCallbacks().host_cpu_execute == nullptr)) {
+    GELOGE(GRAPH_FAILED, "Python custom op adapter is invalid, descriptor key[%s], op type[%s].",
+           impl_descriptor_key_.c_str(), op_type_.c_str());
+    return GRAPH_FAILED;
+  }
+  return holder_->GetCallbacks().host_cpu_execute(holder_->GetHolder(), ctx);
 }
 
 graphStatus PythonCustomOpAdapter::DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) {

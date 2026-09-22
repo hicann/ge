@@ -84,6 +84,16 @@ bool IsHostCpuCustomOp(const OpDescPtr &op_desc) {
   return CustomOpFactory::IsExistOp(AscendString(op_desc->GetTypePtr()), OpBackend::kHostCPU);
 }
 
+bool IsCustomOpExecOnHostCpu(const OpDescPtr &op_desc) {
+  if ((op_desc == nullptr) || (op_desc->GetOpEngineName() != kEngineNameCustom) ||
+      (op_desc->GetOpKernelLibName() != kCustomOpKernelLibName) ||
+      !CustomOpFactory::IsExistOp(AscendString(op_desc->GetTypePtr()), OpBackend::kHostCPU)) {
+    return false;
+  }
+  std::string lowering_func;
+  return AttrUtils::GetStr(op_desc, kAttrLowingFunc, lowering_func) && (lowering_func == kHostCpuCustomOpLowerFunc);
+}
+
 bool IsControlV2Op(const std::string &op_type) {
   return kControlV2Types.count(op_type) > 0U;
 }
@@ -118,6 +128,11 @@ bool IsAnchorOp(const OpDescPtr &op_desc) {
   }
   if (op_desc->GetOpKernelLibName() == kGeLocalOpKernelLibName) {
     return kHostExecOp.count(op_desc->GetType()) > 0U;
+  }
+  if (IsCustomOpExecOnHostCpu(op_desc)) {
+    GELOGD("[HostcpuEngineUpdatePass]: custom op[%s] executes on host cpu, added as the anchor.",
+           op_desc->GetNamePtr());
+    return true;
   }
   return false;
 }

@@ -64,6 +64,7 @@ class PythonCustomOpImplHolder {
 };
 
 class PythonCustomOpAdapter final : public EagerExecuteOp,
+                                    public HostCpuExecuteOp,
                                     public AnnotatedArgsOp,
                                     public CompilableOp,
                                     public ShapeInferOp,
@@ -79,6 +80,7 @@ class PythonCustomOpAdapter final : public EagerExecuteOp,
   bool HasCapability(CustomOpCapability capability) const override;
 
   graphStatus Execute(gert::EagerOpExecutionContext *ctx) override;
+  graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override;
   graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override;
   graphStatus Compile(gert::OpCompileContext *ctx) override;
   graphStatus InferShape(gert::InferShapeContext *ctx) override;

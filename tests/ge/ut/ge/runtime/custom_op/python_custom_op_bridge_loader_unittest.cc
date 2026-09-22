@@ -86,17 +86,23 @@ namespace {
 constexpr const char *kMultiProtoFailure = "multi_proto_failure";
 constexpr const char *kAdapterFailure = "adapter_failure";
 constexpr const char *kSuccess = "success";
+constexpr const char *kDualBackendSuccess = "dual_backend_success";
+constexpr const char *kHostCompileSuccess = "host_compile_success";
 constexpr const char *kCppProtoImpl = "cpp_proto_impl";
 
 constexpr const char *kMultiProtoOp = "PythonLoaderMultiProtoRollbackUt";
 constexpr const char *kAdapterOpA = "PythonLoaderAdapterRollbackAUt";
 constexpr const char *kAdapterOpB = "PythonLoaderAdapterRollbackBUt";
 constexpr const char *kSuccessOp = "PythonLoaderSuccessUt";
+constexpr const char *kDualBackendOp = "PythonLoaderDualBackendUt";
+constexpr const char *kHostCompileOp = "PythonLoaderHostCompileUt";
 constexpr const char *kCppProtoOp = "PythonLoaderCppProtoOwnershipUt";
 
 constexpr const char *kAdapterImplKeyA = "loader_ut:adapter_impl_a";
 constexpr const char *kAdapterImplKeyB = "loader_ut:adapter_impl_b";
 constexpr const char *kSuccessImplKey = "loader_ut:success_impl";
+constexpr const char *kDualBackendImplKey = "loader_ut:dual_backend_impl";
+constexpr const char *kHostCompileImplKey = "loader_ut:host_compile_impl";
 constexpr const char *kCppProtoImplKey = "loader_ut:cpp_proto_impl";
 
 constexpr const char *kFakeBridgeArtifactName = "libge_python_custom_op_loader_ut_fake.so";
@@ -174,7 +180,7 @@ class ScopedArtifactTree {
         "  \"platform\": \"" +
         python_artifact::CurrentPlatformTag() +
         "\",\n"
-        "  \"bridge_abi\": 1,\n"
+        "  \"bridge_abi\": 2,\n"
         "  \"artifacts\": {\n"
         "    \"bridge\": \"" +
         kFakeBridgeArtifactName +
@@ -294,11 +300,12 @@ void ResetFakeBridgeCountersIfLoaded() {
 }
 
 std::vector<AscendString> AllAdapterOpTypes() {
-  return {AscendString(kAdapterOpA), AscendString(kAdapterOpB), AscendString(kSuccessOp), AscendString(kCppProtoOp)};
+  return {AscendString(kAdapterOpA),    AscendString(kAdapterOpB),    AscendString(kSuccessOp),
+          AscendString(kDualBackendOp), AscendString(kHostCompileOp), AscendString(kCppProtoOp)};
 }
 
 std::vector<std::string> AllProtoOpTypes() {
-  return {kMultiProtoOp, kAdapterOpA, kAdapterOpB, kSuccessOp, kCppProtoOp};
+  return {kMultiProtoOp, kAdapterOpA, kAdapterOpB, kSuccessOp, kDualBackendOp, kHostCompileOp, kCppProtoOp};
 }
 
 void ClearKnownRegistrationState() {
@@ -431,6 +438,51 @@ TEST_F(PythonCustomOpBridgeLoaderTest, direct_load_registers_each_call_and_unloa
   PythonCustomOpAdapterCallbacks callbacks;
   const auto desc = MakeAdapterDescriptor(kSuccessOp, kSuccessImplKey);
   EXPECT_FALSE(PythonCustomOpImplRuntimeRegistry::Acquire(desc, callbacks));
+}
+
+TEST_F(PythonCustomOpBridgeLoaderTest, registers_dual_backend_creators_with_one_adapter) {
+  SetScenario(kDualBackendSuccess);
+
+  ASSERT_EQ(LoadPythonCustomOps(), SUCCESS);
+  auto *device_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(kDualBackendOp), OpBackend::kDevice);
+  auto *host_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(kDualBackendOp), OpBackend::kHostCPU);
+  ASSERT_NE(device_op, nullptr);
+  ASSERT_NE(host_op, nullptr);
+  EXPECT_EQ(device_op, host_op);
+
+  auto *eager_execute = CustomOpCast<EagerExecuteOp>(device_op);
+  auto *host_execute = CustomOpCast<HostCpuExecuteOp>(host_op);
+  ASSERT_NE(eager_execute, nullptr);
+  ASSERT_NE(host_execute, nullptr);
+  EXPECT_EQ(eager_execute->Execute(nullptr), GRAPH_SUCCESS);
+  EXPECT_EQ(host_execute->Execute(nullptr), GRAPH_SUCCESS);
+
+  PythonCustomOpAdapterCallbacks callbacks;
+  auto desc = MakeAdapterDescriptor(kDualBackendOp, kDualBackendImplKey);
+  AddCustomOpCapability(desc.capabilities, CustomOpCapability::kHostCpuExecute);
+  ASSERT_TRUE(PythonCustomOpImplRuntimeRegistry::Acquire(desc, callbacks));
+  EXPECT_NE(callbacks.execute, nullptr);
+  EXPECT_NE(callbacks.host_cpu_execute, nullptr);
+  PythonCustomOpImplRuntimeRegistry::Release(desc);
+
+  UnloadPythonCustomOps();
+  EXPECT_FALSE(CustomOpFactory::IsExistOp(AscendString(kDualBackendOp)));
+  EXPECT_FALSE(OperatorFactory::IsExistOp(kDualBackendOp));
+}
+
+TEST_F(PythonCustomOpBridgeLoaderTest, does_not_register_device_creator_for_common_compile_capability) {
+  SetScenario(kHostCompileSuccess);
+
+  ASSERT_EQ(LoadPythonCustomOps(), SUCCESS);
+  EXPECT_FALSE(CustomOpFactory::IsExistOp(AscendString(kHostCompileOp), OpBackend::kDevice));
+  auto *host_op = CustomOpFactory::CreateOrGetCustomOp(AscendString(kHostCompileOp), OpBackend::kHostCPU);
+  ASSERT_NE(host_op, nullptr);
+  EXPECT_NE(CustomOpCast<CompilableOp>(host_op), nullptr);
+  EXPECT_NE(CustomOpCast<HostCpuExecuteOp>(host_op), nullptr);
+
+  UnloadPythonCustomOps();
+  EXPECT_FALSE(CustomOpFactory::IsExistOp(AscendString(kHostCompileOp)));
+  EXPECT_FALSE(OperatorFactory::IsExistOp(kHostCompileOp));
 }
 
 TEST_F(PythonCustomOpBridgeLoaderTest, unload_clears_runtime_registry_with_active_runtime_lease) {

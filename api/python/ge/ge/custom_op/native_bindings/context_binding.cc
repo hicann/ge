@@ -11,6 +11,7 @@
 #include "custom_op_bindings.h"
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"
+#include "exe_graph/runtime/host_cpu_op_execution_context.h"
 #include "exe_graph/runtime/op_compile_context.h"
 #include "graph/ascend_string.h"
 #include "platform/platform_infos_def.h"
@@ -142,6 +143,102 @@ class BorrowedEagerOpExecutionContext {
   }
 
   gert::EagerOpExecutionContext *ctx_{nullptr};
+  std::shared_ptr<bool> valid_;
+};
+
+class BorrowedHostCpuOpExecutionContext {
+ public:
+  explicit BorrowedHostCpuOpExecutionContext(gert::HostCpuOpExecutionContext *ctx)
+      : ctx_(ctx), valid_(std::make_shared<bool>(true)) {}
+
+  py::object GetInputTensor(size_t index) const {
+    return CastRequiredTensor(Get()->GetInputTensor(index), "Failed to get host input tensor");
+  }
+
+  size_t GetInputNum() const {
+    return Get()->GetComputeNodeInputNum();
+  }
+
+  size_t GetDynamicInputNum(size_t ir_index) const {
+    const auto *instance_info = Get()->GetIrInputInstanceInfo(ir_index);
+    if (instance_info == nullptr) {
+      throw std::runtime_error("Failed to get host dynamic input instance info");
+    }
+    return instance_info->GetInstanceNum();
+  }
+
+  py::object GetAttrs() const {
+    const auto *attrs = Get()->GetAttrs();
+    if (attrs == nullptr) {
+      throw std::runtime_error("Failed to get host runtime attrs");
+    }
+    return py::cast(BorrowedRuntimeAttrs(attrs, valid_));
+  }
+
+  py::object GetRequiredInputTensor(size_t ir_index) const {
+    return CastRequiredTensor(Get()->GetRequiredInputTensor(ir_index), "Failed to get host required input tensor");
+  }
+
+  py::object GetOptionalInputTensor(size_t ir_index) const {
+    const auto *tensor = Get()->GetOptionalInputTensor(ir_index);
+    return (tensor == nullptr) ? py::none() : CastTensor(tensor);
+  }
+
+  py::object GetDynamicInputTensor(size_t ir_index, size_t relative_index) const {
+    return CastRequiredTensor(Get()->GetDynamicInputTensor(ir_index, relative_index),
+                              "Failed to get host dynamic input tensor");
+  }
+
+  py::object GetOutputTensor(size_t index) const {
+    return CastRequiredTensor(Get()->GetOutputTensor(index), "Failed to get host output tensor");
+  }
+
+  py::object MakeOutputRefInput(size_t output_index, size_t input_index) const {
+    auto *tensor = Get()->MakeOutputRefInput(output_index, input_index);
+    if (tensor == nullptr) {
+      throw std::runtime_error("Failed to make host output reference input");
+    }
+    return py::cast(runtime_native::NativeTensor::Borrow(tensor, valid_));
+  }
+
+  py::object MallocOutputTensor(size_t index, const py::object &shape_obj, const py::object &format_obj,
+                                int32_t dtype) const {
+    const auto &shape = shape_obj.cast<const runtime_native::NativeStorageShape &>();
+    const auto &format = format_obj.cast<const runtime_native::NativeStorageFormat &>();
+    auto *tensor = Get()->MallocOutputTensor(index, *shape.Get(), *format.Get(), static_cast<ge::DataType>(dtype));
+    if (tensor == nullptr) {
+      throw std::runtime_error("Failed to malloc host output tensor");
+    }
+    return py::cast(runtime_native::NativeTensor::Borrow(tensor, valid_));
+  }
+
+  void Invalidate() {
+    if (valid_ != nullptr) {
+      *valid_ = false;
+    }
+    ctx_ = nullptr;
+  }
+
+ private:
+  gert::HostCpuOpExecutionContext *Get() const {
+    if ((valid_ == nullptr) || (!(*valid_)) || (ctx_ == nullptr)) {
+      throw std::runtime_error("Borrowed host native object has expired");
+    }
+    return ctx_;
+  }
+
+  py::object CastRequiredTensor(const gert::Tensor *tensor, const char *message) const {
+    if (tensor == nullptr) {
+      throw std::runtime_error(message);
+    }
+    return CastTensor(tensor);
+  }
+
+  py::object CastTensor(const gert::Tensor *tensor) const {
+    return py::cast(runtime_native::NativeTensor::Borrow(const_cast<gert::Tensor *>(tensor), valid_));
+  }
+
+  gert::HostCpuOpExecutionContext *ctx_{nullptr};
   std::shared_ptr<bool> valid_;
 };
 
@@ -377,6 +474,11 @@ BorrowedOpCompileContext BorrowOpCompileContext(const py::capsule &ctx_handle) {
 BorrowedEagerOpExecutionContext BorrowEagerOpExecutionContext(const py::capsule &ctx_handle) {
   return BorrowedEagerOpExecutionContext(
       GetContextFromCapsule<gert::EagerOpExecutionContext>(ctx_handle, "gert::EagerOpExecutionContext"));
+}
+
+BorrowedHostCpuOpExecutionContext BorrowHostCpuOpExecutionContext(const py::capsule &ctx_handle) {
+  return BorrowedHostCpuOpExecutionContext(
+      GetContextFromCapsule<gert::HostCpuOpExecutionContext>(ctx_handle, "gert::HostCpuOpExecutionContext"));
 }
 
 void EnsureActive(const std::shared_ptr<bool> &active) {
@@ -661,6 +763,28 @@ void BindEagerOpExecutionContext(py::module_ &m) {
       .def("get_stream", &BorrowedEagerOpExecutionContext::GetStream)
       .def("_invalidate", &BorrowedEagerOpExecutionContext::Invalidate);
   m.def("_borrow_eager_op_execution_context", &BorrowEagerOpExecutionContext, py::arg("ctx_handle"));
+}
+
+void BindHostCpuOpExecutionContext(py::module_ &m) {
+  py::class_<BorrowedHostCpuOpExecutionContext>(m, "HostCpuOpExecutionContext",
+                                                "Borrowed view of gert::HostCpuOpExecutionContext")
+      .def("_get_input_tensor", &BorrowedHostCpuOpExecutionContext::GetInputTensor, py::arg("index"))
+      .def("_get_input_num", &BorrowedHostCpuOpExecutionContext::GetInputNum)
+      .def("_get_dynamic_input_num", &BorrowedHostCpuOpExecutionContext::GetDynamicInputNum, py::arg("ir_index"))
+      .def("_get_attrs", &BorrowedHostCpuOpExecutionContext::GetAttrs)
+      .def("_get_required_input_tensor", &BorrowedHostCpuOpExecutionContext::GetRequiredInputTensor,
+           py::arg("ir_index"))
+      .def("_get_optional_input_tensor", &BorrowedHostCpuOpExecutionContext::GetOptionalInputTensor,
+           py::arg("ir_index"))
+      .def("_get_dynamic_input_tensor", &BorrowedHostCpuOpExecutionContext::GetDynamicInputTensor, py::arg("ir_index"),
+           py::arg("relative_index"))
+      .def("malloc_output_tensor", &BorrowedHostCpuOpExecutionContext::MallocOutputTensor, py::arg("index"),
+           py::arg("shape"), py::arg("format"), py::arg("dtype"))
+      .def("make_output_ref_input", &BorrowedHostCpuOpExecutionContext::MakeOutputRefInput, py::arg("output_index"),
+           py::arg("input_index"))
+      .def("get_output_tensor", &BorrowedHostCpuOpExecutionContext::GetOutputTensor, py::arg("index"))
+      .def("_invalidate", &BorrowedHostCpuOpExecutionContext::Invalidate);
+  m.def("_borrow_host_cpu_op_execution_context", &BorrowHostCpuOpExecutionContext, py::arg("ctx_handle"));
 }
 
 void BindAnnotatedArgsContext(py::module_ &m) {

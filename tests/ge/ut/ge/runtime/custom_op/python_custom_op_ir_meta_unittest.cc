@@ -43,6 +43,12 @@ graphStatus ExecuteMockPythonCustomOp(const void *holder, gert::EagerOpExecution
   return (holder != nullptr) ? GRAPH_SUCCESS : GRAPH_FAILED;
 }
 
+graphStatus ExecuteHostMockPythonCustomOp(const void *holder, gert::HostCpuOpExecutionContext *ctx) {
+  (void)ctx;
+  EXPECT_NE(holder, nullptr);
+  return (holder != nullptr) ? GRAPH_SUCCESS : GRAPH_FAILED;
+}
+
 graphStatus DeclareMockPythonCustomOp(const void *holder, gert::AnnotatedArgsContext *ctx) {
   return ((holder != nullptr) && (ctx != nullptr)) ? GRAPH_SUCCESS : GRAPH_FAILED;
 }
@@ -166,7 +172,7 @@ TEST(PythonCustomOpAdapter, forwards_execute_without_ir_meta_pod) {
   {
     PythonCustomOpAdapter adapter(desc);
     ASSERT_TRUE(adapter.IsValid());
-    EXPECT_EQ(adapter.Execute(nullptr), GRAPH_SUCCESS);
+    EXPECT_EQ(adapter.Execute(static_cast<gert::EagerOpExecutionContext *>(nullptr)), GRAPH_SUCCESS);
   }
   EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
 }
@@ -186,9 +192,45 @@ TEST(PythonCustomOpAdapter, keeps_legacy_execute_without_registered_ir) {
   {
     PythonCustomOpAdapter adapter(desc);
     ASSERT_TRUE(adapter.IsValid());
-    EXPECT_EQ(adapter.Execute(nullptr), GRAPH_SUCCESS);
+    EXPECT_EQ(adapter.Execute(static_cast<gert::EagerOpExecutionContext *>(nullptr)), GRAPH_SUCCESS);
   }
   EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
+}
+
+TEST(PythonCustomOpAdapter, forwards_host_execute_without_ir_meta_pod) {
+  PythonCustomOpAdapterDescriptor desc;
+  desc.impl_descriptor_key = "python_adapter_host_without_ir_meta";
+  desc.op_type = "PythonCustomOpHostAdapterUt";
+  AddCustomOpCapability(desc.capabilities, CustomOpCapability::kHostCpuExecute);
+
+  PythonCustomOpAdapterCallbacks callbacks;
+  callbacks.create_impl_holder = CreateMockPythonCustomOpHolder;
+  callbacks.destroy_impl_holder = DestroyMockPythonCustomOpHolder;
+  callbacks.host_cpu_execute = ExecuteHostMockPythonCustomOp;
+
+  ASSERT_TRUE(PythonCustomOpImplRuntimeRegistry::Register(desc, callbacks));
+  {
+    PythonCustomOpAdapter adapter(desc);
+    ASSERT_TRUE(adapter.IsValid());
+    EXPECT_EQ(adapter.Execute(static_cast<gert::HostCpuOpExecutionContext *>(nullptr)), GRAPH_SUCCESS);
+    EXPECT_EQ(adapter.Execute(static_cast<gert::EagerOpExecutionContext *>(nullptr)), GRAPH_FAILED);
+  }
+  EXPECT_TRUE(PythonCustomOpImplRuntimeRegistry::Unregister(desc.impl_descriptor_key));
+}
+
+TEST(PythonCustomOpAdapter, validates_host_execute_callback_by_capability) {
+  PythonCustomOpAdapterDescriptor desc;
+  desc.impl_descriptor_key = "python_adapter_host_callback";
+  desc.op_type = "PythonCustomOpHostCallbackUt";
+  AddCustomOpCapability(desc.capabilities, CustomOpCapability::kHostCpuExecute);
+
+  PythonCustomOpAdapterCallbacks callbacks;
+  callbacks.create_impl_holder = CreateMockPythonCustomOpHolder;
+  callbacks.destroy_impl_holder = DestroyMockPythonCustomOpHolder;
+  EXPECT_FALSE(callbacks.IsValid(desc.capabilities));
+
+  callbacks.host_cpu_execute = ExecuteHostMockPythonCustomOp;
+  EXPECT_TRUE(callbacks.IsValid(desc.capabilities));
 }
 
 TEST(PythonCustomOpAdapter, validates_annotated_args_callback_by_capability) {

@@ -106,7 +106,7 @@ TEST_F(HostCpuOpExecutionContextUT, MallocOutputTensorOk) {
   EXPECT_EQ(output_tensor->GetStorageFormat(), ge::FORMAT_ND);
   EXPECT_EQ(output_tensor->GetDataType(), ge::DT_FLOAT16);
   EXPECT_EQ(output_tensor->GetPlacement(), kOnHost);
-  EXPECT_EQ(output_tensor->GetSize(), 512UL);
+  EXPECT_EQ(output_tensor->GetSize(), 48UL);
   EXPECT_NE(output_tensor->GetAddr(), nullptr);
 }
 

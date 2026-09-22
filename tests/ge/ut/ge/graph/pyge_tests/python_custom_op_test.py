@@ -65,7 +65,7 @@ def _write_custom_op_module(
     return file_path
 
 
-class _FakeEagerContext:
+class _FakeExecuteContext:
     def __init__(self, inputs=None):
         self.inputs = list(inputs or [])
         self.invalidated = False
@@ -183,6 +183,254 @@ def test_register_op_impl_exports_descriptor_dict():
     assert descriptors[0]["class_name"] == "AddCustom"
     assert descriptors[0]["interfaces"] == ["eager_execute"]
     assert AddCustom.__ge_op_impl_descriptor__.to_bridge_dict() == descriptors[0]
+
+
+def test_op_backend_is_lazily_exported():
+    assert custom_op.OpBackend.DEVICE.value == "device"
+    assert custom_op.OpBackend.HOST.value == "host"
+
+
+def test_register_kernel_collects_same_named_execute_by_backend():
+    called = []
+
+    @custom_op.register_op_impl(op_type="DualKernelCustom")
+    class DualKernelCustom:
+        @custom_op.register_kernel(backend=custom_op.OpBackend.DEVICE)
+        def execute(self, x) -> None:
+            called.append(("device", x))
+
+        @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+        def execute(self, x) -> None:  # noqa: F811
+            called.append(("host", x))
+
+    descriptor = DualKernelCustom.__ge_op_impl_descriptor__
+    assert descriptor.interfaces == ["eager_execute", "host_cpu_execute"]
+    assert "kernel_backends" not in descriptor.to_bridge_dict()
+
+    instance_id = "DualKernelCustom#1"
+    assert bridge.create_op_impl_holder(instance_id, descriptor.descriptor_key)
+    ir_meta = {
+        "op_type": "DualKernelCustom",
+        "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+        "attrs": [],
+        "outputs": [],
+    }
+    bridge.call_execute(instance_id, "device", ir_meta, _FakeExecuteContext())
+    bridge.call_execute(instance_id, "host", ir_meta, _FakeExecuteContext())
+    assert called == [("device", ("required", 0)), ("host", ("required", 0))]
+
+
+def test_register_kernel_host_only_exposes_host_cpu_interface():
+    @custom_op.register_op_impl(op_type="HostOnlyKernelCustom")
+    class HostOnlyKernelCustom:
+        @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+        def execute(self, x) -> None:
+            pass
+
+    descriptor = HostOnlyKernelCustom.__ge_op_impl_descriptor__
+    assert descriptor.interfaces == ["host_cpu_execute"]
+    assert "kernel_backends" not in descriptor.to_bridge_dict()
+
+    instance_id = "HostOnlyKernelCustom#1"
+    assert bridge.create_op_impl_holder(instance_id, descriptor.descriptor_key)
+    ctx = _FakeExecuteContext()
+    with pytest.raises(KeyError, match="backend is not registered: device"):
+        bridge.call_execute(
+            instance_id,
+            "device",
+            {
+                "op_type": "HostOnlyKernelCustom",
+                "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+                "attrs": [],
+                "outputs": [],
+            },
+            ctx,
+        )
+    assert ctx.invalidated is True
+
+
+def test_kernel_binding_resolves_source_location_on_demand():
+    @custom_op.register_op_impl(op_type="KernelBindingSourceLocationCustom")
+    class KernelBindingSourceLocationCustom:
+        @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+        def execute(self, x) -> None:
+            pass
+
+    binding = (
+        KernelBindingSourceLocationCustom.__ge_op_impl_descriptor__.kernel_bindings[
+            custom_op.OpBackend.HOST
+        ]
+    )
+    function = getattr(binding.function, "__func__", binding.function)
+
+    assert not hasattr(binding, "source_file")
+    assert not hasattr(binding, "source_line")
+    assert binding.source_location == (
+        f"{function.__code__.co_filename}:{function.__code__.co_firstlineno}"
+    )
+
+
+def test_register_kernel_rejects_duplicate_backend():
+    with pytest.raises(TypeError, match="backend 'host' is already registered"):
+
+        @custom_op.register_op_impl(op_type="DuplicateKernelCustom")
+        class DuplicateKernelCustom:
+            @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+            def execute(self, x) -> None:
+                pass
+
+            @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+            def execute(self, x) -> None:  # noqa: F811
+                pass
+
+
+@pytest.mark.parametrize(
+    "backend",
+    [1, "cpu", "device", "host", None],
+)
+def test_register_kernel_rejects_invalid_backend(backend):
+    with pytest.raises(TypeError, match="backend must be an OpBackend"):
+        custom_op.register_kernel(backend=backend)
+
+
+def test_register_kernel_rejects_non_execute_method():
+    with pytest.raises(TypeError, match="can only decorate execute"):
+
+        class InvalidKernelMethod:
+            @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+            def run(self, x) -> None:
+                pass
+
+
+@pytest.mark.parametrize("method_kind", ["staticmethod", "classmethod"])
+def test_register_kernel_supports_static_and_class_methods(method_kind):
+    called = []
+
+    @custom_op.register_op_impl(op_type="StaticOrClassKernelCustom")
+    class StaticOrClassKernelCustom:
+        if method_kind == "staticmethod":
+
+            @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+            @staticmethod
+            def execute(x) -> None:
+                called.append(x)
+        else:
+
+            @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+            @classmethod
+            def execute(cls, x) -> None:
+                called.append((cls.__name__, x))
+
+    descriptor = StaticOrClassKernelCustom.__ge_op_impl_descriptor__
+    assert descriptor.interfaces == ["host_cpu_execute"]
+
+    instance_id = "StaticOrClassKernelCustom#1"
+    ir_meta = {
+        "op_type": "StaticOrClassKernelCustom",
+        "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+        "attrs": [],
+        "outputs": [],
+    }
+    assert bridge.validate_op_impl_descriptor(descriptor.descriptor_key, ir_meta)
+    assert bridge.create_op_impl_holder(instance_id, descriptor.descriptor_key)
+    ctx = _FakeExecuteContext()
+    assert bridge.call_execute(instance_id, "host", ir_meta, ctx) is None
+    if method_kind == "staticmethod":
+        assert called == [("required", 0)]
+    else:
+        assert called == [("StaticOrClassKernelCustom", ("required", 0))]
+    assert ctx.invalidated is True
+
+
+def test_register_kernel_supports_mixed_method_kinds():
+    called = []
+
+    @custom_op.register_op_impl(op_type="MixedKindKernelCustom")
+    class MixedKindKernelCustom:
+        @custom_op.register_kernel(backend=custom_op.OpBackend.DEVICE)
+        def execute(self, x) -> None:
+            called.append(("instance", x))
+
+        @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+        @staticmethod
+        def execute(x) -> None:  # noqa: F811
+            called.append(("static", x))
+
+    descriptor = MixedKindKernelCustom.__ge_op_impl_descriptor__
+    assert descriptor.interfaces == ["eager_execute", "host_cpu_execute"]
+
+    instance_id = "MixedKindKernelCustom#1"
+    ir_meta = {
+        "op_type": "MixedKindKernelCustom",
+        "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
+        "attrs": [],
+        "outputs": [],
+    }
+    assert bridge.validate_op_impl_descriptor(descriptor.descriptor_key, ir_meta)
+    assert bridge.create_op_impl_holder(instance_id, descriptor.descriptor_key)
+    bridge.call_execute(instance_id, "device", ir_meta, _FakeExecuteContext())
+    bridge.call_execute(instance_id, "host", ir_meta, _FakeExecuteContext())
+    assert called == [
+        ("instance", ("required", 0)),
+        ("static", ("required", 0)),
+    ]
+
+
+@pytest.mark.parametrize("wrapper", [staticmethod, classmethod])
+def test_register_kernel_rejects_inner_position(wrapper):
+    with pytest.raises(TypeError, match="outermost decorator"):
+
+        @custom_op.register_op_impl(op_type="InnerOrderKernelCustom")
+        class InnerOrderKernelCustom:
+            @wrapper
+            @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+            def execute(x) -> None:
+                pass
+
+
+def test_register_kernel_rejects_non_function_descriptor():
+    class CallableObj:
+        def __call__(self, x) -> None:
+            pass
+
+    with pytest.raises(TypeError, match="expects an ordinary function"):
+
+        class InvalidKernelDescriptor:
+            execute = custom_op.register_kernel(backend=custom_op.OpBackend.HOST)(
+                CallableObj()
+            )
+
+
+@pytest.mark.parametrize("definition_order", ["before", "after"])
+def test_register_kernel_rejects_mixed_decorated_and_undecorated_execute(
+    definition_order,
+):
+    if definition_order == "before":
+        source = """
+@custom_op.register_op_impl(op_type='MixedKernelCustom')
+class MixedKernelCustom:
+    def execute(self, x) -> None:
+        pass
+
+    @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+    def execute(self, x) -> None:
+        pass
+"""
+        match = "earlier execute implementation"
+    else:
+        source = """
+@custom_op.register_op_impl(op_type='MixedKernelCustom')
+class MixedKernelCustom:
+    @custom_op.register_kernel(backend=custom_op.OpBackend.HOST)
+    def execute(self, x) -> None:
+        pass
+
+    def execute(self, x) -> None:
+        pass
+"""
+        match = "every execute implementation"
+    with pytest.raises(TypeError, match=match):
+        exec(source, {"custom_op": custom_op})
 
 
 def test_schema_bound_execute_class_definition_is_supported():
@@ -374,7 +622,7 @@ def test_bridge_custom_op_holder_and_execute():
 
     instance_id = "AddCustom#1"
     descriptor_key = descriptors[0]["descriptor_key"]
-    ctx = _FakeEagerContext()
+    ctx = _FakeExecuteContext()
     assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
     ir_meta = {
         "op_type": "AddCustom",
@@ -382,12 +630,12 @@ def test_bridge_custom_op_holder_and_execute():
         "attrs": [{"name": "alpha", "type": "VT_FLOAT"}],
         "outputs": [{"name": "y", "kind": 0}],
     }
-    assert bridge.call_execute(instance_id, ir_meta, ctx) is None
+    assert bridge.call_execute(instance_id, "device", ir_meta, ctx) is None
     assert ctx.invalidated is True
     assert bridge.destroy_op_impl_holder(instance_id) is True
 
 
-def test_bridge_call_execute_rejects_return_value():
+def test_bridge_call_execute_device_rejects_return_value():
     @custom_op.register_op_impl(op_type="ReturnCustom")
     class ReturnCustom:
         def execute(self) -> None:
@@ -395,11 +643,12 @@ def test_bridge_call_execute_rejects_return_value():
 
     descriptor_key = bridge.load_and_get_op_impl_descriptors()[0]["descriptor_key"]
     instance_id = "ReturnCustom#1"
-    ctx = _FakeEagerContext()
+    ctx = _FakeExecuteContext()
     assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
     with pytest.raises(TypeError, match="execute must return None"):
         bridge.call_execute(
             instance_id,
+            "device",
             {"op_type": "ReturnCustom", "inputs": [], "attrs": [], "outputs": []},
             ctx,
         )
@@ -408,7 +657,27 @@ def test_bridge_call_execute_rejects_return_value():
 
 
 @pytest.mark.parametrize("method_kind", ["staticmethod", "classmethod"])
-def test_bridge_call_execute_binds_schema_inputs_and_attrs(method_kind):
+def test_bare_static_and_class_execute_map_to_device_kernel(method_kind):
+    @custom_op.register_op_impl(op_type="BareStaticOrClassCustom")
+    class BareStaticOrClassCustom:
+        if method_kind == "staticmethod":
+
+            @staticmethod
+            def execute(x) -> None:
+                pass
+        else:
+
+            @classmethod
+            def execute(cls, x) -> None:
+                pass
+
+    descriptor = BareStaticOrClassCustom.__ge_op_impl_descriptor__
+    assert list(descriptor.kernel_bindings) == [custom_op.OpBackend.DEVICE]
+    assert descriptor.interfaces == ["eager_execute"]
+
+
+@pytest.mark.parametrize("method_kind", ["staticmethod", "classmethod"])
+def test_bridge_call_execute_device_binds_schema_inputs_and_attrs(method_kind):
     called = []
 
     @custom_op.register_op_impl(op_type="SchemaBoundCustom")
@@ -428,7 +697,7 @@ def test_bridge_call_execute_binds_schema_inputs_and_attrs(method_kind):
 
     descriptor_key = bridge.load_and_get_op_impl_descriptors()[0]["descriptor_key"]
     instance_id = "SchemaBoundCustom#1"
-    ctx = _FakeEagerContext()
+    ctx = _FakeExecuteContext()
     ir_meta = {
         "op_type": "SchemaBoundCustom",
         "inputs": [
@@ -445,7 +714,7 @@ def test_bridge_call_execute_binds_schema_inputs_and_attrs(method_kind):
 
     assert bridge.validate_op_impl_descriptor(descriptor_key, ir_meta) is True
     assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
-    assert bridge.call_execute(instance_id, ir_meta, ctx) is None
+    assert bridge.call_execute(instance_id, "device", ir_meta, ctx) is None
     assert called == [
         (
             ("required", 0),
@@ -533,7 +802,7 @@ def test_bridge_validate_op_impl_descriptor_rejects_execute_return_annotation():
         )
 
 
-def test_bridge_call_execute_supports_ir_outputs():
+def test_bridge_call_execute_device_supports_ir_outputs():
     called = []
 
     @custom_op.register_op_impl(op_type="CompatibleExecuteSignatureCustom")
@@ -543,12 +812,13 @@ def test_bridge_call_execute_supports_ir_outputs():
             return None
 
     instance_id = "CompatibleExecuteSignatureCustom#1"
-    ctx = _FakeEagerContext()
+    ctx = _FakeExecuteContext()
     _create_holder(instance_id, "CompatibleExecuteSignatureCustom")
 
     assert (
         bridge.call_execute(
             instance_id,
+            "device",
             {
                 "op_type": "CompatibleExecuteSignatureCustom",
                 "inputs": [{"name": "x", "kind": ir_types.InputType.REQUIRED}],
@@ -564,7 +834,7 @@ def test_bridge_call_execute_supports_ir_outputs():
     assert ctx.invalidated is True
 
 
-def test_bridge_call_execute_does_not_validate_signature_at_runtime(monkeypatch):
+def test_bridge_call_execute_device_does_not_validate_signature_at_runtime(monkeypatch):
     execute_calls = []
 
     @custom_op.register_op_impl(op_type="CachedExecuteSignatureCustom")
@@ -589,7 +859,7 @@ def test_bridge_call_execute_does_not_validate_signature_at_runtime(monkeypatch)
         pytest.fail("schema execute must not validate its signature at runtime")
 
     monkeypatch.setattr(bridge, "_validate_args_signature", fail_on_runtime_validation)
-    bridge.call_execute(instance_id, ir_meta, _FakeEagerContext())
+    bridge.call_execute(instance_id, "device", ir_meta, _FakeExecuteContext())
 
     assert execute_calls == [("required", 0)]
 
@@ -604,11 +874,12 @@ def test_schema_bound_execute_can_get_current_context():
             called.append((x, current_ctx, current_ctx.get_stream()))
 
     instance_id = "SchemaContextCustom#1"
-    ctx = _FakeEagerContext()
+    ctx = _FakeExecuteContext()
     _create_holder(instance_id, "SchemaContextCustom")
 
     bridge.call_execute(
         instance_id,
+        "device",
         {
             "op_type": "SchemaContextCustom",
             "inputs": [{"name": "x", "kind": 0}],
@@ -638,12 +909,13 @@ def test_schema_execute_context_is_deactivated_after_exception():
             raise ValueError("schema execute failed")
 
     instance_id = "FailingSchemaContextCustom#1"
-    ctx = _FakeEagerContext()
+    ctx = _FakeExecuteContext()
     _create_holder(instance_id, "FailingSchemaContextCustom")
 
     with pytest.raises(ValueError, match="schema execute failed"):
         bridge.call_execute(
             instance_id,
+            "device",
             {
                 "op_type": "FailingSchemaContextCustom",
                 "inputs": [{"name": "x", "kind": 0}],
@@ -663,8 +935,8 @@ def test_schema_execute_context_is_deactivated_after_exception():
 
 def test_schema_execute_context_restores_outer_binding_after_nested_call():
     called = []
-    outer_ctx = _FakeEagerContext()
-    inner_ctx = _FakeEagerContext()
+    outer_ctx = _FakeExecuteContext()
+    inner_ctx = _FakeExecuteContext()
 
     @custom_op.register_op_impl(op_type="InnerSchemaContextCustom")
     class InnerSchemaContextCustom:
@@ -677,6 +949,7 @@ def test_schema_execute_context_restores_outer_binding_after_nested_call():
             called.append(("outer_before", custom_op.get_execute_ctx()))
             bridge.call_execute(
                 "InnerSchemaContextCustom#1",
+                "device",
                 {
                     "op_type": "InnerSchemaContextCustom",
                     "inputs": [{"name": "x", "kind": 0}],
@@ -692,6 +965,7 @@ def test_schema_execute_context_restores_outer_binding_after_nested_call():
 
     bridge.call_execute(
         "OuterSchemaContextCustom#1",
+        "device",
         {
             "op_type": "OuterSchemaContextCustom",
             "inputs": [{"name": "x", "kind": 0}],
@@ -710,7 +984,7 @@ def test_schema_execute_context_restores_outer_binding_after_nested_call():
     assert outer_ctx.invalidated is True
 
 
-def test_bridge_call_execute_supports_zero_input_and_zero_attr_schema():
+def test_bridge_call_execute_device_supports_zero_input_and_zero_attr_schema():
     called = []
 
     @custom_op.register_op_impl(op_type="NoArgCustom")
@@ -720,12 +994,13 @@ def test_bridge_call_execute_supports_zero_input_and_zero_attr_schema():
 
     descriptor_key = bridge.load_and_get_op_impl_descriptors()[0]["descriptor_key"]
     instance_id = "NoArgCustom#1"
-    ctx = _FakeEagerContext()
+    ctx = _FakeExecuteContext()
     assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
 
     assert (
         bridge.call_execute(
             instance_id,
+            "device",
             {"op_type": "NoArgCustom", "inputs": [], "attrs": [], "outputs": []},
             ctx,
         )
@@ -770,14 +1045,14 @@ def test_bridge_rejects_schema_bound_execute_without_ir_meta():
 
     descriptor_key = bridge.load_and_get_op_impl_descriptors()[0]["descriptor_key"]
     instance_id = "MissingSchemaCustom#1"
-    ctx = _FakeEagerContext()
+    ctx = _FakeExecuteContext()
     assert bridge.create_op_impl_holder(instance_id, descriptor_key) is True
 
     with pytest.raises(
         RuntimeError,
         match="canonical IR not found for schema-bound execute: MissingSchemaCustom",
     ):
-        bridge.call_execute(instance_id, None, ctx)
+        bridge.call_execute(instance_id, "device", None, ctx)
 
     assert ctx.invalidated is True
 
@@ -803,26 +1078,14 @@ def test_native_context_exposes_execute_binding_views():
         assert hasattr(native_module.RuntimeAttrs, method_name)
     assert hasattr(native_module.EagerOpExecutionContext, "_get_dynamic_input_num")
     assert hasattr(native_module.EagerOpExecutionContext, "_get_attrs")
+    assert hasattr(native_module.HostCpuOpExecutionContext, "_get_dynamic_input_num")
+    assert hasattr(native_module.HostCpuOpExecutionContext, "_get_attrs")
+    assert hasattr(native_module.HostCpuOpExecutionContext, "malloc_output_tensor")
 
 
 def test_bridge_rejects_unknown_descriptor_key():
     with pytest.raises(KeyError, match="descriptor_key not found"):
         bridge.create_op_impl_holder("unknown#1", "not-found")
-
-
-def test_bridge_rejects_holder_without_callable_execute():
-    instance_id = "InvalidExecute#1"
-    bridge._OP_IMPL_HOLDERS[instance_id] = bridge._OpImplHolder(
-        descriptor_key="invalid",
-        instance_id=instance_id,
-        instance=object(),
-    )
-
-    with pytest.raises(
-        TypeError,
-        match="python op impl does not implement callable execute",
-    ):
-        bridge._get_eager_execute_holder(instance_id)
 
 
 def test_bridge_loads_custom_op_plugins_from_env_path(tmp_path, monkeypatch):

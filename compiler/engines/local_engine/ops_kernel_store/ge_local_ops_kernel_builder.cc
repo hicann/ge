@@ -46,20 +46,20 @@ int64_t AlignOutputMemSize(const int64_t mem_size) {
   return ret_size;
 }
 using CalcOpParamCall = std::function<graphStatus(const Node &node)>;
-std::map<std::string, CalcOpParamCall> calc_op_param_call = {
-    {PHONYCONCAT, GeLocalOpsKernelBuilderCalcOpParam::CalcPhonyConcatNodeOffset},
-    {PHONYSPLIT, GeLocalOpsKernelBuilderCalcOpParam::CalcPhonySplitNodeOffset},
-    {"Bitcast", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"Flatten", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"FlattenV2", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"ExpandDims", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"ReFormat", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"Squeeze", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"Unsqueeze", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"SqueezeV2", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"UnsqueezeV2", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"SqueezeV3", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput},
-    {"UnsqueezeV3", GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput}};
+const std::map<std::string, CalcOpParamCall> &GetCalcOpParamCall() {
+  // 函数内惰性初始化：基于共享常量 kReuseInputOpTypes 构建，避免跨编译单元
+  // 静态初始化顺序问题；PhonyConcat/PhonySplit 走独立的偏移量计算函数。
+  static const std::map<std::string, CalcOpParamCall> call = [] {
+    std::map<std::string, CalcOpParamCall> m = {
+        {PHONYCONCAT, GeLocalOpsKernelBuilderCalcOpParam::CalcPhonyConcatNodeOffset},
+        {PHONYSPLIT, GeLocalOpsKernelBuilderCalcOpParam::CalcPhonySplitNodeOffset}};
+    for (const auto &op_type : kReuseInputOpTypes) {
+      m[op_type] = GeLocalOpsKernelBuilderCalcOpParam::CalcNodeOffsetByReuseInput;
+    }
+    return m;
+  }();
+  return call;
+}
 }  // namespace
 
 GeLocalOpsKernelBuilder::~GeLocalOpsKernelBuilder() {
@@ -216,8 +216,9 @@ Status GeLocalOpsKernelBuilder::CalcOpRunningParam(Node &node) {
     }
   }
 
+  const auto &calc_op_param_call = GetCalcOpParamCall();
   if (calc_op_param_call.find(node_type) != calc_op_param_call.end()) {
-    GE_ASSERT_SUCCESS(calc_op_param_call[node_type](node),
+    GE_ASSERT_SUCCESS(calc_op_param_call.at(node_type)(node),
                       "[Call]calc_op_param_call failed, node name: %s, node type: %s.", node_name.c_str(),
                       node_type.c_str());
   }

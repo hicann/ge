@@ -16,12 +16,12 @@ import inspect
 import sys
 import threading
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 from ._ir_types import InputType, OutputType
 from ._infer_meta import call_infer_meta  # noqa: F401
 from ._signature import _get_runtime_attr_spec, _validate_args_signature
-from ._native import EagerOpExecutionContext
+from ._native import EagerOpExecutionContext, HostCpuOpExecutionContext
 from .bootstrap import (
     get_registered_op_impls,
     get_registered_op_protos,
@@ -36,6 +36,9 @@ from .registry import (
     INTERFACE_ANNOTATED_ARGS,
     INTERFACE_COMPILABLE,
     INTERFACE_EAGER_EXECUTE,
+    INTERFACE_HOST_CPU_EXECUTE,
+    KernelBinding,
+    OpBackend,
     get_registered_op_impl_by_descriptor_key,
 )
 
@@ -72,13 +75,27 @@ def _get_holder(instance_id: str) -> _OpImplHolder:
     return holder
 
 
-def _get_eager_execute_holder(instance_id: str) -> _OpImplHolder:
-    holder = _get_holder(instance_id)
-    if not callable(getattr(holder.instance, "execute", None)):
-        raise TypeError(
-            f"python op impl does not implement callable execute: {instance_id}"
+def _get_execute_kernel_method(holder: _OpImplHolder, backend: OpBackend):
+    descriptor = get_registered_op_impl_by_descriptor_key(holder.descriptor_key)
+    if descriptor is None:
+        raise KeyError(
+            f"python op impl descriptor_key not found: {holder.descriptor_key}"
         )
-    return holder
+    binding = descriptor.kernel_bindings.get(backend)
+    if binding is not None:
+        return binding.function.__get__(holder.instance, type(holder.instance))
+    # Preserve legacy execute behavior for callable class attributes that are
+    # not functions or staticmethod/classmethod wrappers (e.g. partial objects
+    # or __call__ instances), which are intentionally not represented in the
+    # kernel map.
+    if backend is OpBackend.DEVICE and not descriptor.kernel_bindings:
+        method = getattr(holder.instance, "execute", None)
+        if callable(method):
+            return method
+    raise KeyError(
+        f"python op impl execute backend is not registered: {backend.value}, "
+        f"descriptor key: {holder.descriptor_key}"
+    )
 
 
 def create_op_impl_holder(instance_id: str, descriptor_key: str) -> bool:
@@ -112,6 +129,21 @@ def _get_callback_for_signature(cls, method_name: str):
     return getattr(cls, method_name)
 
 
+def _validate_kernel_binding(
+    descriptor,
+    backend: OpBackend,
+    binding: KernelBinding,
+    ir_meta: Optional[dict],
+) -> None:
+    method = binding.function.__get__(object(), descriptor.cls)
+    try:
+        _validate_args_signature(method, ir_meta, descriptor, method_name="execute")
+    except TypeError as exc:
+        raise TypeError(
+            f"{exc}; backend {backend.value!r}, source {binding.source_location}"
+        ) from exc
+
+
 def validate_op_impl_descriptor(
     descriptor_key: str,
     ir_meta: Optional[dict],
@@ -120,13 +152,21 @@ def validate_op_impl_descriptor(
     if descriptor is None:
         raise KeyError(f"python op impl descriptor_key not found: {descriptor_key}")
 
-    if INTERFACE_EAGER_EXECUTE in descriptor.interfaces:
+    if (
+        descriptor.kernel_bindings
+        or INTERFACE_EAGER_EXECUTE in descriptor.interfaces
+        or INTERFACE_HOST_CPU_EXECUTE in descriptor.interfaces
+    ):
         if ir_meta is None:
             raise RuntimeError(
                 f"canonical IR not found for schema-bound execute: {descriptor.op_type}"
             )
-        method = _get_callback_for_signature(descriptor.cls, "execute")
-        _validate_args_signature(method, ir_meta, descriptor, method_name="execute")
+        if descriptor.kernel_bindings:
+            for backend, binding in descriptor.kernel_bindings.items():
+                _validate_kernel_binding(descriptor, backend, binding, ir_meta)
+        else:
+            method = _get_callback_for_signature(descriptor.cls, "execute")
+            _validate_args_signature(method, ir_meta, descriptor, method_name="execute")
 
     if INTERFACE_COMPILABLE in descriptor.interfaces:
         if ir_meta is None:
@@ -175,7 +215,9 @@ def _build_inputs(
     return args
 
 
-def _build_execute_inputs(ctx: EagerOpExecutionContext, ir_inputs: list) -> list:
+def _build_execute_inputs(
+    ctx: Union[EagerOpExecutionContext, HostCpuOpExecutionContext], ir_inputs: list
+) -> list:
     return _build_inputs(
         ir_inputs,
         ctx._get_required_input_tensor,
@@ -190,7 +232,9 @@ def _read_runtime_attr(attrs, index: int, ir_type: str):
     return getattr(attrs, getter_name)(index)
 
 
-def _build_execute_attrs(ctx: EagerOpExecutionContext, ir_attrs: list) -> dict:
+def _build_execute_attrs(
+    ctx: Union[EagerOpExecutionContext, HostCpuOpExecutionContext], ir_attrs: list
+) -> dict:
     if not ir_attrs:
         return {}
     attrs = ctx._get_attrs()
@@ -241,15 +285,15 @@ def _build_schema_attrs(ctx, ir_attrs: list) -> dict:
 
 def call_execute(
     instance_id: str,
+    backend: str,
     ir_meta: Optional[dict],
-    ctx: EagerOpExecutionContext,
+    ctx: Union[EagerOpExecutionContext, HostCpuOpExecutionContext],
 ) -> None:
     try:
-        holder = _get_eager_execute_holder(instance_id)
-        custom_op = holder.instance
-        method = custom_op.execute
+        holder = _get_holder(instance_id)
+        method = _get_execute_kernel_method(holder, OpBackend(backend))
         if ir_meta is None:
-            descriptor = custom_op.__ge_op_impl_descriptor__
+            descriptor = holder.instance.__ge_op_impl_descriptor__
             raise RuntimeError(
                 f"canonical IR not found for schema-bound execute: {descriptor.op_type}"
             )
