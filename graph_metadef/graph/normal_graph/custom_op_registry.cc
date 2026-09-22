@@ -11,6 +11,7 @@
 #include "graph/custom_op.h"
 #include "graph/custom_op_registry.h"
 
+#include <algorithm>
 #include <limits>
 #include <string>
 #include <typeinfo>
@@ -445,6 +446,40 @@ BaseCustomOp *CustomOpRegistry::GetCustomOpCommonCapability(const AscendString &
            op_type.GetString());
   }
   return matched_op;
+}
+
+BaseCustomOp *CustomOpRegistry::GetAnyCustomOpInstance(const AscendString &op_type) {
+  const std::lock_guard<std::mutex> lock(mu_);
+  // 实例按 priority/engine/backend 惰性创建：优先复用已创建实例，否则逐注册项尝试创建，首个成功即返回。
+  const auto custom_op_it = custom_ops_.find(op_type);
+  if (custom_op_it != custom_ops_.cend()) {
+    for (const auto &priority_instance : custom_op_it->second) {
+      for (const auto &engine_instance : priority_instance.second) {
+        const auto &backend_instances = engine_instance.second;
+        const auto match = std::find_if(backend_instances.begin(), backend_instances.end(),
+                                        [](const auto &entry) { return entry.second != nullptr; });
+        if (match != backend_instances.end()) {
+          return match->second.get();
+        }
+      }
+    }
+  }
+  const auto creator_it = creators_.find(op_type);
+  if (creator_it == creators_.cend()) {
+    return nullptr;
+  }
+  for (const auto &priority_creator : creator_it->second) {
+    for (const auto &engine_creator : priority_creator.second) {
+      for (const auto &backend_creator : engine_creator.second) {
+        auto *custom_op =
+            CreateOrGetCustomOpLocked(op_type, backend_creator.first, priority_creator.first, engine_creator.first);
+        if (custom_op != nullptr) {
+          return custom_op;
+        }
+      }
+    }
+  }
+  return nullptr;
 }
 
 void CustomOpRegistry::RemoveCustomOps(const std::vector<AscendString> &op_types) {

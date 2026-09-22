@@ -497,7 +497,6 @@ sequenceDiagram
 
     Note over ATC,OM: Save phase
     ATC->>Helper: SaveCustomOpsPartition()
-    Helper->>Helper: Check serialization mutual exclusion constraint
     Helper->>Op: Serialize(buffer)
     Op-->>Helper: buffer data
     Helper->>OM: Write to OM file
@@ -509,7 +508,7 @@ sequenceDiagram
     Op-->>Factory: Restore kernel binary
 ```
 
-**Serialization Mutual Exclusion Constraint**: A graph cannot simultaneously contain custom operators that implement `PortableOp` and those that don't implement `PortableOp`.
+**Optional capability note**: `PortableOp` is an optional serialization capability interface, decoupled from the offline scenario. The interface is used to serialize the data that a custom operator needs to store in the offline model (e.g., the kernel binary data used for launch) and to deserialize and restore it at the load phase. `PortableOp` and non-`PortableOp` operators can be mixed in one graph, and non-`PortableOp` operators can also be used for offline model generation. If the operator implements the `AnnotatedArgsOp` interface, it can submit kernel data to GE through `DeclareLaunchArgs`, saved with the model and used for launch at the model load and execution phase; if neither is implemented, the operator needs to self-manage the aforementioned custom data.
 
 ---
 
@@ -586,7 +585,7 @@ ONNX parser plugin registers through `REGISTER_CUSTOM_OP`, auto collects to `OpR
 | **Singleton instance per op type** | `CreateOrGetCustomOp` creates unique instance for each op type | Member variables shared across nodes; `Compile` concurrent calls need thread safety |
 | **dynamic_cast capability detection** | GE judges which interfaces operator supports through `dynamic_cast` | Unimplemented interfaces auto skipped, doesn't affect other flows |
 | **Registration one-time** | `RegisterCustomOpCreator` rejects duplicate registration | Cannot register same-named op type in same process |
-| **Serialization mutual exclusion** | Graph cannot mix serializable and non-serializable custom operators | OM sink scenario all custom operators must implement `PortableOp` |
+| **Serialization optional** | `PortableOp` is an optional capability, decoupled from the offline scenario, only determines whether the operator has serialization data that needs to be additionally carried by OM | PortableOp and non-PortableOp operators can be mixed in one graph, implementation SOs are packaged as usual, but non-PortableOp operators need to self-manage these data. |
 | **SO loading limit** | Max 64 .so, single ≤ 800MB, total ≤ 1000MB | Large number of custom operators need merge into few .so |
 | **Share AiCore stream** | Custom operators merged with AiCore at stream allocation | Custom operators can participate in AiCore multi-stream parallelism |
 | **Address refresh** | Operators implementing `ArgsUpdater` go reserved memory allocation path | Zero-copy scenario needs to implement `ArgsUpdater` |

@@ -103,7 +103,7 @@ PyTorch / TorchAir 入图时，除了 GE 侧自定义算子 `.so`，还需要 Py
 | 在线 / 直接执行 | 进程内构图后直接执行，或框架图模式运行时执行。         | 通常需要 `EagerExecuteOp`，并按需实现 `ShapeInferOp`。 |
 | 离线 OM | 构图后经 ATC 生成 离线OM模型，再由 ACL 加载执行。 | 需要 `PortableOp` 将编译产物序列化进 OM，并在执行阶段反序列化恢复。 |
 
-如果只是框架在线图模式执行，可以不实现 `PortableOp`。如果目标是 `AIR -> ATC -> OM -> ACL` 的离线模型链路，则需要考虑编译产物如何随模型保存和恢复。
+未实现 `PortableOp` 的自定义算子同样可以生成离线 OM（实现 SO 会随模型打包）。其自定义数据随 OM 保存有两条途径：实现 `PortableOp` 随模型序列化保存，或实现 `AnnotatedArgsOp` 通过 `DeclareLaunchArgs` 将 kernel 数据提交给 GE 保存并在模型加载执行阶段由 GE 直接用于 launch。两者均未实现时，kernel bin 等自定义数据不会随 OM 保存和恢复，需要算子自行管理。
 
 ### 5. 开发检查项
 

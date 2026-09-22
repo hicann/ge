@@ -20,8 +20,7 @@ Key implementation points:
 - The operator type is `AnnotatedAddCustom` and it implements `AnnotatedArgsOp`.
 - The offline model path does not rely on manually loading and launching the kernel in `EagerExecuteOp::Execute`.
 - `DeclareLaunchArgs` annotates the `x1`, `x2`, and `y` address slots with `AnnotatedKernelArgs`.
-- The kernel binary is still compiled by the `Compile` callback through ACL RTC and cached by input shape key in the `PortableOp` state.
-- `PortableOp::Serialize` and `PortableOp::Deserialize` persist and restore the multi-shape kernel binary map.
+- The kernel binary is still compiled by the `Compile` callback through ACL RTC and cached by input shape key.
 
 ## Prerequisites
 

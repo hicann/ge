@@ -58,7 +58,6 @@ offline
 
 - `HostCpuExecuteOp::Execute` performs float vector addition on the host side.
 - `ShapeInferOp` copies input shape and dtype to the output.
-- `PortableOp::Serialize/Deserialize` provide the instance persistence implementation required by offline OM.
 - Registers only kHostCPU backend via `REG_OP_BACKEND(AddCustom, "AddCustom", ge::OpBackend::kHostCPU)`.
 
 ## Notes

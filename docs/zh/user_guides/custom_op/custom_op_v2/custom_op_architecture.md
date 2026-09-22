@@ -511,7 +511,6 @@ sequenceDiagram
 
     Note over ATC,OM: 保存阶段
     ATC->>Helper: SaveCustomOpsPartition()
-    Helper->>Helper: 检查序列化互斥约束
     Helper->>Op: Serialize(buffer)
     Op-->>Helper: buffer 数据
     Helper->>OM: 写入 OM 文件
@@ -523,7 +522,7 @@ sequenceDiagram
     Op-->>Factory: 恢复 kernel binary
 ```
 
-**序列化互斥约束**：一张图中不能同时包含实现了 `PortableOp` 和未实现 `PortableOp` 的自定义算子。
+**可选能力说明**：`PortableOp` 为可选实现的序列化能力接口，与离线场景解耦。该接口用于序列化自定义算子需要存储到离线模型中的数据（如：用于launch的kernel二进制数据），并在加载阶段反序列化恢复，`PortableOp` 与非 `PortableOp` 算子可混合使用，非 `PortableOp` 算子也可用于生成离线模型，如果这个算子实现了 `AnnotatedArgsOp` 接口，则可通过 `DeclareLaunchArgs` 将 kernel 数据提交给 GE，随模型保存并在模型加载执行阶段用于 launch；如果两者均未实现，算子则要自行管理前面提到的这些自定义数据。
 
 ---
 
@@ -600,7 +599,7 @@ ONNX 解析插件通过 `REGISTER_CUSTOM_OP` 注册，dlopen 时自动收集到 
 | **单例实例 per op type** | `CreateOrGetCustomOp` 为每个 op type 创建唯一实例 | 成员变量跨节点共享；`Compile` 并行调用需线程安全 |
 | **dynamic_cast 能力检测** | GE 通过 `dynamic_cast` 判断算子支持哪些接口 | 未实现的接口自动跳过，不影响其他流程 |
 | **注册一次性** | `RegisterCustomOpCreator` 拒绝重复注册 | 同一进程中不可注册同名 op type |
-| **序列化互斥** | 图中不可混合可序列化和不可序列化的自定义算子 | OM 下沉场景所有自定义算子必须实现 `PortableOp` |
+| **序列化可选** | `PortableOp` 为可选能力，与离线场景解耦，仅决定算子是否有需要OM额外携带的序列化数据 | PortableOp 与非 PortableOp 算子可混合使用，实现 SO 均照常打包，但非 PortableOp 算子要自行管理这些数据。 |
 | **SO 加载限制** | 最多 64 个 .so，单个 ≤ 800MB，总计 ≤ 1000MB | 大量自定义算子需合并到少量 .so 中 |
 | **共享 AiCore 流** | 自定义算子在流分配时与 AiCore 合并 | 自定义算子可参与 AiCore 的多流并行 |
 | **地址刷新** | 实现 `ArgsUpdater` 的算子走预留内存分配路径 | 零拷贝场景需实现 `ArgsUpdater` |

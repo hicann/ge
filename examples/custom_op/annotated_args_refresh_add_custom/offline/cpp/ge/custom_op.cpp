@@ -54,7 +54,7 @@ uint32_t CalcBlockDim(const int64_t n_elements) {
 }
 }  // namespace
 
-class AnnotatedAddCustom : public CompilableOp, public PortableOp, public ShapeInferOp, public AnnotatedArgsOp {
+class AnnotatedAddCustom : public CompilableOp, public ShapeInferOp, public AnnotatedArgsOp {
  public:
   graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
     std::cout << __FILE__ << ":" << __LINE__
@@ -190,28 +190,6 @@ class AnnotatedAddCustom : public CompilableOp, public PortableOp, public ShapeI
     std::cout << __FILE__ << ":" << __LINE__ << " Compile completed successfully" << std::endl;
     return GRAPH_SUCCESS;
   };
-
-  graphStatus Serialize(std::vector<uint8_t> &buffer) override {
-    std::cout << __FILE__ << ":" << __LINE__ << " Serialize started, kernel binary count: " << device_elves_.size()
-              << std::endl;
-    const auto ret = kernel_binary_map_utils::Serialize(device_elves_, buffer);
-    if (ret != GRAPH_SUCCESS) {
-      return ret;
-    }
-    std::cout << __FILE__ << ":" << __LINE__ << " Serialize completed, buffer size: " << buffer.size() << std::endl;
-    return ret;
-  }
-
-  graphStatus Deserialize(const std::vector<uint8_t> &buffer) override {
-    std::cout << __FILE__ << ":" << __LINE__ << " Deserialize started, buffer size: " << buffer.size() << std::endl;
-    const auto ret = kernel_binary_map_utils::Deserialize(buffer, device_elves_);
-    if (ret != GRAPH_SUCCESS) {
-      return ret;
-    }
-    std::cout << __FILE__ << ":" << __LINE__ << " Deserialize completed, kernel binary count: " << device_elves_.size()
-              << std::endl;
-    return ret;
-  }
 
   graphStatus InferShape(gert::InferShapeContext *ctx) override {
     const gert::Shape *x1_shape = ctx->GetInputShape(0);

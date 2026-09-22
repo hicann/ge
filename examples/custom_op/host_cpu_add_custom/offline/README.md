@@ -58,7 +58,6 @@ offline
 
 - `HostCpuExecuteOp::Execute` 在 host 侧完成 float 向量加法。
 - `ShapeInferOp` 将输出 shape 和 dtype 设为与输入一致。
-- `PortableOp::Serialize/Deserialize` 提供离线 OM 所需的实例数据持久化实现。
 - 通过 `REG_OP_BACKEND(AddCustom, "AddCustom", ge::OpBackend::kHostCPU)` 注册 kHostCPU backend。
 
 ## 注意事项
