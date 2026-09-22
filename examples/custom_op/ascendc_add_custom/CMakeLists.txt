@@ -1,3 +1,13 @@
+#
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+# CANN Open Software License Agreement Version 2.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+#
+
 cmake_minimum_required(VERSION 3.16)
 find_package(ASC REQUIRED)
 project(ascendc_add_custom LANGUAGES ASC CXX)
@@ -47,8 +57,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${TORCH_INCLUDE_DIRS}
-    ${TORCH_NPU_INCLUDE_DIRS}
     ${INCLUDE_DIR}
     ${INCLUDE_DIR}/graph
     ${INCLUDE_DIR}/register
@@ -56,6 +64,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${INCLUDE_DIR}/experiment
     ${INCLUDE_DIR}/experiment/platform
     ${INCLUDE_DIR}/experiment/runtime
+    ${TORCH_INCLUDE_DIRS}
+    ${TORCH_NPU_INCLUDE_DIRS}
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
