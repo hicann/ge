@@ -39,6 +39,7 @@ RETURN_STATEMENTS = {
     "std::string&": "    static std::string s;\n    return s;",
     "DataType": "    return DT_FLOAT;",
     "ge::DataType": "    return ge::DT_FLOAT;",
+    "AttrValue::AttrType": "    return AttrValue::AT_NONE;",
     "graphStatus": "    return ge::GRAPH_SUCCESS;",
     "ge::graphStatus": "    return ge::GRAPH_SUCCESS;",
     "ge::Status": "    return ge::SUCCESS;",

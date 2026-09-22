@@ -13,6 +13,7 @@
 ```c++
 AttrValue()
 ~AttrValue() = default
+AttrType GetValueType() const
 template<typename T, typename DT>
 static T CreateFrom(DT &&val)
 graphStatus GetAttrValue(int64_t &attr_value) const

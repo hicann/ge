@@ -757,6 +757,46 @@ NODE_ATTR_GET_IMP(std::vector<ge::DataType>)
 NODE_ATTR_GET_IMP(ge::DataType)
 NODE_ATTR_GET_IMP(AttrValue)
 
+graphStatus GNode::GetAllAttrs(std::map<AscendString, AttrValue> &attr_values) const {
+  attr_values.clear();
+  if (impl_ == nullptr) {
+    REPORT_INNER_ERR_MSG("E18888", "node impl is nullptr, check invalid.");
+    GELOGE(GRAPH_FAILED, "[Check][Param] GetAllAttrs: node impl is nullptr.");
+    return GRAPH_FAILED;
+  }
+
+  const std::shared_ptr<Node> node_ptr = impl_->node_ptr_.lock();
+  if (node_ptr == nullptr) {
+    REPORT_INNER_ERR_MSG("E18888", "the node shared ptr is nullptr, check invalid.");
+    GELOGE(GRAPH_FAILED, "[Check][Param] GetAllAttrs: the node shared ptr is not valid.");
+    return GRAPH_FAILED;
+  }
+
+  const OpDescPtr op_desc = node_ptr->GetOpDesc();
+  if (op_desc == nullptr) {
+    REPORT_INNER_ERR_MSG("E18888", "Get op desc of node[%s] failed.", node_ptr->GetName().c_str());
+    GELOGE(GRAPH_FAILED, "[Get][OpDesc] of node[%s] failed.", node_ptr->GetName().c_str());
+    return GRAPH_FAILED;
+  }
+
+  const Operator op = OpDescUtils::CreateOperatorFromNode(node_ptr);
+  for (const auto &attr : op_desc->GetAllAttrs()) {
+    if (attr.first.empty() || attr.first.front() == '_') {
+      continue;
+    }
+    AttrValue attr_value;
+    if (op.GetAttr(attr.first.c_str(), attr_value) != GRAPH_SUCCESS) {
+      REPORT_INNER_ERR_MSG("E18888", "Get attr[%s] of node[%s] failed.", attr.first.c_str(),
+                           node_ptr->GetName().c_str());
+      GELOGE(GRAPH_FAILED, "[Get][Attr] %s of node[%s] failed.", attr.first.c_str(), node_ptr->GetName().c_str());
+      attr_values.clear();
+      return GRAPH_FAILED;
+    }
+    attr_values.emplace(AscendString(attr.first.c_str()), std::move(attr_value));
+  }
+  return GRAPH_SUCCESS;
+}
+
 NODE_ATTR_SET_IMP(int64_t)
 NODE_ATTR_SET_IMP(int32_t)
 NODE_ATTR_SET_IMP(uint32_t)
@@ -798,6 +838,48 @@ graphStatus GNode::SetAttr(const AscendString &name, AttrValue &attr_value) cons
   const std::string node_name = ascend_name;
   Operator op = OpDescUtils::CreateOperatorFromNode(node_ptr);
   (void)op.SetAttr(node_name.c_str(), std::move(attr_value));
+  return GRAPH_SUCCESS;
+}
+
+graphStatus GNode::SetAttrs(const std::map<AscendString, AttrValue> &attr_values) const {
+  if (impl_ == nullptr) {
+    REPORT_INNER_ERR_MSG("E18888", "node impl is nullptr, check invalid.");
+    GELOGE(GRAPH_FAILED, "[Check][Param] SetAttrs: node impl is nullptr.");
+    return GRAPH_FAILED;
+  }
+
+  const std::shared_ptr<Node> node_ptr = impl_->node_ptr_.lock();
+  if (node_ptr == nullptr) {
+    REPORT_INNER_ERR_MSG("E18888", "the node shared ptr is nullptr, check invalid.");
+    GELOGE(GRAPH_FAILED, "[Check][Param] SetAttrs: the node shared ptr is not valid.");
+    return GRAPH_FAILED;
+  }
+
+  const OpDescPtr op_desc = node_ptr->GetOpDesc();
+  if (op_desc == nullptr) {
+    REPORT_INNER_ERR_MSG("E18888", "Get op desc of node[%s] failed.", node_ptr->GetName().c_str());
+    GELOGE(GRAPH_FAILED, "[Get][OpDesc] of node[%s] failed.", node_ptr->GetName().c_str());
+    return GRAPH_FAILED;
+  }
+
+  for (const auto &attr : attr_values) {
+    const char_t *const ascend_name = attr.first.GetString();
+    if (ascend_name == nullptr || ascend_name[0] == '\0') {
+      REPORT_INNER_ERR_MSG("E18888", "ascend string error.");
+      GELOGE(GRAPH_PARAM_INVALID, "[Check][Param] SetAttrs: ascend string error.");
+      return GRAPH_PARAM_INVALID;
+    }
+  }
+
+  for (const auto &attr : attr_values) {
+    const std::string attr_name(attr.first.GetString());
+    if (op_desc->SetAttr(attr_name, attr.second.impl->MutableAnyValue()) != GRAPH_SUCCESS) {
+      REPORT_INNER_ERR_MSG("E18888", "Set attr[%s] of node[%s] failed.", attr_name.c_str(),
+                           node_ptr->GetName().c_str());
+      GELOGE(GRAPH_FAILED, "[Set][Attr] %s of node[%s] failed.", attr_name.c_str(), node_ptr->GetName().c_str());
+      return GRAPH_FAILED;
+    }
+  }
   return GRAPH_SUCCESS;
 }
 

@@ -439,6 +439,82 @@ TEST_F(GNodeTest, GetAttr2_success) {
   ASSERT_EQ(gnode.GetAttr(name, attr_value), GRAPH_SUCCESS);
 }
 
+TEST_F(GNodeTest, GetAllAttrs_success) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto &node = builder.AddNode("node", "node", 0, 0);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  AttrValue attr_value;
+  ASSERT_EQ(attr_value.SetAttrValue(int64_t{1}), GRAPH_SUCCESS);
+  std::map<AscendString, AttrValue> input_attrs = {{AscendString("attr1"), attr_value}};
+  ASSERT_EQ(gnode.SetAttrs(input_attrs), GRAPH_SUCCESS);
+
+  std::map<AscendString, AttrValue> attrs;
+  ASSERT_EQ(gnode.GetAllAttrs(attrs), GRAPH_SUCCESS);
+  ASSERT_EQ(attrs.size(), 1U);
+  ASSERT_NE(attrs.find(AscendString("attr1")), attrs.end());
+  int64_t value = 0;
+  ASSERT_EQ(attrs.at(AscendString("attr1")).GetAttrValue(value), GRAPH_SUCCESS);
+  ASSERT_EQ(value, 1);
+}
+
+TEST_F(GNodeTest, GetAllAttrs_filters_internal_attrs) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto &node = builder.AddNode("node", "node", 0, 0);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  AttrValue attr_value;
+  ASSERT_EQ(attr_value.SetAttrValue(int64_t{1}), GRAPH_SUCCESS);
+  std::map<AscendString, AttrValue> input_attrs = {{AscendString("user_attr"), attr_value},
+                                                   {AscendString("_internal_attr"), attr_value}};
+  ASSERT_EQ(gnode.SetAttrs(input_attrs), GRAPH_SUCCESS);
+  // 空属性名与下划线开头的内部属性均应被过滤
+  ASSERT_TRUE(AttrUtils::SetInt(node->GetOpDesc(), "", 1));
+
+  std::map<AscendString, AttrValue> attrs;
+  ASSERT_EQ(gnode.GetAllAttrs(attrs), GRAPH_SUCCESS);
+  ASSERT_EQ(attrs.size(), 1U);
+  ASSERT_NE(attrs.find(AscendString("user_attr")), attrs.end());
+  ASSERT_EQ(attrs.find(AscendString("_internal_attr")), attrs.end());
+  ASSERT_EQ(attrs.find(AscendString()), attrs.end());
+}
+
+TEST_F(GNodeTest, GetAllAttrs_invalid_node) {
+  GNode gnode;
+  std::map<AscendString, AttrValue> attrs;
+  ASSERT_EQ(gnode.GetAllAttrs(attrs), GRAPH_FAILED);
+  ASSERT_TRUE(attrs.empty());
+  gnode.impl_ = nullptr;
+  ASSERT_EQ(gnode.GetAllAttrs(attrs), GRAPH_FAILED);
+  ASSERT_TRUE(attrs.empty());
+}
+
+TEST_F(GNodeTest, SetAttrs_invalid_node_or_name) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto &node = builder.AddNode("node", "node", 0, 0);
+  std::map<AscendString, AttrValue> attrs;
+  AttrValue attr_value;
+  ASSERT_EQ(attr_value.SetAttrValue(int64_t{1}), GRAPH_SUCCESS);
+  attrs.emplace(AscendString("attr1"), attr_value);
+
+  GNode gnode;
+  ASSERT_EQ(gnode.SetAttrs(attrs), GRAPH_FAILED);
+  gnode.impl_ = nullptr;
+  ASSERT_EQ(gnode.SetAttrs(attrs), GRAPH_FAILED);
+
+  gnode = NodeAdapter::Node2GNode(node);
+  attrs.emplace(AscendString(), attr_value);
+  ASSERT_EQ(gnode.SetAttrs(attrs), GRAPH_PARAM_INVALID);
+}
+
+TEST_F(GNodeTest, SetAttrs_empty_attr_value) {
+  auto builder = ut::GraphBuilder("graph");
+  const auto &node = builder.AddNode("node", "node", 0, 0);
+  GNode gnode = NodeAdapter::Node2GNode(node);
+  // 未设置任何值的AttrValue应设置失败，验证SetAttr失败时返回值可透出
+  AttrValue empty_value;
+  std::map<AscendString, AttrValue> attrs = {{AscendString("attr1"), empty_value}};
+  ASSERT_EQ(gnode.SetAttrs(attrs), GRAPH_FAILED);
+}
+
 TEST_F(GNodeTest, HasAttr_Success) {
   auto builder = ut::GraphBuilder("graph");
   const auto node = builder.AddNode("node", "node", 0, 0);
