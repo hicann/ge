@@ -27,6 +27,7 @@
 #include "graph/ge_tensor.h"
 #include "graph/ir_definitions_recover.h"
 #include "graph/op_desc.h"
+#include "graph/operator_factory.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/constant_utils.h"
 #include "host_cpu_engine/host_cpu_engine.h"
@@ -156,6 +157,11 @@ Status BuildHostCpuOpContext(const NodePtr &node, const std::vector<ConstGeTenso
                              gert::KernelContextHolder &context_holder) {
   const auto op_desc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
+  if (!ge::OperatorFactory::IsExistOp(node->GetType().c_str())) {
+    GELOGW("Op type %s of node %s has no registered IR definition, skip building host cpu op context.",
+           node->GetTypePtr(), node->GetNamePtr());
+    return UNSUPPORTED;
+  }
   const graphStatus recover_ret = ge::RecoverOpDescIrDefinition(op_desc, op_desc->GetTypePtr());
   if (recover_ret != GRAPH_SUCCESS) {
     GELOGW("Recover ir definition failed for node %s, ret:%d.", node->GetName().c_str(), recover_ret);

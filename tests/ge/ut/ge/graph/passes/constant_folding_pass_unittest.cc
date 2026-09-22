@@ -100,9 +100,29 @@ REG_OP(IrDefinedHostFold)
     .INPUT(x1, TensorType({DT_UINT8}))
     .OPTIONAL_INPUT(bias, TensorType({DT_UINT8}))
     .OUTPUT(y, TensorType({DT_UINT8}))
-    .OP_END_FACTORY_REG(IrDefinedHostFold)
+    .OP_END_FACTORY_REG(IrDefinedHostFold);
 
-        REG_OP_BACKEND(TestHostCustomFoldOp, "IrDefinedHostFold", ge::OpBackend::kHostCPU);
+REG_OP_BACKEND(TestHostCustomFoldOp, "IrDefinedHostFold", ge::OpBackend::kHostCPU);
+
+REG_OP(BottomHostFold)
+    .INPUT(x, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(BottomHostFold);
+
+REG_OP(HostCustomFold)
+    .INPUT(x, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(HostCustomFold);
+
+REG_OP(PriorityMaskHostFold)
+    .INPUT(x, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(PriorityMaskHostFold);
+
+REG_OP(HostCustomFoldExecuteFailed)
+    .INPUT(x, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(HostCustomFoldExecuteFailed);
 
 class TestNonHostCustomFoldOp final : public BaseCustomOp {};
 
