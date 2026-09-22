@@ -10,7 +10,9 @@
 
 #include <dlfcn.h>
 #include <gtest/gtest.h>
+#include <cstdarg>
 #include <cstdlib>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -29,12 +31,56 @@
 #include "proto/onnx/ge_onnx.pb.h"
 #include "register/op_registry.h"
 #include "register/register_fmk_types.h"
+#include "runtime/custom_op/python_custom_op_bridge_c_api.h"
 #include "onnx_plugin_test_helper.h"
 #include "pybind11/embed.h"
 #include "pybind11/eval.h"
 
+namespace {
+
+std::mutex g_report_mutex;
+std::vector<std::string> g_reported_errors;
+
+}  // namespace
+
+namespace error_message {
+// 强定义覆盖 CANN 侧弱符号：dlopen 的 bridge .so 解析引用时命中本可执行文件
+// （目标已链接 -rdynamic），从而可断言 REPORT_INNER_ERR_MSG 的上报内容。
+int32_t ReportInnerErrMsg(const char *file_name, const char *func, uint32_t line, const char *error_code,
+                          const char *format, ...) {
+  (void)file_name;
+  (void)func;
+  (void)line;
+  (void)error_code;
+  va_list args;
+  va_start(args, format);
+  char message[1024] = {0};
+  (void)vsnprintf(message, sizeof(message) - 1U, format, args);
+  va_end(args);
+  const std::lock_guard<std::mutex> lock(g_report_mutex);
+  g_reported_errors.emplace_back(message);
+  return 0;
+}
+}  // namespace error_message
+
 namespace ge {
 namespace {
+
+void ClearReportedErrors() {
+  const std::lock_guard<std::mutex> lock(g_report_mutex);
+  g_reported_errors.clear();
+}
+
+bool HasReportedErrorContaining(const std::string &needle) {
+  const std::lock_guard<std::mutex> lock(g_report_mutex);
+  for (const auto &error : g_reported_errors) {
+    if (error.find(needle) != std::string::npos) {
+      return true;
+    }
+  }
+  return false;
+}
+
 namespace py = pybind11;
 
 Status ParseCppPriority(const google::protobuf::Message *, Operator &op_dest) {
@@ -335,6 +381,131 @@ TEST(OnnxPythonPluginBridge, RejectsInvalidArtifactConfig) {
   EXPECT_EQ(set_config(&config), ge::PARAM_INVALID);
   config.native_module_path = "";
   EXPECT_EQ(set_config(&config), ge::PARAM_INVALID);
+}
+
+TEST(OnnxPythonPluginBridge, CallbackFailuresAreReportedToErrorManager) {
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  ScopedInMemoryPlugin in_memory_plugin;
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__ge_py_onnx_plugin_in_memory__", 1), 0);
+  void *bridge = dlopen(ONNX_PYTHON_PLUGIN_BRIDGE_PATH, RTLD_NOW | RTLD_GLOBAL);
+  ASSERT_NE(bridge, nullptr);
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  using RegisterBridgeFunc = Status (*)(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *);
+  const auto register_plugins = reinterpret_cast<RegisterBridgeFunc>(dlsym(bridge, "RegisterOnnxPluginBridgePlugins"));
+  ASSERT_NE(register_plugins, nullptr);
+  ASSERT_EQ(register_plugins(GetOnnxPluginBridgeRegistrar()), SUCCESS);
+
+  ClearReportedErrors();
+  ge::onnx::NodeProto node;
+  node.set_op_type("test.domain::1::BridgeError");
+  Operator error_op("error_node", "BridgeErrorTarget");
+  const auto parse_error = domi::OpRegistry::Instance()->GetParseParamFunc("BridgeErrorTarget", node.op_type());
+  ASSERT_NE(parse_error, nullptr);
+  EXPECT_EQ(parse_error(&node, error_op), FAILED);
+  EXPECT_TRUE(HasReportedErrorContaining("Python ONNX plugin parse_node failed"));
+  EXPECT_TRUE(HasReportedErrorContaining("python callback failed"));
+
+  Operator source_op("operator_source", "BridgeOperator");
+  source_op.SetAttr("alpha", 0.5F);
+  Operator operator_target("operator_target", "BridgeOperatorErrorTarget");
+  const auto parse_operator_error =
+      domi::OpRegistry::Instance()->GetParseParamByOperatorFunc("test.domain::1::BridgeOperatorError");
+  ASSERT_NE(parse_operator_error, nullptr);
+  EXPECT_EQ(parse_operator_error(source_op, operator_target), FAILED);
+  EXPECT_TRUE(HasReportedErrorContaining("Python ONNX plugin parse_operator failed"));
+  EXPECT_TRUE(HasReportedErrorContaining("python operator callback failed"));
+
+  Graph error_graph("decompose_error_graph");
+  const auto parse_decompose_error = domi::OpRegistry::Instance()->GetParseOpToGraphFunc(
+      "BridgeDecomposeErrorTarget", "test.domain::1::BridgeDecomposeError");
+  ASSERT_NE(parse_decompose_error, nullptr);
+  EXPECT_EQ(parse_decompose_error(source_op, error_graph), FAILED);
+  EXPECT_TRUE(HasReportedErrorContaining("Python ONNX plugin decompose failed"));
+  EXPECT_TRUE(HasReportedErrorContaining("python decompose callback failed"));
+
+  node.set_op_type("test.domain::1::BridgeReturn");
+  Operator return_op("return_node", "BridgeReturnTarget");
+  const auto parse_return = domi::OpRegistry::Instance()->GetParseParamFunc("BridgeReturnTarget", node.op_type());
+  ASSERT_NE(parse_return, nullptr);
+  EXPECT_NE(parse_return(&node, return_op), SUCCESS);
+  EXPECT_TRUE(HasReportedErrorContaining("parse_node returned an invalid value"));
+
+  using ResetBridgeFunc = void (*)();
+  const auto reset_bridge = reinterpret_cast<ResetBridgeFunc>(dlsym(bridge, "ResetOnnxPluginBridgeState"));
+  ASSERT_NE(reset_bridge, nullptr);
+  reset_bridge();
+  unsetenv("ASCEND_CUSTOM_OPP_PATH");
+}
+
+TEST(OnnxPythonPluginBridge, LoadFailureIsReportedToErrorManager) {
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  void *bridge = dlopen(ONNX_PYTHON_PLUGIN_BRIDGE_PATH, RTLD_NOW | RTLD_GLOBAL);
+  ASSERT_NE(bridge, nullptr);
+  using RegisterBridgeFunc = Status (*)(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *);
+  const auto register_plugins = reinterpret_cast<RegisterBridgeFunc>(dlsym(bridge, "RegisterOnnxPluginBridgePlugins"));
+  ASSERT_NE(register_plugins, nullptr);
+  const auto *const registrar = GetOnnxPluginBridgeRegistrar();
+  ASSERT_NE(registrar, nullptr);
+
+  ScopedBadSyntaxPlugin bad_syntax_plugin;
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__mde_bad_syntax_plugin_in_memory__", 1), 0);
+  ClearReportedErrors();
+  EXPECT_NE(register_plugins(registrar), SUCCESS);
+  EXPECT_TRUE(HasReportedErrorContaining("Load Python ONNX plugins failed"));
+  EXPECT_TRUE(HasReportedErrorContaining("SyntaxError"));
+  unsetenv("ASCEND_CUSTOM_OPP_PATH");
+}
+
+TEST(PythonCustomOpPybindBridge, LoadFailureIsReportedToErrorManager) {
+  ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
+  void *bridge = dlopen(CUSTOM_OP_PYBIND_BRIDGE_PATH, RTLD_NOW | RTLD_GLOBAL);
+  ASSERT_NE(bridge, nullptr);
+  using GetApiFunc = const ge::custom_op::PythonCustomOpBridgeApi *(*)();
+  const auto get_api = reinterpret_cast<GetApiFunc>(dlsym(bridge, "GeGetPythonCustomOpBridgeApi"));
+  ASSERT_NE(get_api, nullptr);
+  const auto *const api = get_api();
+  ASSERT_NE(api, nullptr);
+  EXPECT_EQ(api->abi_version, ge::custom_op::kPythonCustomOpBridgeAbiVersion);
+
+  // native 模块路径直接取构建产物：测试安装目录中的 ge_py wheel 是纯 Python 包，
+  // 不含 python_custom_op_artifacts（CI 全新构建下 find_prebuilt_artifact 必然
+  // 返回 None）；与 atc 经 artifact config 传递路径的方式一致。
+  // monkeypatch 打在 bootstrap.load_plugins_from_env 上（与 ONNX 用例同模式）：
+  // 不直接 import ge.custom_op._bridge，避免触发 _native 的运行时 fallback codegen，
+  // native 模块由 bridge 的 LoadNativeModuleUnlocked 经上面的 artifact config 加载。
+  const ge::custom_op::PythonCustomOpBridgeArtifactConfig config{nullptr, CUSTOM_OP_NATIVE_MODULE_PATH};
+  ASSERT_EQ(api->set_artifact_config(&config), SUCCESS);
+
+  {
+    py::gil_scoped_acquire gil;
+    py::exec(R"PY(
+import ge.custom_op.bootstrap as _bootstrap
+_bootstrap._mde_original_loader = _bootstrap.load_plugins_from_env
+def _mde_bad_loader(*args, **kwargs):
+    compile("def broken(:\n    pass\n", "<memory-bad-custom-op-plugin>", "exec")
+_bootstrap.load_plugins_from_env = _mde_bad_loader
+)PY");
+  }
+
+  const ge::custom_op::PythonCustomOpRegistrar registrar{
+      [](const ge::custom_op::PythonCustomOpProtoDescriptorView *) { return true; },
+      [](const ge::custom_op::PythonCustomOpAdapterDescriptorView *,
+         const ge::custom_op::PythonCustomOpAdapterCallbacks *) { return true; }};
+  ClearReportedErrors();
+  EXPECT_NE(api->register_custom_ops(&registrar), SUCCESS);
+  EXPECT_TRUE(HasReportedErrorContaining("Load python custom op descriptors failed"));
+  EXPECT_TRUE(HasReportedErrorContaining("SyntaxError"));
+
+  {
+    py::gil_scoped_acquire gil;
+    py::exec(R"PY(
+import ge.custom_op.bootstrap as _bootstrap
+_bootstrap.load_plugins_from_env = _bootstrap._mde_original_loader
+del _bootstrap._mde_original_loader
+)PY");
+  }
+  // 释放桥持有的 Python 对象，避免进程退出时无 GIL dec_ref 导致 abort
+  api->reset_bridge_state();
 }
 
 }  // namespace ge

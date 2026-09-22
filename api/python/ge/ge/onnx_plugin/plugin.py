@@ -32,8 +32,11 @@ def _normalize_name(
 ) -> str:
     if not isinstance(value, str) or not value:
         raise TypeError(f"onnx_plugin {field_name} must be a non-empty string")
-    if reject_origin_separator and "::" in value:
-        raise TypeError(f"onnx_plugin {field_name} must not contain '::'")
+    if reject_origin_separator and ":" in value:
+        raise TypeError(
+            f"onnx_plugin {field_name} must not contain ':' "
+            "(it is the origin type field separator)"
+        )
     return value
 
 

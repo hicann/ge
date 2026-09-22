@@ -28,7 +28,7 @@ OnnxPlugin.parse_operator(fn: Callable[..., None]) -> Callable[..., None]
 
 - `source`为只读对象，对其调用`set_attr`或端口注册方法会抛出`RuntimeError`；`get_attr`、`name`和`type`可正常使用。
 - source算子的属性读取约定：解析器将ONNX节点的属性列表整体序列化为JSON字符串，存入名为`attribute`的属性，回调需要通过`json.loads(source.get_attr("attribute"))`解析后，按`name`字段查找属性值。
-- 同一descriptor同时绑定了[`parse_node`](parse_node.md)时，解析器优先调用本回调。
+- 同一descriptor同时绑定了[`parse_node`](parse_node.md)时，解析器只调用本回调，`parse_node`绑定的回调被忽略且不会报错（"同时绑定"的含义参见[简介](overview.md)）。
 - 回调返回值、生命周期和异常约束与[`parse_node`](parse_node.md)一致。
 - `fn`不是Python函数（例如类的实例、内置函数等其他可调用对象）时，抛出`TypeError`。
 - 同一descriptor重复绑定`parse_operator`回调时，抛出`ValueError`。
@@ -70,7 +70,7 @@ def parse_group_norm(source: Operator, target: Operator) -> None:
 - `f`（FLOAT类型）：字符串（浮点数经`%g`格式化，约6位有效数字），使用时需转换为数值，如`float(item["f"])`。
 - `i`（INT类型）：数字。
 - `s`（STRING类型）：字符串（内容经转义处理，普通文本可直接使用）。
-- `t`（TENSOR类型）、`g`（GRAPH类型）：嵌套对象，结构与ONNX `TensorProto`/`GraphProto`的字段对应。
+- `t`（TENSOR类型）、`g`（GRAPH类型）：嵌套对象，结构与ONNX `TensorProto`/`GraphProto`的字段对应。tensor属性指属性值本身是一个张量（如Constant算子的`value`属性），子图属性指属性值本身是一个子图（如控制流算子If的`then_branch`/`else_branch`属性、Loop的`body`属性）。
 - `floats`、`ints`（列表类型）：数字数组；`strings`：字符串数组；`tensors`、`graphs`：对象数组。注意`floats`的元素为原生数值，与标量`f`的字符串形态不同；`strings`的元素不经转义处理，与标量`s`不同。
 
 复合类型属性（`t`、`g`及其列表）以嵌套对象形式提供，可读取和检查；如需将其转换为`Tensor`等GE对象写入目标算子，需要按上述字段结构自行解码后构造，`set_attr`不支持直接传入`dict`。

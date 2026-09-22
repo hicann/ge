@@ -22,7 +22,7 @@ Operator.get_attr(name: str) -> object
 
 ## 返回值说明
 
-返回属性值，具体类型取决于属性的存储类型，支持`int`、`float`、`bool`、`str`、`DataType`、`Tensor`及对应元素类型的列表。
+返回属性值，具体类型取决于属性的存储类型，支持`int`、`float`、`bool`、`str`、`DataType`、`Tensor`及对应元素类型的列表。其中`DataType`是GE的数据类型枚举（如`DT_FLOAT`、`DT_INT32`），描述张量元素类型，枚举值参见[DataType](../../DataType.md)。
 
 ## 约束说明
 
