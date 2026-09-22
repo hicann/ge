@@ -9,6 +9,7 @@
  */
 
 #include <cstdlib>
+#include <cstdint>
 #include "graph/compute_graph.h"
 #include "exe_graph/runtime/infer_symbol_shape_context.h"
 #include "common/checker.h"
@@ -150,6 +151,31 @@ graphStatus InferShape4Reshape(gert::InferSymbolShapeContext *context) {
 }
 
 /**
+ * AsStrided 的符号 Shape 推导。
+ * 【算子功能】根据 size、stride 和 storage_offset 创建输入张量的视图，输出 y 的元素类型与 x 相同。
+ * 【算子约束】size、stride 和 storage_offset 是数据依赖输入；size 中每个元素必须是非负 int32 或 int64 常量。
+ * 【推导逻辑】读取 size 的符号值，将每个常量值作为输出 Shape 的对应维度；stride 和 storage_offset 不改变输出 Shape。
+ * 【举例】x=[N,C,H,W]、size=[N,H,W]、stride=[H*W,W,1]、storage_offset=[0] 时，y=[N,H,W]。
+ */
+graphStatus InferShape4AsStrided(gert::InferSymbolShapeContext *context) {
+  const auto size_tensor = context->GetInputSymbolTensor(1);
+  GE_UNSUPPORTED_IF_NULL(size_tensor);
+  const auto size_value = size_tensor->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(size_value);
+  const auto out_shape = context->GetOutputSymbolShape(0);
+  GE_ASSERT_NOTNULL(out_shape);
+
+  out_shape->MutableDims().clear();
+  for (const auto &dim : *size_value) {
+    int64_t dim_value = 0;
+    GE_ASSERT_TRUE(dim.GetConstValue<int64_t>(dim_value), "AsStrided size must be an int32 or int64 constant");
+    GE_ASSERT_TRUE(dim_value >= 0, "AsStrided size must be non-negative, actual value[%ld]", dim_value);
+    out_shape->AppendDim(Symbol(dim_value));
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+/**
  * Shape算子的符号化Shape推导
  * 【算子功能】获取输入张量的秩，并将秩表示为一个一维Shape张量的长度。
  * 【算子约束】输入必须存在有效的符号Shape；输出为单个一维张量。
@@ -170,5 +196,6 @@ graphStatus InferShape4Shape(gert::InferSymbolShapeContext *context) {
 
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Shape).InferSymbolShape(InferShape4Shape);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Reshape).InferSymbolShape(InferShape4Reshape);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(AsStrided).InferSymbolShape(InferShape4AsStrided);
 }  // namespace
 }  // namespace ge

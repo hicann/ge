@@ -83,8 +83,43 @@ graphStatus InferShape4ArgWithValue(gert::InferSymbolShapeContext *context) {
   return GRAPH_SUCCESS;
 }
 
+/**
+ * ArgMaxV2 的符号 Shape 推导。
+ * 【算子功能】在 dimension 指定的维度上查找最大值索引，并输出索引张量 y。
+ * 【算子约束】dimension 必须是包含一个常量值的 int32 或 int64 数据依赖输入，取值范围为 [-rank, rank-1]；
+ *             输入秩不大于1时输出标量。
+ * 【推导逻辑】读取 x 的符号 Shape 和 dimension 的符号值，解析负轴后删除 x 中对应维度，其他维度保持原有Expression。
+ * 【举例】x=[B,S,H]、dimension=-1 时，y=[B,S]；x=[B,S,H]、dimension=1 时，y=[B,H]。
+ */
+graphStatus InferShape4ArgMaxV2(gert::InferSymbolShapeContext *context) {
+  const auto x_shape = context->GetInputSymbolShape(0);
+  GE_UNSUPPORTED_IF_NULL(x_shape);
+  const auto y_shape = context->GetOutputSymbolShape(0);
+  GE_ASSERT_NOTNULL(y_shape);
+
+  if (x_shape->GetDimNum() <= 1U) {
+    y_shape->MutableDims().clear();
+    return GRAPH_SUCCESS;
+  }
+
+  const auto dimension_tensor = context->GetInputSymbolTensor(1);
+  GE_UNSUPPORTED_IF_NULL(dimension_tensor);
+  const auto dimension_value = dimension_tensor->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(dimension_value);
+  if (dimension_value->size() != 1U) {
+    GELOGW("ArgMaxV2 dimension must contain exactly one value, actual size[%zu]", dimension_value->size());
+    return ge::UNSUPPORTED;
+  }
+
+  int64_t dimension = 0;
+  GE_ASSERT_TRUE(dimension_value->at(0).GetConstValue<int64_t>(dimension),
+                 "ArgMaxV2 dimension must be an int32 or int64 constant");
+  return SymbolicInferUtil::ReduceDimsWithoutKeepDims<int64_t>(x_shape, {dimension}, 1U, y_shape);
+}
+
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(ArgMaxWithValue).InferSymbolShape(InferShape4ArgWithValue);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(ArgMinWithValue).InferSymbolShape(InferShape4ArgWithValue);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(ArgMaxV2).InferSymbolShape(InferShape4ArgMaxV2);
 
 }  // namespace
 }  // namespace ge

@@ -220,7 +220,34 @@ graphStatus InferShape4Index(gert::InferSymbolShapeContext *context) {
   return GRAPH_SUCCESS;
 }
 
+/**
+ * LinearIndex 的符号 Shape 推导。
+ * 【算子功能】把多维索引 indices 转换为线性索引 index。
+ * 【算子约束】indices 为 int32/int64 的多维张量；axis 默认为 -1；combine 为 Bool 属性，控制输出是否展平。
+ * 【推导逻辑】combine 为 false 时输出 Shape 继承 indices Shape；combine 为 true 时输出为元素总数的一维 Shape。
+ * 【举例】indices=[B,S]、combine=false 时 index=[B,S]；indices=[B,S]、combine=true 时 index=[B*S]。
+ */
+graphStatus InferShape4LinearIndex(gert::InferSymbolShapeContext *context) {
+  const auto indices_shape = context->GetInputSymbolShape(0);
+  GE_UNSUPPORTED_IF_NULL(indices_shape);
+  const auto attrs = context->GetAttrs();
+  GE_ASSERT_NOTNULL(attrs);
+  const auto combine = attrs->GetBool(1);
+  GE_ASSERT_NOTNULL(combine);
+  const auto index_shape = context->GetOutputSymbolShape(0);
+  GE_ASSERT_NOTNULL(index_shape);
+
+  if (*combine) {
+    index_shape->MutableDims().clear();
+    index_shape->MutableDims().push_back(indices_shape->GetSymbolShapeSize());
+  } else {
+    *index_shape = *indices_shape;
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Index).InferSymbolShape(InferShape4Index);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(LinearIndex).InferSymbolShape(InferShape4LinearIndex);
 
 }  // namespace
 }  // namespace ge

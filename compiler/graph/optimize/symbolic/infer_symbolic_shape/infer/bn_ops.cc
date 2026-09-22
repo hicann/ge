@@ -28,6 +28,8 @@ const size_t kFormatNDC1HWC0C1DimIdx = 2U;
 const size_t kFormatNDC1HWC0C0DimIdx = 5U;
 const size_t kFormatNCDHWDimSize = 5U;
 const size_t kFormatNCDHWCDimIdx = 1U;
+const size_t kBatchNormOutputNum = 6U;
+const size_t kBatchNormV3OutputNum = 5U;
 
 graphStatus GetOutputShapeFromOriginFormat(size_t dim_num, ge::Format origin_format, const gert::SymbolShape *x_shape,
                                            gert::SymbolShape *sum_shape, gert::SymbolShape *squaresum_shape) {
@@ -102,9 +104,65 @@ graphStatus InferShape4BNTrainingUpdate(gert::InferSymbolShapeContext *context) 
   return ge::GRAPH_SUCCESS;
 }
 
+/**
+ * BatchNorm 的符号 Shape 推导。
+ * 【算子功能】对输入 x 执行批量归一化（训练模式），输出归一化结果 y、batch 统计量以及反向传播所需的 reserve space。
+ * 【算子约束】x 为 4D 张量；scale 与 offset 为 1D 参数张量，其 Shape 决定统计量输出 Shape。
+ * 【推导逻辑】y 继承 x 的 Shape；batch_mean、batch_variance、reserve_space_1、reserve_space_2 继承 scale 的 Shape；
+ *             reserve_space_3 为单元素 Shape [1]。
+ * 【举例】x=[N,C,H,W]、scale=[C] 时，y=[N,C,H,W]，batch_mean/batch_variance/reserve_space_1/reserve_space_2=[C]，
+ *         reserve_space_3=[1]。
+ */
+graphStatus InferShape4BatchNorm(gert::InferSymbolShapeContext *context) {
+  auto x_shape = context->GetInputSymbolShape(0);
+  GE_UNSUPPORTED_IF_NULL(x_shape);
+  auto scale_shape = context->GetInputSymbolShape(1);
+  GE_UNSUPPORTED_IF_NULL(scale_shape);
+
+  for (size_t i = 0U; i < kBatchNormOutputNum; ++i) {
+    auto output_shape = context->GetOutputSymbolShape(i);
+    GE_ASSERT(output_shape != nullptr, "BatchNorm output shape is null, idx %zu", i);
+    if (i == 0U) {
+      *output_shape = *x_shape;
+    } else if (i == kBatchNormOutputNum - 1U) {
+      output_shape->MutableDims() = {ge::kSymbolOne};
+    } else {
+      *output_shape = *scale_shape;
+    }
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+/**
+ * BatchNormV3 的符号 Shape 推导。
+ * 【算子功能】对输入 x 执行批量归一化（V3），输出归一化结果 y 以及 running 统计量与 save 统计量。
+ * 【算子约束】x 为 4D 张量；weight 与 bias 为参数张量，weight 的 Shape 决定统计量输出 Shape。
+ * 【推导逻辑】y 继承 x 的 Shape；running_mean、running_var、save_mean、save_rstd 均继承 weight 的 Shape。
+ * 【举例】x=[N,C,H,W]、weight=[C] 时，y=[N,C,H,W]，running_mean/running_var/save_mean/save_rstd=[C]。
+ */
+graphStatus InferShape4BatchNormV3(gert::InferSymbolShapeContext *context) {
+  auto x_shape = context->GetInputSymbolShape(0);
+  GE_UNSUPPORTED_IF_NULL(x_shape);
+  auto weight_shape = context->GetInputSymbolShape(1);
+  GE_UNSUPPORTED_IF_NULL(weight_shape);
+
+  for (size_t i = 0U; i < kBatchNormV3OutputNum; ++i) {
+    auto output_shape = context->GetOutputSymbolShape(i);
+    GE_ASSERT(output_shape != nullptr, "BatchNormV3 output shape is null, idx %zu", i);
+    if (i == 0U) {
+      *output_shape = *x_shape;
+    } else {
+      *output_shape = *weight_shape;
+    }
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(BNTrainingReduce).InferSymbolShape(InferShape4BNTrainingReduce);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(BNTrainingUpdate).InferSymbolShape(InferShape4BNTrainingUpdate);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(BNTrainingUpdateV3).InferSymbolShape(InferShape4BNTrainingUpdate);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(BatchNorm).InferSymbolShape(InferShape4BatchNorm);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(BatchNormV3).InferSymbolShape(InferShape4BatchNormV3);
 
 }  // namespace
 }  // namespace ge

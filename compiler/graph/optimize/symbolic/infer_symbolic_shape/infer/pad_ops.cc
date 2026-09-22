@@ -140,10 +140,22 @@ graphStatus InferShape4PadV3(gert::InferSymbolShapeContext *context) {
   return PadV3InferShape(context, x_shape, paddings_tensor, y_shape);
 }
 
+/**
+ * MirrorPad 的符号 Shape 推导。
+ * 【算子功能】以镜像方式填充张量，mode 决定填充区域是否包含边界。
+ * 【算子约束】paddings 是形状为 [n, 2] 的整数常量张量，n 为输入秩；mode 为 REQUIRED 属性但不影响输出 Shape。
+ * 【推导逻辑】与 Pad 一致，输出每维等于输入维 + 该维前后填充量之和。
+ * 【举例】x=[4,2,5]、paddings=[[1,2],[2,1],[3,3]] 时，y=[7,5,11]。
+ */
+graphStatus InferShape4MirrorPad(gert::InferSymbolShapeContext *context) {
+  return InferShape4Pad(context);
+}
+
 // PadV2与Pad的paddings布局一致（恒为contiguous，形状[n, 2]），constant_values不影响shape，直接复用Pad推导
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Pad).InferSymbolShape(InferShape4Pad);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(PadD).InferSymbolShape(InferShape4PadD);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(PadV2).InferSymbolShape(InferShape4Pad);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(PadV3).InferSymbolShape(InferShape4PadV3);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(MirrorPad).InferSymbolShape(InferShape4MirrorPad);
 }  // namespace
 }  // namespace ge

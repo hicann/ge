@@ -723,6 +723,369 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForZerosLike) {
   TestForElementWise("zerosLike", "ZerosLike");
 }
 
+/**
+ * 测试场景：OnesLike 单输入、单输出的符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1]。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForOnesLike) {
+  TestForElementWise("onesLike", "OnesLike");
+}
+
+/**
+ * 测试场景：ReverseV2 沿 axis 反转元素时的符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1]。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForReverseV2) {
+  TestForElementWise("reverseV2", "ReverseV2");
+}
+
+/**
+ * 测试场景：Tril 取矩阵下三角部分时的符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1]。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForTril) {
+  TestForElementWise("tril", "Tril");
+}
+
+/**
+ * 测试场景：Triu 取矩阵上三角部分时的符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1]。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForTriu) {
+  TestForElementWise("triu", "Triu");
+}
+
+/**
+ * 测试场景：Bucketize 根据边界分桶时的符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1]。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForBucketize) {
+  TestForElementWise("bucketize", "Bucketize");
+}
+
+/**
+ * 测试场景：CheckNumerics 校验 NaN/Inf 时的符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1]。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForCheckNumerics) {
+  TestForElementWise("checkNumerics", "CheckNumerics");
+}
+
+/**
+ * 测试场景：LinearIndex 把多维索引转线性索引的符号 Shape 推导，combine 展平输出。
+ * 测试输入：indices=[B,S]，shape 为 [2]，combine=true。
+ * 期望输出：index=[B*S]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForLinearIndex) {
+  const auto func = GetInferFunc("LinearIndex");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto indices_shape = gert::SymbolShape({b, s});
+  const auto shape_shape = gert::SymbolShape({Symbol(2)});
+  InferSymbolShapeContextTestBuilder builder("LinearIndex", "linear_index");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("axis");
+  op_desc->AppendIrAttrName("combine");
+  ge::AttrUtils::SetInt(op_desc, "axis", -1);
+  ge::AttrUtils::SetBool(op_desc, "combine", true);
+  auto infer_context =
+      builder.AppendInputSymbolTensor(indices_shape).AppendInputSymbolTensor(shape_shape).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({b * s}).GetDims());
+}
+
+/**
+ * 测试场景：IRFFT 逆实数傅里叶变换的符号 Shape 推导，输出最后一维由 fft_length 决定。
+ * 测试输入：x=[B,N]，fft_length 为单元素常量 [L]。
+ * 期望输出：y=[B,L]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForIRFFT) {
+  const auto func = GetInferFunc("IRFFT");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto n = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 1));
+  const auto x_shape = gert::SymbolShape({b, n});
+  const auto fft_length_shape = gert::SymbolShape({Symbol(1)});
+  const std::vector<Expression> fft_length = {Symbol(5)};
+  InferSymbolShapeContextTestBuilder builder("IRFFT", "irfft");
+  auto infer_context = builder.AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(fft_length_shape, true, &fft_length)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({b, Symbol(5)}).GetDims());
+}
+
+/**
+ * 测试场景：RFFT 正向实数傅里叶变换的符号 Shape 推导，输出最后一维为 fft_length/2+1。
+ * 测试输入：input=[B,N]，fft_length 为单元素常量 [10]。
+ * 期望输出：y=[B,6]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForRFFT) {
+  const auto func = GetInferFunc("RFFT");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto n = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 1));
+  const auto input_shape = gert::SymbolShape({b, n});
+  const auto fft_length_shape = gert::SymbolShape({Symbol(1)});
+  const std::vector<Expression> fft_length = {Symbol(10)};
+  InferSymbolShapeContextTestBuilder builder("RFFT", "rfft");
+  auto infer_context = builder.AppendInputSymbolTensor(input_shape)
+                           .AppendInputSymbolTensor(fft_length_shape, true, &fft_length)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({b, Symbol(6)}).GetDims());
+}
+
+/**
+ * 测试场景：RandomStandardNormal 输出 Shape 由 shape 输入的常量决定。
+ * 测试输入：shape 的 SymbolicValue 为 [2,3,4]。
+ * 期望输出：y 的符号 Shape 为 [2,3,4]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForRandomStandardNormal) {
+  const auto func = GetInferFunc("RandomStandardNormal");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("RandomStandardNormal", "random_standard_normal");
+  const auto s2 = Symbol(2);
+  const auto s3 = Symbol(3);
+  const auto s4 = Symbol(4);
+  const std::vector<Expression> shape_value = {s2, s3, s4};
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape(), true, &shape_value).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({s2, s3, s4}).GetDims());
+}
+
+/**
+ * 测试场景：SegmentSum 沿段求和的符号 Shape 推导，输出首维为 max(segment_ids)+1。
+ * 测试输入：x=[N,D]，segment_ids 的最大值为 3。
+ * 期望输出：y=[4,D]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSegmentSum) {
+  const auto func = GetInferFunc("SegmentSum");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto n = shape_env.CreateSymbol(6, MakeShared<InputShapeSource>(0, 0));
+  const auto d = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto x_shape = gert::SymbolShape({n, d});
+  const auto segment_ids_shape = gert::SymbolShape({Symbol(6)});
+  const std::vector<Expression> segment_ids = {Symbol(0), Symbol(1), Symbol(1), Symbol(2), Symbol(2), Symbol(3)};
+  InferSymbolShapeContextTestBuilder builder("SegmentSum", "segment_sum");
+  auto infer_context = builder.AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(segment_ids_shape, true, &segment_ids)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({Symbol(4), d}).GetDims());
+}
+
+/**
+ * 测试场景：JaggedToPaddedDense 将锯齿张量转为稠密填充张量的符号 Shape 推导。
+ * 测试输入：values=[total_L,D]，offsets=[B+1]，max_length=16。
+ * 期望输出：out=[B,16,D]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForJaggedToPaddedDense) {
+  const auto func = GetInferFunc("JaggedToPaddedDense");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto total_l = shape_env.CreateSymbol(100, MakeShared<InputShapeSource>(0, 0));
+  const auto d = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 1));
+  const auto b1 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(1, 0));
+  const auto values_shape = gert::SymbolShape({total_l, d});
+  const auto offsets_shape = gert::SymbolShape({b1});
+  InferSymbolShapeContextTestBuilder builder("JaggedToPaddedDense", "jagged_to_padded_dense");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("max_length");
+  op_desc->AppendIrAttrName("padding_value_fp32");
+  op_desc->AppendIrAttrName("padding_value_int64");
+  ge::AttrUtils::SetInt(op_desc, "max_length", 16);
+  ge::AttrUtils::SetFloat(op_desc, "padding_value_fp32", 0.0f);
+  ge::AttrUtils::SetInt(op_desc, "padding_value_int64", 0);
+  auto infer_context =
+      builder.AppendInputSymbolTensor(values_shape).AppendInputSymbolTensor(offsets_shape).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(),
+            gert::SymbolShape({b1 - Symbol(1), Symbol(16), d}).GetDims());
+}
+
+/**
+ * 测试场景：DenseToJagged 将稠密张量压缩为锯齿张量的符号 Shape 推导。
+ * 测试输入：dense=[B,N,D]，jagged_dim0=16。
+ * 期望输出：jagged_dense=[16,D]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForDenseToJagged) {
+  const auto func = GetInferFunc("DenseToJagged");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto n = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
+  const auto d = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  const auto dense_shape = gert::SymbolShape({b, n, d});
+  const auto offset_shape = gert::SymbolShape({Symbol(3)});
+  InferSymbolShapeContextTestBuilder builder("DenseToJagged", "dense_to_jagged");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("jagged_dim0");
+  ge::AttrUtils::SetInt(op_desc, "jagged_dim0", 16);
+  auto infer_context =
+      builder.AppendInputSymbolTensor(dense_shape).AppendInputSymbolTensor(offset_shape).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({Symbol(16), d}).GetDims());
+}
+
+/**
+ * 测试场景：ScatterElementsV2 用 indices/updates 更新 var 时的符号 Shape 透传推导。
+ * 测试输入：var 的符号 Shape 为 [s0,s1]。
+ * 期望输出：var 的符号 Shape 与输入 var 一致，为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForScatterElementsV2) {
+  TestForElementWise("scatterElementsV2", "ScatterElementsV2");
+}
+
+/**
+ * 测试场景：Sort 沿 axis 排序后的双输出符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [B,S]。
+ * 期望输出：y1 和 y2 的符号 Shape 均为 [B,S]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSort) {
+  const auto func = GetInferFunc("Sort");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto x_shape = gert::SymbolShape({b, s});
+  InferSymbolShapeContextTestBuilder builder("Sort", "sort");
+  auto infer_context = builder.AppendInputSymbolTensor(x_shape).OutputNum(2).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), x_shape.GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), x_shape.GetDims());
+}
+
+/**
+ * 测试场景：SortWithIndex 沿 axis 排序后的双输出符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [B,S]，index 的符号 Shape 为 [B,S]。
+ * 期望输出：y 和 sorted_index 的符号 Shape 均为 [B,S]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSortWithIndex) {
+  const auto func = GetInferFunc("SortWithIndex");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto x_shape = gert::SymbolShape({b, s});
+  const auto index_shape = gert::SymbolShape({b, s});
+  InferSymbolShapeContextTestBuilder builder("SortWithIndex", "sort_with_index");
+  auto infer_context =
+      builder.AppendInputSymbolTensor(x_shape).AppendInputSymbolTensor(index_shape).OutputNum(2).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), x_shape.GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), x_shape.GetDims());
+}
+
+/**
+ * 测试场景：SparseSegmentMean 沿稀疏段聚合后的符号 Shape 推导。
+ * 测试输入：x=[N,D]，indices 与 segment_ids 为长度 6 的常量，segment_ids 最大值为 3。
+ * 期望输出：y=[4,D]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSparseSegmentMean) {
+  const auto func = GetInferFunc("SparseSegmentMean");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto n = shape_env.CreateSymbol(6, MakeShared<InputShapeSource>(0, 0));
+  const auto d = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto x_shape = gert::SymbolShape({n, d});
+  const auto indices_shape = gert::SymbolShape({Symbol(6)});
+  const auto segment_ids_shape = gert::SymbolShape({Symbol(6)});
+  const std::vector<Expression> segment_ids = {Symbol(0), Symbol(1), Symbol(1), Symbol(2), Symbol(2), Symbol(3)};
+  InferSymbolShapeContextTestBuilder builder("SparseSegmentMean", "sparse_segment_mean");
+  auto infer_context = builder.AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(indices_shape)
+                           .AppendInputSymbolTensor(segment_ids_shape, true, &segment_ids)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({Symbol(4), d}).GetDims());
+}
+
+/**
+ * 测试场景：SparseTensorDenseMatMul 稀疏矩阵与稠密矩阵相乘的符号 Shape 推导。
+ * 测试输入：x1_shape 常量 [3,8]，x2=[K,N]，adjoint_a/adjoint_b 均为 false。
+ * 期望输出：y=[3,N]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSparseTensorDenseMatMul) {
+  const auto func = GetInferFunc("SparseTensorDenseMatMul");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto k = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(3, 0));
+  const auto n = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(3, 1));
+  const auto x1_indices_shape = gert::SymbolShape({Symbol(5), Symbol(2)});
+  const auto x1_values_shape = gert::SymbolShape({Symbol(5)});
+  const auto x1_shape_shape = gert::SymbolShape({Symbol(2)});
+  const auto x2_shape = gert::SymbolShape({k, n});
+  const std::vector<Expression> x1_shape_value = {Symbol(3), Symbol(8)};
+  InferSymbolShapeContextTestBuilder builder("SparseTensorDenseMatMul", "sparse_tensor_dense_mat_mul");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("adjoint_a");
+  op_desc->AppendIrAttrName("adjoint_b");
+  ge::AttrUtils::SetBool(op_desc, "adjoint_a", false);
+  ge::AttrUtils::SetBool(op_desc, "adjoint_b", false);
+  auto infer_context = builder.AppendInputSymbolTensor(x1_indices_shape)
+                           .AppendInputSymbolTensor(x1_values_shape)
+                           .AppendInputSymbolTensor(x1_shape_shape, true, &x1_shape_value)
+                           .AppendInputSymbolTensor(x2_shape)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({Symbol(3), n}).GetDims());
+}
+
+/**
+ * 测试场景：TransformBiasRescaleQkv 偏置重缩放后的三输出符号 Shape 推导。
+ * 测试输入：qkv=[B,T,D]，num_heads=4。
+ * 期望输出：q/k/v 均为 [B,4,T,D/3/4]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForTransformBiasRescaleQkv) {
+  const auto func = GetInferFunc("TransformBiasRescaleQkv");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto t = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 1));
+  const auto d = shape_env.CreateSymbol(24, MakeShared<InputShapeSource>(0, 2));
+  const auto qkv_shape = gert::SymbolShape({b, t, d});
+  const auto qkv_bias_shape = gert::SymbolShape({d});
+  InferSymbolShapeContextTestBuilder builder("TransformBiasRescaleQkv", "transform_bias_rescale_qkv");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("num_heads");
+  ge::AttrUtils::SetInt(op_desc, "num_heads", 4);
+  auto infer_context =
+      builder.AppendInputSymbolTensor(qkv_shape).AppendInputSymbolTensor(qkv_bias_shape).OutputNum(3).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  const auto expected = gert::SymbolShape({b, Symbol(4), t, d / Symbol(3) / Symbol(4)});
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), expected.GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), expected.GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(2)->GetDims(), expected.GetDims());
+}
+
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSquare) {
   TestForElementWise("square", "Square");
 }
@@ -1631,8 +1994,434 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForSoftmaxV2) {
   TestForElementWise("SoftmaxV2", "SoftmaxV2");
 }
 
+/**
+ * 测试场景：LogSoftmaxV2 单输入、单输出的符号 Shape 透传推导。
+ * 测试输入：logits 的符号 Shape 为 [s0,s1,s2]，axes 使用默认值 [-1]。
+ * 期望输出：logsoftmax 的符号 Shape 与 logits 一致，为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForLogSoftmaxV2) {
+  TestForElementWise("LogSoftmaxV2", "LogSoftmaxV2");
+}
+
+/**
+ * 测试场景：MatrixDiag 根据输入 Shape 构造批量矩阵的符号 Shape。
+ * 测试输入：x 的符号 Shape 为 [B,M,N]。
+ * 期望输出：y 的符号 Shape 为 [B,M,N,N]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForMatrixDiag) {
+  const auto func = GetInferFunc("MatrixDiag");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto m = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto n = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  InferSymbolShapeContextTestBuilder builder("MatrixDiag", "matrix_diag");
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({b, m, n})).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({b, m, n, n}).GetDims());
+}
+
+/**
+ * 测试场景：MaxPoolWithArgmax 对 NHWC 输入执行 VALID 池化的双输出符号 Shape 推导。
+ * 测试输入：x=[N,H,W,C]，ksize=[1,2,2,1]，strides=[1,2,2,1]，padding=VALID。
+ * 期望输出：y 和 argmax 均为 [N,floor((H-1)/2),floor((W-1)/2),C]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForMaxPoolWithArgmax) {
+  const auto func = GetInferFunc("MaxPoolWithArgmax");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto n = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 1));
+  const auto w = shape_env.CreateSymbol(10, MakeShared<InputShapeSource>(0, 2));
+  const auto c = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 3));
+  InferSymbolShapeContextTestBuilder builder("MaxPoolWithArgmax", "max_pool_with_argmax");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("ksize");
+  op_desc->AppendIrAttrName("strides");
+  op_desc->AppendIrAttrName("padding");
+  op_desc->AppendIrAttrName("Targmax");
+  op_desc->AppendIrAttrName("include_batch_in_index");
+  op_desc->AppendIrAttrName("data_format");
+  op_desc->AppendIrAttrName("nan_prop");
+  ge::AttrUtils::SetListInt(op_desc, "ksize", {1, 2, 2, 1});
+  ge::AttrUtils::SetListInt(op_desc, "strides", {1, 2, 2, 1});
+  ge::AttrUtils::SetStr(op_desc, "padding", "VALID");
+  ge::AttrUtils::SetInt(op_desc, "Targmax", 9);
+  ge::AttrUtils::SetBool(op_desc, "include_batch_in_index", false);
+  ge::AttrUtils::SetStr(op_desc, "data_format", "NHWC");
+  ge::AttrUtils::SetBool(op_desc, "nan_prop", false);
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h, w, c})).OutputNum(2).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  const auto expected = gert::SymbolShape(
+      {n, sym::Floor((h - Symbol(2) + Symbol(2)) / Symbol(2)), sym::Floor((w - Symbol(2) + Symbol(2)) / Symbol(2)), c});
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), expected.GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), expected.GetDims());
+}
+
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForApplyGradientDescent) {
   TestForElementWise("ApplyGradientDescent", "ApplyGradientDescent");
+}
+
+/**
+ * 测试场景：Addcmul 三个参与广播的输入计算单输出符号 Shape。
+ * 测试输入：input_data=[B,S,H]、x1=[1,S,H]、x2=[H]，value 为不参与 Shape 推导的单元素输入。
+ * 期望输出：y 的符号 Shape 为 [B,S,H]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForAddcmul) {
+  const auto func = GetInferFunc("Addcmul");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  const auto input_data_shape = gert::SymbolShape({b, s, h});
+  const auto x1_shape = gert::SymbolShape({Symbol(1), s, h});
+  const auto x2_shape = gert::SymbolShape({h});
+  const auto value_shape = gert::SymbolShape({Symbol(1)});
+
+  InferSymbolShapeContextTestBuilder builder("Addcmul", "addcmul");
+  auto infer_context = builder.AppendInputSymbolTensor(input_data_shape)
+                           .AppendInputSymbolTensor(x1_shape)
+                           .AppendInputSymbolTensor(x2_shape)
+                           .AppendInputSymbolTensor(value_shape)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), input_data_shape.GetDims());
+}
+
+/**
+ * 测试场景：AdjacentDifference 单输入、单输出的符号 Shape 推导。
+ * 测试输入：输入 x 的符号 Shape 为 [s0, s1]。
+ * 期望输出：输出 y 的符号 Shape 与 x 一致，为 [s0, s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForAdjacentDifference) {
+  TestForElementWise("AdjacentDifference", "AdjacentDifference");
+}
+
+/**
+ * 测试场景：ArgMaxV2 按常量 dimension 删除输入 Shape 的指定维度。
+ * 测试输入：x 的符号 Shape 为 [B,S,H]，dimension 为单值常量 -1。
+ * 期望输出：y 的符号 Shape 为 [B,S]，并保留未归约维度的 Expression。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForArgMaxV2) {
+  const auto func = GetInferFunc("ArgMaxV2");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  const auto x_shape = gert::SymbolShape({b, s, h});
+  const std::vector<Expression> dimension_value = {Symbol(-1)};
+
+  InferSymbolShapeContextTestBuilder builder("ArgMaxV2", "arg_max_v2");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AddInputDesc("x", GeTensorDesc());
+  op_desc->AddInputDesc("dimension", GeTensorDesc(GeShape(), FORMAT_ND, DT_INT64));
+  op_desc->AppendIrAttrName("dtype");
+  ge::AttrUtils::SetInt(op_desc, "dtype", DT_INT64);
+  auto infer_context = builder.AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(gert::SymbolShape({}), true, &dimension_value)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({b, s}).GetDims());
+}
+
+/**
+ * 测试场景：AsStrided 根据 size 数据依赖推导输出符号 Shape。
+ * 测试输入：size 的常量值为 [2,3,4]，stride 和 storage_offset 作为数据依赖输入存在。
+ * 期望输出：y 的符号 Shape 为 [2,3,4]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForAsStrided) {
+  const auto func = GetInferFunc("AsStrided");
+  ASSERT_NE(func.first, nullptr);
+  const std::vector<Expression> size_value = {Symbol(2), Symbol(3), Symbol(4)};
+  const std::vector<Expression> stride_value = {Symbol(12), Symbol(4), Symbol(1)};
+  const std::vector<Expression> offset_value = {Symbol(0)};
+  InferSymbolShapeContextTestBuilder builder("AsStrided", "as_strided");
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({Symbol(2), Symbol(3), Symbol(4)}))
+                           .AppendInputSymbolTensor(gert::SymbolShape({Symbol(3)}), true, &size_value)
+                           .AppendInputSymbolTensor(gert::SymbolShape({Symbol(3)}), true, &stride_value)
+                           .AppendInputSymbolTensor(gert::SymbolShape({Symbol(1)}), true, &offset_value)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(),
+            gert::SymbolShape({Symbol(2), Symbol(3), Symbol(4)}).GetDims());
+}
+
+/**
+ * 测试场景：Atan2 两输入广播后的单输出符号 Shape 推导。
+ * 测试输入：x1 的符号 Shape 为 [B,S,H]，x2 的符号 Shape 为 [1,S,H]。
+ * 期望输出：y 的符号 Shape 为 [B,S,H]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForAtan2) {
+  const auto func = GetInferFunc("Atan2");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  const auto x1_shape = gert::SymbolShape({b, s, h});
+  const auto x2_shape = gert::SymbolShape({Symbol(1), s, h});
+
+  InferSymbolShapeContextTestBuilder builder("Atan2", "atan2");
+  auto infer_context = builder.AppendInputSymbolTensor(x1_shape).AppendInputSymbolTensor(x2_shape).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), x1_shape.GetDims());
+}
+
+/**
+ * 测试场景：Lerp 三输入广播后的单输出符号 Shape 推导。
+ * 测试输入：start=[B,S,H]、end=[1,S,H]、weight=[H]。
+ * 期望输出：y 的符号 Shape 为 [B,S,H]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForLerp) {
+  const auto func = GetInferFunc("Lerp");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  const auto start_shape = gert::SymbolShape({b, s, h});
+  const auto end_shape = gert::SymbolShape({Symbol(1), s, h});
+  const auto weight_shape = gert::SymbolShape({h});
+  InferSymbolShapeContextTestBuilder builder("Lerp", "lerp");
+  auto infer_context = builder.AppendInputSymbolTensor(start_shape)
+                           .AppendInputSymbolTensor(end_shape)
+                           .AppendInputSymbolTensor(weight_shape)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), start_shape.GetDims());
+}
+
+/**
+ * 测试场景：PRelu 两输入广播后的单输出符号 Shape 推导。
+ * 测试输入：x 的符号 Shape 为 [N,C,H,W]，weight 的符号 Shape 为 [1,C,1,1]。
+ * 期望输出：y 的符号 Shape 为 [N,C,H,W]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForPRelu) {
+  const auto func = GetInferFunc("PRelu");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto n = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto c = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto h = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 2));
+  const auto w = shape_env.CreateSymbol(7, MakeShared<InputShapeSource>(0, 3));
+  const auto x_shape = gert::SymbolShape({n, c, h, w});
+  const auto weight_shape = gert::SymbolShape({Symbol(1), c, Symbol(1), Symbol(1)});
+  InferSymbolShapeContextTestBuilder builder("PRelu", "prelu");
+  auto infer_context =
+      builder.AppendInputSymbolTensor(x_shape).AppendInputSymbolTensor(weight_shape).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), x_shape.GetDims());
+}
+
+/**
+ * 测试场景：RepeatInterleave 沿 axis 维重复元素后的符号 Shape 推导。
+ * 测试输入：x 的符号 Shape 为 [B,S]，repeats 为单元素常量 [2]，axis=1。
+ * 期望输出：y 的符号 Shape 为 [B,S*2]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForRepeatInterleave) {
+  const auto func = GetInferFunc("RepeatInterleave");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto input_shape = gert::SymbolShape({b, s});
+  const auto repeats_shape = gert::SymbolShape({Symbol(1)});
+  const std::vector<Expression> repeats = {Symbol(2)};
+  InferSymbolShapeContextTestBuilder builder("RepeatInterleave", "repeat_interleave");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("axis");
+  ge::AttrUtils::SetInt(op_desc, "axis", 1);
+  auto infer_context = builder.AppendInputSymbolTensor(input_shape)
+                           .AppendInputSymbolTensor(repeats_shape, true, &repeats)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({b, s * Symbol(2)}).GetDims());
+}
+
+/**
+ * 测试场景：AvgPool 根据 VALID 池化属性推导符号 Shape。
+ * 测试输入：x 的符号 Shape 为 [N,H,W,C]，ksize=[1,2,2,1]，strides=[1,2,2,1]，padding=VALID。
+ * 期望输出：y 的符号 Shape 为 [N,floor((H-1)/2),floor((W-1)/2),C]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForAvgPool) {
+  const auto func = GetInferFunc("AvgPool");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto n = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 1));
+  const auto w = shape_env.CreateSymbol(10, MakeShared<InputShapeSource>(0, 2));
+  const auto c = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 3));
+  InferSymbolShapeContextTestBuilder builder("AvgPool", "avg_pool");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("ksize");
+  op_desc->AppendIrAttrName("strides");
+  op_desc->AppendIrAttrName("padding");
+  op_desc->AppendIrAttrName("data_format");
+  ge::AttrUtils::SetListInt(op_desc, "ksize", {1, 2, 2, 1});
+  ge::AttrUtils::SetListInt(op_desc, "strides", {1, 2, 2, 1});
+  ge::AttrUtils::SetStr(op_desc, "padding", "VALID");
+  ge::AttrUtils::SetStr(op_desc, "data_format", "NHWC");
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h, w, c})).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(),
+            gert::SymbolShape({n, sym::Floor((h - Symbol(2) + Symbol(2)) / Symbol(2)),
+                               sym::Floor((w - Symbol(2) + Symbol(2)) / Symbol(2)), c})
+                .GetDims());
+}
+
+/**
+ * 测试场景：MaxPool 根据 VALID 池化属性推导符号 Shape。
+ * 测试输入：x 的符号 Shape 为 [N,H,W,C]，ksize=[1,2,2,1]，strides=[1,2,2,1]，padding=VALID。
+ * 期望输出：y 的符号 Shape 为 [N,floor((H-1)/2),floor((W-1)/2),C]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForMaxPool) {
+  const auto func = GetInferFunc("MaxPool");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto n = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 1));
+  const auto w = shape_env.CreateSymbol(10, MakeShared<InputShapeSource>(0, 2));
+  const auto c = shape_env.CreateSymbol(16, MakeShared<InputShapeSource>(0, 3));
+  InferSymbolShapeContextTestBuilder builder("MaxPool", "max_pool");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("ksize");
+  op_desc->AppendIrAttrName("strides");
+  op_desc->AppendIrAttrName("padding");
+  op_desc->AppendIrAttrName("data_format");
+  ge::AttrUtils::SetListInt(op_desc, "ksize", {1, 2, 2, 1});
+  ge::AttrUtils::SetListInt(op_desc, "strides", {1, 2, 2, 1});
+  ge::AttrUtils::SetStr(op_desc, "padding", "VALID");
+  ge::AttrUtils::SetStr(op_desc, "data_format", "NHWC");
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({n, h, w, c})).OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(),
+            gert::SymbolShape({n, sym::Floor((h - Symbol(2) + Symbol(2)) / Symbol(2)),
+                               sym::Floor((w - Symbol(2) + Symbol(2)) / Symbol(2)), c})
+                .GetDims());
+}
+
+/**
+ * 测试场景：IndexPutV2 单输出符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [B,S,H]，value、indexed_sizes、indexed_strides 和动态 indices 仅描述写回位置。
+ * 期望输出：输出 x 的符号 Shape 与输入 x 一致，为 [B,S,H]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForIndexPutV2) {
+  const auto func = GetInferFunc("IndexPutV2");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  const std::vector<Expression> indices_value = {Symbol(0)};
+  InferSymbolShapeContextTestBuilder builder("IndexPutV2", "index_put_v2");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AddDynamicInputDesc("indices", 1, true);
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({b, s, h}))
+                           .AppendInputSymbolTensor(gert::SymbolShape({s}))
+                           .AppendInputSymbolTensor(gert::SymbolShape({Symbol(1)}))
+                           .AppendInputSymbolTensor(gert::SymbolShape({Symbol(1)}))
+                           .AppendInputSymbolTensor(gert::SymbolShape({Symbol(1)}), true, &indices_value)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({b, s, h}).GetDims());
+}
+
+/**
+ * 测试场景：Cumsum 单输出的符号 Shape 透传推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1,s2]，axis 为标量数据依赖输入，exclusive 和 reverse 使用默认值。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForCumsum) {
+  TestForElementWise("Cumsum", "Cumsum");
+}
+
+/**
+ * 测试场景：IsInf 单输入、单输出的符号 Shape 透传推导。
+ * 测试输入：输入 x 的符号 Shape 为 [s0,s1]。
+ * 期望输出：输出 y 的符号 Shape 与 x 一致，为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForIsInf) {
+  TestForElementWise("IsInf", "IsInf");
+}
+
+/**
+ * 测试场景：Expm1 单输入、单输出的符号 Shape 透传推导。
+ * 测试输入：输入 x 的符号 Shape 为 [s0, s1, s2]。
+ * 期望输出：输出 y 的符号 Shape 与 x 一致，为 [s0, s1, s2]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForExpm1) {
+  TestForElementWise("Expm1", "Expm1");
+}
+
+/**
+ * 测试场景：Eye 根据矩阵行列和 batch_shape 属性推导输出符号 Shape。
+ * 测试输入：num_rows=3、num_columns=4、batch_shape=[2]。
+ * 期望输出：y 的符号 Shape 为 [2,3,4]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForEye) {
+  const auto func = GetInferFunc("Eye");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("Eye", "eye");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AppendIrAttrName("num_rows");
+  op_desc->AppendIrAttrName("num_columns");
+  op_desc->AppendIrAttrName("batch_shape");
+  op_desc->AppendIrAttrName("dtype");
+  ge::AttrUtils::SetInt(op_desc, "num_rows", 3);
+  ge::AttrUtils::SetInt(op_desc, "num_columns", 4);
+  ge::AttrUtils::SetListInt(op_desc, "batch_shape", {2});
+  ge::AttrUtils::SetInt(op_desc, "dtype", 0);
+  auto infer_context = builder.OutputNum(1).Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(),
+            gert::SymbolShape({Symbol(2), Symbol(3), Symbol(4)}).GetDims());
+}
+
+/**
+ * 测试场景：ForeachNorm 动态输入/动态输出列表的符号 Shape 推导。
+ * 测试输入：两个动态 x 输入的符号 Shape 分别为 [B,S] 和 [H]，scalar 为不参与 Shape 推导的标量输入。
+ * 期望输出：两个动态 y 输出的符号 Shape 均为 [1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForForeachNorm) {
+  const auto func = GetInferFunc("ForeachNorm");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  InferSymbolShapeContextTestBuilder builder("ForeachNorm", "foreach_norm");
+  auto op_desc = builder.GetOrCreateOpDescPtr();
+  op_desc->AddDynamicInputDesc("x", 2, true);
+  op_desc->AddInputDesc("scalar", GeTensorDesc(GeShape(), FORMAT_ND, DT_FLOAT));
+  op_desc->AddDynamicOutputDesc("y", 2, true);
+  auto infer_context = builder.AppendInputSymbolTensor(gert::SymbolShape({b, s}))
+                           .AppendInputSymbolTensor(gert::SymbolShape({h}))
+                           .AppendInputSymbolTensor(gert::SymbolShape({}))
+                           .OutputNum(2)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), gert::SymbolShape({Symbol(1)}).GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), gert::SymbolShape({Symbol(1)}).GetDims());
 }
 
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForAssignAdd) {
@@ -3367,6 +4156,33 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForPad) {
                       .OutputNum(1)
                       .Build();
   ASSERT_EQ(func.first(infer_context), ge::UNSUPPORTED);
+}
+
+/**
+ * 测试场景：MirrorPad 根据 paddings 常量输入推导输出符号 Shape。
+ * 测试输入：x=[s0,s1,s2]，paddings=[[1,2],[2,1],[3,3]]。
+ * 期望输出：y=[s0+3,s1+3,s2+6]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForMirrorPad) {
+  const auto func = GetInferFunc("MirrorPad");
+  ASSERT_NE(func.first, nullptr);
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto s0 = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 0));
+  const auto s1 = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 1));
+  const auto s2 = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 2));
+  const auto input_shape = gert::SymbolShape({s0, s1, s2});
+  const auto paddings_shape = gert::SymbolShape({Symbol(3), Symbol(2)});
+  const std::vector<Expression> paddings = {Symbol(1), Symbol(2), Symbol(2), Symbol(1), Symbol(3), Symbol(3)};
+  InferSymbolShapeContextTestBuilder builder("MirrorPad", "mirror_pad");
+  auto infer_context = builder.AppendInputSymbolTensor(input_shape)
+                           .AppendInputSymbolTensor(paddings_shape, true, &paddings)
+                           .OutputNum(1)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  const auto expect_shape =
+      gert::SymbolShape({s0 + Symbol(1) + Symbol(2), s1 + Symbol(2) + Symbol(1), s2 + Symbol(3) + Symbol(3)});
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), expect_shape.GetDims());
 }
 
 static void BuildStridedSliceInferContext(InferSymbolShapeContextTestBuilder &builder,
@@ -5855,6 +6671,85 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForBNTrainingUpdate) {
   ASSERT_EQ(infer_context->GetOutputSymbolShape(4)->GetDims(), expect_shape2.GetDims());
 }
 
+/**
+ * 测试场景：BatchNormV3 五输入、五输出的符号 Shape 推导。
+ * 测试输入：x 的符号 Shape 为 [N, C, H, W]，weight、bias、running_mean、running_var 的符号 Shape 均为 [C]。
+ * 期望输出：y 的符号 Shape 为 [N, C, H, W]，其余四个输出的符号 Shape 均为 [C]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForBatchNormV3) {
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto n = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  auto c = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
+  auto h = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 2));
+  auto w = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 3));
+  auto channel = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+
+  InferSymbolShapeContextTestBuilder builder("BatchNormV3", "BatchNormV3");
+  auto x_shape = gert::SymbolShape({n, c, h, w});
+  auto parameter_shape = gert::SymbolShape({channel});
+  auto infer_context = builder.AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(parameter_shape)
+                           .AppendInputSymbolTensor(parameter_shape)
+                           .AppendInputSymbolTensor(parameter_shape)
+                           .AppendInputSymbolTensor(parameter_shape)
+                           .OutputNum(5)
+                           .Build();
+
+  const auto func = GetInferFunc("BatchNormV3");
+  ASSERT_TRUE(func.first != nullptr);
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), x_shape.GetDims());
+  for (size_t i = 1U; i < 5U; ++i) {
+    ASSERT_EQ(infer_context->GetOutputSymbolShape(i)->GetDims(), parameter_shape.GetDims());
+  }
+}
+
+/**
+ * 测试场景：BatchNorm 五输入、六输出的符号 Shape 推导，包含 mean 和 variance 可选输入实例化场景。
+ * 测试输入：x 的符号 Shape 为 [N, C, H, W]，scale、offset、mean、variance 的符号 Shape 均为 [C]。
+ * 期望输出：y 的符号 Shape 为 [N, C, H, W]，batch_mean、batch_variance、reserve_space_1、reserve_space_2 的符号 Shape
+ * 均为 [C]，reserve_space_3 的符号 Shape 为 [1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForBatchNorm) {
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  auto n = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  auto c = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 1));
+  auto h = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 2));
+  auto w = shape_env.CreateSymbol(5, MakeShared<InputShapeSource>(0, 3));
+  auto channel = shape_env.CreateSymbol(3, MakeShared<InputShapeSource>(0, 4));
+
+  InferSymbolShapeContextTestBuilder builder("BatchNorm", "BatchNorm");
+  auto x_shape = gert::SymbolShape({n, c, h, w});
+  auto parameter_shape = gert::SymbolShape({channel});
+  auto infer_context = builder.AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(parameter_shape)
+                           .AppendInputSymbolTensor(parameter_shape)
+                           .AppendInputSymbolTensor(parameter_shape)
+                           .AppendInputSymbolTensor(parameter_shape)
+                           .OutputNum(6)
+                           .Build();
+
+  const auto func = GetInferFunc("BatchNorm");
+  ASSERT_TRUE(func.first != nullptr);
+  ASSERT_EQ(func.first(infer_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), x_shape.GetDims());
+  for (size_t i = 1U; i < 5U; ++i) {
+    ASSERT_EQ(infer_context->GetOutputSymbolShape(i)->GetDims(), parameter_shape.GetDims());
+  }
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(5)->GetDims(), gert::SymbolShape({Symbol(1)}).GetDims());
+}
+
+/**
+ * 测试场景：BNInfer 多输入、单输出的符号 Shape 推导（y 与 x 同形）。
+ * 测试输入：x 的符号 Shape 为 [s0, s1]。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0, s1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForBNInfer) {
+  TestForElementWise("BNInfer", "BNInfer");
+}
+
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForL2Loss) {
   auto func = GetInferFunc("L2Loss");
   ASSERT_TRUE(func.first != nullptr);
@@ -7829,6 +8724,64 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForRmsNorm) {
                       .Build();
   ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
   EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), gert::SymbolShape({s0, Symbol(1), Symbol(1)}).GetDims());
+}
+
+/**
+ * 测试场景：AddRmsNorm 三输入、三输出的符号 Shape 推导。
+ * 测试输入：x1 的符号 Shape 为 [B, S, H]，x2 的符号 Shape 与 x1 相同，gamma 的符号 Shape 为 [H]。
+ * 期望输出：y 和 x 的符号 Shape 与 x1 一致，rstd 的符号 Shape 为 [B, S, 1]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForAddRmsNorm) {
+  const auto func = GetInferFunc("AddRmsNorm");
+  ASSERT_NE(func.first, nullptr);
+
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto b = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(0, 0));
+  const auto s = shape_env.CreateSymbol(4, MakeShared<InputShapeSource>(0, 1));
+  const auto h = shape_env.CreateSymbol(8, MakeShared<InputShapeSource>(0, 2));
+  const auto x_shape = gert::SymbolShape({b, s, h});
+  const auto gamma_shape = gert::SymbolShape({h});
+
+  InferSymbolShapeContextTestBuilder builder("AddRmsNorm", "add_rms_norm");
+  auto infer_context = builder.AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(gamma_shape)
+                           .OutputNum(3)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), x_shape.GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), gert::SymbolShape({b, s, Symbol(1)}).GetDims());
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(2)->GetDims(), x_shape.GetDims());
+
+  builder.Destroy();
+  infer_context = builder.AppendInputSymbolTensor(x_shape)
+                      .AppendInputSymbolTensor(x_shape)
+                      .AppendInputSymbolTensor(gert::SymbolShape({s, h}))
+                      .OutputNum(3)
+                      .Build();
+  ASSERT_EQ(func.first(infer_context), GRAPH_SUCCESS);
+  EXPECT_EQ(infer_context->GetOutputSymbolShape(1)->GetDims(), gert::SymbolShape({b, Symbol(1), Symbol(1)}).GetDims());
+}
+
+/**
+ * 测试场景：AddRmsNorm 的 gamma 秩大于 x1 秩时拒绝推导。
+ * 测试输入：x1 的符号 Shape 为 [B, S]，gamma 的符号 Shape 为 [S, H]。
+ * 期望输出：符号 Shape 推导返回失败状态。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForAddRmsNormInvalidGammaRank) {
+  const auto func = GetInferFunc("AddRmsNorm");
+  ASSERT_NE(func.first, nullptr);
+
+  InferSymbolShapeContextTestBuilder builder("AddRmsNorm", "add_rms_norm_invalid");
+  const auto x_shape = gert::SymbolShape({Symbol(2), Symbol(4)});
+  const auto gamma_shape = gert::SymbolShape({Symbol(4), Symbol(8), Symbol(16)});
+  auto infer_context = builder.AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(x_shape)
+                           .AppendInputSymbolTensor(gamma_shape)
+                           .OutputNum(3)
+                           .Build();
+  ASSERT_EQ(func.first(infer_context), ge::PARAM_INVALID);
 }
 
 TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForGroupedMatmul) {
