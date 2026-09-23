@@ -67,10 +67,10 @@ Usage:
   bash run.sh [OPTIONS]
 
 Options:
-  --scenario=SCENARIO    运行场景: all (默认), host 或 aicore
+  --scenario=SCENARIO    运行场景: all (默认), host 或 device
                          all: 运行两个场景
                          host: 场景1 - HostCpu 自定义算子 (Const + 小 shape + 动态 Reshape)
-                         aicore: 场景2 - AICore 内置算子 (Data 输入 + 大 shape + 静态图)
+                         device: 场景2 - Device 自定义算子 (Data 输入 + 大 shape + 静态图)
   -h, --help             显示帮助信息
 EOF
 }
@@ -79,8 +79,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --scenario=*)
       SCENARIO="${1#*=}"
-      if [[ "${SCENARIO}" != "all" && "${SCENARIO}" != "host" && "${SCENARIO}" != "aicore" ]]; then
-        error "Invalid scenario: ${SCENARIO}. Must be 'all', 'host' or 'aicore'."
+      if [[ "${SCENARIO}" != "all" && "${SCENARIO}" != "host" && "${SCENARIO}" != "device" ]]; then
+        error "Invalid scenario: ${SCENARIO}. Must be 'all', 'host' or 'device'."
         usage
         exit 1
       fi

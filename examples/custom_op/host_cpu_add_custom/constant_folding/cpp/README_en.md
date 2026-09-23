@@ -6,7 +6,7 @@ This sample defines a minimal `AddCustom` custom operator to demonstrate how a H
 
 ## Prerequisites
 
-- Follow the [Installation Guide](../../../../docs/en/quick_install.md) to install the `toolkit` and `ops` packages.
+- Follow the [Installation Guide](../../../../../docs/en/quick_install.md) to install the `toolkit` and `ops` packages.
 - Set the environment variables (assuming that the packages are installed in `/usr/local/Ascend/`):
   ```bash
   source /usr/local/Ascend/cann/set_env.sh
@@ -14,7 +14,7 @@ This sample defines a minimal `AddCustom` custom operator to demonstrate how a H
 
 ## Quick Run
 
-Run in `examples/custom_op/host_cpu_add_custom/constant_folding`:
+Run in `examples/custom_op/host_cpu_add_custom/constant_folding/cpp`:
 
 ```bash
 bash run.sh
@@ -50,7 +50,7 @@ Search for `Constant folding computation for node` in the logs — `return code:
 ## Key Files
 
 ```text
-constant_folding
+constant_folding/cpp
 ├── CMakeLists.txt
 ├── run.sh
 ├── ge
@@ -72,6 +72,5 @@ constant_folding
 
 ## Notes
 
-- This sample only covers the constant-folding path; the runtime host scheduling sample lives in `../host_scheduling`, and the offline OM sample in `../offline`.
 - `AddCustom` is intentionally minimal and float32-only so the HostCpu constant-folding path stays easy to verify.
 - `ASCEND_CUSTOM_OPP_PATH` is appended automatically by `run.sh` with this sample's `output/`.

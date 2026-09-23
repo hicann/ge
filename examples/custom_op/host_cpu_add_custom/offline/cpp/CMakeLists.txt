@@ -1,8 +1,19 @@
+# -----------------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# This program is free software; you can redistribute it and/or modify it under the terms and conditions of
+# CANN Open Software License Agreement Version 2.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+# -----------------------------------------------------------------------------------------------------------
+
 cmake_minimum_required(VERSION 3.16)
-project(host_cpu_add_custom_constant_folding LANGUAGES CXX)
+project(host_cpu_add_custom_offline LANGUAGES CXX)
 
 option(HOST_CPU_ADD_BUILD_CUSTOM_OP "Build libcust_opapi.so" ON)
-option(HOST_CPU_ADD_BUILD_SESSION_RUN "Build session_run" ON)
+option(HOST_CPU_ADD_BUILD_GRAPH_BUILD "Build graph_build for AIR generation" ON)
+option(HOST_CPU_ADD_BUILD_MODEL_EXEC "Build model_exec for OM execution" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -68,7 +79,7 @@ if(ASCEND_HOME_PATH)
     OP_PROTO_LIB
   )
   target_include_directories(add_custom_op_proto PRIVATE
-    "${CMAKE_SOURCE_DIR}/ge"
+    "${CUSTOM_OP_INCLUDE_DIR}"
     "${ASCEND_HOME_PATH}/include"
     "${ASCEND_HOME_PATH}/include/graph"
     "${ASCEND_HOME_PATH}/include/register"
@@ -95,7 +106,7 @@ if(HOST_CPU_ADD_BUILD_CUSTOM_OP)
 
   if(ASCEND_HOME_PATH)
     target_include_directories(cust_opapi PRIVATE
-      "${CMAKE_SOURCE_DIR}/ge"
+      "${CUSTOM_OP_INCLUDE_DIR}"
       "${ASCEND_HOME_PATH}/include"
       "${ASCEND_HOME_PATH}/include/graph"
       "${ASCEND_HOME_PATH}/include/register"
@@ -107,6 +118,7 @@ if(HOST_CPU_ADD_BUILD_CUSTOM_OP)
       ascendcl
       register
       gert
+      custom_op_registry_static
       pthread
       dl
       -Wl,--as-needed
@@ -125,44 +137,66 @@ if(HOST_CPU_ADD_BUILD_CUSTOM_OP)
   )
 endif()
 
-if(HOST_CPU_ADD_BUILD_SESSION_RUN)
-  add_executable(host_cpu_add_custom_constant_folding_session_run
-    session_run/main.cc
+if(HOST_CPU_ADD_BUILD_GRAPH_BUILD)
+  add_executable(single_add_graph_build
+    graph_build/main.cc
   )
-  target_compile_options(host_cpu_add_custom_constant_folding_session_run PRIVATE ${COMMON_COMPILE_OPTIONS})
-  target_compile_definitions(host_cpu_add_custom_constant_folding_session_run PRIVATE
+  target_compile_options(single_add_graph_build PRIVATE ${COMMON_COMPILE_OPTIONS})
+  target_compile_definitions(single_add_graph_build PRIVATE
     _GLIBCXX_USE_CXX11_ABI=0
   )
 
   if(ASCEND_HOME_PATH)
-    target_include_directories(host_cpu_add_custom_constant_folding_session_run PRIVATE
+    target_include_directories(single_add_graph_build PRIVATE
       "${CUSTOM_OP_INCLUDE_DIR}"
       "${ES_OUTPUT_DIR}/include/es_custom"
-      "${CMAKE_SOURCE_DIR}/ge"
       "${ASCEND_HOME_PATH}/include"
       "${ASCEND_HOME_PATH}/include/graph"
       "${ASCEND_HOME_PATH}/include/ge"
       "${ASCEND_HOME_PATH}/opp/built-in/op_proto/inc"
     )
-    target_link_directories(host_cpu_add_custom_constant_folding_session_run PRIVATE "${ASCEND_HOME_PATH}/lib64")
-    target_link_libraries(host_cpu_add_custom_constant_folding_session_run PRIVATE
+    target_link_directories(single_add_graph_build PRIVATE "${ASCEND_HOME_PATH}/lib64")
+    target_link_libraries(single_add_graph_build PRIVATE
       -Wl,--no-as-needed
       es_math
       -Wl,--as-needed
       es_custom
       graph
-      ge_runner
       ge_compiler
       ascendcl
       graph_base
       c_sec
     )
-    add_dependencies(host_cpu_add_custom_constant_folding_session_run es_custom)
+    add_dependencies(single_add_graph_build es_custom)
   endif()
 
-  set_target_properties(host_cpu_add_custom_constant_folding_session_run PROPERTIES
+  set_target_properties(single_add_graph_build PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     BUILD_RPATH "$ORIGIN:${ES_OUTPUT_DIR}/lib64"
     INSTALL_RPATH "$ORIGIN:${ES_OUTPUT_DIR}/lib64"
+  )
+endif()
+
+if(HOST_CPU_ADD_BUILD_MODEL_EXEC)
+  add_executable(single_add_model_exec
+    model_exec/main.cc
+  )
+  target_compile_options(single_add_model_exec PRIVATE ${COMMON_COMPILE_OPTIONS})
+  target_compile_definitions(single_add_model_exec PRIVATE
+    _GLIBCXX_USE_CXX11_ABI=0
+  )
+
+  if(ASCEND_HOME_PATH)
+    target_include_directories(single_add_model_exec PRIVATE
+      "${ASCEND_HOME_PATH}/include"
+    )
+    target_link_directories(single_add_model_exec PRIVATE "${ASCEND_HOME_PATH}/lib64")
+    target_link_libraries(single_add_model_exec PRIVATE
+      ascendcl
+    )
+  endif()
+
+  set_target_properties(single_add_model_exec PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
   )
 endif()

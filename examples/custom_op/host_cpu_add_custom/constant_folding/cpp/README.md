@@ -6,7 +6,7 @@
 
 ## 前置依赖
 
-- 参考[安装指导](../../../../docs/zh/quick_install.md)完成 `toolkit` 和 `ops` 包安装。
+- 参考[安装指导](../../../../../docs/zh/quick_install.md)完成 `toolkit` 和 `ops` 包安装。
 - 设置环境变量（假设包安装在 `/usr/local/Ascend/`）：
   ```bash
   source /usr/local/Ascend/cann/set_env.sh
@@ -14,7 +14,7 @@
 
 ## 快速运行
 
-在 `examples/custom_op/host_cpu_add_custom/constant_folding` 目录下执行：
+在 `examples/custom_op/host_cpu_add_custom/constant_folding/cpp` 目录下执行：
 
 ```bash
 bash run.sh
@@ -50,7 +50,7 @@ export ASCEND_GLOBAL_LOG_LEVEL=0
 ## 关键文件
 
 ```text
-constant_folding
+constant_folding/cpp
 ├── CMakeLists.txt
 ├── run.sh
 ├── ge
@@ -72,6 +72,5 @@ constant_folding
 
 ## 注意事项
 
-- 本样例只覆盖常量折叠链路，运行时 host 调度样例见 `../host_scheduling`，离线 OM 样例见 `../offline`。
 - `AddCustom` 仅实现最小 float32 Add，主要用于验证 HostCpu 常量折叠路径。
 - `ASCEND_CUSTOM_OPP_PATH` 会在 `run.sh` 中自动追加当前样例的 `output/`。
