@@ -955,8 +955,8 @@ Status BuildHostCpuFusionComponent(const ComputeGraphPtr &graph, const std::vect
   std::unordered_set<const Node *> component_members;
   CollectCandidateComponent(seed, candidates, component_members);
   visited.insert(component_members.begin(), component_members.end());
-  if (component_members.size() < 2U) {
-    GELOGD("Skip HostCPU fusion component[%zu]: node_count=%zu is less than 2.", component_index,
+  if (component_members.size() < 5U) {
+    GELOGD("Skip HostCPU fusion component[%zu]: node_count=%zu is less than 5.", component_index,
            component_members.size());
     return SUCCESS;
   }
