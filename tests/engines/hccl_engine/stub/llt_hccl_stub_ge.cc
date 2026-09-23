@@ -18,9 +18,10 @@
 #include "graph/utils/node_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/tensor_utils.h"
+#include "graph/utils/tensor_utils_ex.h"
 #include "graph/utils/op_desc_utils.h"
 #include "common/util/mem_utils.h"
-#include "external/graph/types.h"
+#include "graph/types.h"
 #include "ops_kernel_builder_registry.h"
 #include "external/hcom/hcom_topo_info.h"
 #include "external/register/hidden_inputs_func_registry.h"
@@ -449,7 +450,7 @@ bool AttrUtils::HasAttr(ConstAttrHolderAdapter &&obj, const string &name) {
   } else if (name == "flags") {
     return dummyHasAttr_flags;
   } else if (name == "_super_kernel_scope") {
-    return true;
+    return dummyHasAttr_superKernelScope;
   } else if (name == "_op_vectorcore_num") {
     return dummyHasAttr_OpVectorcoreNum;
   } else {
@@ -638,6 +639,12 @@ ge::graphStatus TensorUtils::CalcTensorMemSize(const GeShape &shape, Format form
   return GRAPH_SUCCESS;
 }
 void TensorUtils::SetSize(GeTensorDesc &tensorDesc, int64_t size) {}
+// TensorUtilsEx 真实实现（metadef .so）操作 stub 对象会 SEGV，与 TensorUtils 同机制遮蔽
+ge::graphStatus TensorUtilsEx::GetTensorMemorySizeInBytesWithAutoPadding(const GeTensorDesc &desc_temp,
+                                                                         int64_t &size_temp) {
+  size_temp = 1024;
+  return GRAPH_SUCCESS;
+}
 
 void TensorUtils::SetReuseInputIndex(GeTensorDesc &tensor_desc, uint32_t idx) {
   return;

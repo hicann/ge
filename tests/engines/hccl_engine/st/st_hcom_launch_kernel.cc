@@ -174,9 +174,9 @@ TEST_F(HcomAllToAllKernelTest, st_HcomAllGahterKernelv2_When_Normal_Expect_Retur
   MOCKER(GetCountByShape).stubs().with(mockcpp::any(), mockcpp::any(), outBound(count)).will(returnValue(HCCL_SUCCESS));
 
 #ifdef MACRO_DEV_TYPE_NEW
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_950));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_950));
 #else
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_910_95));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_910_95));
 #endif
   HcclResult result = HcomAllGatherKernel(launchArgs_, &inputStruct_);
   EXPECT_EQ(result, HCCL_SUCCESS);
@@ -218,9 +218,9 @@ TEST_F(HcomAllToAllKernelTest, st_HcomAllReduceKernelv2_When_Normal_Expect_Retur
   MOCKER(GetCountByShape).stubs().with(mockcpp::any(), mockcpp::any(), outBound(count)).will(returnValue(HCCL_SUCCESS));
 
 #ifdef MACRO_DEV_TYPE_NEW
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_950));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_950));
 #else
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_910_95));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_910_95));
 #endif
   HcclResult result = HcomAllReduceKernel(launchArgs_, &inputStruct_);
   EXPECT_EQ(result, HCCL_SUCCESS);

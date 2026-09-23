@@ -20,6 +20,7 @@
 #include "auto_tuning_plugin.h"
 #include "auto_tuning_hcom_ops_kernel_info_store.h"
 #include "auto_tuning_hcom_ops_kernel_builder.h"
+#include "framework/common/runtime_model_ge.h"
 #include "hcom_ops_kernel_info_store.h"
 #include "ops_kernel_info_store_base.h"
 #include "hcom_ops_stores.h"
@@ -198,7 +199,6 @@ TEST_F(HcomGradientSplitTuneTest, st_Gradient_AutoTuning_E2E) {
       .with(mockcpp::any(), outBound(recordInfos))
       .will(returnValue(HCCL_SUCCESS));
   ge_ret = graphOptimizerPtr->OptimizeOriginalGraph(*compute_graph);
-  ge::AttrUtils::HasAttr(opDescPtr, "DUMMY_SET_FALSE_GROUP");
   GlobalMockObject::verify();
   EXPECT_EQ(ge_ret, ge::SUCCESS);
   EXPECT_EQ(recordInfos.size(), 2);

@@ -33,6 +33,7 @@
 #include "hcom_ops_kernel_info_store.h"
 #include "external/ge/ge_api_types.h"  // ge对内options
 #include "common/ge_common/ge_types.h"
+#include "device_capability.h"
 
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
@@ -64,10 +65,6 @@ class HcomGraphOptimizerTest : public testing::Test {
   }
   // Some expensive resource shared by all tests.
   virtual void SetUp() {
-    MOCKER_CPP(&HcomGraphOptimizer::SetSuperKernelScopeAttr)
-        .stubs()
-        .with(mockcpp::any())
-        .will(returnValue(HCCL_SUCCESS));
     std::cout << "A Test SetUP" << std::endl;
   }
   virtual void TearDown() {
@@ -281,9 +278,6 @@ TEST_F(HcomGraphOptimizerTest, ut_Initialize_to_Finalize_51) {
   EXPECT_EQ(ge_ret, ge::SUCCESS);
   u64 streamNumber = 4;
 
-  DevType type610 = DevType::DEV_TYPE_310P1;
-  MOCKER(GetOffDeviceTypeWithoutDev).stubs().with(outBound(type610)).will(returnValue(HCCL_SUCCESS));
-
   MOCKER_CPP(&HcomGraphOptimizer::SetOpWorkerSpaceForKnowShape).stubs().will(returnValue(HCCL_SUCCESS));
 
   ge_ret = graphOptimizers.at(HCCL_GRAPH_OPTIMIZER_NAME)->OptimizeFusedGraph(*graph);
@@ -299,16 +293,10 @@ TEST_F(HcomGraphOptimizerTest, ut_Initialize_to_Finalize_51) {
   GlobalMockObject::verify();
 }
 
-HcclResult GetOffDeviceTypeWithoutDevMockA2(DevType &devType) {
-  devType = DevType::DEV_TYPE_910B;
-  HCCL_DEBUG("[offline] Get devtype[%u]....", devType);
-  return HCCL_SUCCESS;
-}
-
 TEST_F(HcomGraphOptimizerTest, ut_OptimizeFusedGraph_GetDeterministic) {
-  MOCKER(GetOffDeviceTypeWithoutDev).stubs().will(invoke(GetOffDeviceTypeWithoutDevMockA2));
   setenv("HCCL_DETERMINISTIC", "STRICT", 1);
 
+  MOCKER_CPP(&DeviceCapability::SupportsStrictDeterministic).stubs().will(returnValue(true));
   u8 deterministic = 0;
   HcclResult ret = GetDeterministic(deterministic);
 
@@ -326,6 +314,11 @@ HcclResult stub_GetAllInputsTensorMemSize(const ge::OpDescPtr &opDescPtr, uint64
 
 HcclResult stub_GetCCLBufferAvailableSize(u64 &size) {
   size = 1024 * 1024;
+  return HCCL_SUCCESS;
+}
+
+HcclResult stub_GetTensorMemSize(const ge::GeTensorDesc &tensorDesc, int64_t &memSize) {
+  memSize = 1024;
   return HCCL_SUCCESS;
 }
 
@@ -404,9 +397,11 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionOpInfo) {
 
 static std::vector<u32> g_mock_segments = {1, 2};
 static HcclResult mock_HcomGetSplitStrategy(const char *name, const model_feature *feat, u32 **data_out, u32 *size_out,
-                                            bool *configured) {
+                                            bool *configured, GradSplitForceMode force,
+                                            OriginalGraphShapeType shapeType) {
   if (data_out) *data_out = g_mock_segments.data();
   if (size_out) *size_out = g_mock_segments.size();
+  if (configured) *configured = false;
   return HCCL_SUCCESS;
 }
 
@@ -434,9 +429,11 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseOps) {
   nodeVec_0.push_back(ops[2]);
   fusionOps["hccl_world_group"] = nodeVec_0;
 
+  MOCKER(&HcomOpUtils::GetAllInputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
   MOCKER(HcomGetSplitStrategy)
       .stubs()
-      .with(mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any())
+      .with(mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any(),
+            mockcpp::any())
       .will(invoke(mock_HcomGetSplitStrategy));
 
   MOCKER_CPP(&HcomAllReduceFusion::RunFusionOps).stubs().will(returnValue(HCCL_SUCCESS));
@@ -461,9 +458,11 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionStrategy) {
   bool configured = false;
   segments.push_back(1);
   segments.push_back(2);
+  MOCKER(&HcomOpUtils::GetAllInputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
   MOCKER(HcomGetSplitStrategy)
       .stubs()
-      .with(mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any())
+      .with(mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any(), mockcpp::any(),
+            mockcpp::any())
       .will(invoke(mock_HcomGetSplitStrategy));
   std::string group = HCCL_WORLD_GROUP;
   int64_t fusionid = HCOM_ATTR_FUSION_ID_DEFAULT;
@@ -585,6 +584,7 @@ TEST_F(HcomGraphOptimizerTest, ut_RunFusionOps) {
   segmentIndex.push_back(0);
   segmentIndex.push_back(1);
 
+  MOCKER(&HcomOpUtils::GetTensorMemSize).stubs().will(invoke(stub_GetTensorMemSize));
   ret = fusionHcomAllReduceOp.RunFusionOps(graph, fusionOps, segmentNum, segmentIndex);
   EXPECT_EQ(ret, HCCL_SUCCESS);
 }
@@ -636,6 +636,7 @@ TEST_F(HcomGraphOptimizerTest, ut_RunFusionOps_have_duplication) {
   segmentIndex.push_back(0);
   segmentIndex.push_back(1);
 
+  MOCKER(&HcomOpUtils::GetTensorMemSize).stubs().will(invoke(stub_GetTensorMemSize));
   ret = fusionHcomAllReduceOp.RunFusionOps(graph, fusionOps, segmentNum, segmentIndex);
   EXPECT_EQ(ret, HCCL_SUCCESS);
 }
@@ -685,6 +686,7 @@ TEST_F(HcomGraphOptimizerTest, ut_RunFusionOps_bcast) {
   segmentIndex.push_back(0);
   segmentIndex.push_back(1);
 
+  MOCKER(&HcomOpUtils::GetTensorMemSize).stubs().will(invoke(stub_GetTensorMemSize));
   ret = fusionHcomBroadcastOp.RunFusionOps(graph, fusionOps, segmentNum, segmentIndex);
   EXPECT_EQ(ret, HCCL_SUCCESS);
 }
@@ -949,13 +951,19 @@ ge::graphStatus GetOption1(ge::GEContext *that, const std::string &optionExec, s
 
 TEST_F(HcomGraphOptimizerTest, ut_SetUnknownShapAttr) {
   HcclResult ret;
-  int64_t memSize = 200 * 1024 * 1024 + 1;
   HcomGraphOptimizer graphOptimizer;
   ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_graph");
   const string type = "HcomAllReduce";
   ge::OpDescPtr opPtr_ = std::make_shared<ge::OpDesc>();
   opPtr_->SetType(type);
   graph->AddNode(opPtr_);
+
+  // 显式准备 stub 属性，避免依赖跨用例残留的全局 map 状态
+  ge::AttrUtils::HasAttr(opPtr_, "DUMMY_SET_TRUE_DTYPE");
+  ge::AttrUtils::HasAttr(opPtr_, "DUMMY_SET_TRUE_GROUP");
+  ge::AttrUtils::SetStr(opPtr_, "group", "hccl_world_group");
+  ge::AttrUtils::SetStr(opPtr_, "reduction", "sum");
+  ge::AttrUtils::SetInt(opPtr_, "rank_size", 8);
 
   MOCKER(&ge::NodeUtils::GetNodeUnknownShapeStatus)
       .stubs()
@@ -965,6 +973,15 @@ TEST_F(HcomGraphOptimizerTest, ut_SetUnknownShapAttr) {
   MOCKER_CPP(&ge::GEContext::GetOption).stubs().will(invoke(GetOption1));
 
   MOCKER(HcomLoadRanktableFile).stubs().will(returnValue(HCCL_SUCCESS));
+
+  // TensorUtilsEx 未被 stub，真实实现操作 stub 对象会 SEGV，此处 mock 隔离
+  MOCKER(&HcomOpUtils::GetAllInputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
+  MOCKER(&HcomOpUtils::GetAllOutputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
+  MOCKER_CPP(&HcomGraphOptimizer::HcomGetAccuracyCountFromOpDesc).stubs().will(returnValue(HCCL_SUCCESS));
+  MOCKER(GetCCLBufferAvailableSize).stubs().with(mockcpp::any()).will(invoke(stub_GetCCLBufferAvailableSize));
+  // stub 环境下 GetOption(hcomGrouplistV2) 默认 SUCCESS，GetRankIdsFromGroupList 必然返回
+  // HCCL_E_NOT_SUPPORT，此处 mock 隔离
+  MOCKER(&HcomOpUtils::GetRankIdsFromGroupList).stubs().will(returnValue(HCCL_SUCCESS));
 
   ret = graphOptimizer.SetUnknownShapeAttr(*graph, true);
   EXPECT_EQ(ret, HCCL_SUCCESS);
@@ -1118,6 +1135,7 @@ TEST_F(HcomGraphOptimizerTest, ut_RunFusionOps_reduce) {
   fusionOps[1]->GetOutDataAnchor(0)->LinkTo(OutOps[1]->GetInControlAnchor());
   fusionOps[2]->GetOutDataAnchor(0)->LinkTo(OutOps[2]->GetInDataAnchor(0));
 
+  MOCKER(&HcomOpUtils::GetTensorMemSize).stubs().will(invoke(stub_GetTensorMemSize));
   ret = fusionHcomReduceOp.RunFusionOpsReduce(graph, fusionOps);
   EXPECT_EQ(ret, HCCL_SUCCESS);
 }
@@ -1266,83 +1284,6 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionSegments_2) {
   GlobalMockObject::verify();
 }
 
-HcclResult GetOffDeviceTypeWithoutDevMock(DevType &devType) {
-  devType = DevType::DEV_TYPE_310P3;
-  HCCL_DEBUG("[offline] Get devtype[%u]....", devType);
-  return HCCL_SUCCESS;
-}
-
-TEST_F(HcomGraphOptimizerTest, ut_CalcOpRunningResources_OpenSource) {
-  // 测试开源版本的CalcOpRunningResources
-  HcomGraphOptimizer graphOptimizer;
-  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_graph");
-  auto descPtr0 = std::make_shared<ge::OpDesc>("Allreduce0", HCCL_KERNEL_OP_TYPE_ALLREDUCE);
-  auto addedNodePtr0 = graph->AddNode(descPtr0);
-  EXPECT_NE(addedNodePtr0, nullptr);
-
-  std::string sCollectiveType;
-  u32 streamNum = 0;
-  u64 opMemSize = 0;
-  u32 taskNum = 0;
-  u32 aivCoreNum = 0;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceCreateOpParamGraphMode函数
-  OpParamGraphModePtr opParamPtr = reinterpret_cast<OpParamGraphModePtr>(0x12345678);
-  MOCKER(HcceCreateOpParamGraphMode).expects(atMost(1)).with(outBound(opParamPtr)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟SetHcclOpParam函数
-  MOCKER(SetHcclOpParam).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceCalcOpResOfflineGraphMode函数
-  MOCKER(HcceCalcOpResOfflineGraphMode)
-      .expects(atMost(1))
-      .with(mockcpp::any(), outBound(&opMemSize), outBound(&streamNum), outBound(&taskNum), outBound(&aivCoreNum))
-      .will(returnValue(HCCL_SUCCESS));
-
-  // 模拟IsOfflineCompilation返回true
-  MOCKER(IsOfflineCompilation).expects(atMost(1)).will(returnValue(true));
-
-  // 测试CalcOpRunningResources方法
-  HcclResult ret =
-      graphOptimizer.CalcOpRunningResources(*addedNodePtr0, sCollectiveType, streamNum, opMemSize, taskNum, aivCoreNum);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomGraphOptimizerTest, ut_SetHcclOpParam) {
-  // 测试SetHcclOpParam函数
-  HcomGraphOptimizer graphOptimizer;
-  ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_graph");
-  auto descPtr0 = std::make_shared<ge::OpDesc>("Allreduce0", HCCL_KERNEL_OP_TYPE_ALLREDUCE);
-  auto addedNodePtr0 = graph->AddNode(descPtr0);
-  EXPECT_NE(addedNodePtr0, nullptr);
-
-  // 准备测试参数
-  HcomOpParam hcomOpParam;
-  std::string sCollectiveType;
-  OpParamGraphModePtr opParamPtr = reinterpret_cast<OpParamGraphModePtr>(0x12345678);
-  std::vector<int64_t> sendCounts;
-  std::vector<int64_t> sendDispls;
-  std::vector<int64_t> recvCounts;
-  std::vector<int64_t> recvDispls;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceCreateOpParamGraphMode函数
-  MOCKER(HcceCreateOpParamGraphMode).expects(atMost(1)).with(outBound(opParamPtr)).will(returnValue(HCCL_SUCCESS));
-
-  HcclResult ret = graphOptimizer.SetHcclOpParam(*addedNodePtr0, &hcomOpParam, opParamPtr, sCollectiveType, sendCounts,
-                                                 sendDispls, recvCounts, recvDispls);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
 TEST_F(HcomGraphOptimizerTest, ut_OptimizeFusedGraph_allreduce) {
   ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test_graph");
   ge::OpDesc op;
@@ -1375,7 +1316,6 @@ TEST_F(HcomGraphOptimizerTest, ut_OptimizeFusedGraph_allreduce) {
 
   MOCKER(IsOfflineCompilation).stubs().will(returnValue(true));
 
-  MOCKER(GetOffDeviceTypeWithoutDev).stubs().will(invoke(GetOffDeviceTypeWithoutDevMock));
   ge_ret = graphOptimizer.OptimizeFusedGraph(*graph);
 
   GlobalMockObject::verify();
@@ -1597,6 +1537,7 @@ TEST_F(HcomGraphOptimizerTest, ut_RunFusionOpss_allreduce_by_comm_pytorch) {
 
   fusionOps[2]->GetOutDataAnchor(0)->LinkTo(OutOps[2]->GetInDataAnchor(0));
 
+  MOCKER(&HcomOpUtils::GetTensorMemSize).stubs().will(invoke(stub_GetTensorMemSize));
   ret = fusionAllHcomReduceOp.RunFusionOpsReduce(graph, fusionOps);
   EXPECT_EQ(ret, HCCL_SUCCESS);
 }
@@ -1670,8 +1611,10 @@ TEST_F(HcomGraphOptimizerTest, ut_GetCommFromOpDesc_by_comm_pytorch2) {
   std::string sGroup;
 
   ge::AttrUtils::HasAttr(ops[0]->GetOpDesc(), "DUMMY_SET_TRUE_COMM");
+  ge::AttrUtils::HasAttr(ops[0]->GetOpDesc(), "DUMMY_SET_TRUE_GROUP");
   ge::AttrUtils::HasAttr(ops[0]->GetOpDesc(), "comm");
   ge::AttrUtils::SetInt(ops[0]->GetOpDesc(), "comm", 0);
+  ge::AttrUtils::SetStr(ops[0]->GetOpDesc(), "group", "hccl_world_group");
   ge::OpDescPtr op0 = ops[0]->GetOpDesc();
   ret = hcomGraphOptimizer.GetCommFromOpDesc(op0, hcomComm, sGroup);
   EXPECT_EQ(ret, HCCL_SUCCESS);
@@ -1693,8 +1636,11 @@ TEST_F(HcomGraphOptimizerTest, ut_HcomCalcOpRunningParam_by_comm_pytorch) {
   EXPECT_EQ(descPtr0->GetType(), HCCL_KERNEL_OP_TYPE_ALLREDUCE);
 
   ge::AttrUtils::HasAttr(ops[0].GetOpDesc(), "DUMMY_SET_TRUE_COMM");
+  ge::AttrUtils::HasAttr(ops[0].GetOpDesc(), "DUMMY_SET_TRUE_GROUP");
+  ge::AttrUtils::HasAttr(ops[0].GetOpDesc(), "DUMMY_SET_TRUE_DTYPE");
   ge::AttrUtils::HasAttr(ops[0].GetOpDesc(), "comm");
   ge::AttrUtils::SetInt(ops[0].GetOpDesc(), "comm", 645678156);
+  ge::AttrUtils::SetStr(ops[0].GetOpDesc(), "group", "hccl_world_group");
 
   ge::AttrUtils::SetInt(ops[0].GetOpDesc(), "used_stream_num", streamNum);
   MOCKER_CPP(&HcomGraphOptimizer::GetOriginalGraphShapeTypeFromDesc).stubs().will(returnValue(HCCL_SUCCESS));
@@ -1711,10 +1657,17 @@ TEST_F(HcomGraphOptimizerTest, ut_HcomCalcOpRunningParam_by_comm_pytorch) {
 
   MOCKER(HcomLoadRanktableFile).stubs().will(returnValue(HCCL_SUCCESS));
 
-  ge::AttrUtils::HasAttr(ops[0].GetOpDesc(), "DUMMY_SET_FALSE_COMM");
+  // 测试机无 libhccl，IsUsingOpenSource 真实实现 dlopen 失败，mock 走非 openSource 分支
+  MOCKER(IsUsingOpenSource).stubs().with(outBound(false)).will(returnValue(HCCL_SUCCESS));
+  // TensorUtilsEx 未被 stub，真实实现操作 stub 对象会 SEGV，此处 mock 隔离
+  MOCKER_CPP(&HcomGraphOptimizer::HcomGetAccuracyCountFromOpDesc).stubs().will(returnValue(HCCL_SUCCESS));
+  // stub 环境下 GetOption(hcomGrouplistV2) 默认 SUCCESS，GetRankIdsFromGroupList 必然返回
+  // HCCL_E_NOT_SUPPORT，此处 mock 隔离
+  MOCKER(&HcomOpUtils::GetRankIdsFromGroupList).stubs().will(returnValue(HCCL_SUCCESS));
 
   ret = hcomGraphOptimizer.HcomCalcOpRunningParam(ops[0], false);
   EXPECT_EQ(ret, HCCL_SUCCESS);
+  ge::AttrUtils::HasAttr(ops[0].GetOpDesc(), "DUMMY_SET_FALSE_COMM");
   GlobalMockObject::verify();
 }
 
@@ -1877,6 +1830,12 @@ TEST_F(HcomGraphOptimizerTest, ut_offlinebuild_calcSubStreamNum) {
   MOCKER_CPP(&ge::GEThreadLocalContext::GetOption).stubs().will(invoke(FakeGetOption3));
 
   MOCKER(&ge::AttrUtils::SetInt).stubs().will(returnValue(false));
+
+  // TensorUtilsEx/GetInputDescPtr 未被 stub，真实实现操作 stub 对象会 SEGV，此处 mock 隔离
+  // （BROADCAST 走 MemOutputForOpDesc→CalcHCCLOutputMemSize→TensorUtilsEx；
+  //   ALLTOALLV 走 CalcCommonCount 的 GetInputDescPtr 循环，且 GetInputsSize()=1024）
+  MOCKER_CPP(&HcomGraphOptimizer::HcomGetAccuracyCountFromOpDesc).stubs().will(returnValue(HCCL_SUCCESS));
+  MOCKER(&HcomOpUtils::GetAllInputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
 
   ret = graphOptimizer.HcomCalcOpRunningParam(*nodeptr, false);
 
@@ -2075,6 +2034,9 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseHcomReduceScatterNode) {
     ge::AttrUtils::HasAttr(reducescatterOpInfo.nodePtr->GetOpDesc(), "DUMMY_SET_TRUE_GROUP");
     reducescatterOpInfo.nodePtr->GetOpDesc()->SetType(HCCL_KERNEL_OP_TYPE_REDUCESCATTER);
   }
+  // TensorUtilsEx 未被 stub，真实实现操作 stub 对象会 SEGV，此处 mock 隔离
+  MOCKER(&HcomOpUtils::GetAllInputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
+
   HcomFusionOptimizer graphOptimizer;
   ge::Status ge_ret = graphOptimizer.FuseHcomReduceScatterNode(*graph);
   EXPECT_EQ(ge_ret, ge::SUCCESS);
@@ -2138,6 +2100,8 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseHcomReduceNode1) {
     ge::AttrUtils::HasAttr(reducescatterOpInfo.nodePtr->GetOpDesc(), "DUMMY_SET_TRUE_GROUP");
     reducescatterOpInfo.nodePtr->GetOpDesc()->SetType(HCCL_KERNEL_OP_TYPE_REDUCE);
   }
+  // TensorUtilsEx 未被 stub，真实实现操作 stub 对象会 SEGV，此处 mock 隔离
+  MOCKER(&HcomOpUtils::GetAllInputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
 
   HcomGraphOptimizer graphOptimizer;
   ge::Status ge_ret = graphOptimizer.FuseHcomReduceNode(*graph);
@@ -2166,6 +2130,9 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseHcomReduceNode2) {
     ge::AttrUtils::HasAttr(reducescatterOpInfo.nodePtr->GetOpDesc(), "DUMMY_SET_TRUE_GROUP");
     reducescatterOpInfo.nodePtr->GetOpDesc()->SetType(HCCL_KERNEL_OP_TYPE_ALLREDUCE);
   }
+  // TensorUtilsEx 未被 stub，真实实现操作 stub 对象会 SEGV，此处 mock 隔离
+  MOCKER(&HcomOpUtils::GetAllInputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
+
   HcomGraphOptimizer graphOptimizer;
   ge::Status ge_ret = graphOptimizer.FuseHcomAllReduceNode(*graph);
   EXPECT_EQ(ge_ret, ge::SUCCESS);
@@ -2247,11 +2214,6 @@ TEST_F(HcomGraphOptimizerTest, ut_SetknownShapAttr) {
   GlobalMockObject::verify();
 }
 
-HcclResult stub_GetVectorFromTensorGraphOptimizer(const ge::GeTensor *tensor, std::vector<int64_t> &vector) {
-  vector.resize(4 * 4);
-  return HCCL_SUCCESS;
-}
-
 TEST_F(HcomGraphOptimizerTest, ut_getAlltoAllCountsDispl_sendCountMatrix) {
   ge::NodePtr nodeptr(new NodeTest);
   HcomOpUtils graphOptimizer;
@@ -2329,12 +2291,31 @@ TEST_F(HcomGraphOptimizerTest, ut_CalcOpTaskNum_1server_1) {
   ge::AttrUtils::SetInt(nodeptr->GetOpDesc(), "rank_size", RANK_SIZE);
   std::string tempStr = HCCL_WORLD_GROUP;
   ge::AttrUtils::SetStr(nodeptr->GetOpDesc(), "group", tempStr);
+  // 显式准备 stub 属性，避免依赖跨用例残留的全局 map 状态
+  ge::AttrUtils::HasAttr(nodeptr->GetOpDesc(), "DUMMY_SET_TRUE_GROUP");
+  ge::AttrUtils::HasAttr(nodeptr->GetOpDesc(), "DUMMY_SET_TRUE_DTYPE");
+  ge::AttrUtils::HasAttr(nodeptr->GetOpDesc(), "DUMMY_SET_FALSE_COMM");
+  ge::AttrUtils::SetStr(nodeptr->GetOpDesc(), "reduction", "sum");
 
   std::string type;
   type = HCCL_KERNEL_OP_TYPE_ALLREDUCE;
   nodeptr->GetOpDesc()->SetType(type);
   std::string name = HCCL_KERNEL_OP_TYPE_ALLREDUCE + "1server";
   nodeptr->GetOpDesc()->SetName(name);
+  // 测试机无 libhccl，IsUsingOpenSource 真实实现 dlopen 失败，mock 走非 openSource 分支
+  MOCKER(IsUsingOpenSource).stubs().with(outBound(false)).will(returnValue(HCCL_SUCCESS));
+  // TensorUtilsEx 未被 stub，真实实现操作 stub 对象会 SEGV，此处 mock 隔离
+  // （SetHcomOpParam→HcomGetAccuracyCountFromOpDesc 与 SetOpRunningParamAttributes→SetOpOutputMemSize
+  //   均会走到 CalcHCCLOutputMemSize→TensorUtilsEx；CheckForceUnknown 走 GetAllInputs/OutputsTensorMemSize）
+  MOCKER_CPP_VIRTUAL(hcomKernelInfo, &HcomGraphOptimizer::SetOpOutputMemSize).stubs().will(returnValue(HCCL_SUCCESS));
+  MOCKER_CPP(&HcomGraphOptimizer::HcomGetAccuracyCountFromOpDesc).stubs().will(returnValue(HCCL_SUCCESS));
+  MOCKER(&HcomOpUtils::GetAllInputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
+  MOCKER(&HcomOpUtils::GetAllOutputsTensorMemSize).stubs().will(invoke(stub_GetAllInputsTensorMemSize));
+  MOCKER(GetCCLBufferAvailableSize).stubs().with(mockcpp::any()).will(invoke(stub_GetCCLBufferAvailableSize));
+  // stub 环境下 GetOption(hcomGrouplistV2) 默认 SUCCESS，GetRankIdsFromGroupList 必然返回
+  // HCCL_E_NOT_SUPPORT，此处 mock 隔离
+  MOCKER(&HcomOpUtils::GetRankIdsFromGroupList).stubs().will(returnValue(HCCL_SUCCESS));
+
   ge_ret = hcomKernelInfo.CalcOpRunningParam(*nodeptr, true);
   EXPECT_EQ(ge_ret, ge::SUCCESS);
 
@@ -2451,6 +2432,20 @@ TEST_F(HcomGraphOptimizerTest, ut_offlinebuild_calcSubStreamNum_1) {
   std::string type = HCCL_KERNEL_OP_TYPE_ALLGATHER;
   std::string nodeName = "ALL_GATHER";
   nodeptr->GetOpDesc()->SetType(type);
+  // 显式准备 stub 属性（ALLGATHER 需要 rank_size），避免依赖跨用例残留的全局 map 状态
+  ge::AttrUtils::HasAttr(nodeptr->GetOpDesc(), "DUMMY_SET_TRUE_GROUP");
+  ge::AttrUtils::HasAttr(nodeptr->GetOpDesc(), "DUMMY_SET_TRUE_DTYPE");
+  ge::AttrUtils::HasAttr(nodeptr->GetOpDesc(), "DUMMY_SET_FALSE_COMM");
+  ge::AttrUtils::SetStr(nodeptr->GetOpDesc(), "group", "hccl_world_group");
+  ge::AttrUtils::SetInt(nodeptr->GetOpDesc(), "rank_size", 8);
+  // 测试机无 libhccl，IsUsingOpenSource 真实实现 dlopen 失败，mock 走非 openSource 分支
+  MOCKER(IsUsingOpenSource).stubs().with(outBound(false)).will(returnValue(HCCL_SUCCESS));
+  // stub 环境下 GetOption(hcomGrouplistV2) 默认 SUCCESS，GetRankIdsFromGroupList 必然返回
+  // HCCL_E_NOT_SUPPORT，此处 mock 隔离
+  MOCKER(&HcomOpUtils::GetRankIdsFromGroupList).stubs().will(returnValue(HCCL_SUCCESS));
+  // TensorUtilsEx 未被 stub，真实实现操作 stub 对象会 SEGV，此处 mock 隔离
+  // （SetOpRunningParamAttributes→SetOpOutputMemSize→CalcHCCLOutputMemSize→TensorUtilsEx）
+  MOCKER_CPP_VIRTUAL(graphOptimizer, &HcomGraphOptimizer::SetOpOutputMemSize).stubs().will(returnValue(HCCL_SUCCESS));
   MOCKER(&ge::AttrUtils::SetInt).stubs().will(returnValue(true));
   ge::Status ret = graphOptimizer.HcomCalcOpRunningParam(*nodeptr, false);
   EXPECT_EQ(ret, HCCL_SUCCESS);

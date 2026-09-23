@@ -146,6 +146,10 @@ TEST_F(AutoTuningHcclKernelBuilderTest, st_CalcOpRunningParam) {
   ge::NodePtr nodeptr(new NodeTest);
   ge ::Status ge_ret = ge::INTERNAL_ERROR;
 
+  // TensorUtilsEx 未被 stub，真实实现操作 stub 对象会 SEGV，此处 mock 隔离
+  // （CalcOpRunningParam→HCCLOpsKernelBuilder::SetOpOutputMemSize→CalcHCCLOutputMemSize→TensorUtilsEx）
+  MOCKER_CPP(&HCCLOpsKernelBuilder::SetOpOutputMemSize).stubs().will(returnValue(HCCL_SUCCESS));
+
   std::string type = HCCL_KERNEL_OP_TYPE_SEND;
   nodeptr->GetOpDesc()->SetType(type);
   ge_ret = autoTuningHcomKernelBuilder.CalcOpRunningParam(*nodeptr);

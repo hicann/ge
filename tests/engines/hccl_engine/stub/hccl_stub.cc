@@ -26,6 +26,9 @@ HcclResult CommGetInstTopoTypeByNetLayer(HcclComm comm, uint32_t netLayer, uint3
 }
 
 HcclResult HcomGetGroupNameByOpBase(s64 opBaseHcom, char **groupname) {
+  // 不写 groupname 会让调用方对 nullptr 构造 std::string 导致 SEGV
+  static char dummyGroupName[] = "hccl_world_group";
+  *groupname = dummyGroupName;
   return HCCL_SUCCESS;
 }
 
@@ -358,12 +361,8 @@ aclError aclrtSynchronizeStream(aclrtStream stream) {
 }
 
 aclError aclrtCreateStream(aclrtStream *stream) {
-  aclrtCreateStreamWithConfig(stream, 0, 0);
-  return ACL_SUCCESS;
-}
-
-aclError aclrtCreateStreamWithConfig(aclrtStream *stream, uint32_t priority, uint32_t flag) {
-  return aclrtCreateStream(stream);
+  // aclrtCreateStreamWithConfig 由 llt_hccl_stub.cc 提供实现, 此处不可重复定义
+  return aclrtCreateStreamWithConfig(stream, 0, 0);
 }
 
 HcclResult HcomSetGlobalWorkSpace(const char *group, void **globalWorkSpaceAddr, u32 len) {

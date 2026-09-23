@@ -465,6 +465,7 @@ checkopts() {
           "hcce")
             ENABLE_ENGINES="on"
             ENABLE_HCCE="on"
+            BUILD_METADEF="on"
             shift 2
             ;;
           "executor_c")
@@ -906,7 +907,10 @@ main() {
         export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
         bash scripts/build.sh -u -r -j $THREAD_NUM $VERBOSE $COVERAGE
       fi
-      # HCCE UT is currently excluded: its tests target an incompatible HCCL API.
+      if [ "X$ENABLE_HCCE" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -u -e -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
     fi
 
     # engines st
@@ -930,7 +934,10 @@ main() {
         export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
         bash scripts/build.sh -s -t -j $THREAD_NUM $VERBOSE $COVERAGE
       fi
-      # HCCE ST is currently excluded: its tests target an incompatible HCCL API.
+      if [ "X$ENABLE_HCCE" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -s -e -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
 
       # fe process st
       if [ "X$ENABLE_ST_WHOLE_PROCESS" = "Xon" ]; then
