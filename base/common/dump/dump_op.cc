@@ -411,8 +411,6 @@ Status DumpOp::SetDumpModelName() {
   std::set<std::string> model_list = dump_properties_.GetAllDumpModel();
   const bool not_find_by_omname = model_list.find(dynamic_om_name_) == model_list.end();
   const bool not_find_by_modelname = model_list.find(dynamic_model_name_) == model_list.cend();
-  const bool find_by_rootgraphname =
-      (!root_graph_name_.empty()) && (model_list.find(root_graph_name_) != model_list.end());
   const std::string dump_model_name = not_find_by_omname ? dynamic_model_name_ : dynamic_om_name_;
   if ((!dump_model_name.empty()) && (dump_properties_.IsOpDebugOpen())) {
     GELOGI("Dump model name is %s", dump_model_name.c_str());
@@ -421,6 +419,8 @@ Status DumpOp::SetDumpModelName() {
   }
   if ((model_list.find(DUMP_ALL_MODEL) == model_list.end()) &&
       (model_list.find(DUMP_LAYER_OP_MODEL) == model_list.end())) {
+    const bool find_by_rootgraphname =
+        (!root_graph_name_.empty()) && (model_list.find(root_graph_name_) != model_list.end());
     if (not_find_by_omname && not_find_by_modelname && !find_by_rootgraphname) {
       std::string model_list_str;
       for (auto &model : model_list) {

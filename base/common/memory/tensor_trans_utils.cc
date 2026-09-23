@@ -548,7 +548,7 @@ Status TensorTransUtils::TransGertTensorToHost(const gert::Tensor &device_tensor
     host_tensor.MutableTensorData().SetSize(static_cast<size_t>(output_size));
     GE_DISMISS_GUARD(free_if_failed);
   } else {
-    host_tensor.MutableTensorData().SetAddr(nullptr, nullptr);
+    (void)host_tensor.MutableTensorData().SetAddr(nullptr, nullptr);
     host_tensor.MutableTensorData().SetSize(0);
   }
   return SUCCESS;

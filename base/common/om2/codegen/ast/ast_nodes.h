@@ -871,7 +871,7 @@ class CCastExpr final : public Expr {
  public:
   static CCastExpr *Create(AstContext &ctx, const std::string &target_type, Expr *expr);
   CCastExpr(StringRef target_type, Expr *expr) : Expr(), target_type_(target_type), expr_(expr) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetTargetType() const {
     return target_type_;
@@ -910,7 +910,7 @@ class DesignatedInitListExpr final : public Expr {
                                         const std::vector<Expr *> &values, bool compact = false);
   DesignatedInitListExpr(ArrayRef<StringRef> names, ArrayRef<Expr *> values, bool compact)
       : Expr(), names_(names), values_(values), compact_(compact) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   ArrayRef<StringRef> GetNames() const {
     return names_;
@@ -1102,7 +1102,7 @@ class CaseStmt final : public Stmt {
  public:
   static CaseStmt *Create(AstContext &ctx, Expr *value);
   explicit CaseStmt(Expr *value) : Stmt(), value_(value) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetValue() const {
     return value_;
@@ -1116,14 +1116,14 @@ class BreakStmt final : public Stmt {
  public:
   static BreakStmt *Create(AstContext &ctx);
   BreakStmt() = default;
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 };
 
 class SwitchStmt final : public Stmt {
  public:
   static SwitchStmt *Create(AstContext &ctx, Expr *cond, BlockStmt *body);
   SwitchStmt(Expr *cond, BlockStmt *body) : Stmt(), cond_(cond), body_(body) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetCond() const {
     return cond_;

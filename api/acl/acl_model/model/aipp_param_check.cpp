@@ -25,7 +25,6 @@ constexpr uint32_t FOUR_CHANNEL = 4U;
 
 namespace acl {
 static aclError AippInputFormatCheck(const enum CceAippInputFormat inputFormat, const std::string &npuArch) {
-  bool flag = false;
   if (inputFormat < CCE_YUV420SP_U8) {
     ACL_LOG_INNER_ERROR("[Check][InputFormat]inputFormat must be set, cceInputFormat = %d",
                         static_cast<int32_t>(inputFormat));
@@ -35,8 +34,8 @@ static aclError AippInputFormatCheck(const enum CceAippInputFormat inputFormat, 
   if (npuArch == NPUARCH_TO_STR(NpuArch::DAV_1001) || npuArch == NPUARCH_TO_STR(NpuArch::DAV_3002) ||
       npuArch == NPUARCH_TO_STR(NpuArch::DAV_2002) || npuArch == NPUARCH_TO_STR(NpuArch::DAV_2201) ||
       npuArch == NPUARCH_TO_STR(NpuArch::DAV_3510) || npuArch == NPUARCH_TO_STR(NpuArch::DAV_9201)) {
-    flag = ((inputFormat != CCE_YUV420SP_U8) && (inputFormat != CCE_XRGB8888_U8) && (inputFormat != CCE_RGB888_U8) &&
-            (inputFormat != CCE_YUV400_U8));
+    const bool flag = ((inputFormat != CCE_YUV420SP_U8) && (inputFormat != CCE_XRGB8888_U8) &&
+                       (inputFormat != CCE_RGB888_U8) && (inputFormat != CCE_YUV400_U8));
     if (flag) {
       ACL_LOG_INNER_ERROR(
           "[Check][InputFormat]arch[%s] only support YUV420SP_U8, XRGB8888_U8, "

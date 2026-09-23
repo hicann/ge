@@ -2069,7 +2069,6 @@ Status KernelTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, c
   task_type_ = static_cast<ModelTaskType>(task_def.type());
   GE_CHECK_NOTNULL(&rts_param);
   domi::KernelContext context;
-  constexpr size_t extra_name_size = 0U;
   if (Om2CodegenUtils::IsAllKernel(task_type_)) {
     const domi::KernelDefWithHandle &kernel_def = task_def.kernel_with_handle();
     args_size_ = static_cast<uint32_t>(kernel_def.args().size());
@@ -2103,6 +2102,7 @@ Status KernelTaskCodeBuilder::ParseTaskRunParam(const domi::TaskDef &task_def, c
                       "[OM2]Formatted args [%s] parsed failed.", context.args_format().c_str());
     GE_ASSERT_SUCCESS(ParseArgsFormat(op_desc_, args_format_holder_), "[OM2]ParseArgsFormat failed, op:[%s].",
                       op_desc_->GetNamePtr());
+    constexpr size_t extra_name_size = 0U;
     const size_t format_args_size = GetArgsSizeByFormat(op_desc_, args_format_holder_) + extra_name_size;
     args_size_ = std::max(args_size_, static_cast<uint32_t>(format_args_size));
     if (task_type_ == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL && kernel_type_ == ccKernelType::CUST_AI_CPU) {
@@ -2306,7 +2306,6 @@ Status KernelTaskCodeBuilder::AssembleIoByArgsFormat() {
   io_addr_mem_types_.reserve(arg_descs.size());
   std::vector<ArgDesc> dynamic_args_desc;
   std::vector<size_t> level_addr_idx;
-  std::vector<void *> context_addrs;
   for (const auto &arg_format : arg_descs) {
     switch (arg_format.addr_type) {
       case AddrType::INPUT_INSTANCE: {

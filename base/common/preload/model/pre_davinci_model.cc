@@ -119,10 +119,10 @@ Status PreDavinciModel::DoTaskSink(const EngineType engine_type) {
     PreTaskInput pre_task_input;
     pre_task_input.rts_param = runtime_param_;
     pre_task_input.names_to_bin_offset = names_to_bin_offset_;
-    std::string op_name = (op_desc != nullptr ? op_desc->GetName() : task_debug_info);
     const auto func = PreGenerateTaskRegistry::GetInstance().FindPreGenerateTask(engine_name);
 
     if (func == nullptr) {
+      std::string op_name = (op_desc != nullptr ? op_desc->GetName() : task_debug_info);
       std::stringstream error_ss;
       error_ss << "[Call][FindPreGenerateTask] op[" << op_name << "] can't find func from engine_name:" << engine_name;
       LogSegmentedMessage(error_ss.str());
