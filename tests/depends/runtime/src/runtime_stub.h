@@ -70,11 +70,6 @@ class RuntimeStub {
     return RT_ERROR_NONE;
   }
 
-  virtual rtError_t rtVectorCoreKernelLaunch(const void *stubFunc, uint32_t blockDim, rtArgsEx_t *argsInfo,
-                                             rtSmDesc_t *smDesc, rtStream_t stm, uint32_t flags,
-                                             const rtTaskCfgInfo_t *cfgInfo) {
-    return RT_ERROR_NONE;
-  }
   virtual rtError_t rtCpuKernelLaunchWithFlag(const void *soName, const void *kernelName, uint32_t blockDim,
                                               const rtArgsEx_t *args, rtSmDesc_t *smDesc, rtStream_t stream,
                                               uint32_t flags);
@@ -102,12 +97,6 @@ class RuntimeStub {
   virtual rtError_t rtKernelLaunchWithHandleV2(void *hdl, const uint64_t tilingKey, uint32_t blockDim,
                                                rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc, rtStream_t stm,
                                                const rtTaskCfgInfo_t *cfgInfo) {
-    return RT_ERROR_NONE;
-  }
-
-  virtual rtError_t rtVectorCoreKernelLaunchWithHandle(void *hdl, const uint64_t tilingKey, uint32_t blockDim,
-                                                       rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc, rtStream_t stm,
-                                                       const rtTaskCfgInfo_t *cfgInfo) {
     return RT_ERROR_NONE;
   }
 

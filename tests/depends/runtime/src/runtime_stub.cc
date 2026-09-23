@@ -1005,16 +1005,6 @@ rtError_t rtKernelLaunchWithHandleV2(void *hdl, const uint64_t tilingKey, uint32
                                                                     cfgInfo);
 }
 
-rtError_t rtVectorCoreKernelLaunchWithHandle(void *hdl, const uint64_t tilingKey, uint32_t blockDim,
-                                             rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc, rtStream_t stm,
-                                             const rtTaskCfgInfo_t *cfgInfo) {
-  if (blockDim == 99) {
-    return -1;
-  }
-  return ge::RuntimeStub::GetInstance()->rtVectorCoreKernelLaunchWithHandle(hdl, tilingKey, blockDim, argsInfo, smDesc,
-                                                                            stm, cfgInfo);
-}
-
 rtError_t rtKernelLaunch(const void *stub_func, uint32_t block_dim, void *args, uint32_t args_size, rtSmDesc_t *sm_desc,
                          rtStream_t stream) {
   if (block_dim == 99) {
@@ -1031,12 +1021,6 @@ rtError_t rtKernelLaunchWithFlag(const void *stubFunc, uint32_t blockDim, rtArgs
 rtError_t rtKernelLaunchWithFlagV2(const void *stubFunc, uint32_t blockDim, rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc,
                                    rtStream_t stm, uint32_t flags, const rtTaskCfgInfo_t *cfgInfo) {
   return ge::RuntimeStub::GetInstance()->rtKernelLaunchWithFlagV2(stubFunc, blockDim, argsInfo, smDesc, stm, flags,
-                                                                  cfgInfo);
-}
-
-rtError_t rtVectorCoreKernelLaunch(const void *stubFunc, uint32_t blockDim, rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc,
-                                   rtStream_t stm, uint32_t flags, const rtTaskCfgInfo_t *cfgInfo) {
-  return ge::RuntimeStub::GetInstance()->rtVectorCoreKernelLaunch(stubFunc, blockDim, argsInfo, smDesc, stm, flags,
                                                                   cfgInfo);
 }
 

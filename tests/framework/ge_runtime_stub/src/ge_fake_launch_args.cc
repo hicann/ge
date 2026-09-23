@@ -99,26 +99,6 @@ GeFakeLaunchArgs::GeFakeLaunchArgs(const rtKernelLaunchNames_t *launch_names, ui
   Init(args, smDesc);
 }
 
-GeFakeLaunchArgs::GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t st,
-                                   const rtKernelLaunchCfg_t *cfg, rtCpuKernelArgs_t *argsInfo,
-                                   std::unique_ptr<std::string> tag)
-    : blockDim_(blockDim), stream_(st), arg_size_(argsInfo->baseArgs.argsSize), tag_name_(std::move(tag)) {
-  (void)cfg;
-  (void)funcHandle;
-}
-
-GeFakeLaunchArgs::GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t stm,
-                                   const rtKernelLaunchCfg_t *cfg, void *hostArgs, uint32_t argsSize,
-                                   rtPlaceHolderInfo_t *placeHolderArray, uint32_t placeHolderNum,
-                                   std::unique_ptr<std::string> tag)
-    : blockDim_(blockDim), stream_(stm), arg_size_(argsSize), tag_name_(std::move(tag)) {
-  (void)cfg;
-  (void)funcHandle;
-  args_addr_ = hostArgs;
-  (void)placeHolderArray;
-  (void)placeHolderNum;
-}
-
 GeFakeLaunchArgs::GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t stm,
                                    const rtKernelLaunchCfg_t *cfg, const void *devArgs, uint32_t argsSize,
                                    void *reserve, std::unique_ptr<std::string> tag)

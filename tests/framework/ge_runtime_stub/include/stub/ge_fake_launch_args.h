@@ -30,11 +30,6 @@ struct GeFakeLaunchArgs {
                    rtSmDesc_t *smDesc, rtStream_t stream, uint32_t flag, std::unique_ptr<std::string> tag);
   GeFakeLaunchArgs(void *args_addr, std::unique_ptr<std::string> tag)
       : args_addr_(args_addr), tag_name_(std::move(tag)) {}
-  GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t st,
-                   const rtKernelLaunchCfg_t *cfg, rtCpuKernelArgs_t *argsInfo, std::unique_ptr<std::string> tag);
-  GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t stm,
-                   const rtKernelLaunchCfg_t *cfg, void *hostArgs, uint32_t argsSize,
-                   rtPlaceHolderInfo_t *placeHolderArray, uint32_t placeHolderNum, std::unique_ptr<std::string> tag);
   GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t stm,
                    const rtKernelLaunchCfg_t *cfg, const void *devArgs, uint32_t argsSize, void *reserve,
                    std::unique_ptr<std::string> tag);
