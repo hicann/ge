@@ -22,6 +22,10 @@ namespace {
 constexpr size_t kSingleDiagIndexNum = 1U;
 constexpr size_t kMaxDiagIndexNum = 2U;
 constexpr size_t kMatrixDimsNum = 2U;
+constexpr size_t kEyeOutputIdx = 0U;
+constexpr size_t kNumRowsAttrIdx = 0U;
+constexpr size_t kNumColumnsAttrIdx = 1U;
+constexpr size_t kBatchShapeAttrIdx = 2U;
 
 graphStatus ValidateInputShapes(const gert::SymbolShape *diagonal_shape, const gert::SymbolShape *k_shape) {
   GE_ASSERT_TRUE(diagonal_shape->GetDimNum() >= 1,
@@ -186,6 +190,59 @@ graphStatus InferShape4MatrixDiagV2(gert::InferSymbolShapeContext *context) {
   return GRAPH_SUCCESS;
 }
 
+/**
+ * MatrixDiag 的符号 Shape 推导。
+ * 【算子功能】根据输入的批量对角线元素构造批量对角矩阵。
+ * 【算子约束】输入至少包含一个维度；输出保留输入全部维度，并在末尾追加一个与输入最后一维相同的维度。
+ * 【推导逻辑】读取输入符号 Shape，依次复制输入维度，再追加输入最后一维作为矩阵列维度。
+ * 【举例】输入 x=[B,M,N] 时，输出 y=[B,M,N,N]。
+ */
+graphStatus InferShape4MatrixDiag(gert::InferSymbolShapeContext *context) {
+  const auto input_shape = context->GetInputSymbolShape(0);
+  GE_UNSUPPORTED_IF_NULL(input_shape);
+  GE_ASSERT_TRUE(input_shape->GetDimNum() >= 1, "MatrixDiag input rank must be at least 1");
+  const auto output_shape = context->GetOutputSymbolShape(0);
+  GE_ASSERT_NOTNULL(output_shape);
+  output_shape->MutableDims() = input_shape->GetDims();
+  output_shape->MutableDims().push_back(input_shape->GetDim(input_shape->GetDimNum() - 1));
+  return GRAPH_SUCCESS;
+}
+
+/**
+ * Eye 的符号 Shape 推导。
+ * 【算子功能】创建对角线为 1、其他位置为 0 的二维单位矩阵，并支持在前置 batch 维度上扩展。
+ * 【算子约束】num_rows 必须为正数；num_columns 小于等于 0 时取 num_rows；batch_shape 中的每个维度必须为正数。
+ * 【推导逻辑】读取 num_rows、num_columns 和 batch_shape 属性，先写入 batch_shape，再追加 num_rows 和有效 num_columns，
+ *            生成输出 Shape。
+ * 【举例】num_rows=3、num_columns=4、batch_shape=[2] 时，输出 y 的符号 Shape 为 [2,3,4]。
+ */
+graphStatus InferShape4Eye(gert::InferSymbolShapeContext *context) {
+  const auto out_shape = context->GetOutputSymbolShape(kEyeOutputIdx);
+  GE_ASSERT_NOTNULL(out_shape);
+  const auto attrs = context->GetAttrs();
+  GE_ASSERT_NOTNULL(attrs);
+  const auto num_rows = attrs->GetAttrPointer<int64_t>(kNumRowsAttrIdx);
+  const auto num_columns = attrs->GetAttrPointer<int64_t>(kNumColumnsAttrIdx);
+  const auto batch_shape = attrs->GetAttrPointer<gert::ContinuousVector>(kBatchShapeAttrIdx);
+  GE_ASSERT_NOTNULL(num_rows);
+  GE_ASSERT_NOTNULL(num_columns);
+  GE_ASSERT_NOTNULL(batch_shape);
+  const auto batch_dims = static_cast<const int64_t *>(batch_shape->GetData());
+  GE_ASSERT(batch_shape->GetSize() == 0U || batch_dims != nullptr, "Eye batch_shape data is null");
+  GE_ASSERT(*num_rows > 0, "Eye num_rows must be greater than 0, actual value[%ld]", *num_rows);
+
+  out_shape->MutableDims().clear();
+  for (size_t i = 0U; i < batch_shape->GetSize(); ++i) {
+    GE_ASSERT(batch_dims[i] > 0, "Eye batch_shape must be greater than 0, actual value[%ld]", batch_dims[i]);
+    out_shape->AppendDim(Symbol(batch_dims[i]));
+  }
+  out_shape->AppendDim(Symbol(*num_rows));
+  out_shape->AppendDim(Symbol(*num_columns > 0 ? *num_columns : *num_rows));
+  return ge::GRAPH_SUCCESS;
+}
+
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(MatrixDiagV2).InferSymbolShape(InferShape4MatrixDiagV2);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(MatrixDiag).InferSymbolShape(InferShape4MatrixDiag);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Eye).InferSymbolShape(InferShape4Eye);
 }  // namespace
 }  // namespace ge

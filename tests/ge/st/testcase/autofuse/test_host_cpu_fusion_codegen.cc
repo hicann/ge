@@ -96,12 +96,21 @@ ComputeGraphPtr BuildPassGraph() {
   const auto data = MakeNode(graph, "pass_data", "Data", 0U, 1U);
   const auto first = MakeNode(graph, "pass_first", "HostPassA", 1U, 1U);
   const auto second = MakeNode(graph, "pass_second", "HostPassB", 1U, 1U);
+  const auto third = MakeNode(graph, "pass_third", "HostPassC", 1U, 1U);
+  const auto fourth = MakeNode(graph, "pass_fourth", "HostPassD", 1U, 1U);
+  const auto fifth = MakeNode(graph, "pass_fifth", "HostPassE", 1U, 1U);
   const auto output = MakeNode(graph, "pass_output", "NetOutput", 1U, 0U);
   Connect(data, 0U, first, 0U);
   Connect(first, 0U, second, 0U);
-  Connect(second, 0U, output, 0U);
+  Connect(second, 0U, third, 0U);
+  Connect(third, 0U, fourth, 0U);
+  Connect(fourth, 0U, fifth, 0U);
+  Connect(fifth, 0U, output, 0U);
   MarkHostCpuCandidateForPassSt(first);
   MarkHostCpuCandidateForPassSt(second);
+  MarkHostCpuCandidateForPassSt(third);
+  MarkHostCpuCandidateForPassSt(fourth);
+  MarkHostCpuCandidateForPassSt(fifth);
   return graph;
 }
 
@@ -271,6 +280,12 @@ TEST(HostCpuFusionCodegenST, CompilerHandlesMissingToolkitAndDiagnostics) {
 #endif
 }
 
+/**
+ * 用例描述：验证 HostCPU Fusion Pass 能提交包含五个候选节点的融合链。
+ * 预置条件：使用 MinimalCustomOpCompilerForPassSt 生成可加载的最小自定义算子 SO。
+ * 测试步骤：构造五节点 HostCPU 候选链，执行 HostCpuFusionPass。
+ * 预期结果：五个原始候选节点被一个 FusedHostCpu 节点替换，原子和复合引擎映射各包含一个条目。
+ */
 TEST(HostCpuFusionCodegenST, CommitsHostCpuFusionPassWithEmbeddedCustomOpSo) {
 #if defined(__linux__)
 #if defined(__aarch64__) || defined(__arm64__)
@@ -286,6 +301,9 @@ TEST(HostCpuFusionCodegenST, CommitsHostCpuFusionPassWithEmbeddedCustomOpSo) {
   ASSERT_EQ(pass.Run(graph, atomic_map, composite_map), SUCCESS);
   EXPECT_EQ(graph->FindNode("pass_first"), nullptr);
   EXPECT_EQ(graph->FindNode("pass_second"), nullptr);
+  EXPECT_EQ(graph->FindNode("pass_third"), nullptr);
+  EXPECT_EQ(graph->FindNode("pass_fourth"), nullptr);
+  EXPECT_EQ(graph->FindNode("pass_fifth"), nullptr);
   EXPECT_EQ(graph->GetDirectNodesSize(), 3U);
   EXPECT_EQ(atomic_map.size(), 1U);
   EXPECT_EQ(composite_map.size(), 1U);

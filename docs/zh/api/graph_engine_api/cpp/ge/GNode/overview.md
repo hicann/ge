@@ -32,6 +32,7 @@ graphStatus GetAttr(const AscendString &name, std::vector<std::vector<int64_t>> 
 graphStatus GetAttr(const AscendString &name, std::vector<ge::DataType> &attr_value) const
 graphStatus GetAttr(const AscendString &name, ge::DataType &attr_value) const
 graphStatus GetAttr(const AscendString &name, AttrValue &attr_value) const
+graphStatus GetAllAttrs(std::map<AscendString, AttrValue> &attr_values) const
 graphStatus GetALLSubgraphs(std::vector<GraphPtr> &graph_list) const
 graphStatus GetDynamicInputIndexesByName(const AscendString &name, std::vector<int32_t> &indexes)
 graphStatus GetDynamicOutputIndexesByName(const AscendString &name, std::vector<int32_t> &indexes)
@@ -71,6 +72,7 @@ graphStatus SetAttr(const AscendString &name, std::vector<std::vector<int64_t>> 
 graphStatus SetAttr(const AscendString &name, std::vector<ge::DataType> &attr_value) const
 graphStatus SetAttr(const AscendString &name, ge::DataType &attr_value) const
 graphStatus SetAttr(const AscendString &name, AttrValue &attr_value) const
+graphStatus SetAttrs(const std::map<AscendString, AttrValue> &attr_values) const
 graphStatus SetInputAttr(const AscendString &name, uint32_t input_index, const AttrValue &attr_value)
 graphStatus SetOutputAttr(const AscendString &name, uint32_t output_index, const AttrValue &attr_value)
 graphStatus UpdateInputDesc(const int32_t index, const TensorDesc &tensor_desc)

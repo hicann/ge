@@ -44,7 +44,7 @@ Currently provided interface functionality:
 Interface combination selection by scenario:
 
 | Scenario | Recommended Implementation |
-|---------|---------------------------|
+|---------|----------------------------|
 | HostCpu constant folding | `HostCpuExecuteOp` + `ShapeInferOp(optional)` |
 | Dynamic graph online execution | `EagerExecuteOp` + `ShapeInferOp(optional)` |
 | Dynamic graph online execution + operator online compilation | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp(optional)` |
@@ -103,7 +103,7 @@ Common run methods:
 | Online / Direct execution | Execute directly after in-process graph composition, or execute during framework graph mode runtime. | Usually need `EagerExecuteOp`, and implement `ShapeInferOp` as needed. |
 | Offline OM | Generate offline OM model through ATC after graph composition, then load and execute by ACL. | Need `PortableOp` to serialize compilation products into OM, and deserialize and restore during execution phase. |
 
-If only framework online graph mode execution, can not implement `PortableOp`. If goal is `AIR -> ATC -> OM -> ACL` offline model link, need to consider how compilation products are saved and restored with model.
+Custom operators that do not implement `PortableOp` can also generate offline OM (implementation SO is packaged with the model). There are two paths to persist their custom data with OM: implement `PortableOp` to serialize and save with the model, or implement `AnnotatedArgsOp` to submit kernel data to GE through `DeclareLaunchArgs`, saved by GE and directly used for launch by GE at model load and execution phase. When neither is implemented, kernel binary and other custom data are not saved or restored with OM, operators need to manage them by themselves.
 
 ### 5. Development Checklist
 

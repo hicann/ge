@@ -431,6 +431,79 @@ void CollectRegionExternalOutputs(const std::unordered_set<const Node *> &compon
   }
 }
 
+bool HasNewNpuDependency(const HostCpuFusionRegion &region) {
+  std::deque<NodePtr> pending(region.nodes.cbegin(), region.nodes.cend());
+  std::unordered_set<const Node *> visited;
+  while (!pending.empty()) {
+    const NodePtr current = pending.front();
+    pending.pop_front();
+    if (!visited.emplace(current.get()).second) {
+      continue;
+    }
+    const OpDescPtr op_desc = current->GetOpDesc();
+    if ((op_desc != nullptr) &&
+        ((op_desc->GetOpEngineName() == kEngineNameAiCore) || (op_desc->GetOpEngineName() == kEngineNameVectorCore))) {
+      std::deque<NodePtr> ancestors_pending{current};
+      std::unordered_set<const Node *> ancestors;
+      while (!ancestors_pending.empty()) {
+        const NodePtr ancestor = ancestors_pending.front();
+        ancestors_pending.pop_front();
+        if (ancestors.emplace(ancestor.get()).second) {
+          for (const auto &in_node : ancestor->GetInAllNodes()) {
+            ancestors_pending.emplace_back(in_node);
+          }
+        }
+      }
+      for (const auto &node : region.nodes) {
+        if (ancestors.count(node.get()) == 0U) {
+          GELOGW("Skip HostCPU fusion region: NPU node[%s] would newly depend on HostCPU node[%s].",
+                 current->GetNamePtr(), node->GetNamePtr());
+          return true;
+        }
+      }
+      // Downstream NPU nodes already depend on this NPU node, so checking them again is unnecessary.
+      continue;
+    }
+    for (const auto &out_node : current->GetOutAllNodes()) {
+      pending.emplace_back(out_node);
+    }
+  }
+  return false;
+}
+
+bool HasPathLeavingAndReenteringRegion(const HostCpuFusionRegion &region) {
+  std::unordered_set<const Node *> region_nodes;
+  for (const auto &node : region.nodes) {
+    region_nodes.emplace(node.get());
+  }
+
+  std::deque<NodePtr> pending;
+  for (const auto &node : region.nodes) {
+    for (const auto &out_node : node->GetOutAllNodes()) {
+      if (region_nodes.count(out_node.get()) == 0U) {
+        pending.emplace_back(out_node);
+      }
+    }
+  }
+
+  std::unordered_set<const Node *> visited;
+  while (!pending.empty()) {
+    const NodePtr current = pending.front();
+    pending.pop_front();
+    if (region_nodes.count(current.get()) > 0U) {
+      GELOGW("Skip HostCPU fusion region: an external path reenters node[%s].", current->GetNamePtr());
+      return true;
+    }
+    if (!visited.emplace(current.get()).second) {
+      continue;
+    }
+    for (const auto &out_node : current->GetOutAllNodes()) {
+      pending.emplace_back(out_node);
+    }
+  }
+  return false;
+}
+
 Status FinalizeComponentRegions(const ComputeGraphPtr &graph, const size_t component_index,
                                 std::vector<HostCpuFusionRegion> &regions) {
   if (regions.empty()) {
@@ -453,7 +526,7 @@ Status FinalizeComponentRegions(const ComputeGraphPtr &graph, const size_t compo
 
 Status BuildComponentRegions(const ComputeGraphPtr &graph, const std::vector<NodePtr> &topological_nodes,
                              const std::vector<NodePtr> &component, const size_t component_index,
-                             std::vector<HostCpuFusionRegion> &regions) {
+                             std::vector<HostCpuFusionRegion> &regions, bool &has_unsafe_region) {
   std::unordered_set<const Node *> component_set;
   for (const auto &node : component) {
     component_set.emplace(node.get());
@@ -482,6 +555,12 @@ Status BuildComponentRegions(const ComputeGraphPtr &graph, const std::vector<Nod
              component_index, GetNodeNames(group.sinks).c_str(), region.nodes.size());
       continue;
     }
+    if (HasPathLeavingAndReenteringRegion(region)) {
+      GELOGW("Skip HostCPU fusion component[%zu]: sink group[%s] is not graph-convex.", component_index,
+             GetNodeNames(group.sinks).c_str());
+      has_unsafe_region = true;
+      return NOT_CHANGED;
+    }
     regions.emplace_back(std::move(region));
   }
   if (regions.size() >= component.size()) {
@@ -490,6 +569,10 @@ Status BuildComponentRegions(const ComputeGraphPtr &graph, const std::vector<Nod
     return NOT_CHANGED;
   }
   CollectRegionExternalOutputs(component_set, regions);
+  if (std::any_of(regions.cbegin(), regions.cend(), HasNewNpuDependency)) {
+    GELOGW("Skip HostCPU fusion component[%zu]: fusion would add a prerequisite to an NPU node.", component_index);
+    return NOT_CHANGED;
+  }
   return FinalizeComponentRegions(graph, component_index, regions);
 }
 
@@ -501,6 +584,11 @@ struct PreparedFusionRegion {
 struct PreparedGraphFusion {
   ComputeGraphPtr graph;
   std::vector<PreparedFusionRegion> regions;
+};
+
+struct PlannedGraphFusion {
+  ComputeGraphPtr graph;
+  std::vector<std::vector<HostCpuFusionRegion>> components;
 };
 
 bool AddFusedInputDescs(const HostCpuFusionRegion &region, const OpDescPtr &op_desc) {
@@ -948,15 +1036,16 @@ Status BuildHostCpuFusionComponent(const ComputeGraphPtr &graph, const std::vect
                                    const std::unordered_set<const Node *> &candidates,
                                    std::unordered_set<const Node *> &visited, const NodePtr &seed,
                                    const size_t component_index,
-                                   std::vector<std::vector<HostCpuFusionRegion>> &component_regions) {
+                                   std::vector<std::vector<HostCpuFusionRegion>> &component_regions,
+                                   bool &has_unsafe_region) {
   if ((candidates.count(seed.get()) == 0U) || (visited.count(seed.get()) > 0U)) {
     return SUCCESS;
   }
   std::unordered_set<const Node *> component_members;
   CollectCandidateComponent(seed, candidates, component_members);
   visited.insert(component_members.begin(), component_members.end());
-  if (component_members.size() < 2U) {
-    GELOGD("Skip HostCPU fusion component[%zu]: node_count=%zu is less than 2.", component_index,
+  if (component_members.size() < 5U) {
+    GELOGD("Skip HostCPU fusion component[%zu]: node_count=%zu is less than 5.", component_index,
            component_members.size());
     return SUCCESS;
   }
@@ -969,11 +1058,12 @@ Status BuildHostCpuFusionComponent(const ComputeGraphPtr &graph, const std::vect
   std::vector<NodePtr> component_topological_nodes;
   if (!GetComponentTopologicalNodes(component, component_topological_nodes)) {
     GELOGW("Skip HostCPU fusion component[%zu]: candidate data edges are not acyclic.", component_index);
+    has_unsafe_region = true;
     return NOT_CHANGED;
   }
   std::vector<HostCpuFusionRegion> regions;
-  const Status region_status =
-      BuildComponentRegions(graph, component_topological_nodes, component_topological_nodes, component_index, regions);
+  const Status region_status = BuildComponentRegions(graph, component_topological_nodes, component_topological_nodes,
+                                                     component_index, regions, has_unsafe_region);
   if (region_status == SUCCESS) {
     component_regions.emplace_back(std::move(regions));
   } else if (region_status != NOT_CHANGED) {
@@ -984,7 +1074,11 @@ Status BuildHostCpuFusionComponent(const ComputeGraphPtr &graph, const std::vect
 }
 
 Status HostCpuFusionPass::BuildFusionRegions(const ComputeGraphPtr &graph,
-                                             std::vector<std::vector<HostCpuFusionRegion>> &component_regions) const {
+                                             std::vector<std::vector<HostCpuFusionRegion>> &component_regions,
+                                             bool *has_unsafe_region) const {
+  if (has_unsafe_region != nullptr) {
+    *has_unsafe_region = false;
+  }
   if (graph == nullptr) {
     GELOGE(PARAM_INVALID, "HostCPU fusion BuildFusionRegions received null graph.");
     return PARAM_INVALID;
@@ -1000,12 +1094,20 @@ Status HostCpuFusionPass::BuildFusionRegions(const ComputeGraphPtr &graph,
          graph->GetName().c_str(), direct_nodes.size(), candidates.size());
   std::unordered_set<const Node *> visited;
   size_t component_index = 0U;
+  bool unsafe_region = false;
   for (const auto &seed : direct_nodes) {
     if ((candidates.count(seed.get()) == 0U) || (visited.count(seed.get()) > 0U)) {
       continue;
     }
     const Status status = BuildHostCpuFusionComponent(graph, direct_nodes, candidates, visited, seed, component_index++,
-                                                      component_regions);
+                                                      component_regions, unsafe_region);
+    if (unsafe_region) {
+      component_regions.clear();
+      if (has_unsafe_region != nullptr) {
+        *has_unsafe_region = true;
+      }
+      return NOT_CHANGED;
+    }
     if (status != SUCCESS && status != NOT_CHANGED) {
       return status;
     }
@@ -1018,28 +1120,12 @@ Status HostCpuFusionPass::BuildFusionRegions(const ComputeGraphPtr &graph,
   return SUCCESS;
 }
 
-Status PrepareHostCpuFusionGraph(const ComputeGraphPtr &graph, HostCpuFusionPass &pass,
-                                 const std::shared_ptr<HostCpuFusionCompiler> &compiler, HostCpuFusionCodegen &codegen,
-                                 PreparedGraphFusion &prepared_graph, bool &preparation_failed) {
+Status PrepareHostCpuFusionGraph(const PlannedGraphFusion &plan, const std::shared_ptr<HostCpuFusionCompiler> &compiler,
+                                 HostCpuFusionCodegen &codegen, PreparedGraphFusion &prepared_graph,
+                                 bool &preparation_failed) {
   preparation_failed = false;
-  if ((graph == nullptr) || (graph->GetDirectNodesSize() == 0U)) {
-    return NOT_CHANGED;
-  }
-  GELOGD("HostCPU fusion pass starts: graph[%s], direct_nodes=%zu.", graph->GetName().c_str(),
-         graph->GetDirectNodesSize());
-  std::vector<std::vector<HostCpuFusionRegion>> components;
-  const Status build_status = pass.BuildFusionRegions(graph, components);
-  if (build_status == NOT_CHANGED) {
-    GELOGD("HostCPU fusion found no fusible region in graph[%s].", graph->GetName().c_str());
-    return NOT_CHANGED;
-  }
-  if (build_status != SUCCESS) {
-    GELOGE(build_status, "Failed to build HostCPU fusion regions: graph[%s], status=%u.", graph->GetName().c_str(),
-           build_status);
-    return build_status;
-  }
-  prepared_graph.graph = graph;
-  for (const auto &regions : components) {
+  prepared_graph.graph = plan.graph;
+  for (const auto &regions : plan.components) {
     for (const auto &region : regions) {
       PreparedFusionRegion prepared;
       prepared.region = region;
@@ -1049,14 +1135,14 @@ Status PrepareHostCpuFusionGraph(const ComputeGraphPtr &graph, HostCpuFusionPass
       }
       if ((status != SUCCESS) || !IsValidFusedHostCpuSoElf(prepared.codegen.so_data)) {
         GELOGW("Skip HostCPU fusion chain[%s]: graph[%s], status=%u, source_size=%zu, so_size=%zu, elf_valid=%d.",
-               region.chain_id.c_str(), graph->GetName().c_str(), status, prepared.codegen.source.size(),
+               region.chain_id.c_str(), plan.graph->GetName().c_str(), status, prepared.codegen.source.size(),
                prepared.codegen.so_data.size(),
                static_cast<int32_t>(IsValidFusedHostCpuSoElf(prepared.codegen.so_data)));
         preparation_failed = true;
         return NOT_CHANGED;
       }
       GELOGD("HostCPU fusion prepared chain[%s]: graph[%s], source_size=%zu, so_size=%zu.", region.chain_id.c_str(),
-             graph->GetName().c_str(), prepared.codegen.source.size(), prepared.codegen.so_data.size());
+             plan.graph->GetName().c_str(), prepared.codegen.source.size(), prepared.codegen.so_data.size());
       prepared_graph.regions.emplace_back(std::move(prepared));
     }
   }
@@ -1078,13 +1164,37 @@ Status HostCpuFusionPass::Run(const ComputeGraphPtr &graph, NodeEngineMap &node_
   }
   graphs.insert(graphs.end(), subgraphs.cbegin(), subgraphs.cend());
 
+  std::vector<PlannedGraphFusion> plans;
+  for (const auto &current_graph : graphs) {
+    if ((current_graph == nullptr) || (current_graph->GetDirectNodesSize() == 0U)) {
+      continue;
+    }
+    GELOGD("HostCPU fusion pass starts: graph[%s], direct_nodes=%zu.", current_graph->GetName().c_str(),
+           current_graph->GetDirectNodesSize());
+    PlannedGraphFusion plan;
+    plan.graph = current_graph;
+    bool has_unsafe_region = false;
+    const Status status = BuildFusionRegions(current_graph, plan.components, &has_unsafe_region);
+    if (has_unsafe_region) {
+      GELOGW("Skip all HostCPU fusion before JIT: unsafe region in graph[%s].", current_graph->GetName().c_str());
+      return NOT_CHANGED;
+    }
+    if (status == SUCCESS) {
+      plans.emplace_back(std::move(plan));
+    } else if (status != NOT_CHANGED) {
+      return status;
+    }
+  }
+  if (plans.empty()) {
+    return NOT_CHANGED;
+  }
+
   HostCpuFusionCodegen codegen;
   std::vector<PreparedGraphFusion> prepared_graphs;
-  for (const ComputeGraphPtr &current_graph : graphs) {
+  for (const auto &plan : plans) {
     PreparedGraphFusion prepared_graph;
     bool preparation_failed = false;
-    const Status status =
-        PrepareHostCpuFusionGraph(current_graph, *this, compiler_, codegen, prepared_graph, preparation_failed);
+    const Status status = PrepareHostCpuFusionGraph(plan, compiler_, codegen, prepared_graph, preparation_failed);
     if (preparation_failed) {
       return NOT_CHANGED;
     }

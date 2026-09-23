@@ -47,6 +47,7 @@ set(DAVINCI_SRC_LIST
     hybrid/node_executor/aicpu/aicpu_ext_info_handler.cc
     graph/load/model_manager/cpu_queue_schedule.cc
     graph/load/model_manager/davinci_model.cc
+    graph/load/model_manager/attached_stream_collection.cc
     graph/load/model_manager/memory_block_manager.cc
     graph/load/model_manager/reusable_stream_allocator.cc
     graph/load/model_manager/memory_app_type_classifier.cc

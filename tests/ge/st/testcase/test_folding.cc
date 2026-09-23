@@ -56,6 +56,11 @@ class StHostCpuFoldOp final : public HostCpuExecuteOp {
 };
 }  // namespace
 
+REG_OP(StHostCpuFoldOp)
+    .INPUT(x, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(StHostCpuFoldOp);
+
 const char *ClipByValue = "ClipByValue";
 class TestClipByValue : public Kernel {
  public:

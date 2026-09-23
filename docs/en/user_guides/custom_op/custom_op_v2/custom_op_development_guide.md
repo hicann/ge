@@ -145,6 +145,8 @@ export ASCEND_CUSTOM_OPP_PATH="$(pwd)/build:$ASCEND_CUSTOM_OPP_PATH"
 | Offline OM model sink | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp` + `PortableOp` | AIR → ATC → OM → ACL | [compilable_add_custom](../../../../../examples/custom_op/compilable_add_custom/README.md) |
 | Data dependent shape | `EagerExecuteOp` + `ShapeInferOp` | Graph building → Execution + shape buffer writeback | [data_dependent_shape_custom](../../../../../examples/custom_op/data_dependent_shape_custom/README.md) |
 
+> Note: Operators that do not implement `PortableOp` can also be used to generate offline OM (implementation SO is packaged with the model). However, their kernel binary and other data are not saved or restored with OM, need self-management.
+
 ### 4.2 Scenario A: Dynamic Graph Online Execution
 
 Simplest scenario. Kernel already pre-compiled (Ascend C `.asc` same-library compilation, Triton `.npubin` etc), just need to load and launch in Execute.
@@ -184,7 +186,7 @@ Graph building → ATC offline compilation → Callback Compile (RTC compilation
 ```
 
 **Key Points:**
-- Must implement `PortableOp`, Serialize/Deserialize buffer format is user-defined, GE only transparently passes without parsing
+- Must implement `PortableOp` when compile products need to be carried with the model, Serialize/Deserialize buffer format is user-defined, GE only transparently passes without parsing; otherwise need to self-manage saving and restoring of compile products
 - ShapeInferOp is called during OM compilation phase, used to infer output shape/dtype
 - Support multi-binary serialization (managed by key)
 

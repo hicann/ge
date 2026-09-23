@@ -191,6 +191,12 @@ TEST(AnnotatedArgsHandlerUT, RuntimeArgsInterfacesAreEmpty) {
   EXPECT_TRUE(args_handler.GetKernelArgs(ge::kPlacementDevice).empty());
 }
 
+TEST(AnnotatedArgsHandlerUT, DoesNotProvideAttachedStream) {
+  AnnotatedArgsHandler args_handler;
+
+  EXPECT_EQ(args_handler.GetAttachedStreamProvider(), nullptr);
+}
+
 TEST(AnnotatedArgsContextUT, ReturnsDefaultValuesWhenComputeNodeInfoIsMissing) {
   AnnotatedArgsContext context{};
 

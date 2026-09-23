@@ -20,7 +20,7 @@ constexpr size_t kOutputIndexZ = 0U;
 }  // namespace
 
 namespace ge {
-class AddCustom final : public HostCpuExecuteOp, public ShapeInferOp, public PortableOp {
+class AddCustom final : public HostCpuExecuteOp, public ShapeInferOp {
  public:
   graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) override {
     std::cout << "[HostCpuExecuteOp] Execute for AddCustom" << std::endl;
@@ -63,18 +63,6 @@ class AddCustom final : public HostCpuExecuteOp, public ShapeInferOp, public Por
   graphStatus InferDataType(gert::InferDataTypeContext *ctx) override {
     std::cout << "[ShapeInferOp] InferDataType for AddCustom" << std::endl;
     return ctx->SetOutputDataType(kOutputIndexZ, ctx->GetInputDataType(kInputIndexX));
-  }
-
-  graphStatus Serialize(std::vector<uint8_t> &buffer) override {
-    std::cout << "[PortableOp] Serialize for AddCustom" << std::endl;
-    buffer = {0U};
-    return GRAPH_SUCCESS;
-  }
-
-  graphStatus Deserialize(const std::vector<uint8_t> &buffer) override {
-    std::cout << "[PortableOp] Deserialize for AddCustom" << std::endl;
-    (void)buffer;
-    return GRAPH_SUCCESS;
   }
 };
 

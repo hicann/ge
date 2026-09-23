@@ -34,7 +34,7 @@ class OpImplModeConfigParser : public BaseConfigParser {
  private:
   Status Initialize(const std::string &op_precision_mode, const std::string &op_select_impl_mode,
                     const std::string &op_type_list_for_impl_mode, const std::string &allow_hf32);
-  Status InitExplicitAllowHF32(const std::string &hf32_val, const std::string &raw_allow_hf32);
+  Status InitExplicitAllowHF32(const std::string &hf32_val);
   Status InitDefaultAllowHF32();
   void UpDateDefaultValue(const std::string &op_precision_mode, std::string &op_select_impl_mode,
                           std::string &allow_hf32);

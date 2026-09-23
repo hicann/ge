@@ -23,6 +23,13 @@ constexpr size_t kOne = 1U;
 const size_t kBatchMatMulMaxDimNum = 8;
 const size_t kMatMulMIdx = 2;
 const size_t kMatMulNIdx = 1;
+constexpr size_t kX1ShapeIdx = 2U;
+constexpr size_t kX2Idx = 3U;
+constexpr size_t kAdjointAAttrIdx = 0U;
+constexpr size_t kAdjointBAttrIdx = 1U;
+constexpr size_t kOutputIdx = 0U;
+constexpr size_t kX2Rank = 2U;
+constexpr size_t kX1ShapeSize = 2U;
 
 graphStatus InferShape4MatMul(gert::InferSymbolShapeContext *context) {
   auto in_shape1 = context->GetInputSymbolShape(0);
@@ -160,10 +167,43 @@ graphStatus InferShape4BatchMatMulV2(gert::InferSymbolShapeContext *context) {
   return GRAPH_SUCCESS;
 }
 
+/**
+ * SparseTensorDenseMatMul 的符号 Shape 推导。
+ * 【算子功能】将 rank 为 2 的稀疏矩阵 A 与稠密矩阵 B 相乘，输出 y = A @ B。
+ * 【算子约束】x2 必须为 2D 矩阵；x1_shape 为 A 的形状常量 [m,k]（data dependency）；adjoint_a/adjoint_b 为 Bool 属性。
+ * 【推导逻辑】输出首维取 x1_shape[adjoint_a ? 1 : 0]，次维取 x2[adjoint_b ? 0 : 1]。
+ * 【举例】x1_shape=[M,K]、x2=[K,N]、adjoint 均为 false 时，y=[M,N]。
+ */
+graphStatus InferShape4SparseTensorDenseMatMul(gert::InferSymbolShapeContext *context) {
+  const auto x2_shape = context->GetInputSymbolShape(kX2Idx);
+  GE_UNSUPPORTED_IF_NULL(x2_shape);
+  GE_ASSERT(x2_shape->GetDimNum() == kX2Rank, "SparseTensorDenseMatMul x2 must be a 2D matrix");
+  const auto x1_shape_tensor = context->GetInputSymbolTensor(kX1ShapeIdx);
+  GE_UNSUPPORTED_IF_NULL(x1_shape_tensor);
+  const auto x1_shape_value = x1_shape_tensor->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(x1_shape_value);
+  GE_ASSERT(x1_shape_value->size() == kX1ShapeSize, "SparseTensorDenseMatMul x1_shape must have 2 elements");
+
+  const auto attrs = context->GetAttrs();
+  GE_ASSERT_NOTNULL(attrs);
+  const auto adjoint_a = attrs->GetBool(kAdjointAAttrIdx);
+  const auto adjoint_b = attrs->GetBool(kAdjointBAttrIdx);
+  GE_ASSERT_NOTNULL(adjoint_a);
+  GE_ASSERT_NOTNULL(adjoint_b);
+
+  const auto y_shape = context->GetOutputSymbolShape(kOutputIdx);
+  GE_ASSERT_NOTNULL(y_shape);
+  y_shape->MutableDims().clear();
+  y_shape->MutableDims().push_back(*adjoint_a ? x1_shape_value->at(1) : x1_shape_value->at(0));
+  y_shape->MutableDims().push_back(*adjoint_b ? x2_shape->GetDim(0) : x2_shape->GetDim(1));
+  return ge::GRAPH_SUCCESS;
+}
+
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(MatMul).InferSymbolShape(InferShape4MatMul);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(MatMulV2).InferSymbolShape(InferShape4MatMul);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(MatMulV3).InferSymbolShape(InferShape4MatMul);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(BatchMatMulV2).InferSymbolShape(InferShape4BatchMatMulV2);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(BatchMatMulV3).InferSymbolShape(InferShape4BatchMatMulV2);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(SparseTensorDenseMatMul).InferSymbolShape(InferShape4SparseTensorDenseMatMul);
 }  // namespace
 }  // namespace ge

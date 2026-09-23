@@ -11,8 +11,9 @@
 #ifndef INC_EXTERNAL_GRAPH_GNODE_H_
 #define INC_EXTERNAL_GRAPH_GNODE_H_
 
-#include <vector>
 #include <cstdint>
+#include <map>
+#include <vector>
 
 #include "graph/error_codes.h"
 #include "graph/types.h"
@@ -91,6 +92,7 @@ class GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY GNode {
   graphStatus GetAttr(const AscendString &name, std::vector<ge::DataType> &attr_value) const;
   graphStatus GetAttr(const AscendString &name, ge::DataType &attr_value) const;
   graphStatus GetAttr(const AscendString &name, AttrValue &attr_value) const;
+  graphStatus GetAllAttrs(std::map<AscendString, AttrValue> &attr_values) const;
 
   graphStatus SetAttr(const AscendString &name, int64_t &attr_value) const;
   graphStatus SetAttr(const AscendString &name, int32_t &attr_value) const;
@@ -111,6 +113,7 @@ class GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY GNode {
   graphStatus SetAttr(const AscendString &name, std::vector<ge::DataType> &attr_value) const;
   graphStatus SetAttr(const AscendString &name, ge::DataType &attr_value) const;
   graphStatus SetAttr(const AscendString &name, AttrValue &attr_value) const;
+  graphStatus SetAttrs(const std::map<AscendString, AttrValue> &attr_values) const;
 
   // 添加AttrValue类型的输入输出属性支持
   graphStatus GetOutputAttr(const AscendString &name, uint32_t output_index, AttrValue &attr_value) const;

@@ -3,7 +3,7 @@
 ## 样例概述
 
 - 构图入口：`GE`
-- 算子编成语言：`Ascend C`
+- 算子编程语言：`Ascend C`
 - 编译方式：`.asc` 与 `.cpp` 同 target 编译
 - 模型下沉能力：`不涉及`
 - 核心链路：`Ascend C kernel 与 host 侧 custom op 同库编译 -> GE 交付件 -> 进程内构图 -> Session::RunGraph -> hybrid/RT2 动态执行`

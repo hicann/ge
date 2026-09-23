@@ -3,7 +3,7 @@
 ## 样例概述
 
 - 构图入口：`TensorFlow`
-- 算子编成语言：`Triton`
+- 算子编程语言：`Triton`
 - 编译方式：`预编译为 npubin`
 - 模型下沉能力：`不涉及`
 - 核心链路：`Triton kernel -> TensorFlow 交付件 + GE 交付件 -> TensorFlow 入图执行`

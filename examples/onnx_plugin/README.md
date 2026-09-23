@@ -58,14 +58,8 @@ pip3 install torch numpy onnx
 
 已在如下环境完成端到端验证（导出、ATC编译、ACL执行、结果比对全部通过）：
 
-| 项目 | 版本 |
-| ---- | ---- |
-| SoC | Ascend910_9362（Atlas A3） |
-| CANN | 9.2.0 |
-| Python | 3.12 |
-| PyTorch | 2.7.1与2.8.0（CPU版，均已实测） |
-| onnx | 1.21.0 |
-| NumPy | 1.26.4 |
+- Python 3.12。临时要求：run包编译时使用的Python版本，需要与执行本样例的Python版本保持一致
+- onnx 1.21.0
 
 ### 3.3、一键运行
 
@@ -150,10 +144,10 @@ DUMP_GE_GRAPH=3 DUMP_GRAPH_PATH="$(pwd)/graph_dump" atc \
   原始类型标记，可追溯分解来源；
 - MyElu：一对一映射，图中为Elu节点，`alpha`属性已转写。
 
-如需查看编译过程日志，在上述atc命令中增加`--log=debug`参数，并在执行前设置打屏环境变量
+如需查看编译过程日志，在上述atc命令中增加`--log=info`或更高日志级别参数，并在执行前设置打屏环境变量
 `export ASCEND_SLOG_PRINT_TO_STDOUT=1`，详见[atc --log参数说明](../../docs/zh/user_guides/atc_tools/CLI_options/--log.md)。
-插件回调抛出Python异常时，默认报错只有错误码（如E19999），Python侧的错误信息
-（异常类型、语句、插件文件与行号）同样需要上述debug日志才能看到。
+插件回调抛出Python异常或插件文件加载失败时，默认报错（E19999）中会包含Python侧的错误信息
+（异常类型、错误语句、插件文件与行号）；如需完整编译日志，再配合上述日志级别查看。
 
 ## 4、插件与回调写法
 
@@ -167,6 +161,9 @@ DUMP_GE_GRAPH=3 DUMP_GRAPH_PATH="$(pwd)/graph_dump" atc \
 | `parse_node` | 按名字取属性（优先推荐） | `thresholded_relu_plugin.py` |
 | `parse_operator` | 整体解析属性（少数情况，见4.2） | `my_elu_plugin.py` |
 | `decompose` | 用已有算子拼子图替换原节点 | `thresholded_relu_plugin.py` |
+
+同一个`source`只能注册一个插件，且不同插件的`opsets`不能重叠（例如`opsets=(1,)`与
+`opsets=(1,2)`同时存在会被拒绝）——冲突会在编译开始时报错退出。
 
 ### 4.1、parse_node：按名字取属性
 
@@ -187,11 +184,47 @@ DUMP_GE_GRAPH=3 DUMP_GRAPH_PATH="$(pwd)/graph_dump" atc \
 支持的属性类型：int、float、string和同类列表。节点上带tensor、子图属性时`node.attrs`会
 直接报错，只能改用`parse_operator`（见4.2）。
 
-端口：目标算子输入输出个数固定时不用注册；个数不固定时必须注册，用`register_input`、
-`register_output`、`register_optional_input`、`register_dynamic_input`、
+输入输出注册：目标算子的输入输出个数固定时不用注册；个数不固定时必须逐个注册，用
+`register_input`、`register_output`、`register_optional_input`、`register_dynamic_input`、
 `register_dynamic_output`。
 
-用例：`plugin/thresholded_relu_plugin.py`——取`alpha`写入目标算子，并注册端口。
+先弄清"连线"是什么：ONNX模型是一张数据流转图，节点不直接持有数据，只写数据名——
+自己的输入叫什么、自己的输出叫什么。例如模型里有两个节点：
+
+```text
+节点1（卷积）：  input=["图片", "卷积核"]    output="卷积结果"
+节点2（加偏置）： input=["卷积结果", "偏置"]  output="输出"
+```
+
+节点2的第一个输入写的"卷积结果"只是个名字，真正算出它的是节点1。连线就是GE读完
+所有节点后做的牵线动作：拿着每个节点的输入名，找到产出该数据的节点，把前者的输出
+和后者的输入接起来——全部接好后数据才能在节点间流动。
+
+两种输入注册方法的区别（输出没有可选的注册方法）：
+
+- `register_input`：注册必需输入。意思是：模型里每个使用该算子的节点，这个位置上都会有
+  数据连过来，ONNX模型本身就按此约定导出；
+- `register_optional_input`：注册可选输入。意思是：这个位置连不连数据，由模型里每个节点
+  自己决定。某个节点没连时，这个输入上就是没有数据——框架不会自动填任何值，没连代表
+  什么由目标算子自己定义。例如ThresholdV2的`value`是可选输入，没连时该算子按0处理，
+  这是ThresholdV2自己的规则，不是框架替它填了0。同一算子在A节点连了、B节点没连完全
+  合法，没连的节点在连线时只打一条告警，不报错。
+
+连线不看名字配对，只按位置对号：每种ONNX算子在标准里规定了输入清单和顺序（例如
+Conv依次是X、W、B，B可选），模型里节点照此顺序填数据名——"第`i`个输入"就是节点输入
+清单里的第`i`项（上例中"卷积结果"是第0个）。GE把节点第`i`个输入，接到目标算子第`i`个
+输入上；目标算子这边的顺序，输入个数固定的算子是算子定义里写死的，需要注册的算子就是
+注册的顺序（第一个注册的就是第0个）。因此注册输入时有两条硬性要求：
+
+- 位置要占满：按ONNX算子的输入顺序，每个位置都注册（必需的用`register_input`，可选的
+  用`register_optional_input`）。不能只注册自己预计会被用到的位置——只要有节点可能在
+  第`k`个位置连数据，第`k`个输入就必须注册，否则连线时报错
+  `E19999: Resolve operator IO name failed`；
+- 顺序要对：注册顺序必须与ONNX算子的输入顺序一致。反例：算子输入顺序是X、W、可选的
+  B，插件却先注册了B——那么模型里X的数据会流进B这个输入，编译不报错，到shape推导
+  或执行阶段才被发现。
+
+用例：`plugin/thresholded_relu_plugin.py`——取`alpha`写入目标算子，并注册输入输出。
 
 ### 4.2、parse_operator：整体解析属性
 
@@ -203,10 +236,13 @@ DUMP_GE_GRAPH=3 DUMP_GRAPH_PATH="$(pwd)/graph_dump" atc \
 
 回调收到`source`和`target`两个算子：
 
-- `source`：ONNX节点转成的算子（只读）。它身上只有一个名为`attribute`的属性，内容是节点
-  全部属性的JSON串。各属性类型在JSON中的呈现如下（`name`为属性名，`type`为类型码：
-
-  1=float、2=int、3=string、4=tensor、5=子图、6=float列表、7=int列表、8=string列表）：
+- `source`：ONNX节点转成的算子（只读）。节点上的全部属性被打包成一个JSON串，存放在
+  source名为`attribute`的属性里，用`source.get_attr("attribute")`取出（source上还带有
+  节点名、算子类型等框架填充的信息，解析节点属性读`attribute`就足够）。JSON串的结构：
+  最外层只有`attribute`一个键，值是一个数组——节点上有几个属性，数组里就有几个对象；
+  每个对象描述节点上的一个属性，里面有`name`（属性名）、`type`（类型码）和存放值的
+  键，值放在哪个键由属性类型决定（`type`就是ONNX官方对属性类型的编号：1=float、
+  2=int、3=string、4=tensor、5=子图、6=float列表、7=int列表、8=string列表）：
 
 ```json
 {
@@ -222,12 +258,18 @@ DUMP_GE_GRAPH=3 DUMP_GRAPH_PATH="$(pwd)/graph_dump" atc \
 ```
 
   标量属性（`f`/`i`/`s`）的值是字符串形式，取用时转成数值；列表属性（`floats`/`ints`/
-  `strings`）直接是JSON数组；tensor（`t`）与子图（`g`）属性则是完整的结构体字典；
+  `strings`）直接是JSON数组；tensor（`t`）与子图（`g`）属性则是完整的结构体字典——
+  tensor属性指属性值本身是一个张量，例如Constant算子的`value`属性；子图属性指属性值
+  本身是一个子图，例如控制流算子If的`then_branch`/`else_branch`、Loop的`body`属性，
+  一般不需要逐字段解析它们的值。
 
 - `target`：目标算子，同样用`set_attr`写入。
 
 用例：`plugin/my_elu_plugin.py`——从JSON里取出`alpha`转给Elu。这个用例只有一个float属性，
 用`parse_node`同样能实现，这里用它演示JSON的读法。
+
+`attribute`各取值字段的完整说明（含tensor、子图等复合类型的形态）参见
+[parse_operator接口文档](../../docs/zh/api/graph_engine_api/python/ge/onnx_plugin/OnnxPlugin/parse_operator.md)。
 
 ### 4.3、decompose：用已有算子拼子图替换原节点
 

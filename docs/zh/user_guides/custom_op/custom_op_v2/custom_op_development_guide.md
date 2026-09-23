@@ -151,6 +151,8 @@ export ASCEND_CUSTOM_OPP_PATH="$(pwd)/build:$ASCEND_CUSTOM_OPP_PATH"
 | 离线 OM 模型下沉 | `EagerExecuteOp` + `CompilableOp` + `ShapeInferOp` + `PortableOp` | AIR → ATC → OM → ACL | [compilable_add_custom](../../../../../examples/custom_op/compilable_add_custom/README.md) |
 | 数据依赖 shape | `EagerExecuteOp` + `ShapeInferOp` | 构图 → 执行 + shape buffer 回写 | [data_dependent_shape_custom](../../../../../examples/custom_op/data_dependent_shape_custom/README.md) |
 
+> 说明：未实现 `PortableOp` 的算子同样可用于生成离线 OM（实现 SO 会随模型打包）。但是其 kernel bin 等数据不会随 OM 保存和恢复，需自行管理。
+
 ### 4.2 场景 A：动态图在线执行
 
 最简单的场景。kernel 已预编译好（Ascend C `.asc` 同库编译、Triton `.npubin` 等），只需在 Execute 中加载并 launch。
@@ -190,7 +192,7 @@ kernel 源码需要在 GE 编译阶段通过 RTC（Runtime Compilation）编译�
 ```
 
 **关键点：**
-- 必须实现 `PortableOp`，Serialize/Deserialize 的 buffer 格式由用户自定义，GE 只透传不解析
+- 需要将编译产物随模型携带时必须实现 `PortableOp`，Serialize/Deserialize 的 buffer 格式由用户自定义，GE 只透传不解析；否则需自行管理编译产物的保存和恢复
 - ShapeInferOp 在 OM 编译阶段被调用，用于推导输出 shape/dtype
 - 支持多份 binary 的序列化（按 key 管理）
 

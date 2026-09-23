@@ -24,7 +24,13 @@ constexpr size_t kMaxSupportDim = 8UL;
 graphStatus UnpackInputSymbolsValue(const std::vector<int64_t> &input_dims,
                                     const std::vector<Expression> &input_symbols, const int64_t axis,
                                     std::vector<std::vector<Expression>> &output_symbols) {
-  output_symbols.resize(input_dims[static_cast<size_t>(axis)]);
+  // axis维<=0(空tensor/异常dim值)时resize以(size_t)回绕抛length_error或产生空输出，降级
+  const int64_t axis_dim_size = input_dims[static_cast<size_t>(axis)];
+  if (axis_dim_size <= 0L) {
+    GELOGW("SymbolicKernel compute unsupported, reason: axis dim %lld not positive.", axis_dim_size);
+    return UNSUPPORTED;
+  }
+  output_symbols.resize(static_cast<size_t>(axis_dim_size));
   int64_t block_size = 1L;
   for (int64_t i = static_cast<int64_t>(input_dims.size()) - 1; i >= 0; i--) {
     if (i == axis) {
@@ -87,9 +93,13 @@ static graphStatus UnpackSymbolicKernelCompute(gert::InferSymbolComputeContext *
   // 计算输出shape
   std::vector<Expression> output_shape_symbols;
   GE_ASSERT_SUCCESS(CalcOutputShapeSymbol(input_dims, axis_dim, output_shape_symbols));
-  // 计算输出
+  // 计算输出（原样透传：空tensor/异常axis维的UNSUPPORTED由外层降级，
+  // 非法block_size等ErrorResult由驱动打挂推导）
   std::vector<std::vector<Expression>> output_symbols;
-  GE_ASSERT_SUCCESS(UnpackInputSymbolsValue(input_dims, *input_symbols, axis_dim, output_symbols));
+  const auto unpack_ret = UnpackInputSymbolsValue(input_dims, *input_symbols, axis_dim, output_symbols);
+  if (unpack_ret != SUCCESS) {
+    return unpack_ret;
+  }
   // 刷新输出shape
   GE_ASSERT_TRUE(output_symbols.size() == context->GetComputeNodeOutputNum(),
                  "Dim num:%zu of index: %lld is not equal to output num: %zu", output_symbols.size(), axis_dim,

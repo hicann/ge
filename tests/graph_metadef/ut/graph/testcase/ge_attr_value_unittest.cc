@@ -416,6 +416,27 @@ TEST_F(UtestGeAttrValue, SetGetAttrValue_Comprehensive) {
     test_case.second();
   }
 }
+
+TEST_F(UtestGeAttrValue, GetValueType) {
+  AttrValue attr_value;
+  EXPECT_EQ(attr_value.GetValueType(), AttrValue::AT_NONE);
+
+  int64_t int_value = 42;
+  EXPECT_EQ(attr_value.SetAttrValue(int_value), GRAPH_SUCCESS);
+  EXPECT_EQ(attr_value.GetValueType(), AttrValue::AT_INT);
+
+  float32_t float_value = 1.0F;
+  EXPECT_EQ(attr_value.SetAttrValue(float_value), GRAPH_SUCCESS);
+  EXPECT_EQ(attr_value.GetValueType(), AttrValue::AT_FLOAT);
+
+  AscendString string_value("value");
+  EXPECT_EQ(attr_value.SetAttrValue(string_value), GRAPH_SUCCESS);
+  EXPECT_EQ(attr_value.GetValueType(), AttrValue::AT_STRING);
+
+  std::vector<int64_t> list_value = {1, 2};
+  EXPECT_EQ(attr_value.SetAttrValue(list_value), GRAPH_SUCCESS);
+  EXPECT_EQ(attr_value.GetValueType(), AttrValue::AT_LIST_INT);
+}
 // extern "C" wrapper for AttrValue SetAttrValue methods to avoid C++ name mangling
 extern "C" {
 GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus aclCom_AttrValue_SetAttrValue_Tensor(void *attr_value_ptr,

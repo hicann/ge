@@ -387,9 +387,9 @@ Status GeRootModel::CheckSoArchMatchesTarget(const std::string &so_path, const s
   return SUCCESS;
 }
 
-Status GeRootModel::ResolvePortableOpSoPath(const std::string &op_type, PortableOp *portable_op,
-                                            std::string &so_path) const {
-  GE_ASSERT_NOTNULL(portable_op);
+Status GeRootModel::ResolveCustomOpSoPath(const std::string &op_type, BaseCustomOp *custom_op,
+                                          std::string &so_path) const {
+  GE_ASSERT_NOTNULL(custom_op);
   std::string target_os;
   std::string target_cpu;
   GE_ASSERT_SUCCESS(GetTargetHostEnv(target_os, target_cpu), "Get target host env failed.");
@@ -397,7 +397,7 @@ Status GeRootModel::ResolvePortableOpSoPath(const std::string &op_type, Portable
   GE_ASSERT_TRUE(!is_cross_compile, "Cross-compile mode should not resolve custom op so by op_type[%s].",
                  op_type.c_str());
   Dl_info dl_info;
-  auto **vtable = reinterpret_cast<void ***>(portable_op);
+  auto **vtable = reinterpret_cast<void ***>(custom_op);
   std::string real_so_path;
   if ((vtable != nullptr) && (*vtable != nullptr) && ((*vtable)[0] != nullptr) &&
       (dladdr((*vtable)[0], &dl_info) != 0) && (dl_info.dli_fname != nullptr)) {
@@ -424,16 +424,26 @@ Status GeRootModel::CollectCustomOpTypesForRootModel(std::set<std::string> &used
   return SUCCESS;
 }
 
-Status GeRootModel::CollectPortableCustomOpSo(const std::set<std::string> &used_custom_op_types,
-                                              const bool is_cross_compile, bool &has_portable_custom_op) {
+Status GeRootModel::CollectCustomOpSo(const std::set<std::string> &used_custom_op_types, const bool is_cross_compile,
+                                      bool &has_custom_op) {
   for (const auto &op_type : used_custom_op_types) {
-    auto *portable_op = CustomOpCast<PortableOp>(
+    BaseCustomOp *custom_op = CustomOpCast<PortableOp>(
         custom_op_registry_->GetCustomOpCommonCapability(AscendString(op_type.c_str()), CustomOpCapability::kPortable));
-    if (portable_op == nullptr) {
-      GELOGI("[CustomOp] op[%s] is not PortableOp, skip so collect.", op_type.c_str());
-      continue;
+    if (custom_op == nullptr) {
+      // 如果自定义算子的 kernel 无需 CUSTOM_OPS 反序列化数据即可获得并下发执行，则不需要实现 PortableOp 基类
+      // 但执行其Execute仍依赖其 so 文件，因此同样需要收集 so 打包进 OM。
+      custom_op = custom_op_registry_->GetAnyCustomOpInstance(AscendString(op_type.c_str()));
+      if (custom_op == nullptr) {
+        // 算子在图中使用且 creator 已注册，正常应能创建实例；创建失败说明自定义算子 so 异常，
+        // 若静默跳过，so 不会打包进 OM，运行时因 registry 无该算子而跳过校验，错误会推迟到执行期才暴露。
+        GELOGE(FAILED,
+               "[CustomOp] op[%s] has creator registered but instance creation failed, "
+               "cannot collect so into om.",
+               op_type.c_str());
+        return FAILED;
+      }
     }
-    has_portable_custom_op = true;
+    has_custom_op = true;
     if (is_cross_compile) {
       continue;
     }
@@ -444,7 +454,7 @@ Status GeRootModel::CollectPortableCustomOpSo(const std::set<std::string> &used_
     }
 
     std::string so_path;
-    GE_ASSERT_SUCCESS(ResolvePortableOpSoPath(op_type, portable_op, so_path),
+    GE_ASSERT_SUCCESS(ResolveCustomOpSoPath(op_type, custom_op, so_path),
                       "Resolve custom op so path failed for op[%s].", op_type.c_str());
 
     (void)custom_op_so_set_.insert(so_path);
@@ -465,13 +475,12 @@ Status GeRootModel::CheckAndSetCustomOpSo() {
   if (collect_custom_op_status != SUCCESS) {
     return collect_custom_op_status;
   }
-  bool has_portable_custom_op = false;
-  const auto collect_portable_op_status =
-      CollectPortableCustomOpSo(used_custom_op_types, is_cross_compile, has_portable_custom_op);
-  if (collect_portable_op_status != SUCCESS) {
-    return collect_portable_op_status;
+  bool has_custom_op = false;
+  const auto collect_so_status = CollectCustomOpSo(used_custom_op_types, is_cross_compile, has_custom_op);
+  if (collect_so_status != SUCCESS) {
+    return collect_so_status;
   }
-  if (is_cross_compile && has_portable_custom_op) {
+  if (is_cross_compile && has_custom_op) {
     GE_ASSERT_SUCCESS(CollectCustomOpSoFromCustomOppPath(target_os, target_cpu),
                       "Collect custom op so from ASCEND_CUSTOM_OPP_PATH failed.");
   }

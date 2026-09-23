@@ -38,7 +38,6 @@
   "node_def":[
     {
       "node_type":"TestNodeType1",
-      "resource_type":"X86",
       "support_links":"[HCCS, PCIE, ROCE]",
       "item_type":"TestSocType1",
       "inter_item_memory_access_mode": "[NUMA]",

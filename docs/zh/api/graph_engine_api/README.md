@@ -331,6 +331,7 @@
       - [CreateFrom](cpp/ge/AttrValue/CreateFrom.md)
       - [GetAttrValue](cpp/ge/AttrValue/GetAttrValue.md)
       - [GetValue](cpp/ge/AttrValue/GetValue.md)
+      - [GetValueType](cpp/ge/AttrValue/GetValueType.md)
       - [SetAttrValue](cpp/ge/AttrValue/SetAttrValue.md)
 
     - [BaseCustomOp](cpp/ge/BaseCustomOp/BaseCustomOp.md)
@@ -505,6 +506,7 @@
       - [简介](cpp/ge/GNode/overview.md)
       - [GNode构造函数和析构函数](cpp/ge/GNode/GNode_constructor_and_destructor.md)
       - [GetAttr](cpp/ge/GNode/GetAttr.md)
+      - [GetAllAttrs](cpp/ge/GNode/GetAllAttrs.md)
       - [GetALLSubgraphs](cpp/ge/GNode/GetALLSubgraphs.md)
       - [GetDynamicInputIndexesByName](cpp/ge/GNode/GetDynamicInputIndexesByName.md)
       - [GetDynamicOutputIndexesByName](cpp/ge/GNode/GetDynamicOutputIndexesByName.md)
@@ -526,6 +528,7 @@
       - [GetType](cpp/ge/GNode/GetType.md)
       - [HasAttr](cpp/ge/GNode/HasAttr.md)
       - [SetAttr](cpp/ge/GNode/SetAttr.md)
+      - [SetAttrs](cpp/ge/GNode/SetAttrs.md)
       - [SetInputAttr](cpp/ge/GNode/SetInputAttr.md)
       - [SetOutputAttr](cpp/ge/GNode/SetOutputAttr.md)
       - [UpdateInputDesc](cpp/ge/GNode/UpdateInputDesc.md)

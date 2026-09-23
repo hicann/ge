@@ -22,6 +22,12 @@ static const int64_t kTwo = 2;
 static const int64_t kThree = 3;
 static const int64_t kFour = 4;
 
+constexpr size_t kAddRmsNormX1Idx = 0U;
+constexpr size_t kAddRmsNormGammaIdx = 2U;
+constexpr size_t kAddRmsNormYIdx = 0U;
+constexpr size_t kAddRmsNormRstdIdx = 1U;
+constexpr size_t kAddRmsNormXIdx = 2U;
+
 graphStatus InferShape4LayerNorm(gert::InferSymbolShapeContext *context) {
   auto x_shape = context->GetInputSymbolShape(0);
   GE_UNSUPPORTED_IF_NULL(x_shape);
@@ -188,7 +194,44 @@ graphStatus InferShape4RmsNorm(gert::InferSymbolShapeContext *context) {
   return GRAPH_SUCCESS;
 }
 
+/**
+ * AddRmsNorm 的符号 Shape 推导。
+ * 【算子功能】将 x1 和 x2 相加后执行均方根归一化，输出归一化结果 y、反向标准差 rstd 和中间结果 x。
+ * 【算子约束】gamma 的秩不能大于 x1 的秩；rstd 在 x1 的末尾 gamma 秩个维度上保留维度 1。
+ * 【推导逻辑】读取 x1 和 gamma 的符号 Shape，y 和 x 逐维复制 x1 的 Shape；根据 gamma 的秩确定归一化尾部维度，
+ *             将 rstd 对应维度替换为 1，其余前置维度保留 x1 的符号维度。
+ * 【举例】x1=[B,S,H]、x2=[B,S,H]、gamma=[H] 时，y=[B,S,H]、rstd=[B,S,1]、x=[B,S,H]。
+ */
+graphStatus InferShape4AddRmsNorm(gert::InferSymbolShapeContext *context) {
+  const auto x1_shape = context->GetInputSymbolShape(kAddRmsNormX1Idx);
+  GE_UNSUPPORTED_IF_NULL(x1_shape);
+  const auto gamma_shape = context->GetInputSymbolShape(kAddRmsNormGammaIdx);
+  GE_UNSUPPORTED_IF_NULL(gamma_shape);
+  const auto y_shape = context->GetOutputSymbolShape(kAddRmsNormYIdx);
+  GE_ASSERT_NOTNULL(y_shape);
+  const auto rstd_shape = context->GetOutputSymbolShape(kAddRmsNormRstdIdx);
+  GE_ASSERT_NOTNULL(rstd_shape);
+  const auto x_shape = context->GetOutputSymbolShape(kAddRmsNormXIdx);
+  GE_ASSERT_NOTNULL(x_shape);
+
+  const auto x_dim_num = x1_shape->GetDimNum();
+  const auto gamma_dim_num = gamma_shape->GetDimNum();
+  GE_ASSERT(gamma_dim_num <= x_dim_num,
+            "AddRmsNorm failed, gamma rank[%zu] must not be greater than x rank[%zu]. node %s[%s]", gamma_dim_num,
+            x_dim_num, context->GetNodeName(), context->GetNodeType());
+
+  *y_shape = *x1_shape;
+  *x_shape = *x1_shape;
+  *rstd_shape = *x1_shape;
+  const auto norm_begin = x_dim_num - gamma_dim_num;
+  for (size_t i = norm_begin; i < x_dim_num; ++i) {
+    rstd_shape->MutableDims()[i] = ge::kSymbolOne;
+  }
+  return GRAPH_SUCCESS;
+}
+
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(RmsNorm).InferSymbolShape(InferShape4RmsNorm);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(AddRmsNorm).InferSymbolShape(InferShape4AddRmsNorm);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(LayerNorm).InferSymbolShape(InferShape4LayerNorm);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(AddLayerNorm).InferSymbolShape(InferShape4AddLayerNorm);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(SoftmaxCrossEntropyWithLogits)

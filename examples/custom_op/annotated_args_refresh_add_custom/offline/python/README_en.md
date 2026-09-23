@@ -74,7 +74,8 @@ annotated_args_refresh_add_custom
     ├── README_en.md
     ├── run.sh                          # ES, AIR, ATC, and ACL validation entry point
     ├── proto
-    │   └── add_custom.h                # C++ graph prototype consumed by gen_esb
+    │   ├── add_custom.h                # C++ graph prototype consumed by gen_esb
+    │   └── add_custom.cc               # C++ source code for compiling and generating .so files
     └── src
         ├── build_graph.py              # Build the Python graph and save AIR
         ├── run_model.py                # Two-round ACL execution on an NPU

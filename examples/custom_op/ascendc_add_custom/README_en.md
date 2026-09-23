@@ -46,7 +46,7 @@ pip3 install expecttest
 
 ## Quick Run
 
-Execute in `examples/custom_op/ascendc_add_custom` directory:
+Execute in `examples/custom_op/ascendc_add_custom` directory
 
 ### Recommended Method
 

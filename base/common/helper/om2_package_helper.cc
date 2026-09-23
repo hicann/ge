@@ -690,21 +690,14 @@ Status Om2PackageHelper::BuildCustomKernelBinaries(const GeRootModelPtr &ge_root
     return SUCCESS;
   }
 
-  bool has_serializable_custom_op = false;
-  bool has_non_serializable_custom_op = false;
+  // PortableOp 与非 PortableOp 自定义算子可混合使用：仅 PortableOp 需要携带序列化数据，
+  // 非 PortableOp 算子的 kernel 由算子so自行管理，无需序列化数据。
   std::vector<std::pair<std::string, PortableOp *>> serializable_ops;
   serializable_ops.reserve(used_custom_op_types.size());
   for (const auto &op_type_str : used_custom_op_types) {
     auto serializable_op = CustomOpFactory::GetCustomOpCommonCapability<PortableOp>(AscendString(op_type_str.c_str()));
-    if (serializable_op == nullptr) {
-      has_non_serializable_custom_op = true;
-    } else {
-      has_serializable_custom_op = true;
+    if (serializable_op != nullptr) {
       (void)serializable_ops.emplace_back(op_type_str, serializable_op);
-    }
-    if (has_serializable_custom_op && has_non_serializable_custom_op) {
-      GELOGE(FAILED, "[OM2] graph contains both serializable and non-serializable custom ops.");
-      return FAILED;
     }
   }
 

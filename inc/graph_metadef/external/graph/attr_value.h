@@ -38,8 +38,27 @@ class GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY AttrValue {
   using FLOAT = float;
   using STR = std::string;
 
+  enum AttrType {
+    AT_NONE = 0,
+    AT_INT,
+    AT_FLOAT,
+    AT_STRING,
+    AT_BOOL,
+    AT_TENSOR,
+    AT_DATA_TYPE,
+    AT_LIST_INT,
+    AT_LIST_FLOAT,
+    AT_LIST_STRING,
+    AT_LIST_BOOL,
+    AT_LIST_TENSOR,
+    AT_LIST_LIST_INT,
+    AT_LIST_DATA_TYPE,
+  };
+
   AttrValue();
   ~AttrValue() = default;
+
+  AttrValue::AttrType GetValueType() const;
 
   // GetValue, not list type
   template <typename T, typename DT>

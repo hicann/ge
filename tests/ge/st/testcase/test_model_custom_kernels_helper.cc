@@ -1004,7 +1004,7 @@ TEST_F(TestModelCustomOpsHelper, ge_root_model_resolve_portable_op_so_path_same_
   GeRootModel ge_root_model;
   PortableOpForSerializeSuccess portable_op;
   std::string so_path;
-  EXPECT_EQ(ge_root_model.ResolvePortableOpSoPath(kSerializeSuccessType, &portable_op, so_path), SUCCESS);
+  EXPECT_EQ(ge_root_model.ResolveCustomOpSoPath(kSerializeSuccessType, &portable_op, so_path), SUCCESS);
   EXPECT_FALSE(so_path.empty());
   EXPECT_EQ(access(so_path.c_str(), R_OK), 0);
 }

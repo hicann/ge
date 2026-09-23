@@ -20,8 +20,7 @@ Compile 回调 RTC 编译 Ascend C kernel
 - 本样例的算子类型是 `AnnotatedAddCustom`，实现 `AnnotatedArgsOp`。
 - 离线模型路径不依赖 `EagerExecuteOp::Execute` 中手工加载 binary 和 launch kernel。
 - `DeclareLaunchArgs` 使用 `AnnotatedKernelArgs` 标注 `x1`、`x2`、`y` 三个地址槽位，GE 根据 `args_format` 完成地址刷新。
-- kernel binary 仍由 `Compile` 回调通过 ACL RTC 编译，并按输入 shape key 缓存在 `PortableOp` 状态中。
-- `PortableOp::Serialize` 与 `PortableOp::Deserialize` 负责持久化并恢复多 shape kernel binary 映射。
+- kernel binary 仍由 `Compile` 回调通过 ACL RTC 编译，并按输入 shape key 缓存。
 
 ## 前置依赖
 

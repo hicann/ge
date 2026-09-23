@@ -75,7 +75,20 @@ void AlignDimNum(std::vector<int64_t> &x_dims, std::vector<int64_t> &y_dims) {
 
 Status TileInputXSymbols(const std::vector<int64_t> &x_dims, const std::vector<int64_t> &multiples_dims,
                          const std::vector<Expression> &x_symbols, std::vector<Expression> &output_symbols) {
-  GE_ASSERT_TRUE((!x_dims.empty()) && (!multiples_dims.empty()));
+  // scalar x(TF合法图内容，秩-0参与Tile)或空multiples不支持值传播，降级到传统推导而非打挂
+  if (x_dims.empty() || multiples_dims.empty()) {
+    GELOGW("SymbolicKernel compute unsupported, reason: x dims or multiples dims is empty.");
+    return UNSUPPORTED;
+  }
+  // multiples=0(TF合法repeats=0，输出为空tensor)不支持值传播，降级；负值是非法shape语义直接assert报错；
+  // 两者(size_t)(m-1)均会回绕导致insert循环近乎无限挂死，必须拦截
+  for (const auto multiple : multiples_dims) {
+    if (multiple == 0L) {
+      GELOGW("SymbolicKernel compute unsupported, reason: multiples value is 0.");
+      return UNSUPPORTED;
+    }
+    GE_ASSERT_TRUE(multiple > 0L, "SymbolicKernel compute failed, reason: multiples value %lld is negative.", multiple);
+  }
   int64_t dim_multis = 1L;
   std::list<Expression> outputs_symbols_list(x_symbols.begin(), x_symbols.end());
   for (int64_t dim_index = static_cast<int64_t>(x_dims.size()) - 1; dim_index >= 0; dim_index--) {
@@ -153,12 +166,16 @@ static graphStatus TileSymbolicKernelCompute(gert::InferSymbolComputeContext *co
            context->GetNodeName(), context->GetNodeType());
     return UNSUPPORTED;
   }
-  // 扩展x_symbols
+  // 扩展x_symbols（原样透传：scalar/空/multiples=0的UNSUPPORTED由外层降级，
+  // 负multiples等非法输入的ErrorResult由驱动打挂推导）
   auto output_symbols = context->GetOutputSymbolTensor(kOutputIndex);
   GE_ASSERT_NOTNULL(output_symbols);
   auto output_symbols_value = output_symbols->MutableSymbolicValue();
   GE_ASSERT_NOTNULL(output_symbols_value);
-  GE_ASSERT_SUCCESS(TileInputXSymbols(x_dims, multiples_dims, *x_symbols, *output_symbols_value));
+  const auto tile_ret = TileInputXSymbols(x_dims, multiples_dims, *x_symbols, *output_symbols_value);
+  if (tile_ret != SUCCESS) {
+    return tile_ret;
+  }
   // 计算输出shape
   std::vector<Expression> output_shape_symbols;
   GE_ASSERT_SUCCESS(CalcOutputShapeSymbols(x_dims, multiples_dims, output_shape_symbols));

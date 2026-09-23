@@ -41,11 +41,18 @@ Status ValidateCustomOpNodeDeserialized(const NodePtr &node, const CustomOpRegis
     return SUCCESS;
   }
 
-  if (!registry->HasCustomOp(ascend_op_type)) {
-    GELOGE(FAILED, "[CUSTOM OP] custom op %s is used by model but not deserialized.", op_type.c_str());
-    return FAILED;
+  if (registry->HasCustomOp(ascend_op_type)) {
+    return SUCCESS;
   }
-  return SUCCESS;
+  // 仅实现 PortableOp 能力的算子存在反序列化义务（CUSTOM_OPS 分区数据必须被消费）；
+  // 非 PortableOp 算子的 kernel 由算子 so 自行管理，无需反序列化，so 加载并注册 creator
+  // 后即完成全部初始化，此处查询会为算子创建实例。
+  if (registry->GetCustomOpCommonCapability(ascend_op_type, CustomOpCapability::kPortable) == nullptr) {
+    GELOGD("[CUSTOM OP] custom op %s is not PortableOp, no serialized data to consume.", op_type.c_str());
+    return SUCCESS;
+  }
+  GELOGE(FAILED, "[CUSTOM OP] custom op %s is used by model but not deserialized.", op_type.c_str());
+  return FAILED;
 }
 
 Status ValidateCustomOpsInGraphDeserialized(const ComputeGraphPtr &graph, const CustomOpRegistryPtr &registry,
@@ -172,23 +179,16 @@ Status ModelHelper::SaveCustomOpsPartition(std::shared_ptr<OmFileSaveHelper> &om
     return SUCCESS;
   }
 
-  bool has_serializable_custom_op = false;
-  bool has_non_serializable_custom_op = false;
+  // PortableOp 与非 PortableOp 自定义算子可混合使用：仅 PortableOp 需要 CUSTOM_OPS 分区携带序列化数据，
+  // 非 PortableOp 算子的 kernel 固定在 so 中，随 SO_BINS 打包即可，无需序列化数据。
   std::vector<std::pair<std::string, PortableOp *>> serializable_ops;
   serializable_ops.reserve(used_custom_op_types.size());
   for (const auto &op_type_str : used_custom_op_types) {
     const AscendString op_type(op_type_str.c_str());
     auto *serializable_op =
         CustomOpCast<PortableOp>(registry->GetCustomOpCommonCapability(op_type, CustomOpCapability::kPortable));
-    if (serializable_op == nullptr) {
-      has_non_serializable_custom_op = true;
-    } else {
-      has_serializable_custom_op = true;
+    if (serializable_op != nullptr) {
       (void)serializable_ops.emplace_back(op_type_str, serializable_op);
-    }
-    if (has_serializable_custom_op && has_non_serializable_custom_op) {
-      GELOGE(FAILED, "[CUSTOM OP] graph contains both serializable and non-serializable custom ops.");
-      return FAILED;
     }
   }
 

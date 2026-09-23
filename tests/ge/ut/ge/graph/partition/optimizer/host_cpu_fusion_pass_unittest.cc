@@ -155,33 +155,42 @@ void MarkHostCpuCandidate(const NodePtr &node) {
   ASSERT_TRUE(AttrUtils::SetBool(node->GetOpDesc(), kSmallShapeHostCpu, true));
 }
 
-ComputeGraphPtr BuildLinearGraph() {
+ComputeGraphPtr BuildLinearGraph(const size_t candidate_count = 5U) {
+  EXPECT_GE(candidate_count, 2U);
   auto graph = std::make_shared<ComputeGraph>("host_cpu_fusion_linear");
   auto data = AddNode(graph, "data", "Data", 0U, 1U);
-  auto first = AddNode(graph, "first", "HostA", 1U, 1U);
-  auto second = AddNode(graph, "second", "HostB", 1U, 1U);
   auto output = AddNode(graph, "output", "NetOutput", 1U, 0U);
-  Connect(data, 0U, first, 0U);
-  Connect(first, 0U, second, 0U);
-  Connect(second, 0U, output, 0U);
-  MarkHostCpuCandidate(first);
-  MarkHostCpuCandidate(second);
+  auto previous = data;
+  for (size_t index = 0U; index < candidate_count; ++index) {
+    const std::string name = (index == 0U) ? "first" : (index == 1U) ? "second" : "host_" + std::to_string(index);
+    const auto node = AddNode(graph, name, "Host" + std::to_string(index), 1U, 1U);
+    Connect(previous, 0U, node, 0U);
+    MarkHostCpuCandidate(node);
+    previous = node;
+  }
+  Connect(previous, 0U, output, 0U);
   return graph;
 }
 
 ComputeGraphPtr BuildSplitGraph() {
   auto graph = std::make_shared<ComputeGraph>("host_cpu_fusion_split");
   auto data = AddNode(graph, "data", "Data", 0U, 1U);
+  auto prelude = AddNode(graph, "prelude", "HostPrelude", 1U, 1U);
+  auto before_split = AddNode(graph, "before_split", "HostBeforeSplit", 1U, 1U);
   auto first = AddNode(graph, "first", "HostA", 1U, 1U);
   auto left = AddNode(graph, "left", "HostB", 1U, 1U);
   auto right = AddNode(graph, "right", "HostC", 1U, 1U);
   auto left_out = AddNode(graph, "left_out", "NetOutput", 1U, 0U);
   auto right_out = AddNode(graph, "right_out", "NetOutput", 1U, 0U);
-  Connect(data, 0U, first, 0U);
+  Connect(data, 0U, prelude, 0U);
+  Connect(prelude, 0U, before_split, 0U);
+  Connect(before_split, 0U, first, 0U);
   Connect(first, 0U, left, 0U);
   Connect(first, 0U, right, 0U);
   Connect(left, 0U, left_out, 0U);
   Connect(right, 0U, right_out, 0U);
+  MarkHostCpuCandidate(prelude);
+  MarkHostCpuCandidate(before_split);
   MarkHostCpuCandidate(first);
   MarkHostCpuCandidate(left);
   MarkHostCpuCandidate(right);
@@ -317,8 +326,28 @@ TEST(HostCpuFusionPassTest, KeepsSharedAncestorBranchesInSingleRegion) {
   ASSERT_EQ(pass.BuildFusionRegions(graph, components), SUCCESS);
   ASSERT_EQ(components.size(), 1U);
   ASSERT_EQ(components[0].size(), 1U);
-  EXPECT_EQ(components[0][0].nodes.size(), 3U);
+  EXPECT_EQ(components[0][0].nodes.size(), 5U);
   EXPECT_EQ(components[0][0].external_outputs.size(), 2U);
+}
+
+TEST(HostCpuFusionPassTest, RejectsComponentsBelowFiveCandidateNodes) {
+  HostCpuFusionPass pass(std::make_shared<MinimalCustomOpCompiler>(), SupportAll);
+  for (const size_t candidate_count : {2U, 3U, 4U}) {
+    const auto graph = BuildLinearGraph(candidate_count);
+    std::vector<std::vector<HostCpuFusionRegion>> components;
+    EXPECT_EQ(pass.BuildFusionRegions(graph, components), NOT_CHANGED) << "candidate_count=" << candidate_count;
+    EXPECT_TRUE(components.empty()) << "candidate_count=" << candidate_count;
+  }
+}
+
+TEST(HostCpuFusionPassTest, FusesComponentWithFiveCandidateNodes) {
+  const auto graph = BuildLinearGraph(5U);
+  HostCpuFusionPass pass(std::make_shared<MinimalCustomOpCompiler>(), SupportAll);
+  std::vector<std::vector<HostCpuFusionRegion>> components;
+  ASSERT_EQ(pass.BuildFusionRegions(graph, components), SUCCESS);
+  ASSERT_EQ(components.size(), 1U);
+  ASSERT_EQ(components[0].size(), 1U);
+  EXPECT_EQ(components[0][0].nodes.size(), 5U);
 }
 
 TEST(HostCpuFusionPassTest, CommitsGeneratedCustomOpSoAndReplacesCandidates) {

@@ -41,6 +41,42 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY AttrValue::AttrValue() {
   impl = ComGraphMakeShared<AttrValueImpl>();
 }
 
+AttrValue::AttrType AttrValue::GetValueType() const {
+  if (impl == nullptr) {
+    return AT_NONE;
+  }
+  switch (impl->geAttrValue_.GetValueType()) {
+    case AnyValue::VT_INT:
+      return AT_INT;
+    case AnyValue::VT_FLOAT:
+      return AT_FLOAT;
+    case AnyValue::VT_STRING:
+      return AT_STRING;
+    case AnyValue::VT_BOOL:
+      return AT_BOOL;
+    case AnyValue::VT_TENSOR:
+      return AT_TENSOR;
+    case AnyValue::VT_DATA_TYPE:
+      return AT_DATA_TYPE;
+    case AnyValue::VT_LIST_INT:
+      return AT_LIST_INT;
+    case AnyValue::VT_LIST_FLOAT:
+      return AT_LIST_FLOAT;
+    case AnyValue::VT_LIST_STRING:
+      return AT_LIST_STRING;
+    case AnyValue::VT_LIST_BOOL:
+      return AT_LIST_BOOL;
+    case AnyValue::VT_LIST_TENSOR:
+      return AT_LIST_TENSOR;
+    case AnyValue::VT_LIST_LIST_INT:
+      return AT_LIST_LIST_INT;
+    case AnyValue::VT_LIST_DATA_TYPE:
+      return AT_LIST_DATA_TYPE;
+    default:
+      return AT_NONE;
+  }
+}
+
 ATTR_VALUE_SET_GET_IMP(AttrValue::STR)
 ATTR_VALUE_SET_GET_IMP(AttrValue::INT)
 ATTR_VALUE_SET_GET_IMP(AttrValue::FLOAT)

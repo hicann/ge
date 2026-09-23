@@ -360,6 +360,173 @@ TEST_F(SymbolicShapeComputeUT, InferShapeForReduceSumMaxMinSymbolicKernels) {
   ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
 }
 
+// scalar(rank-0) axis输入：对齐原型InferShape4Reduce按元素遍历的语义，kernel应直接支持而非打挂
+TEST_F(SymbolicShapeComputeUT, InferShapeForReduceSumWithScalarAxis) {
+  const std::vector<int32_t> input_value = {1, 2, 3, 4, 5, 6};
+  const std::vector<int64_t> input_dims = {2, 3};
+  auto input = EsCreateConstInt32(graph_, input_value.data(), input_dims.data(), input_dims.size());
+  ASSERT_NE(input, nullptr);
+  auto axes = EsCreateScalarInt32(graph_, 1);
+  ASSERT_NE(axes, nullptr);
+  auto sum = EsReduceSum(input, axes, false, true);
+  ASSERT_NE(sum, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(sum, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto sum_node = cg->FindFirstNodeMatchType("ReduceSum");
+  ASSERT_NE(sum_node, nullptr);
+  sum_node->GetOpDesc()->MutableInputDesc(1)->SetDataType(DT_INT32);
+  sum_node->GetOpDesc()->MutableInputDesc(1)->SetOriginDataType(DT_INT32);
+  // x为静态shape且axis合法，kernel直接推导输出shape应为[2]
+  std::vector<ExpectNodeInfo> expect_nodes;
+  expect_nodes.push_back(ExpectNodeInfo("ReduceSum", std::vector<Expression>{Symbol(2)}, {}, {}, {}));
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
+}
+
+// 空 tensor(维为0，合法图)输入ReduceSum：kernel应降级到传统推导而非打挂整个符号化推导
+TEST_F(SymbolicShapeComputeUT, InferShapeForReduceSumWithEmptyTensorDegradeGracefully) {
+  const std::vector<int64_t> input_dims = {2, 0};
+  const std::vector<int32_t> dummy = {1};
+  auto input = EsCreateConstInt32(graph_, dummy.data(), input_dims.data(), input_dims.size());
+  ASSERT_NE(input, nullptr);
+  const std::vector<int32_t> axis_value = {1};
+  auto axes = EsCreateVectorInt32(graph_, axis_value.data(), axis_value.size());
+  ASSERT_NE(axes, nullptr);
+  auto sum = EsReduceSum(input, axes, false, true);
+  ASSERT_NE(sum, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(sum, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto sum_node = cg->FindFirstNodeMatchType("ReduceSum");
+  ASSERT_NE(sum_node, nullptr);
+  sum_node->GetOpDesc()->MutableInputDesc(1)->SetDataType(DT_INT32);
+  sum_node->GetOpDesc()->MutableInputDesc(1)->SetOriginDataType(DT_INT32);
+  // 空 tensor不支持值传播，降级后静态推导输出shape应为[2]
+  std::vector<ExpectNodeInfo> expect_nodes;
+  expect_nodes.push_back(ExpectNodeInfo("ReduceSum", std::vector<Expression>{Symbol(2)}, {}, {}, {}));
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
+}
+
+// 空 tensor(维为0，合法图)输入ReduceProd：kernel应降级而非除零SIGFPE崩溃
+TEST_F(SymbolicShapeComputeUT, InferShapeForReduceProdWithEmptyTensorDegradeGracefully) {
+  const std::vector<int64_t> input_dims = {2, 0};
+  const std::vector<int32_t> dummy = {1};
+  auto input = EsCreateConstInt32(graph_, dummy.data(), input_dims.data(), input_dims.size());
+  ASSERT_NE(input, nullptr);
+  const std::vector<int32_t> axis_value = {1};
+  auto axes = EsCreateVectorInt32(graph_, axis_value.data(), axis_value.size());
+  ASSERT_NE(axes, nullptr);
+  auto prod = EsReduceProd(input, axes, false, true);
+  ASSERT_NE(prod, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(prod, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto prod_node = cg->FindFirstNodeMatchType("ReduceProd");
+  ASSERT_NE(prod_node, nullptr);
+  prod_node->GetOpDesc()->MutableInputDesc(1)->SetDataType(DT_INT32);
+  prod_node->GetOpDesc()->MutableInputDesc(1)->SetOriginDataType(DT_INT32);
+  AttrUtils::SetBool(prod_node->GetOpDesc(), "keep_dims", false);
+  AttrUtils::SetBool(prod_node->GetOpDesc(), "noop_with_empty_axes", true);
+  std::vector<ExpectNodeInfo> expect_nodes;
+  expect_nodes.push_back(ExpectNodeInfo("ReduceProd", std::vector<Expression>{Symbol(2)}, {}, {}, {}));
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
+}
+
+// 空 tensor(维为0，合法图)作为GatherV2的param：kernel应降级而非除零SIGFPE崩溃
+TEST_F(SymbolicShapeComputeUT, InferShapeForGatherV2WithEmptyParamDegradeGracefully) {
+  const std::vector<int64_t> param_dims = {2, 0};
+  const std::vector<int32_t> dummy = {1};
+  auto param = EsCreateConstInt32(graph_, dummy.data(), param_dims.data(), param_dims.size());
+  ASSERT_NE(param, nullptr);
+  const std::vector<int32_t> indices_value = {0, 1};
+  auto indices = EsCreateVectorInt32(graph_, indices_value.data(), indices_value.size());
+  ASSERT_NE(indices, nullptr);
+  auto axis = EsCreateScalarInt32(graph_, 0);
+  ASSERT_NE(axis, nullptr);
+  auto gather = EsGatherV2(param, indices, axis, 0, false, false);
+  ASSERT_NE(gather, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(gather, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto gather_node = cg->FindFirstNodeMatchType("GatherV2");
+  ASSERT_NE(gather_node, nullptr);
+  gather_node->GetOpDesc()->MutableInputDesc(2)->SetDataType(DT_INT32);
+  gather_node->GetOpDesc()->MutableInputDesc(2)->SetOriginDataType(DT_INT32);
+  // 降级后静态推导输出shape = param[:0] + indices[2] + param[1:] = [2, 0]
+  std::vector<ExpectNodeInfo> expect_nodes;
+  expect_nodes.push_back(ExpectNodeInfo("GatherV2", std::vector<Expression>{Symbol(2), Symbol(0)}, {}, {}, {}));
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
+}
+
+// 空 tensor(后缀维为0，合法图)输入StridedSlice：kernel应降级而非除零SIGFPE崩溃
+TEST_F(SymbolicShapeComputeUT, InferShapeForStridedSliceWithEmptySuffixDimDegradeGracefully) {
+  const std::vector<int64_t> input_dims = {2, 0, 3};
+  const std::vector<int32_t> dummy = {1};
+  auto input = EsCreateConstInt32(graph_, dummy.data(), input_dims.data(), input_dims.size());
+  ASSERT_NE(input, nullptr);
+  const std::vector<int32_t> begin_value = {0, 0, 0};
+  const std::vector<int32_t> end_value = {2, 0, 3};
+  const std::vector<int32_t> strides_value = {1, 1, 1};
+  auto begin = EsCreateVectorInt32(graph_, begin_value.data(), begin_value.size());
+  auto end = EsCreateVectorInt32(graph_, end_value.data(), end_value.size());
+  auto strides = EsCreateVectorInt32(graph_, strides_value.data(), strides_value.size());
+  ASSERT_NE(begin, nullptr);
+  ASSERT_NE(end, nullptr);
+  ASSERT_NE(strides, nullptr);
+  auto slice = EsStridedSlice(input, begin, end, strides, 0, 0, 0, 0, 0);
+  ASSERT_NE(slice, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(slice, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  // 降级后静态推导输出shape应为[2,0,3]
+  std::vector<ExpectNodeInfo> expect_nodes;
+  expect_nodes.push_back(
+      ExpectNodeInfo("StridedSlice", std::vector<Expression>{Symbol(2), Symbol(0), Symbol(3)}, {}, {}, {}));
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
+}
+
+// multiples含0(TF合法repeats=0，输出为空)输入Tile：kernel应降级而非(size_t)回绕导致insert循环挂死
+TEST_F(SymbolicShapeComputeUT, InferShapeForTileWithZeroMultiplesDegradeGracefully) {
+  const std::vector<int32_t> input_value = {1, 2};
+  const std::vector<int64_t> input_dims = {2};
+  auto input = EsCreateConstInt32(graph_, input_value.data(), input_dims.data(), input_dims.size());
+  ASSERT_NE(input, nullptr);
+  const std::vector<int32_t> multiples_value = {0};
+  auto multiples = EsCreateVectorInt32(graph_, multiples_value.data(), multiples_value.size());
+  ASSERT_NE(multiples, nullptr);
+  auto tile = EsTile(input, multiples);
+  ASSERT_NE(tile, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(tile, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  // 降级后静态推导输出shape应为[0]
+  std::vector<ExpectNodeInfo> expect_nodes;
+  expect_nodes.push_back(ExpectNodeInfo("Tile", std::vector<Expression>{Symbol(0)}, {}, {}, {}));
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
+}
+
+// dims符号含负常量(非法shape值)输入Fill：应通过断言硬报错打挂推导，而非静默降级
+TEST_F(SymbolicShapeComputeUT, InferShapeForFillWithNegativeDimReportError) {
+  const std::vector<int32_t> dims_value = {-1};
+  auto dims = EsCreateVectorInt32(graph_, dims_value.data(), dims_value.size());
+  ASSERT_NE(dims, nullptr);
+  auto value = EsCreateScalarInt32(graph_, 1);
+  ASSERT_NE(value, nullptr);
+  auto fill = EsFill(dims, value);
+  ASSERT_NE(fill, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(fill, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  ASSERT_NE(RunSymbolInferenceTest(cg, {}, {}), SUCCESS);
+}
+
 TEST_F(SymbolicShapeComputeUT, InferShapeForRealDivSymbolicKernelIntegerFloor) {
   const std::vector<int32_t> lhs_value = {8, 7, 4};
   const std::vector<int32_t> rhs_value = {2, 3, 2};
@@ -5252,6 +5419,162 @@ TEST_F(SymbolicShapeComputeUT, test_select_symbolic_condition_hint_unavailable) 
   EXPECT_EQ(out_attr->symbolic_tensor.GetSymbolicValue(), nullptr);
   // 未登记任何 guard（未做任何分支假设）
   EXPECT_EQ(env->GetAllSymbolCheckInfos().size(), 0UL);
+}
+
+// 2D及以上axis tensor：GetAxisDims不支持需优雅降级而非断言打挂推导
+TEST_F(SymbolicShapeComputeUT, InferShapeForReduceSumWith2DAxisDegradeGracefully) {
+  const std::vector<int32_t> input_value = {1, 2, 3, 4, 5, 6};
+  const std::vector<int64_t> input_dims = {2, 3};
+  auto input = EsCreateConstInt32(graph_, input_value.data(), input_dims.data(), input_dims.size());
+  ASSERT_NE(input, nullptr);
+  const std::vector<int32_t> axis_value = {1};
+  const std::vector<int64_t> axis_dims = {1, 1};
+  auto axes = EsCreateConstInt32(graph_, axis_value.data(), axis_dims.data(), axis_dims.size());
+  ASSERT_NE(axes, nullptr);
+  auto sum = EsReduceSum(input, axes, false, true);
+  ASSERT_NE(sum, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(sum, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto sum_node = cg->FindFirstNodeMatchType("ReduceSum");
+  ASSERT_NE(sum_node, nullptr);
+  sum_node->GetOpDesc()->MutableInputDesc(1)->SetDataType(DT_INT32);
+  sum_node->GetOpDesc()->MutableInputDesc(1)->SetOriginDataType(DT_INT32);
+  std::vector<ExpectNodeInfo> expect_nodes;
+  expect_nodes.push_back(ExpectNodeInfo("ReduceSum", std::vector<Expression>{Symbol(2)}, {}, {}, {}));
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
+}
+
+// 空tensor(首维0)且后缀维乘积溢出：ReduceProd值计算应降级而非乘法溢出产生错误block_size
+TEST_F(SymbolicShapeComputeUT, InferShapeForReduceProdWithSuffixOverflowDegradeGracefully) {
+  const int64_t big_dim = 1LL << 50;
+  const std::vector<int64_t> input_dims = {0, big_dim, big_dim};
+  const std::vector<int32_t> dummy = {1};
+  auto input = EsCreateConstInt32(graph_, dummy.data(), input_dims.data(), input_dims.size());
+  ASSERT_NE(input, nullptr);
+  const std::vector<int32_t> axis_value = {0};
+  auto axes = EsCreateVectorInt32(graph_, axis_value.data(), axis_value.size());
+  ASSERT_NE(axes, nullptr);
+  auto prod = EsReduceProd(input, axes, false, true);
+  ASSERT_NE(prod, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(prod, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto prod_node = cg->FindFirstNodeMatchType("ReduceProd");
+  ASSERT_NE(prod_node, nullptr);
+  prod_node->GetOpDesc()->MutableInputDesc(1)->SetDataType(DT_INT32);
+  prod_node->GetOpDesc()->MutableInputDesc(1)->SetOriginDataType(DT_INT32);
+  AttrUtils::SetBool(prod_node->GetOpDesc(), "keep_dims", false);
+  AttrUtils::SetBool(prod_node->GetOpDesc(), "noop_with_empty_axes", true);
+  std::vector<ExpectNodeInfo> expect_nodes;
+  expect_nodes.push_back(
+      ExpectNodeInfo("ReduceProd", std::vector<Expression>{Symbol(big_dim), Symbol(big_dim)}, {}, {}, {}));
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
+}
+
+// scalar x与scalar multiples(TF合法图内容)：Tile值传播降级而非空dims除零/迭代
+TEST_F(SymbolicShapeComputeUT, InferShapeForTileWithScalarInputDegradeGracefully) {
+  auto input = EsCreateScalarInt32(graph_, 5);
+  ASSERT_NE(input, nullptr);
+  auto multiples = EsCreateScalarInt32(graph_, 1);
+  ASSERT_NE(multiples, nullptr);
+  auto tile = EsTile(input, multiples);
+  ASSERT_NE(tile, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(tile, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {}, {}), SUCCESS);
+}
+
+// dims乘积溢出int64：Fill值传播降级而非溢出后错误element_num
+TEST_F(SymbolicShapeComputeUT, InferShapeForFillWithOverflowDimDegradeGracefully) {
+  const std::vector<int32_t> dims_value = {std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max(), 4};
+  auto dims = EsCreateVectorInt32(graph_, dims_value.data(), dims_value.size());
+  ASSERT_NE(dims, nullptr);
+  auto value = EsCreateScalarInt32(graph_, 1);
+  ASSERT_NE(value, nullptr);
+  auto fill = EsFill(dims, value);
+  ASSERT_NE(fill, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(fill, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {}, {}), SUCCESS);
+}
+
+// 空tensor(首维0)且后缀维乘积溢出：StridedSlice值计算降级而非溢出产生错误block_size
+TEST_F(SymbolicShapeComputeUT, InferShapeForStridedSliceWithSuffixOverflowDegradeGracefully) {
+  const int64_t big_dim = 1LL << 50;
+  const std::vector<int64_t> input_dims = {0, big_dim, big_dim};
+  const std::vector<int32_t> dummy = {1};
+  auto input = EsCreateConstInt32(graph_, dummy.data(), input_dims.data(), input_dims.size());
+  ASSERT_NE(input, nullptr);
+  const std::vector<int32_t> begin_value = {0, 0, 0};
+  const std::vector<int32_t> end_value = {1, 0, 0};
+  const std::vector<int32_t> strides_value = {1, 1, 1};
+  auto begin = EsCreateVectorInt32(graph_, begin_value.data(), begin_value.size());
+  auto end = EsCreateVectorInt32(graph_, end_value.data(), end_value.size());
+  auto strides = EsCreateVectorInt32(graph_, strides_value.data(), strides_value.size());
+  ASSERT_NE(begin, nullptr);
+  ASSERT_NE(end, nullptr);
+  ASSERT_NE(strides, nullptr);
+  auto slice = EsStridedSlice(input, begin, end, strides, 0, 0, 0, 0, 0);
+  ASSERT_NE(slice, nullptr);
+  ASSERT_EQ(EsSetGraphOutput(slice, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  std::vector<ExpectNodeInfo> expect_nodes;
+  expect_nodes.push_back(
+      ExpectNodeInfo("StridedSlice", std::vector<Expression>{Symbol(0), Symbol(0), Symbol(0)}, {}, {}, {}));
+  ASSERT_EQ(RunSymbolInferenceTest(cg, expect_nodes, {}), SUCCESS);
+}
+
+// SelectV2输入shape含符号化维度(推导常态)：GetShapeValue取常量失败应降级而非误报E19999
+TEST_F(SymbolicShapeComputeUT, test_select_v2_symbolic_input_shape_degrade) {
+  auto cond = EsCreateGraphInputWithDetails(graph_, 0, "cond_input", nullptr, C_DataType::C_DT_INT32,
+                                            C_Format::C_FORMAT_ND, nullptr, 0);
+  auto then_input = EsCreateGraphInputWithDetails(graph_, 1, "then_input", nullptr, C_DataType::C_DT_INT32,
+                                                  C_Format::C_FORMAT_ND, nullptr, 0);
+  auto else_input = EsCreateGraphInputWithDetails(graph_, 2, "else_input", nullptr, C_DataType::C_DT_INT32,
+                                                  C_Format::C_FORMAT_ND, nullptr, 0);
+  auto select = EsSelectV2(cond, then_input, else_input);
+  ASSERT_EQ(EsSetGraphOutput(select, 0), 0);
+  auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto env = ge::GraphUtils::FindRootGraph(cg)->GetOrCreateAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(env, nullptr);
+  ShapeEnvGuarder guarder(env);
+  // 三输入均有值符号，shape统一为同一符号维度(非常量)：GetShapeValue取常量失败触发降级，
+  // 降级后callback的符号Broadcast因三shape相同符号仍可成功
+  auto cond_sym = env->CreateSymbol(1, MakeShared<InputShapeSource>(0, 0));
+  auto shape_sym = Symbol("s_input_dim");
+  auto cond_attr =
+      cg->FindNode("cond_input")->GetOpDesc()->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+  cond_attr->symbolic_tensor.SetSymbolShape(gert::SymbolShape({shape_sym}));
+  cond_attr->symbolic_tensor.SetSymbolicValue(
+      ge::MakeUnique<std::vector<Expression>>(std::vector<Expression>{cond_sym, cond_sym}));
+  auto then_attr =
+      cg->FindNode("then_input")->GetOpDesc()->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+  then_attr->symbolic_tensor.SetSymbolShape(gert::SymbolShape({shape_sym}));
+  then_attr->symbolic_tensor.SetSymbolicValue(
+      ge::MakeUnique<std::vector<Expression>>(std::vector<Expression>{Symbol(7), Symbol(8)}));
+  auto else_attr =
+      cg->FindNode("else_input")->GetOpDesc()->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+  else_attr->symbolic_tensor.SetSymbolShape(gert::SymbolShape({shape_sym}));
+  else_attr->symbolic_tensor.SetSymbolicValue(
+      ge::MakeUnique<std::vector<Expression>>(std::vector<Expression>{Symbol(70), Symbol(80)}));
+
+  ASSERT_EQ(RunSymbolInferenceTest(cg, {}, {}), SUCCESS);
+  auto select_node = cg->FindFirstNodeMatchType("SelectV2");
+  ASSERT_NE(select_node, nullptr);
+  auto out_attr = select_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(out_attr, nullptr);
+  EXPECT_EQ(out_attr->symbolic_tensor.GetSymbolicValue(), nullptr);
 }
 
 }  // namespace ge

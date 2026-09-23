@@ -15,6 +15,7 @@
 #include "graph/tensor.h"
 #include "exe_graph/runtime/extended_kernel_context.h"
 #include "exe_graph/runtime/kernel_args.h"
+#include "graph/ascend_string.h"
 
 namespace gert {
 using rtStream = void *;
@@ -121,6 +122,13 @@ class EagerOpExecutionContext : public ExtendedKernelContext {
    *         失败返回 nullptr。
    */
   const KernelArgs *MallocReadOnlyDevArgs(void *host_args, size_t args_size) const;
+
+  /**
+   * 按 key 获取 eager 自定义算子使用的辅流。
+   * @param key 辅流复用 key
+   * @return 托管的辅流句柄；不支持或参数无效时返回 nullptr
+   */
+  rtStream RequestAttachedStream(const ge::AscendString &key);
 
   enum class AdditionalInputIndex : uint32_t { kDeviceAllocator = 0, kStream, kNum };
 

@@ -1686,6 +1686,415 @@ TEST_F(SymbolicShapeInferenceST, test_AddN) {
   }
 }
 
+/**
+ * 测试场景：在真实计算图中验证 Addcmul 的三输入广播和输出 Shape 传播。
+ * 测试输入：input_data 的符号 Shape 为 [s0,s1,s2]，x1 为 [1,s1,s2]，x2 为 [s2]，value 为 [1]。
+ * 期望输出：y 的符号 Shape 为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForAddcmul) {
+  auto input_data = builder_->CreateInput(0, "input_data");
+  auto x1 = builder_->CreateInput(1, "x1");
+  auto x2 = builder_->CreateInput(2, "x2");
+  auto value = builder_->CreateInput(3, "value");
+  input_data.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  x1.SetOriginSymbolShape(std::vector<const char *>({"1", "s1", "s2"}));
+  x2.SetOriginSymbolShape(std::vector<const char *>({"s2"}));
+  value.SetOriginSymbolShape(std::vector<const char *>({"1"}));
+  auto addcmul = es::Addcmul(input_data, x1, x2, value);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(addcmul, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Addcmul");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 AdjacentDifference 的符号 Shape 传播。
+ * 测试输入：输入 x 的符号 Shape 为 [s0,s1,s2]。
+ * 期望输出：输出 y 的符号 Shape 与 x 一致，为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForAdjacentDifference) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto y = es::AdjacentDifference(x);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(y, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("AdjacentDifference");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 ArgMaxV2 按 dimension 删除输入符号 Shape 维度。
+ * 测试输入：x 的符号 Shape 为 [s0,s1,s2]，dimension 为值为 1 的常量标量。
+ * 期望输出：y 的符号 Shape 为 [s0,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForArgMaxV2) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  std::vector<int32_t> dimension_data = {1};
+  std::vector<int64_t> dimension_shape = {1};
+  auto dimension = builder_->CreateConst(dimension_data, dimension_shape);
+  auto argmax = es::ArgMaxV2(x, dimension);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(argmax, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto argmax_node = cg->FindFirstNodeMatchType("ArgMaxV2");
+  ASSERT_NE(argmax_node, nullptr);
+  argmax_node->GetOpDesc()->SetOpInferDepends({"dimension"});
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto attr = argmax_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s2")}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 AsStrided 根据 size 数据依赖传播输出符号 Shape。
+ * 测试输入：x 的符号 Shape 为 [s0,s1,s2]，size=[2,3,4]，stride=[12,4,1]，storage_offset=[0]。
+ * 期望输出：y 的符号 Shape 为 [2,3,4]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForAsStrided) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto size = builder_->CreateConst(std::vector<int32_t>{2, 3, 4}, std::vector<int64_t>{3});
+  auto stride = builder_->CreateConst(std::vector<int32_t>{12, 4, 1}, std::vector<int64_t>{3});
+  auto storage_offset = builder_->CreateConst(std::vector<int32_t>{0}, std::vector<int64_t>{1});
+  auto as_strided = es::AsStrided(x, size, stride, storage_offset);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(as_strided, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto as_strided_node = cg->FindFirstNodeMatchType("AsStrided");
+  ASSERT_NE(as_strided_node, nullptr);
+  as_strided_node->GetOpDesc()->SetOpInferDepends({"size", "stride", "storage_offset"});
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto attr = as_strided_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol(2), Symbol(3), Symbol(4)}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 Atan2 两输入广播和输出符号 Shape 传播。
+ * 测试输入：x1 的符号 Shape 为 [s0,s1,s2]，x2 的符号 Shape 为 [1,s1,s2]。
+ * 期望输出：y 的符号 Shape 为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForAtan2) {
+  auto x1 = builder_->CreateInput(0, "x1");
+  auto x2 = builder_->CreateInput(1, "x2");
+  x1.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  x2.SetOriginSymbolShape(std::vector<const char *>({"1", "s1", "s2"}));
+  ASSERT_NE(x1.GetCTensorHolder(), nullptr);
+  ASSERT_NE(x2.GetCTensorHolder(), nullptr);
+  auto atan2 = es::Atan2(x1, x2);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(atan2, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Atan2");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 Lerp 三输入广播和输出符号 Shape 传播。
+ * 测试输入：start=[s0,s1,s2]、end=[1,s1,s2]、weight=[s2]。
+ * 期望输出：y 的符号 Shape 为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForLerp) {
+  auto start = builder_->CreateInput(0, "start");
+  auto end = builder_->CreateInput(1, "end");
+  auto weight = builder_->CreateInput(2, "weight");
+  start.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  end.SetOriginSymbolShape(std::vector<const char *>({"1", "s1", "s2"}));
+  weight.SetOriginSymbolShape(std::vector<const char *>({"s2"}));
+  ASSERT_NE(start.GetCTensorHolder(), nullptr);
+  ASSERT_NE(end.GetCTensorHolder(), nullptr);
+  ASSERT_NE(weight.GetCTensorHolder(), nullptr);
+  auto lerp = es::Lerp(start, end, weight);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(lerp, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Lerp");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 AvgPool 的 VALID 池化符号 Shape 推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1,s2,s3]，ksize=[1,2,2,1]，strides=[1,2,2,1]，padding=VALID。
+ * 期望输出：y 的符号 Shape 为 [s0,floor((s1-1)/2),floor((s2-1)/2),s3]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForAvgPool) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2", "s3"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto avg_pool = es::AvgPool(x, {1, 2, 2, 1}, {1, 2, 2, 1}, "VALID", "NHWC");
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(avg_pool, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto node = cg->FindFirstNodeMatchType("AvgPool");
+  ASSERT_NE(node, nullptr);
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->MutableInputDesc(0)->SetOriginFormat(FORMAT_NHWC);
+  op_desc->MutableInputDesc(0)->SetFormat(FORMAT_NHWC);
+  op_desc->MutableOutputDesc(0)->SetOriginFormat(FORMAT_NHWC);
+  op_desc->MutableOutputDesc(0)->SetFormat(FORMAT_NHWC);
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol("s0"), sym::Floor(Symbol("s1") / Symbol(2)), sym::Floor(Symbol("s2") / Symbol(2)),
+                               Symbol("s3")})
+                .GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 MaxPool 的 VALID 池化符号 Shape 推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1,s2,s3]，ksize=[1,2,2,1]，strides=[1,2,2,1]，padding=VALID。
+ * 期望输出：y 的符号 Shape 为 [s0,floor(s1/2),floor(s2/2),s3]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForMaxPool) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2", "s3"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto max_pool = es::MaxPool(x, {1, 2, 2, 1}, {1, 2, 2, 1}, "VALID", "NHWC");
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(max_pool, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto node = cg->FindFirstNodeMatchType("MaxPool");
+  ASSERT_NE(node, nullptr);
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->MutableInputDesc(0)->SetOriginFormat(FORMAT_NHWC);
+  op_desc->MutableInputDesc(0)->SetFormat(FORMAT_NHWC);
+  op_desc->MutableOutputDesc(0)->SetOriginFormat(FORMAT_NHWC);
+  op_desc->MutableOutputDesc(0)->SetFormat(FORMAT_NHWC);
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol("s0"), sym::Floor(Symbol("s1") / Symbol(2)), sym::Floor(Symbol("s2") / Symbol(2)),
+                               Symbol("s3")})
+                .GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 IndexPutV2 的动态 indices 输入不改变输出 Shape。
+ * 测试输入：x 的符号 Shape 为 [s0,s1,s2]，value 为 [s1]，indexed_sizes/indexed_strides 为 [1]，indices 为一个动态实例。
+ * 期望输出：输出 x 的符号 Shape 与输入 x 一致，为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForIndexPutV2) {
+  auto x = builder_->CreateInput(0, "x");
+  auto value = builder_->CreateInput(1, "value");
+  auto indexed_sizes = builder_->CreateInput(2, "indexed_sizes");
+  auto indexed_strides = builder_->CreateInput(3, "indexed_strides");
+  auto indices = builder_->CreateInput(4, "indices");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  value.SetOriginSymbolShape(std::vector<const char *>({"s1"}));
+  indexed_sizes.SetOriginSymbolShape(std::vector<const char *>({"1"}));
+  indexed_strides.SetOriginSymbolShape(std::vector<const char *>({"1"}));
+  indices.SetOriginSymbolShape(std::vector<const char *>({"1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  ASSERT_NE(value.GetCTensorHolder(), nullptr);
+  ASSERT_NE(indexed_sizes.GetCTensorHolder(), nullptr);
+  ASSERT_NE(indexed_strides.GetCTensorHolder(), nullptr);
+  ASSERT_NE(indices.GetCTensorHolder(), nullptr);
+  std::vector<EsTensorHolder> index_list = {indices};
+  auto index_put = es::IndexPutV2(x, value, indexed_sizes, indexed_strides, index_list, false);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(index_put, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto node = cg->FindFirstNodeMatchType("IndexPutV2");
+  ASSERT_NE(node, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 Cumsum 沿 axis 计算时的符号 Shape 透传。
+ * 测试输入：x 的符号 Shape 为 [s0,s1,s2]，axis 为值为 1 的 int32 常量标量。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForCumsum) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto axis = builder_->CreateConst(std::vector<int32_t>{1}, std::vector<int64_t>{1});
+  auto cumsum = es::Cumsum(x, axis, false, false);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(cumsum, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto node = cg->FindFirstNodeMatchType("Cumsum");
+  ASSERT_NE(node, nullptr);
+  node->GetOpDesc()->SetOpInferDepends({"axis"});
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 IsInf 的符号 Shape 透传。
+ * 测试输入：输入 x 的符号 Shape 为 [s0,s1,s2]。
+ * 期望输出：输出 y 的符号 Shape 与 x 一致，为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForIsInf) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto is_inf = es::IsInf(x);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(is_inf, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("IsInf");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 Expm1 的符号 Shape 透传。
+ * 测试输入：输入 x 的符号 Shape 为 [s0,s1,s2]。
+ * 期望输出：输出 y 的符号 Shape 与 x 一致，为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForExpm1) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto expm1 = es::Expm1(x);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(expm1, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Expm1");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 Eye 根据 batch_shape 和矩阵属性传播输出符号 Shape。
+ * 测试输入：num_rows=3、num_columns=4、batch_shape=[2]。
+ * 期望输出：y 的符号 Shape 为 [2,3,4]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForEye) {
+  auto eye = es::Eye(*builder_, 3, 4, {2}, 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(eye, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Eye");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol(2), Symbol(3), Symbol(4)}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 ForeachNorm 动态输入/动态输出列表的符号 Shape 推导。
+ * 测试输入：x 列表包含 [s0,s1] 和 [s2] 两个张量，scalar 为范数阶数标量。
+ * 期望输出：y 列表包含两个输出，符号 Shape 均为 [1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForForeachNorm) {
+  auto x0 = builder_->CreateInput(0, "x0");
+  auto x1 = builder_->CreateInput(1, "x1");
+  auto scalar = builder_->CreateInput(2, "scalar");
+  x0.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  x1.SetOriginSymbolShape(std::vector<const char *>({"s2"}));
+  scalar.SetOriginSymbolShape(std::vector<const char *>({}));
+  ASSERT_NE(x0.GetCTensorHolder(), nullptr);
+  ASSERT_NE(x1.GetCTensorHolder(), nullptr);
+  ASSERT_NE(scalar.GetCTensorHolder(), nullptr);
+  std::vector<EsTensorHolder> inputs = {x0, x1};
+  auto foreach_norm = es::ForeachNorm(inputs, scalar, 2);
+  ASSERT_EQ(foreach_norm.size(), 2U);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(foreach_norm[0], 0), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(foreach_norm[1], 1), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto node = cg->FindFirstNodeMatchType("ForeachNorm");
+  ASSERT_NE(node, nullptr);
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  op_desc->SetOpInferDepends({"x", "scalar"});
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  for (size_t i = 0U; i < 2U; ++i) {
+    auto attr = op_desc->GetOutputDesc(i).GetAttrsGroup<SymbolicDescAttr>();
+    ASSERT_NE(attr, nullptr);
+    EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape().GetDims(), gert::SymbolShape({Symbol(1)}).GetDims());
+  }
+}
+
 TEST_F(SymbolicShapeInferenceST, test_clipbyvalue) {
   auto data0 = builder_->CreateInput(0, "data_0");
   auto data1 = builder_->CreateInput(1, "data_1");
@@ -3705,6 +4114,654 @@ TEST_F(SymbolicShapeInferenceST, InferShapeForSoftmaxV2) {
   auto attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
   ASSERT_NE(attr, nullptr);
   EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({s2, s1, s0, s0}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 LogSoftmaxV2 沿指定 axis 计算时的符号 Shape 透传。
+ * 测试输入：logits 的符号 Shape 为 [s2,s1,s0,s0]，axes 为 [-1]。
+ * 期望输出：logsoftmax 的符号 Shape 与 logits 一致，为 [s2,s1,s0,s0]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForLogSoftmaxV2) {
+  auto logits = builder_->CreateInput(0, "logits");
+  logits.SetOriginSymbolShape(std::vector<const char *>({"s2", "s1", "s0", "s0"}));
+  ASSERT_NE(logits.GetCTensorHolder(), nullptr);
+  auto logsoftmax = es::LogSoftmaxV2(logits, std::vector<int64_t>{-1});
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(logsoftmax, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("LogSoftmaxV2");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s2"), Symbol("s1"), Symbol("s0"), Symbol("s0")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 MatrixDiag 输出 Shape 的符号推导。
+ * 测试输入：x 的符号 Shape 为 [s0,s1,s2]。
+ * 期望输出：y 的符号 Shape 为 [s0,s1,s2,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForMatrixDiag) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto matrix_diag = es::MatrixDiag(x);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(matrix_diag, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("MatrixDiag");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2"), Symbol("s2")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 MaxPoolWithArgmax 的双输出符号 Shape 传播。
+ * 测试输入：NHWC x=[s0,s1,s2,s3]，ksize=[1,2,2,1]，strides=[1,2,2,1]，padding=VALID。
+ * 期望输出：y 和 argmax 均为 [s0,floor((s1-1)/2),floor((s2-1)/2),s3]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForMaxPoolWithArgmax) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2", "s3"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto result = es::MaxPoolWithArgmax(x, {1, 2, 2, 1}, {1, 2, 2, 1}, "VALID");
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(result.y, 0), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(result.argmax, 1), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("MaxPoolWithArgmax");
+  ASSERT_NE(node, nullptr);
+  const auto expected =
+      gert::SymbolShape({Symbol("s0"), sym::Floor((Symbol("s1") - Symbol(2) + Symbol(2)) / Symbol(2)),
+                         sym::Floor((Symbol("s2") - Symbol(2) + Symbol(2)) / Symbol(2)), Symbol("s3")});
+  auto y_attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  auto argmax_attr = node->GetOpDesc()->GetOutputDesc(1).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(y_attr, nullptr);
+  ASSERT_NE(argmax_attr, nullptr);
+  EXPECT_EQ(y_attr->symbolic_tensor.GetOriginSymbolShape(), expected);
+  EXPECT_EQ(argmax_attr->symbolic_tensor.GetOriginSymbolShape(), expected);
+}
+
+/**
+ * 测试场景：在真实计算图中验证 MirrorPad 根据 paddings 常量输入推导输出符号 Shape。
+ * 测试输入：x=[s0,s1,s2]，paddings=[1,2,2,1,1,1]，mode=REFLECT。
+ * 期望输出：y=[s0+3,s1+3,s2+2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForMirrorPad) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  std::vector<int32_t> paddings_data = {1, 2, 2, 1, 1, 1};
+  std::vector<int64_t> paddings_dim = {6};
+  auto paddings = builder_->CreateConst(paddings_data, paddings_dim);
+  auto mirror_pad = es::MirrorPad(x, paddings, "REFLECT");
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(mirror_pad, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("MirrorPad");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0") + Symbol(1) + Symbol(2), Symbol("s1") + Symbol(2) + Symbol(1),
+                               Symbol("s2") + Symbol(1) + Symbol(1)}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 OnesLike 的符号 Shape 透传。
+ * 测试输入：x 的符号 Shape 为 [s0,s1,s2]。
+ * 期望输出：y 的符号 Shape 与 x 一致，为 [s0,s1,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForOnesLike) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto ones_like = es::OnesLike(x);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(ones_like, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("OnesLike");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 PRelu 的符号 Shape 推导。
+ * 测试输入：x=[s0,s1,s2,s3]，weight=[1,s1,1,1]。
+ * 期望输出：y=[s0,s1,s2,s3]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForPRelu) {
+  auto x = builder_->CreateInput(0, "x");
+  auto weight = builder_->CreateInput(1, "weight");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2", "s3"}));
+  weight.SetOriginSymbolShape(std::vector<const char *>({"1", "s1", "1", "1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  ASSERT_NE(weight.GetCTensorHolder(), nullptr);
+  auto prelu = es::PRelu(x, weight);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(prelu, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("PRelu");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2"), Symbol("s3")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 RepeatInterleave 沿 axis 维重复元素的符号 Shape 推导。
+ * 测试输入：x=[s0,s1]，repeats 为单元素常量 [2]，axis=1。
+ * 期望输出：y=[s0,s1*2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForRepeatInterleave) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  std::vector<int32_t> repeats_data = {2};
+  std::vector<int64_t> repeats_dim = {1};
+  auto repeats = builder_->CreateConst(repeats_data, repeats_dim);
+  auto repeat_interleave = es::RepeatInterleave(x, repeats, 1);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(repeat_interleave, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("RepeatInterleave");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0"), Symbol("s1") * Symbol(2)}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 ReverseV2 沿 axis 反转元素的符号 Shape 透传。
+ * 测试输入：x=[s0,s1]，axis 为常量 [1]。
+ * 期望输出：y=[s0,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForReverseV2) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  std::vector<int32_t> axis_data = {1};
+  std::vector<int64_t> axis_dim = {1};
+  auto axis = builder_->CreateConst(axis_data, axis_dim);
+  auto reverse_v2 = es::ReverseV2(x, axis);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(reverse_v2, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("ReverseV2");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0"), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 ScatterElementsV2 更新 var 的符号 Shape 透传。
+ * 测试输入：var=[s0,s1]，indices=[s0,s1]，updates=[s0,s1]，axis=0。
+ * 期望输出：var=[s0,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForScatterElementsV2) {
+  auto var = builder_->CreateInput(0, "var");
+  auto indices = builder_->CreateInput(1, "indices");
+  auto updates = builder_->CreateInput(2, "updates");
+  var.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  indices.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  updates.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(var.GetCTensorHolder(), nullptr);
+  ASSERT_NE(indices.GetCTensorHolder(), nullptr);
+  ASSERT_NE(updates.GetCTensorHolder(), nullptr);
+  auto scatter = es::ScatterElementsV2(var, indices, updates, 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(scatter, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("ScatterElementsV2");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0"), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 Sort 的双输出符号 Shape 透传。
+ * 测试输入：x=[s0,s1]，axis 使用默认值 -1。
+ * 期望输出：y1 和 y2 均为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForSort) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto result = es::Sort(x);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(result.y1, 0), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(result.y2, 1), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Sort");
+  ASSERT_NE(node, nullptr);
+  const auto expected = gert::SymbolShape({Symbol("s0"), Symbol("s1")});
+  auto y1_attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  auto y2_attr = node->GetOpDesc()->GetOutputDesc(1).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(y1_attr, nullptr);
+  ASSERT_NE(y2_attr, nullptr);
+  EXPECT_EQ(y1_attr->symbolic_tensor.GetOriginSymbolShape(), expected);
+  EXPECT_EQ(y2_attr->symbolic_tensor.GetOriginSymbolShape(), expected);
+}
+
+/**
+ * 测试场景：在真实计算图中验证 SortWithIndex 的双输出符号 Shape 透传。
+ * 测试输入：x=[s0,s1]，index=[s0,s1]，axis 使用默认值 -1。
+ * 期望输出：y 和 sorted_index 均为 [s0,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForSortWithIndex) {
+  auto x = builder_->CreateInput(0, "x");
+  auto index = builder_->CreateInput(1, "index");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  index.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  ASSERT_NE(index.GetCTensorHolder(), nullptr);
+  auto result = es::SortWithIndex(x, index);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(result.y, 0), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(result.sorted_index, 1), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("SortWithIndex");
+  ASSERT_NE(node, nullptr);
+  const auto expected = gert::SymbolShape({Symbol("s0"), Symbol("s1")});
+  auto y_attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  auto sorted_index_attr = node->GetOpDesc()->GetOutputDesc(1).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(y_attr, nullptr);
+  ASSERT_NE(sorted_index_attr, nullptr);
+  EXPECT_EQ(y_attr->symbolic_tensor.GetOriginSymbolShape(), expected);
+  EXPECT_EQ(sorted_index_attr->symbolic_tensor.GetOriginSymbolShape(), expected);
+}
+
+/**
+ * 测试场景：在真实计算图中验证 SparseSegmentMean 沿稀疏段聚合的符号 Shape 推导。
+ * 测试输入：x=[s0,s1]，indices=[0,1,2,3,4,5]，segment_ids=[0,1,1,2,2,3]。
+ * 期望输出：y=[4,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForSparseSegmentMean) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  std::vector<int32_t> indices_data = {0, 1, 2, 3, 4, 5};
+  std::vector<int32_t> segment_ids_data = {0, 1, 1, 2, 2, 3};
+  std::vector<int64_t> const_dim = {6};
+  auto indices = builder_->CreateConst(indices_data, const_dim);
+  auto segment_ids = builder_->CreateConst(segment_ids_data, const_dim);
+  auto sparse = es::SparseSegmentMean(x, indices, segment_ids);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(sparse, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("SparseSegmentMean");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(4), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 SparseTensorDenseMatMul 稀疏矩阵与稠密矩阵相乘的符号 Shape 推导。
+ * 测试输入：x1_shape 常量 [3,8]，x2=[s0,s1]，adjoint_a/adjoint_b 均为 false。
+ * 期望输出：y=[3,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForSparseTensorDenseMatMul) {
+  auto x2 = builder_->CreateInput(0, "x2");
+  x2.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x2.GetCTensorHolder(), nullptr);
+  std::vector<int32_t> indices_data = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4};
+  std::vector<int32_t> values_data = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+  std::vector<int64_t> shape_data = {3, 8};
+  auto x1_indices = builder_->CreateConst(indices_data, std::vector<int64_t>{5, 2});
+  auto x1_values = builder_->CreateConst(values_data, std::vector<int64_t>{5});
+  auto x1_shape = builder_->CreateConst(shape_data, std::vector<int64_t>{2});
+  auto y = es::SparseTensorDenseMatMul(x1_indices, x1_values, x1_shape, x2);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(y, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("SparseTensorDenseMatMul");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(3), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 TransformBiasRescaleQkv 的三输出符号 Shape 推导。
+ * 测试输入：qkv=[s0,s1,s2]，num_heads=4。
+ * 期望输出：q/k/v 均为 [s0,4,s1,s2/3/4]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForTransformBiasRescaleQkv) {
+  auto qkv = builder_->CreateInput(0, "qkv");
+  auto qkv_bias = builder_->CreateInput(1, "qkv_bias");
+  qkv.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  qkv_bias.SetOriginSymbolShape(std::vector<const char *>({"s2"}));
+  ASSERT_NE(qkv.GetCTensorHolder(), nullptr);
+  ASSERT_NE(qkv_bias.GetCTensorHolder(), nullptr);
+  auto result = es::TransformBiasRescaleQkv(qkv, qkv_bias, 4);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(result.q, 0), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(result.k, 1), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(result.v, 2), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("TransformBiasRescaleQkv");
+  ASSERT_NE(node, nullptr);
+  const auto expected =
+      gert::SymbolShape({Symbol("s0"), Symbol(4), Symbol("s1"), Symbol("s2") / Symbol(3) / Symbol(4)});
+  for (int i = 0; i < 3; ++i) {
+    auto attr = node->GetOpDesc()->GetOutputDesc(i).GetAttrsGroup<SymbolicDescAttr>();
+    ASSERT_NE(attr, nullptr);
+    EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), expected);
+  }
+}
+
+/**
+ * 测试场景：在真实计算图中验证 Tril 的符号 Shape 透传。
+ * 测试输入：x=[s0,s1]，diagonal 使用默认值 0。
+ * 期望输出：y=[s0,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForTril) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto tril = es::Tril(x);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(tril, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Tril");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0"), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 Triu 的符号 Shape 透传。
+ * 测试输入：x=[s0,s1]，diagonal 使用默认值 0。
+ * 期望输出：y=[s0,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForTriu) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto triu = es::Triu(x);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(triu, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Triu");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0"), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 Bucketize 的符号 Shape 透传。
+ * 测试输入：x=[s0,s1]，boundaries=[0.0,1.0]，dtype/right 使用默认值。
+ * 期望输出：y=[s0,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForBucketize) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto bucketize = es::Bucketize(x, std::vector<float>{0.0f, 1.0f});
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(bucketize, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("Bucketize");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0"), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 IRFFT 的符号 Shape 推导，输出最后一维由 fft_length 决定。
+ * 测试输入：x=[s0,s1]，fft_length 为常量 [5]。
+ * 期望输出：y=[s0,5]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForIRFFT) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto fft_length = builder_->CreateConst(std::vector<int32_t>{5}, std::vector<int64_t>{1});
+  auto irfft = es::IRFFT(x, fft_length);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(irfft, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("IRFFT");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0"), Symbol(5)}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 RFFT 的符号 Shape 推导，输出最后一维为 fft_length/2+1。
+ * 测试输入：input=[s0,s1]，fft_length 为常量 [10]。
+ * 期望输出：y=[s0,6]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForRFFT) {
+  auto input = builder_->CreateInput(0, "input");
+  input.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(input.GetCTensorHolder(), nullptr);
+  auto fft_length = builder_->CreateConst(std::vector<int32_t>{10}, std::vector<int64_t>{1});
+  auto rfft = es::RFFT(input, fft_length);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(rfft, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("RFFT");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0"), Symbol(6)}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 RandomStandardNormal 输出 Shape 由 shape 常量输入决定。
+ * 测试输入：shape 常量 [2,3,4]，dtype 使用 DT_FLOAT。
+ * 期望输出：y=[2,3,4]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForRandomStandardNormal) {
+  auto shape = builder_->CreateConst(std::vector<int32_t>{2, 3, 4}, std::vector<int64_t>{3});
+  auto y = es::RandomStandardNormal(shape, ge::DT_FLOAT);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(y, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("RandomStandardNormal");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(2), Symbol(3), Symbol(4)}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 SegmentSum 沿段求和的符号 Shape 推导，输出首维为 max(segment_ids)+1。
+ * 测试输入：x=[s0,s1]，segment_ids=[0,1,1,2,2,3]。
+ * 期望输出：y=[4,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForSegmentSum) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto segment_ids = builder_->CreateConst(std::vector<int32_t>{0, 1, 1, 2, 2, 3}, std::vector<int64_t>{6});
+  auto y = es::SegmentSum(x, segment_ids);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(y, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("SegmentSum");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(4), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 JaggedToPaddedDense 将锯齿张量转为稠密填充张量的符号 Shape 推导。
+ * 测试输入：values=[s0,s1]，offsets=[s2]，max_length=16。
+ * 期望输出：out=[s2-1,16,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForJaggedToPaddedDense) {
+  auto values = builder_->CreateInput(0, "values");
+  values.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  auto offsets = builder_->CreateInput(1, "offsets");
+  offsets.SetOriginSymbolShape(std::vector<const char *>({"s2"}));
+  ASSERT_NE(values.GetCTensorHolder(), nullptr);
+  ASSERT_NE(offsets.GetCTensorHolder(), nullptr);
+  auto out = es::JaggedToPaddedDense(values, offsets, 16, 0.0f, 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(out, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("JaggedToPaddedDense");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s2") - Symbol(1), Symbol(16), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 DenseToJagged 将稠密张量压缩为锯齿张量的符号 Shape 推导。
+ * 测试输入：dense=[s0,s1,s2]，jagged_dim0=16。
+ * 期望输出：jagged_dense=[16,s2]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForDenseToJagged) {
+  auto dense = builder_->CreateInput(0, "dense");
+  dense.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  auto offset = builder_->CreateInput(1, "offset");
+  offset.SetOriginSymbolShape(std::vector<const char *>({"s3"}));
+  ASSERT_NE(dense.GetCTensorHolder(), nullptr);
+  ASSERT_NE(offset.GetCTensorHolder(), nullptr);
+  auto out = es::DenseToJagged(dense, offset, 16);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(out, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("DenseToJagged");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(16), Symbol("s2")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 CheckNumerics 的符号 Shape 透传。
+ * 测试输入：x=[s0,s1]，message 使用固定字符串。
+ * 期望输出：y=[s0,s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForCheckNumerics) {
+  auto x = builder_->CreateInput(0, "x");
+  x.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  auto check_numerics = es::CheckNumerics(x, "check");
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(check_numerics, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("CheckNumerics");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0"), Symbol("s1")}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 LinearIndex 的符号 Shape 推导，combine 展平输出。
+ * 测试输入：indices=[s0,s1]，combine=true。
+ * 期望输出：index=[s0*s1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForLinearIndex) {
+  auto indices = builder_->CreateInput(0, "indices");
+  indices.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1"}));
+  ASSERT_NE(indices.GetCTensorHolder(), nullptr);
+  auto shape = builder_->CreateConst(std::vector<int32_t>{2, 3}, std::vector<int64_t>{2});
+  auto index = es::LinearIndex(indices, shape, -1, true);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(index, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("LinearIndex");
+  ASSERT_NE(node, nullptr);
+  auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol("s0") * Symbol("s1")}));
 }
 
 TEST_F(SymbolicShapeInferenceST, InferShapeForSigmoidGrad) {
@@ -6204,6 +7261,157 @@ TEST_F(SymbolicShapeInferenceST, test_BNTrainingReduce_NHWC) {
   EXPECT_EQ(bnt_attr1->symbolic_tensor.GetOriginSymbolShape().GetDims(), gert::SymbolShape({s3}).GetDims());
 }
 
+/**
+ * 测试场景：在真实计算图中验证 BatchNormV3 的符号 Shape 推导和多输出传播。
+ * 测试输入：x 的运行时 Shape 为 [2, 3, 4, 5]，weight、bias、running_mean、running_var 的运行时 Shape 均为 [3]。
+ * 期望输出：先通过 SymbolicShapeSymbolizer::Symbolize 为输入动态维度生成符号；y 的符号 Shape 与 x 的符号 Shape
+ *           一致，running_mean、running_var、save_mean、save_rstd 的符号 Shape 均与 weight 的符号 Shape 一致。
+ */
+TEST_F(SymbolicShapeInferenceST, test_BatchNormV3) {
+  auto x = builder_->CreateInput(0, "x", DT_FLOAT, FORMAT_ND, {2, 3, 4, 5});
+  auto weight = builder_->CreateInput(1, "weight", DT_FLOAT, FORMAT_ND, {3});
+  auto bias = builder_->CreateInput(2, "bias", DT_FLOAT, FORMAT_ND, {3});
+  auto running_mean = builder_->CreateInput(3, "running_mean", DT_FLOAT, FORMAT_ND, {3});
+  auto running_var = builder_->CreateInput(4, "running_var", DT_FLOAT, FORMAT_ND, {3});
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  ASSERT_NE(weight.GetCTensorHolder(), nullptr);
+  ASSERT_NE(bias.GetCTensorHolder(), nullptr);
+  ASSERT_NE(running_mean.GetCTensorHolder(), nullptr);
+  ASSERT_NE(running_var.GetCTensorHolder(), nullptr);
+  auto batch_norm = es::BatchNormV3(x, weight, bias, running_mean, running_var);
+  auto graph = builder_->BuildAndReset({batch_norm.y, batch_norm.ref_running_mean, batch_norm.ref_running_var,
+                                        batch_norm.save_mean, batch_norm.save_rstd});
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  const std::vector<ge::GeTensor> input_vec = {
+      MakeInputTensor({2, 3, 4, 5}, FORMAT_ND, DT_FLOAT), MakeInputTensor({3}, FORMAT_ND, DT_FLOAT),
+      MakeInputTensor({3}, FORMAT_ND, DT_FLOAT), MakeInputTensor({3}, FORMAT_ND, DT_FLOAT),
+      MakeInputTensor({3}, FORMAT_ND, DT_FLOAT)};
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), ge::SUCCESS);
+  const auto x_attr = cg->FindNode("x")->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  const auto weight_attr = cg->FindNode("weight")->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(x_attr, nullptr);
+  ASSERT_NE(weight_attr, nullptr);
+  const auto expected_x_shape = x_attr->symbolic_tensor.GetOriginSymbolShape();
+  const auto expected_parameter_shape = weight_attr->symbolic_tensor.GetOriginSymbolShape();
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+
+  auto batch_norm_node = cg->FindFirstNodeMatchType("BatchNormV3");
+  ASSERT_NE(batch_norm_node, nullptr);
+  auto op_desc = batch_norm_node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  auto y_attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(y_attr, nullptr);
+  EXPECT_EQ(y_attr->symbolic_tensor.GetOriginSymbolShape().GetDims(), expected_x_shape.GetDims());
+  for (size_t i = 1U; i < 5U; ++i) {
+    auto output_attr = op_desc->GetOutputDesc(i).GetAttrsGroup<SymbolicDescAttr>();
+    ASSERT_NE(output_attr, nullptr);
+    EXPECT_EQ(output_attr->symbolic_tensor.GetOriginSymbolShape().GetDims(), expected_parameter_shape.GetDims());
+  }
+}
+
+/**
+ * 测试场景：在真实计算图中验证 BatchNorm 的符号 Shape 推导和六个输出的 Shape 传播。
+ * 测试输入：x 的运行时 Shape 为 [2, 3, 4, 5]，scale、offset、mean、variance 的运行时 Shape 均为 [3]，实例化可选输入。
+ * 期望输出：通过 SymbolicShapeSymbolizer::Symbolize 生成输入符号；y 的符号 Shape 与 x
+ * 一致，batch_mean、batch_variance、reserve_space_1、reserve_space_2 的符号 Shape 均与 scale 一致，reserve_space_3
+ * 的符号 Shape 为 [1]。
+ */
+TEST_F(SymbolicShapeInferenceST, test_BatchNorm) {
+  auto x = builder_->CreateInput(0, "x", DT_FLOAT, FORMAT_ND, {2, 3, 4, 5});
+  auto scale = builder_->CreateInput(1, "scale", DT_FLOAT, FORMAT_ND, {3});
+  auto offset = builder_->CreateInput(2, "offset", DT_FLOAT, FORMAT_ND, {3});
+  auto mean = builder_->CreateInput(3, "mean", DT_FLOAT, FORMAT_ND, {3});
+  auto variance = builder_->CreateInput(4, "variance", DT_FLOAT, FORMAT_ND, {3});
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  ASSERT_NE(scale.GetCTensorHolder(), nullptr);
+  ASSERT_NE(offset.GetCTensorHolder(), nullptr);
+  ASSERT_NE(mean.GetCTensorHolder(), nullptr);
+  ASSERT_NE(variance.GetCTensorHolder(), nullptr);
+
+  auto batch_norm = es::BatchNorm(x, scale, offset, mean, variance);
+  auto graph =
+      builder_->BuildAndReset({batch_norm.y, batch_norm.batch_mean, batch_norm.batch_variance,
+                               batch_norm.reserve_space_1, batch_norm.reserve_space_2, batch_norm.reserve_space_3});
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  const std::vector<ge::GeTensor> input_vec = {
+      MakeInputTensor({2, 3, 4, 5}, FORMAT_ND, DT_FLOAT), MakeInputTensor({3}, FORMAT_ND, DT_FLOAT),
+      MakeInputTensor({3}, FORMAT_ND, DT_FLOAT), MakeInputTensor({3}, FORMAT_ND, DT_FLOAT),
+      MakeInputTensor({3}, FORMAT_ND, DT_FLOAT)};
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), ge::SUCCESS);
+  const auto x_attr = cg->FindNode("x")->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  const auto scale_attr = cg->FindNode("scale")->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(x_attr, nullptr);
+  ASSERT_NE(scale_attr, nullptr);
+  const auto expected_x_shape = x_attr->symbolic_tensor.GetOriginSymbolShape();
+  const auto expected_parameter_shape = scale_attr->symbolic_tensor.GetOriginSymbolShape();
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto batch_norm_node = cg->FindFirstNodeMatchType("BatchNorm");
+  ASSERT_NE(batch_norm_node, nullptr);
+  auto op_desc = batch_norm_node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  auto y_attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(y_attr, nullptr);
+  EXPECT_EQ(y_attr->symbolic_tensor.GetOriginSymbolShape().GetDims(), expected_x_shape.GetDims());
+  for (size_t i = 1U; i < 5U; ++i) {
+    auto output_attr = op_desc->GetOutputDesc(i).GetAttrsGroup<SymbolicDescAttr>();
+    ASSERT_NE(output_attr, nullptr);
+    EXPECT_EQ(output_attr->symbolic_tensor.GetOriginSymbolShape().GetDims(), expected_parameter_shape.GetDims());
+  }
+  auto reserve_space_3_attr = op_desc->GetOutputDesc(5).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(reserve_space_3_attr, nullptr);
+  EXPECT_EQ(reserve_space_3_attr->symbolic_tensor.GetOriginSymbolShape().GetDims(),
+            gert::SymbolShape({Symbol(1)}).GetDims());
+}
+
+/**
+ * 测试场景：在真实计算图中验证 BNInfer 的符号 Shape 推导。
+ * 测试输入：x 的运行时 Shape 为 [2, 3, 4, 5]，scale、offset、mean、variance 的运行时 Shape 均为 [3]。
+ * 期望输出：通过 SymbolicShapeSymbolizer::Symbolize 为输入动态维度生成符号；y 的符号 Shape 与 x 的符号 Shape 一致。
+ */
+TEST_F(SymbolicShapeInferenceST, test_BNInfer) {
+  auto x = builder_->CreateInput(0, "x", DT_FLOAT, FORMAT_ND, {2, 3, 4, 5});
+  auto scale = builder_->CreateInput(1, "scale", DT_FLOAT, FORMAT_ND, {3});
+  auto offset = builder_->CreateInput(2, "offset", DT_FLOAT, FORMAT_ND, {3});
+  auto mean = builder_->CreateInput(3, "mean", DT_FLOAT, FORMAT_ND, {3});
+  auto variance = builder_->CreateInput(4, "variance", DT_FLOAT, FORMAT_ND, {3});
+  ASSERT_NE(x.GetCTensorHolder(), nullptr);
+  ASSERT_NE(scale.GetCTensorHolder(), nullptr);
+  ASSERT_NE(offset.GetCTensorHolder(), nullptr);
+  ASSERT_NE(mean.GetCTensorHolder(), nullptr);
+  ASSERT_NE(variance.GetCTensorHolder(), nullptr);
+
+  auto bn_infer = es::BNInfer(x, scale, offset, mean, variance, 0.0001f);
+  auto graph = builder_->BuildAndReset({bn_infer});
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  const std::vector<ge::GeTensor> input_vec = {
+      MakeInputTensor({2, 3, 4, 5}, FORMAT_ND, DT_FLOAT), MakeInputTensor({3}, FORMAT_ND, DT_FLOAT),
+      MakeInputTensor({3}, FORMAT_ND, DT_FLOAT), MakeInputTensor({3}, FORMAT_ND, DT_FLOAT),
+      MakeInputTensor({3}, FORMAT_ND, DT_FLOAT)};
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), ge::SUCCESS);
+  const auto x_attr = cg->FindNode("x")->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(x_attr, nullptr);
+  const auto expected_x_shape = x_attr->symbolic_tensor.GetOriginSymbolShape();
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto bn_infer_node = cg->FindFirstNodeMatchType("BNInfer");
+  ASSERT_NE(bn_infer_node, nullptr);
+  auto op_desc = bn_infer_node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  auto y_attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(y_attr, nullptr);
+  EXPECT_EQ(y_attr->symbolic_tensor.GetOriginSymbolShape().GetDims(), expected_x_shape.GetDims());
+}
+
 TEST_F(SymbolicShapeInferenceST, test_BNTrainingReduce_NCHW) {
   auto x = builder_->CreateInput(0, "x");
   ASSERT_NE(x.GetCTensorHolder(), nullptr);
@@ -7781,6 +8989,33 @@ TEST_F(SymbolicShapeInferenceST, InferShapeForDynamicStitch) {
                 .GetAttrsGroup<SymbolicDescAttr>()
                 ->symbolic_tensor.GetOriginSymbolShape(),
             gert::SymbolShape({sym::Max(Symbol(9), sym::Max(Symbol("s1"), Symbol("s2"))) + Symbol(1), Symbol(2)}));
+}
+
+TEST_F(SymbolicShapeInferenceST, InferShapeForDynamicStitchWithScalarInput) {
+  auto indices = builder_->CreateScalar(static_cast<int32_t>(5));
+  auto x = builder_->CreateInput(0, "data0");
+  x.SetOriginSymbolShape(std::vector<const char *>{});
+
+  auto output = es::DynamicStitch({indices}, {x}, 1);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(output, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  ASSERT_NE(graph, nullptr);
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  auto stitch_op = cg->FindFirstNodeMatchType("DynamicStitch")->GetOpDesc();
+  ASSERT_NE(stitch_op, nullptr);
+  stitch_op->AppendIrAttrName("N");
+  ASSERT_TRUE(AttrUtils::SetInt(stitch_op, "N", 1));
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  EXPECT_EQ(cg->FindFirstNodeMatchType("DynamicStitch")
+                ->GetOpDesc()
+                ->GetOutputDesc(0)
+                .GetAttrsGroup<SymbolicDescAttr>()
+                ->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol(6)}));
 }
 
 REG_OP(MatMul)
@@ -10210,6 +11445,46 @@ TEST_F(SymbolicShapeInferenceST, InferShapeForRmsNorm) {
             gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}));
   EXPECT_EQ(rstd_attr->symbolic_tensor.GetOriginSymbolShape(),
             gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol(1)}));
+}
+
+/**
+ * 测试场景：在真实计算图中验证 AddRmsNorm 的符号 Shape 推导和三路输出传播。
+ * 测试输入：x1、x2 的符号 Shape 为 [B, S, H]，gamma 的符号 Shape 为 [H]。
+ * 期望输出：y 和 x 的符号 Shape 为 [B, S, H]，rstd 的符号 Shape 为 [B, S, 1]。
+ */
+TEST_F(SymbolicShapeInferenceST, InferShapeForAddRmsNorm) {
+  auto x1 = builder_->CreateInput(0, "x1");
+  auto x2 = builder_->CreateInput(1, "x2");
+  auto gamma = builder_->CreateInput(2, "gamma");
+  x1.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  x2.SetOriginSymbolShape(std::vector<const char *>({"s0", "s1", "s2"}));
+  gamma.SetOriginSymbolShape(std::vector<const char *>({"s2"}));
+  auto add_rms_norm = es::AddRmsNorm(x1, x2, gamma);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(add_rms_norm.y, 0), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(add_rms_norm.rstd, 1), 0);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(add_rms_norm.x, 2), 0);
+  auto graph = builder_->BuildAndReset();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), GRAPH_SUCCESS);
+  auto node = cg->FindFirstNodeMatchType("AddRmsNorm");
+  ASSERT_NE(node, nullptr);
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  auto y_attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  auto rstd_attr = op_desc->GetOutputDesc(1).GetAttrsGroup<SymbolicDescAttr>();
+  auto x_attr = op_desc->GetOutputDesc(2).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(y_attr, nullptr);
+  ASSERT_NE(rstd_attr, nullptr);
+  ASSERT_NE(x_attr, nullptr);
+  EXPECT_EQ(y_attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}));
+  EXPECT_EQ(rstd_attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol(1)}));
+  EXPECT_EQ(x_attr->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol("s0"), Symbol("s1"), Symbol("s2")}));
 }
 
 TEST_F(SymbolicShapeInferenceST, InferShapeForApplyRotaryPosEmb) {

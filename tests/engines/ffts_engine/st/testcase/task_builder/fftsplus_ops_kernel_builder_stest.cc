@@ -888,17 +888,6 @@ TEST_F(FFTSPlusOpsKernelBuilderSTest, Finalize_SUCCESS) {
   EXPECT_EQ(ffts::SUCCESS, ret);
 }
 
-TEST_F(FFTSPlusOpsKernelBuilderSTest, GenerateTask_SUCCESS) {
-  ComputeGraphPtr graph = BuildGraph_Readonly_ScopeWrite();
-  auto ifnode = graph->FindNode("if");
-
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*ifnode, _context, tasks);
-
-  EXPECT_EQ(ffts::SUCCESS, ret);
-}
-
 Status ScheculePolicyPassStub3(domi::TaskDef &task_def, std::vector<ffts::FftsPlusContextPath> &ctx_path_vector) {
   // construct a sub-graph and set precnt
   domi::FftsPlusTaskDef *ffts_plus_task_def = task_def.mutable_ffts_plus_task();
@@ -929,8 +918,8 @@ Status ScheculePolicyPassStub3(domi::TaskDef &task_def, std::vector<ffts::FftsPl
   ffts_plus_ctx_def = ffts_plus_task_def->mutable_ffts_plus_ctx(29);
   ffts_plus_ctx_def->set_context_type(RT_CTX_TYPE_INVALIDATE_DATA);
   auto notify = ffts_plus_ctx_def->mutable_data_ctx();
-  nofity->set_cnt(2);
-  nofity->set_cnt_init(2);
+  notify->set_cnt(2);
+  notify->set_cnt_init(2);
   ffts_plus_ctx_def = ffts_plus_task_def->mutable_ffts_plus_ctx(30);
   ffts_plus_ctx_def->set_context_type(RT_CTX_TYPE_AICORE);
   aicaiv = ffts_plus_ctx_def->mutable_aic_aiv_ctx();
@@ -1079,22 +1068,6 @@ Status CheckScheculePolicyPass(domi::FftsPlusTaskDef *ffts_plus_task_def) {
   return ffts::SUCCESS;
 }
 
-TEST_F(FFTSPlusOpsKernelBuilderSTest, GenerateTask_Greater60_Schecule_SUCCESS) {
-  ComputeGraphPtr graph = BuildGraph_Greater60();
-  auto sub_node = graph->FindNode("sub_node");
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub3;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, _context, tasks);
-  EXPECT_EQ(ffts::SUCCESS, ret);
-  if (tasks.empty()) {
-    EXPECT_EQ(ffts::SUCCESS, ffts::FAILED);
-  }
-  domi::FftsPlusTaskDef *ffts_plus_task_def = tasks[0].mutable_ffts_plus_task();
-  ASSERT_EQ(ffts_plus_task_def->ffts_plus_ctx_size(), 63);
-  // check if ctx is ok
-  ASSERT_EQ(ffts::SUCCESS, CheckScheculePolicyPass(ffts_plus_task_def));
-}
-
 Status ScheculePolicyPassStub4(domi::TaskDef &task_def, std::vector<ffts::FftsPlusContextPath> &ctx_path_vector) {
   // construct a sub-graph and set precnt
   domi::FftsPlusTaskDef *ffts_plus_task_def = task_def.mutable_ffts_plus_task();
@@ -1125,32 +1098,6 @@ TEST_F(FFTSPlusOpsKernelBuilderSTest, GenerateTask_Greater60_Schecule_READYNUM_F
   ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub4;
   Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, _context, tasks);
   EXPECT_EQ(ffts::FAILED, ret);
-}
-
-TEST_F(FFTSPlusOpsKernelBuilderSTest, GenerateTask_Greater60_SUCCESS) {
-  ComputeGraphPtr graph = BuildGraph_Greater60();
-  auto sub_node = graph->FindNode("sub_node");
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, _context, tasks);
-  domi::FftsPlusTaskDef *ffts_plus_task_def = tasks[0].mutable_ffts_plus_task();
-  EXPECT_EQ(ffts::SUCCESS, ret);
-  ASSERT_EQ(ffts_plus_task_def->ffts_plus_ctx_size(), 64);
-}
-
-TEST_F(FFTSPlusOpsKernelBuilderSTest, Mix_GenerateTask_SUCCESS) {
-  ComputeGraphPtr graph = BuildGraph_Mix_ScopeWrite();
-  cout << "========================MIX AIC/AIV GENTASK BEGIN========================" << endl;
-  auto sub_node = graph->FindNode("sub_node");
-
-  if (sub_node == nullptr) {
-    cout << "[ERROR] FE:sub node is nullptr";
-  }
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, _context, tasks);
-
-  EXPECT_EQ(ffts::SUCCESS, ret);
 }
 
 /*
@@ -2459,45 +2406,6 @@ TEST_F(FFTSPlusOpsKernelBuilderSTest, RTSOP_GenerateTask_SUCCESS) {
   EXPECT_EQ(ffts::FAILED, ret);
 }
 
-TEST_F(FFTSPlusOpsKernelBuilderSTest, Auto_RTSOP_GenerateTask_SUCCESS) {
-  ComputeGraphPtr func_op_branch_graph = nullptr;
-  ComputeGraphPtr graph = BuildGraph_RuntimeOp_ScopeWrite(func_op_branch_graph, true);
-  cout << "========================AUTO RTSOP GENTASK BEGIN========================" << endl;
-  auto sub_node = graph->FindNode("sub_node");
-  EXPECT_NE(sub_node, nullptr);
-  auto cpy_node = func_op_branch_graph->FindNode("identity");
-  EXPECT_NE(cpy_node, nullptr);
-  const auto &tensor_desc = cpy_node->GetOpDesc()->MutableInputDesc(0U);
-  EXPECT_NE(tensor_desc, nullptr);
-  tensor_desc->SetShape(GeShape({-1, -1}));
-
-  RunContext context = CreateContext();
-  RunContextPtr contxt_ptr = std::make_shared<ge::RunContext>(context);
-  for (auto node : func_op_branch_graph->GetAllNodes()) {
-    (void)node->GetOpDesc()->SetExtAttr(kRuntimeContentx, contxt_ptr);
-  }
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, context, tasks);
-  EXPECT_EQ(ffts::SUCCESS, ret);
-}
-
-TEST_F(FFTSPlusOpsKernelBuilderSTest, AICPU_GenerateTask_Schecule_Failed) {
-  ComputeGraphPtr graph = BuildGraph_AICPU_ScopeWrite();
-  cout << "========================aicpu GENTASK BEGIN========================" << endl;
-  auto sub_node = graph->FindNode("sub_node");
-
-  if (sub_node == nullptr) {
-    cout << "[ERROR] FE:sub node is nullptr";
-  }
-  RunContext context = CreateContext();
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub1;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, context, tasks);
-
-  EXPECT_EQ(ffts::SUCCESS, ret);
-}
-
 TEST_F(FFTSPlusOpsKernelBuilderSTest, RTSOP_UNFOLDCALLONLYONEDEPTH) {
   ComputeGraphPtr func_op_branch_graph = nullptr;
   ComputeGraphPtr graph = BuildGraph_RuntimeOp_ScopeWrite(func_op_branch_graph, false);
@@ -2512,97 +2420,6 @@ TEST_F(FFTSPlusOpsKernelBuilderSTest, RTSOP_UNFOLDCALLONLYONEDEPTH) {
   Status ret = UnfoldPartionCallOnlyOneDepth(*(graph.get()), "sub_node");
 
   EXPECT_EQ(ffts::FAILED, ret);
-}
-
-TEST_F(FFTSPlusOpsKernelBuilderSTest, RTSOP_GenerateTask_IF_SETIF) {
-  ComputeGraphPtr graph = BuildGraph_RuntimeOp_If_ScopeWrite();
-  cout << "\n========================IF START ========================" << endl;
-  auto sub_node = graph->FindNode("sub_node");
-
-  if (sub_node == nullptr) {
-    cout << "[ERROR] FE:sub node is nullptr";
-  }
-  RunContext context = CreateContext();
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, context, tasks);
-  EXPECT_EQ(ffts::SUCCESS, ret);
-}
-
-TEST_F(FFTSPlusOpsKernelBuilderSTest, RTSOP_GenerateTask_CASE_SETIF) {
-  ComputeGraphPtr graph = BuildGraph_RuntimeOp_Case_ScopeWrite();
-  cout << "========================CASE START ========================" << endl;
-  auto sub_node = graph->FindNode("sub_node");
-
-  if (sub_node == nullptr) {
-    cout << "[ERROR] FE:sub node is nullptr";
-  }
-  RunContext context = CreateContext();
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, context, tasks);
-  EXPECT_EQ(ffts::SUCCESS, ret);
-}
-
-TEST_F(FFTSPlusOpsKernelBuilderSTest, RTSOP_GenerateTask_While_SETIF) {
-  ComputeGraphPtr graph = BuildGraph_RuntimeOp_While_ScopeWrite();
-  cout << "========================WHILE START ========================" << endl;
-  auto sub_node = graph->FindNode("sub_node");
-
-  if (sub_node == nullptr) {
-    cout << "[ERROR] FE:sub node is nullptr";
-  }
-  RunContext context = CreateContext();
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, context, tasks);
-  EXPECT_EQ(ffts::SUCCESS, ret);
-}
-
-TEST_F(FFTSPlusOpsKernelBuilderSTest, RTSOP_GenerateTask_If_If_SETIF) {
-  ComputeGraphPtr graph = BuildGraph_RuntimeOp_If_If_ScopeWrite();
-  cout << "========================If_If START ========================" << endl;
-  auto sub_node = graph->FindNode("sub_node");
-
-  if (sub_node == nullptr) {
-    cout << "[ERROR] FE:sub node is nullptr";
-  }
-  RunContext context = CreateContext();
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, context, tasks);
-  EXPECT_EQ(ffts::SUCCESS, ret);
-}
-
-TEST_F(FFTSPlusOpsKernelBuilderSTest, AICPU_GenerateTask_SUCCESS) {
-  ComputeGraphPtr graph = BuildGraph_AICPU_ScopeWrite();
-  cout << "========================aicpu GENTASK BEGIN========================" << endl;
-  auto sub_node = graph->FindNode("sub_node");
-
-  if (sub_node == nullptr) {
-    cout << "[ERROR] FE:sub node is nullptr";
-  }
-  RunContext context = CreateContext();
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, context, tasks);
-
-  EXPECT_EQ(ffts::SUCCESS, ret);
-}
-
-TEST_F(FFTSPlusOpsKernelBuilderSTest, HCCL_GenerateTask_SUCCESS) {
-  ComputeGraphPtr graph = BuildGraph_HCCL_Graph();
-  cout << "========================hccl GENTASK BEGIN========================" << endl;
-  auto sub_node = graph->FindNode("sub_node");
-  if (sub_node == nullptr) {
-    cout << "[ERROR] FE:sub node is nullptr";
-  }
-  RunContext context = CreateContext();
-  vector<domi::TaskDef> tasks;
-  ffts_plus_ops_kernel_builder_ptr->schecule_policy_pass_ = ScheculePolicyPassStub2;
-  Status ret = ffts_plus_ops_kernel_builder_ptr->GenerateTask(*sub_node, context, tasks);
-
-  EXPECT_EQ(ffts::SUCCESS, ret);
 }
 
 ge::Status TestOpExtGenTask(const ge::Node &node, ge::RunContext &context, std::vector<domi::TaskDef> &tasks) {

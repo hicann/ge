@@ -83,6 +83,7 @@ constexpr const char *kPortableOpTypeForModelHelper = "ModelHelperPortableOpForU
 constexpr const char *kPortableOpEmptyTypeForModelHelper = "ModelHelperPortableOpEmptyForUt";
 constexpr const char *kPortableOpSerializeFailTypeForModelHelper = "ModelHelperPortableOpSerializeFailForUt";
 constexpr const char *kNonPortableOpTypeForModelHelper = "ModelHelperNonPortableOpForUt";
+constexpr const char *kNullInstanceOpTypeForModelHelper = "ModelHelperNullInstanceOpForUt";
 constexpr const char *kUnregisteredPortableOpTypeForModelHelper = "ModelHelperUnregisteredPortableOpForUt";
 constexpr const char *kRegistryOnlyPortableOpTypeForModelHelper = "ModelHelperRegistryOnlyPortableOpForUt";
 const std::vector<uint8_t> kPortableKernelBinForModelHelper = {0x11U, 0x22U, 0x33U};
@@ -1646,7 +1647,7 @@ TEST_F(UtestModelHelper, SaveCustomOpsPartitionSaveModelToBufferBytesStable) {
   EXPECT_EQ(loaded_data, expected_partition);
 }
 
-TEST_F(UtestModelHelper, SaveCustomOpsPartitionPortableAndNonPortableFails) {
+TEST_F(UtestModelHelper, SaveCustomOpsPartitionPortableAndNonPortableMixedSucceeds) {
   RegisterCustomOpCreatorForModelHelperUt(kPortableOpTypeForModelHelper, []() -> std::unique_ptr<BaseCustomOp> {
     return std::make_unique<ModelHelperPortableOpForUt>();
   });
@@ -1660,7 +1661,15 @@ TEST_F(UtestModelHelper, SaveCustomOpsPartitionPortableAndNonPortableFails) {
 
   std::shared_ptr<OmFileSaveHelper> om_file_save_helper = std::make_shared<OmFileSaveHelper>();
   ModelHelper model_helper;
-  EXPECT_NE(model_helper.SaveCustomOpsPartition(om_file_save_helper, ge_root_model), SUCCESS);
+  // 混合场景：PortableOp 与非 PortableOp 自定义算子可共存，保存成功。
+  EXPECT_EQ(model_helper.SaveCustomOpsPartition(om_file_save_helper, ge_root_model), SUCCESS);
+
+  // CUSTOM_OPS 分区仅包含 PortableOp 算子的序列化数据，非 PortableOp 算子不写入。
+  ModelPartition custom_partition;
+  ASSERT_TRUE(FindCustomOpsPartitionForModelHelperUt(om_file_save_helper, custom_partition));
+  const auto expected_partition_size =
+      sizeof(CustomKernelItemHeader) + strlen(kPortableOpTypeForModelHelper) + kPortableKernelBinForModelHelper.size();
+  ASSERT_EQ(custom_partition.size, expected_partition_size);
 }
 
 TEST_F(UtestModelHelper, SaveCustomOpsPartitionSkipsRootGraphRepeatedInSubgraphMap) {
@@ -1777,6 +1786,53 @@ TEST_F(UtestModelHelper, CheckAndSetNeedSoInOMSameArchShouldKeepExistingBehavior
 
   EXPECT_EQ(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
   EXPECT_FALSE(ge_root_model->GetCustomOpSoSet().empty());
+}
+
+TEST_F(UtestModelHelper, CheckAndSetNeedSoInOMNonPortableOpSameArchShouldCollectSo) {
+  RegisterCustomOpCreatorForModelHelperUt(kNonPortableOpTypeForModelHelper, []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<ModelHelperNonPortableOpForUt>();
+  });
+  const auto ge_root_model =
+      CreateGeRootModelForModelHelperUt(kNonPortableOpTypeForModelHelper, kNonPortableOpTypeForModelHelper);
+  ASSERT_NE(ge_root_model, nullptr);
+
+  std::string current_env_os;
+  std::string current_env_cpu;
+  PluginManager::GetCurEnvPackageOsAndCpuType(current_env_os, current_env_cpu);
+  if (current_env_os.empty()) {
+    current_env_os = "linux";
+  }
+  if (current_env_cpu.empty()) {
+#if defined(__aarch64__) || defined(__arm64__)
+    current_env_cpu = "aarch64";
+#elif defined(__x86_64__) || defined(__amd64__)
+    current_env_cpu = "x86_64";
+#endif
+  }
+  ASSERT_FALSE(current_env_cpu.empty());
+
+  ScopedHostEnvForModelHelperUt host_env_guard(current_env_os, current_env_cpu);
+  ScopedEnvVarForModelHelperUt custom_opp_guard(kEnvNameCustom);
+  mmSetEnv(kEnvNameCustom, "", 1);
+
+  // 非 PortableOp 自定义算子同样触发 so 收集：kernel 固定实现在 so 中，无需 CUSTOM_OPS 序列化数据。
+  EXPECT_EQ(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
+  EXPECT_FALSE(ge_root_model->GetCustomOpSoSet().empty());
+}
+
+TEST_F(UtestModelHelper, CheckAndSetNeedSoInOMInstanceCreateFailShouldFail) {
+  RegisterCustomOpCreatorForModelHelperUt(kNullInstanceOpTypeForModelHelper,
+                                          []() -> std::unique_ptr<BaseCustomOp> { return nullptr; });
+  const auto ge_root_model =
+      CreateGeRootModelForModelHelperUt(kNullInstanceOpTypeForModelHelper, kNullInstanceOpTypeForModelHelper);
+  ASSERT_NE(ge_root_model, nullptr);
+  ScopedHostEnvForModelHelperUt host_env_guard("linux", GetCurArch());
+  ScopedEnvVarForModelHelperUt custom_opp_guard(kEnvNameCustom);
+  ASSERT_EQ(mmSetEnv(kEnvNameCustom, "", 1), EN_OK);
+
+  // creator 注册成功但实例创建失败时，图内使用了该算子但实现 so 无法收集，
+  // 若静默跳过会得到缺失算子 so 的 OM，编译应直接失败。
+  EXPECT_NE(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
 }
 
 TEST_F(UtestModelHelper, CheckSoArchMatchesTargetNotExistSoShouldFail) {

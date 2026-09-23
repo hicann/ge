@@ -15,6 +15,7 @@
 import inspect
 import types
 import typing
+from typing import List
 
 from ge.graph import DataType
 from ge.runtime import Tensor
@@ -42,12 +43,12 @@ _RUNTIME_ATTR_SPECS = {
     AttrType.STRING: ("get_str", str),
     AttrType.DATA_TYPE: ("get_data_type", DataType),
     AttrType.TENSOR: ("get_tensor", Tensor),
-    AttrType.LIST_INT: ("get_list_int", list[int]),
-    AttrType.LIST_FLOAT: ("get_list_float", list[float]),
-    AttrType.LIST_BOOL: ("get_list_bool", list[bool]),
-    AttrType.LIST_STRING: ("get_list_str", list[str]),
-    AttrType.LIST_DATA_TYPE: ("get_list_data_type", list[DataType]),
-    AttrType.LIST_LIST_INT: ("get_list_list_int", list[list[int]]),
+    AttrType.LIST_INT: ("get_list_int", List[int]),
+    AttrType.LIST_FLOAT: ("get_list_float", List[float]),
+    AttrType.LIST_BOOL: ("get_list_bool", List[bool]),
+    AttrType.LIST_STRING: ("get_list_str", List[str]),
+    AttrType.LIST_DATA_TYPE: ("get_list_data_type", List[DataType]),
+    AttrType.LIST_LIST_INT: ("get_list_list_int", List[List[int]]),
 }
 
 
@@ -79,7 +80,7 @@ def _get_expected_input_annotation(kind: int):
     if kind == InputType.OPTIONAL:
         return typing.Optional[Tensor]
     if kind == InputType.DYNAMIC:
-        return list[Tensor]
+        return List[Tensor]
     raise ValueError(f"unsupported custom op IR input kind: {kind}")
 
 
@@ -87,7 +88,7 @@ def _get_expected_output_annotation(kind: int):
     if kind == OutputType.REQUIRED:
         return Tensor
     if kind == OutputType.DYNAMIC:
-        return list[Tensor]
+        return List[Tensor]
     raise ValueError(f"unsupported custom op IR output kind: {kind}")
 
 

@@ -1,0 +1,27 @@
+/**
+ * Copyright (c) 2026 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+#ifndef GE_INC_FRAMEWORK_RUNTIME_ATTACHED_STREAM_PROVIDER_H_
+#define GE_INC_FRAMEWORK_RUNTIME_ATTACHED_STREAM_PROVIDER_H_
+
+#include "graph/ascend_string.h"
+
+namespace gert {
+using rtStream = void *;
+
+class AttachedStreamProvider {
+ public:
+  virtual ~AttachedStreamProvider() = default;
+
+  virtual rtStream RequestAttachedStream(const ge::AscendString &key) = 0;
+};
+}  // namespace gert
+
+#endif  // GE_INC_FRAMEWORK_RUNTIME_ATTACHED_STREAM_PROVIDER_H_

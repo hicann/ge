@@ -141,4 +141,22 @@ const KernelArgs *EagerOpExecutionContext::MallocReadOnlyDevArgs(void *host_args
   return handler->MallocReadOnlyDevArgs(host_args, args_size);
 }
 
+rtStream EagerOpExecutionContext::RequestAttachedStream(const ge::AscendString &key) {
+  const auto additional_output_start = GetAdditionalOutputStartIndex();
+  GE_ASSERT_TRUE(additional_output_start >= 0);
+
+  const auto *chain = GetOutput(static_cast<size_t>(additional_output_start) +
+                                static_cast<size_t>(AdditionalOutputIndex::kArgsHandler));
+  GE_ASSERT_NOTNULL(chain);
+  auto *handler = chain->GetValue<ArgsHandler *>();
+  GE_ASSERT_NOTNULL(handler);
+
+  // handler 未注入 provider 属正常降级场景（如声明式算子），静默返回 nullptr
+  auto *provider = handler->GetAttachedStreamProvider();
+  if (provider == nullptr) {
+    return nullptr;
+  }
+  return provider->RequestAttachedStream(key);
+}
+
 }  // namespace gert

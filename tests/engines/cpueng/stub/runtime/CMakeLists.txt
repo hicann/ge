@@ -16,6 +16,10 @@ target_compile_options(runtime_aicpu_stub PRIVATE
     -fPIC
 )
 
+target_include_directories(runtime_aicpu_stub PRIVATE
+    ${ASCEND_INSTALL_PATH}/include
+)
+
 target_link_libraries(runtime_aicpu_stub
     PRIVATE
         c_sec

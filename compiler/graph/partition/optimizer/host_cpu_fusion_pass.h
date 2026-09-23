@@ -30,9 +30,10 @@ class HostCpuFusionPass : public EngineReAssignPass {
   Status Run(const ComputeGraphPtr &graph, NodeEngineMap &node_atomic_engine_map,
              NodeEngineMap &node_composite_engine_map) override;
 
-  // 供 UT 验证区域规划；同一 ComputeGraph 内全部分量的区域必须整体准备和提交。
+  // 供 UT 验证区域规划；任一分量不安全时清空整张图的规划区域。
   Status BuildFusionRegions(const ComputeGraphPtr &graph,
-                            std::vector<std::vector<HostCpuFusionRegion>> &component_regions) const;
+                            std::vector<std::vector<HostCpuFusionRegion>> &component_regions,
+                            bool *has_unsafe_region = nullptr) const;
 
  private:
   std::shared_ptr<HostCpuFusionCompiler> compiler_;

@@ -9,6 +9,8 @@
  */
 
 #include <securec.h>
+#include "acl/acl_rt.h"
+#include "acl/acl_base_rt.h"
 #include "runtime/base.h"
 #include "runtime/context.h"
 #include "runtime/mem.h"
@@ -17,6 +19,18 @@
 #include "runtime/rt_model.h"
 
 #define EVENT_LENTH 10
+
+aclError aclrtGetDevice(int32_t *deviceId) {
+  (void)deviceId;
+  return ACL_ERROR_RT_FAILURE;
+}
+
+aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value) {
+  (void)deviceId;
+  (void)attr;
+  (void)value;
+  return ACL_ERROR_RT_FAILURE;
+}
 
 rtError_t rtCtxSetCurrent(rtContext_t ctx) {
   return RT_ERROR_NONE;

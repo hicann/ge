@@ -9,10 +9,12 @@
  */
 
 #include <cstdlib>
+#include <cstdint>
 #include "graph/compute_graph.h"
 #include "exe_graph/runtime/infer_symbol_shape_context.h"
 #include "common/checker.h"
 #include "common/framework_types_internal.h"
+#include "graph/utils/type_utils.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
 
 namespace ge {
@@ -29,8 +31,11 @@ graphStatus GetConstInt(const Expression &expr, DataType dt, int64_t &value) {
       return UNSUPPORTED;
     }
   } else {
-    GELOGE(PARAM_INVALID, "dt must in [int32, int64]");
-    return ge::PARAM_INVALID;
+    // pass创建的算子shape输入可能是int32/int64之外的dtype，属不支持形态而非非法图，
+    // 降级UNSUPPORTED由上层回退传统推导，不打挂整个符号推导
+    GELOGW("Symbol Infer unsupported, dt must in [int32, int64], actual dt %s.",
+           TypeUtils::DataTypeToSerialString(dt).c_str());
+    return UNSUPPORTED;
   }
   return ge::GRAPH_SUCCESS;
 }
@@ -68,11 +73,12 @@ graphStatus ReshapeInferCommon(const gert::InferSymbolShapeContext *context, con
     int64_t dim = -2;
     bool has_dim_value = false;
     if (dim_expr.IsConstExpr()) {
-      // 如果dim是常量，只能是int32或者int64类型
-      if (GetConstInt(dim_expr, dt, dim) == UNSUPPORTED) {
-        GELOGW("Symbol Infer unsupported, get dim at index[%zu] is not constvalue, node %s[%s]", i,
-               context->GetNodeName(), context->GetNodeType());
-        return UNSUPPORTED;
+      // 常量维度取值失败(非常量类型或非法dtype)统一降级UNSUPPORTED，由上层回退传统推导
+      const auto ret = GetConstInt(dim_expr, dt, dim);
+      if (ret != ge::GRAPH_SUCCESS) {
+        GELOGW("Symbol Infer unsupported, get dim at index[%zu] failed, node %s[%s]", i, context->GetNodeName(),
+               context->GetNodeType());
+        return ret;
       }
       has_dim_value = true;
     } else if (dim_expr.GetHint(dim)) {
@@ -145,6 +151,31 @@ graphStatus InferShape4Reshape(gert::InferSymbolShapeContext *context) {
 }
 
 /**
+ * AsStrided 的符号 Shape 推导。
+ * 【算子功能】根据 size、stride 和 storage_offset 创建输入张量的视图，输出 y 的元素类型与 x 相同。
+ * 【算子约束】size、stride 和 storage_offset 是数据依赖输入；size 中每个元素必须是非负 int32 或 int64 常量。
+ * 【推导逻辑】读取 size 的符号值，将每个常量值作为输出 Shape 的对应维度；stride 和 storage_offset 不改变输出 Shape。
+ * 【举例】x=[N,C,H,W]、size=[N,H,W]、stride=[H*W,W,1]、storage_offset=[0] 时，y=[N,H,W]。
+ */
+graphStatus InferShape4AsStrided(gert::InferSymbolShapeContext *context) {
+  const auto size_tensor = context->GetInputSymbolTensor(1);
+  GE_UNSUPPORTED_IF_NULL(size_tensor);
+  const auto size_value = size_tensor->GetSymbolicValue();
+  GE_UNSUPPORTED_IF_NULL(size_value);
+  const auto out_shape = context->GetOutputSymbolShape(0);
+  GE_ASSERT_NOTNULL(out_shape);
+
+  out_shape->MutableDims().clear();
+  for (const auto &dim : *size_value) {
+    int64_t dim_value = 0;
+    GE_ASSERT_TRUE(dim.GetConstValue<int64_t>(dim_value), "AsStrided size must be an int32 or int64 constant");
+    GE_ASSERT_TRUE(dim_value >= 0, "AsStrided size must be non-negative, actual value[%ld]", dim_value);
+    out_shape->AppendDim(Symbol(dim_value));
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+/**
  * Shape算子的符号化Shape推导
  * 【算子功能】获取输入张量的秩，并将秩表示为一个一维Shape张量的长度。
  * 【算子约束】输入必须存在有效的符号Shape；输出为单个一维张量。
@@ -165,5 +196,6 @@ graphStatus InferShape4Shape(gert::InferSymbolShapeContext *context) {
 
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Shape).InferSymbolShape(InferShape4Shape);
 IMPL_OP_INFER_SYMBOL_SHAPE_INNER(Reshape).InferSymbolShape(InferShape4Reshape);
+IMPL_OP_INFER_SYMBOL_SHAPE_INNER(AsStrided).InferSymbolShape(InferShape4AsStrided);
 }  // namespace
 }  // namespace ge

@@ -380,6 +380,7 @@ DavinciModel::~DavinciModel() noexcept {
     // clear exception dump info before stream release
     exception_dumper_.Clear();
     UnbindTaskSinkStream();
+    attached_stream_collection_.UnbindAndDestroy();
     DestroyStream();
     DestroyResources();
     GELOGI("Npu model: %u success to finalize.", model_id_);
@@ -1517,6 +1518,8 @@ Status DavinciModel::InitRuntimeResource() {
     GELOGI("Logical stream index: %u, rtstream: %d, model: %u, stream flag: %u.", i, rt_stream_id, model_id_,
            stream_flags);
   }
+  attached_stream_collection_.Initialize(rt_model_handle_, priority_,
+                                         stream_flag_list_.empty() ? RT_STREAM_DEFAULT : stream_flag_list_[0]);
 
   uint32_t i = 0U;
   if (runtime_param_.notify_types.empty()) {

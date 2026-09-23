@@ -102,7 +102,7 @@ graph LR
         G --> J[Dynamic shape model<br/>or _static_to_dynamic_softsync_op]
         H --> K[TaskDef contains<br/>PREPROCESS_KERNEL type task]
         I --> L[Graph node contains<br/>bin_file_path attribute<br/>or _guard_check_so_data is non-empty]
-        I2 --> L2[Graph contains PortableOp custom operators<br/>recognizable by CustomOpRegistry]
+        I2 --> L2[Graph contains custom operators<br/>recognizable by CustomOpRegistry]
     end
 ```
 
@@ -158,11 +158,11 @@ The detection logic consists of four independent check functions:
 
 #### 3.2.4 CheckAndSetCustomOpSo
 
-**Trigger Conditions**: The graph contains `PortableOp` custom operators recognizable by the `CustomOpRegistry` held by the current `GeRootModel`.
+**Trigger Conditions**: The graph contains custom operators recognizable by the `CustomOpRegistry` held by the current `GeRootModel` (implementing the `PortableOp` interface is not required).
 
-**Description**: `GraphManager::PreRun()` explicitly binds the process-level global `CustomOpRegistry` to the current `GeRootModel` after `BuildModel()` returns. Subsequent custom operator SO collection and `CUSTOM_OPS` partition serialization both access custom operators through `ge_root_model->GetCustomOpRegistry()`, and the save process no longer directly accesses `CustomOpFactory`. When repackaging an existing OM, if the model does not carry a custom op registry, only the custom op partition processing is skipped, without falling back to the process-level global registry.
+**Description**: SO packaging eligibility is decoupled from the `PortableOp` capability. For every registered custom operator used in the graph, its implementation SO is collected and packaged. `PortableOp` only determines whether the operator additionally carries `CUSTOM_OPS` partition serialization data; the two are orthogonal dimensions. PortableOp and non-PortableOp operators can be mixed in one graph. `GraphManager::PreRun()` explicitly binds the process-level global `CustomOpRegistry` to the current `GeRootModel` after `BuildModel()` returns. Subsequent custom operator SO collection and `CUSTOM_OPS` partition serialization both access custom operators through `ge_root_model->GetCustomOpRegistry()`, and the save process no longer directly accesses `CustomOpFactory`. When repackaging an existing OM, if the model does not carry a custom op registry, only the custom op partition processing is skipped, without falling back to the process-level global registry.
 
-**Cross-compilation scenario** (ge_root_model.cc): `CheckAndSetCustomOpSo()` uses `IsCrossCompileTarget()` to determine whether the target environment differs from the compilation environment (comparing OS and CPU architecture). In non-cross-compilation scenarios, `dladdr` is used to resolve the actual SO path from the `PortableOp` vtable, and `CheckSoArchMatchesTarget()` performs ELF architecture validation; in cross-compilation scenarios, local SO collection is skipped, and `CollectCustomOpSoFromCustomOppPath()` is called to collect SOs from the target environment operator package directory pointed to by the `ASCEND_CUSTOM_OPP_PATH` environment variable, also validated by `CheckSoArchMatchesTarget()` to ensure the ELF architecture matches the target CPU.
+**Cross-compilation scenario** (ge_root_model.cc): `CheckAndSetCustomOpSo()` uses `IsCrossCompileTarget()` to determine whether the target environment differs from the compilation environment (comparing OS and CPU architecture). In non-cross-compilation scenarios, `dladdr` is used to resolve the actual SO path from the custom operator instance vtable, and `CheckSoArchMatchesTarget()` performs ELF architecture validation; in cross-compilation scenarios, local SO collection is skipped, and `CollectCustomOpSoFromCustomOppPath()` is called to collect SOs from the target environment operator package directory pointed to by the `ASCEND_CUSTOM_OPP_PATH` environment variable, also validated by `CheckSoArchMatchesTarget()` to ensure the ELF architecture matches the target CPU.
 
 ### 3.3 Collection Phase: LoadAndStoreOppSo
 

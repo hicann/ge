@@ -50,6 +50,7 @@ class CustomOpRegistry {
   BaseCustomOp *GetCustomOpCommonCapability(const AscendString &op_type, CustomOpCapability capability);
   BaseCustomOp *GetCustomOpCommonCapability(const AscendString &op_type, CustomOpCapability capability,
                                             OpRegistrationPriority priority);
+  BaseCustomOp *GetAnyCustomOpInstance(const AscendString &op_type);
   void RemoveCustomOps(const std::vector<AscendString> &op_types);
   ArgsRefreshStrategy GetArgsRefreshStrategy(const AscendString &op_type);
   bool IsAddressRefreshable(const AscendString &op_type);

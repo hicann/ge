@@ -52,7 +52,7 @@ References:
 
 ## Quick Run
 
-Execute shortest path in `examples/custom_op/triton_add_custom` directory:
+Execute shortest path in `examples/custom_op/triton_add_custom` directory
 
 ### Recommended Method
 

@@ -985,7 +985,10 @@ Status MockInitializeHeterogeneousRuntime2(const std::map<std::string, std::stri
 class STEST_helper_runtime : public testing::Test {
  protected:
   static void SetUpTestSuite() {
-    std::string cmd = R"(
+    /* the host resource type dir must follow the running architecture, otherwise the
+     * release pkg prepared here is not the one UdfModel::SerializeModel looks for. */
+    const std::string host_res_type = ExecutionRuntime::IsX86() ? "X86" : "Aarch";
+    std::string cmd = "HOST_RES=" + host_res_type + R"(
 mkdir -p ./temp_udf_st/build/_test/Ascend/release
 cd ./temp_udf_st/build/_test/Ascend/release
 touch func_pp0_release.om
@@ -995,8 +998,8 @@ echo "test1_release" > func_pp0_release.so
 tar -cvf func_pp0_release.tar.gz func_pp0_release.om func_pp0_release.so
 rm -rf func_pp0_release.om func_pp0_release.so
 cd -
-mkdir -p ./temp_udf_st/build/_test/X86/release
-cd ./temp_udf_st/build/_test/X86/release
+mkdir -p ./temp_udf_st/build/_test/${HOST_RES}/release
+cd ./temp_udf_st/build/_test/${HOST_RES}/release
 touch func_pp1_release.om
 touch func_pp1_release.so
 echo "Hello" > func_pp1_release.om
@@ -1004,8 +1007,8 @@ echo "test1_release" > func_pp1_release.so
 tar -cvf func_pp1_release.tar.gz func_pp1_release.om func_pp1_release.so
 rm -rf func_pp1_release.om func_pp1_release.so
 cd -
-cp ./temp_udf_st/build/_test/Ascend/release/func_pp0_release.tar.gz ./temp_udf_st/build/_test/X86/release/
-cp ./temp_udf_st/build/_test/X86/release/func_pp1_release.tar.gz ./temp_udf_st/build/_test/Ascend/release/
+cp ./temp_udf_st/build/_test/Ascend/release/func_pp0_release.tar.gz ./temp_udf_st/build/_test/${HOST_RES}/release/
+cp ./temp_udf_st/build/_test/${HOST_RES}/release/func_pp1_release.tar.gz ./temp_udf_st/build/_test/Ascend/release/
 )";
     (void)system(cmd.c_str());
   }

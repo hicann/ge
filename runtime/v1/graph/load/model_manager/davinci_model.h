@@ -32,6 +32,7 @@
 #include "graph/load/model_manager/model_args_manager.h"
 #include "graph/load/model_manager/tbe_kernel_handle.h"
 #include "graph/load/model_manager/zero_copy_offset.h"
+#include "graph/load/model_manager/attached_stream_collection.h"
 #include "graph/model.h"
 #include "graph/node.h"
 #include "graph/op_desc.h"
@@ -449,6 +450,10 @@ class DavinciModel {
 
   rtModel_t GetRtModelHandle() const {
     return rt_model_handle_;
+  }
+
+  gert::AttachedStreamProvider *GetAttachedStreamProvider() {
+    return &attached_stream_collection_;
   }
 
   uint64_t GetRtBaseAddr() const {
@@ -1643,6 +1648,7 @@ class DavinciModel {
   std::vector<TaskInfoPtr> task_list_;
   // rt_model_handle
   rtModel_t rt_model_handle_{nullptr};
+  AttachedStreamCollection attached_stream_collection_{nullptr, RT_STREAM_PRIORITY_DEFAULT, RT_STREAM_DEFAULT};
 
   aclrtStream rt_model_stream_{nullptr};
 

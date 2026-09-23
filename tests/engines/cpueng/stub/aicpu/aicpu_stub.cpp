@@ -13,6 +13,15 @@
 #include "cpu_kernel.h"
 
 namespace aicpu {
+CpuKernelContext::CpuKernelContext(DeviceType type) {
+  (void)type;
+}
+
+uint32_t CpuKernelContext::Init(void *nodeDef) {
+  (void)nodeDef;
+  return 0;
+}
+
 CpuKernelRegister &CpuKernelRegister::Instance() {
   static CpuKernelRegister instance;
   return instance;

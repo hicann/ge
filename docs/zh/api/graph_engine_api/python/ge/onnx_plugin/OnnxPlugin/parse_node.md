@@ -31,7 +31,7 @@ OnnxPlugin.parse_node(fn: Callable[..., None]) -> Callable[..., None]
 - `target`仅在回调执行期间有效，回调返回或抛出异常后继续访问会抛出`RuntimeError`。
 - 通过`node.attrs`读取属性时仅支持标量及同类型列表（`int`、`float`、`str`及对应列表）；`TENSOR`、`GRAPH`等复合类型属性不支持，节点存在此类属性时`attrs`整体读取失败。类型对照与完整约束参见[`attrs`](../OnnxNode/attrs.md)；此类节点需改用[`parse_operator`](parse_operator.md)。
 - 目标算子为动态输入输出原型（如`PartitionedCall`）时，必须在回调中调用`register_input`、`register_output`等方法注册端口，否则解析器连线阶段失败；目标算子为静态原型（如`Elu`）时不需要注册端口。
-- 同一descriptor同时绑定了[`parse_operator`](parse_operator.md)时，解析器优先调用`parse_operator`，本回调不会被调用。
+- 同一descriptor同时绑定了[`parse_operator`](parse_operator.md)时，解析器只调用`parse_operator`绑定的回调，本回调被忽略且不会报错（"同时绑定"的含义参见[简介](overview.md)）。
 - `fn`不是Python函数（例如类的实例、内置函数等其他可调用对象）时，抛出`TypeError`。
 - 同一descriptor重复绑定`parse_node`回调时，抛出`ValueError`。
 

@@ -101,7 +101,7 @@ graph LR
         G --> J[动态 shape 模型<br/>或 _static_to_dynamic_softsync_op]
         H --> K[TaskDef 中存在<br/>PREPROCESS_KERNEL 类型任务]
         I --> L[图节点包含<br/>bin_file_path 属性<br/>或 _guard_check_so_data 非空]
-        I2 --> L2[图中存在 CustomOpRegistry<br/>可识别的 PortableOp 自定义算子]
+        I2 --> L2[图中存在 CustomOpRegistry<br/>可识别的自定义算子]
     end
 ```
 
@@ -157,11 +157,11 @@ GenerateOfflineModel()
 
 #### 3.2.4 CheckAndSetCustomOpSo
 
-**触发条件**：图中存在当前 `GeRootModel` 持有的 `CustomOpRegistry` 能识别的 `PortableOp` 自定义算子。
+**触发条件**：图中存在当前 `GeRootModel` 持有的 `CustomOpRegistry` 能识别的自定义算子（不要求实现 `PortableOp` 接口）。
 
-**说明**：`GraphManager::PreRun()` 在 `BuildModel()` 返回后会把编译期进程级全局 `CustomOpRegistry` 显式绑定到当前 `GeRootModel`。后续自定义算子 SO 收集和 `CUSTOM_OPS` 分区序列化均通过 `ge_root_model->GetCustomOpRegistry()` 访问自定义算子，保存流程不再直接访问 `CustomOpFactory`。已有 OM 重新打包时如果模型未携带 custom op registry，则仅跳过 custom op 分区处理，不回退到进程级全局 registry。
+**说明**：SO 打包资格与 `PortableOp` 能力解耦。凡图中使用的已注册自定义算子，其实现 SO 均会收集打包。`PortableOp` 仅决定该算子是否额外携带 `CUSTOM_OPS` 分区序列化数据，两者为正交维度；PortableOp 与非 PortableOp 算子可混合使用。`GraphManager::PreRun()` 在 `BuildModel()` 返回后会把编译期进程级全局 `CustomOpRegistry` 显式绑定到当前 `GeRootModel`。后续自定义算子 SO 收集和 `CUSTOM_OPS` 分区序列化均通过 `ge_root_model->GetCustomOpRegistry()` 访问自定义算子，保存流程不再直接访问 `CustomOpFactory`。已有 OM 重新打包时如果模型未携带 custom op registry，则仅跳过 custom op 分区处理，不回退到进程级全局 registry。
 
-**交叉编译场景**（ge_root_model.cc）：`CheckAndSetCustomOpSo()` 通过 `IsCrossCompileTarget()` 判断目标环境与编译环境是否不同（比较 OS 和 CPU 架构）。非交叉编译时，通过 `dladdr` 从 `PortableOp` 虚表解析实际 SO 路径，并用 `CheckSoArchMatchesTarget()` 进行 ELF 架构校验；交叉编译时跳过本机 SO 收集，改为调用 `CollectCustomOpSoFromCustomOppPath()` 从 `ASCEND_CUSTOM_OPP_PATH` 环境变量指向的目标环境算子包目录收集 SO，同样经过 `CheckSoArchMatchesTarget()` 校验 ELF 架构与目标 CPU 匹配。
+**交叉编译场景**（ge_root_model.cc）：`CheckAndSetCustomOpSo()` 通过 `IsCrossCompileTarget()` 判断目标环境与编译环境是否不同（比较 OS 和 CPU 架构）。非交叉编译时，通过 `dladdr` 从自定义算子实例虚表解析实际 SO 路径，并用 `CheckSoArchMatchesTarget()` 进行 ELF 架构校验；交叉编译时跳过本机 SO 收集，改为调用 `CollectCustomOpSoFromCustomOppPath()` 从 `ASCEND_CUSTOM_OPP_PATH` 环境变量指向的目标环境算子包目录收集 SO，同样经过 `CheckSoArchMatchesTarget()` 校验 ELF 架构与目标 CPU 匹配。
 
 ### 3.3 收集阶段：LoadAndStoreOppSo
 
