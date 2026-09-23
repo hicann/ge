@@ -5,7 +5,7 @@ Graph类用于表示和操作计算图。
 基本图操作调用示例：
 
 ```python
-from ge.graph import Graph, DataType, Format
+from ge.graph import Graph, DataType, Format, DumpFormat
 
 # 创建图
 graph = Graph("my_graph")

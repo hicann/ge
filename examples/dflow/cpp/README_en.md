@@ -25,7 +25,7 @@
 
 ## Environment Requirements
 
-- Reference [Environment Preparation](../../../docs/zh/quick_install.md) to download and install driver/firmware/CANN software packages;
+- Reference [Environment Preparation](../../../docs/en/quick_install.md) to download and install driver/firmware/CANN software packages;
 - Model generation script model_generator.py in config directory depends on tensorflow, need to install through pip3 install tensorflow.
 
 ## Program Compilation

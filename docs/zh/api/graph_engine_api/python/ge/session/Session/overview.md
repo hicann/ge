@@ -6,7 +6,7 @@ Session类用于管理图的执行会话。
 
 ```python
 from ge.session import Session
-from ge.graph import Tensor
+from ge.graph import Tensor, DataType, Format
 from ge.ge_global import GeApi
 
 # 初始化 GE

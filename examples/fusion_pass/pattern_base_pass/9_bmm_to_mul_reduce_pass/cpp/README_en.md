@@ -31,7 +31,7 @@ This sample covers two patterns:
 
 - Compiler: GCC >= 7.3.x
 - Python and its dependency library versions: python>=3.9, onnx
-- [Environment Preparation](../../../../../docs/zh/build.md#1-环境准备) completed.
+- [Environment Preparation](../../../../../docs/en/build.md#1-environment-preparation) completed.
 
 ## Implementation Steps
 
@@ -58,9 +58,9 @@ Assume the CANN software package installation directory is INSTALL_PATH, for exa
 
    Run the environment variable script in the software package with the following command:
 
-```bash
+   ```bash
    source ${ASCEND_PATH}/set_env.sh
-```
+   ```
 
    `${ASCEND_PATH}` is the cann path under the CANN software package installation directory. Replace with the actual installation path of the relevant software package, for example `${INSTALL_PATH}/cann`.
 
@@ -78,34 +78,34 @@ Assume the CANN software package installation directory is INSTALL_PATH, for exa
 
 3. Execute sequentially:
 
-```bash
+   ```bash
    mkdir build && cd build
    cmake ..
-```
+   ```
 
    After execution, the es_all_build/generated_code directory generated in the **build** directory contains header files and source code for ES graph building API.
 
 4. Execute `make` command to compile the custom pass so. After successful compilation, install the dynamic library file `libbmm_to_mul_reduce_pass.so` to the custom fusion pass directory via `make install`.
    You can add optional parameter `-j$(nproc)` after `make` for parallel build tasks. `$(nproc)` dynamically gets the CPU core count.
 
-```bash
+   ```bash
    make -j$(nproc) bmm_to_mul_reduce_pass
    make install
-```
+   ```
 
 5. During compilation, the es so that the pass so depends on is generated in the build directory (located at `build/es_output/lib64`, named `libes_all.so`). `make install` only installs the pass so; the es so remains in the build directory. The runtime lookup path is already configured via `$ORIGIN` and the build directory path in CMakeLists.txt:
    - If the build directory remains in place, the pass so can find the es so directly via the build path at runtime, and no extra action is required.
    - If the build directory is deleted or the pass so is relocated (the original build path is no longer accessible at runtime), copy the es so to the pass so installation directory (i.e., `${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes`) so that it resides in the same directory as the pass so. It is then loaded from the same directory via `$ORIGIN` at runtime, without setting `LD_LIBRARY_PATH`.
 
-```bash
+   ```bash
    cp build/es_output/lib64/libes_all.so ${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes/
-```
+   ```
 
    After sample verification is complete, execute the following command to clean the custom pass so installed in the CANN package to avoid affecting subsequent UT/ST:
 
-```bash
+   ```bash
    make clean_custom_pass
-```
+   ```
 
 ## Program Execution
 
@@ -113,9 +113,9 @@ Assume the CANN software package installation directory is INSTALL_PATH, for exa
 
    - Run the environment variable script in the software package with the following command:
 
-```bash
+   ```bash
      source ${ASCEND_PATH}/set_env.sh
-```
+   ```
 
      Replace `${ASCEND_PATH}` with the actual installation path of the relevant software package.
 
@@ -123,48 +123,48 @@ Assume the CANN software package installation directory is INSTALL_PATH, for exa
 
    - Set environment variables to dump the model graph during compilation:
 
-```bash
+   ```bash
      export DUMP_GE_GRAPH=1
-```
+   ```
 
    - Navigate to the `data` directory in the current directory and execute the `.py` file to export onnx (the file uses the onnx library, ensure it's installed before running):
 
-```bash
+   ```bash
      python gen_onnx.py
-```
+   ```
 
    - You can also specify shape parameters to export models with different shapes:
 
-```bash
+   ```bash
      python gen_onnx.py --batch 32 --m 64 --k 8
-```
+   ```
 
    - After execution, a `.onnx` format model file named `model.onnx` is generated in the `data` directory.
-   - Execute the ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/zh/document) and search for "ATC Offline Model Compilation Tool"), replace `soc_version` according to your actual environment:
+   - Execute the ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/en/document) and search for "ATC Offline Model Compilation Tool"), replace `soc_version` according to your actual environment:
 
-```bash
+   ```bash
      atc --model=./model.onnx --framework=5 --soc_version=Ascend910B3 --output=./model_fused
-```
+   ```
 
    - The following output appears in the logs:
 
-```text
+   ```text
      Define pattern for BmmToMulReducePass
      Define MeetRequirements for BmmToMulReducePass
      Define replacement for BmmToMulReducePass
      Created node: Mul
      Created node: ReduceSumD
      Replacement success
-```
+   ```
 
 3. One-click Verification (Optional)
 
    - Use the `quick_verify.sh` script to complete compilation, ATC, and dump graph inspection in one click. The `soc_version` in the script defaults to `Ascend910B3`, modify the `--soc_version` parameter in the atc command in the script according to your actual environment (refer to [Using ATC for Offline Inference](#program-execution)):
 
-```bash
+   ```bash
      cd data
      ./quick_verify.sh [batch] [m] [k]
-```
+   ```
 
    - Default parameters: batch=100, m=2333, k=4
 

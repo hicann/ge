@@ -61,9 +61,9 @@
 
    运行软件包中设置环境变量脚本，命令如下：
 
-```bash
+   ```bash
    source ${ASCEND_PATH}/set_env.sh
-```
+   ```
 
    `${ASCEND_PATH}` 为 CANN 软件包安装目录下的 cann 路径。请替换相关软件包的实际安装路径，例如 `${INSTALL_PATH}/cann`。
 
@@ -81,34 +81,34 @@
 
 3. 依次执行：
 
-```bash
+   ```bash
    mkdir build && cd build
    cmake ..
-```
+   ```
 
    执行后，在 **build** 目录下产生的 es_all_build/generated_code 目录中包含 es 构图 api 的头文件及源码。
 
 4. 执行 `make` 命令编译自定义 pass so，成功编译后通过 `make install` 将动态库文件 `libbmm_to_mul_reduce_pass.so` 安装到自定义融合 pass 目录下。
    可以在 `make` 后增加可选参数 `-j$(nproc)` 用于并行执行构建任务，`$(nproc)` 动态获取 CPU 核心数。
 
-```bash
+   ```bash
    make -j$(nproc) bmm_to_mul_reduce_pass
    make install
-```
+   ```
 
 5. 编译过程中会在 build 目录下生成 pass so 依赖的 es so（位于 `build/es_output/lib64`，文件名为 `libes_all.so`）。`make install` 仅安装 pass so，es so 仍留在 build 目录。CMakeLists.txt 中已通过 `$ORIGIN` 与构建目录路径配置运行时查找路径：
    - 若 build 目录保留在原位，pass so 运行时可直接通过构建路径找到 es so，无需额外操作。
    - 若 build 目录被删除或 pass so 迁移到其他位置（运行时无法再访问原构建路径），需将 es so 拷贝到 pass so 的安装目录（即 `${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes`）与 pass so 同目录存放，运行时通过 `$ORIGIN` 从同目录加载，无需额外设置 `LD_LIBRARY_PATH`。
 
-```bash
+   ```bash
    cp build/es_output/lib64/libes_all.so ${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes/
-```
+   ```
 
    样例验证完成后，执行如下命令清理安装到 CANN 包下的自定义 pass so，避免影响后续 UT/ST：
 
-```bash
+   ```bash
    make clean_custom_pass
-```
+   ```
 
 ## 程序运行
 
@@ -116,9 +116,9 @@
 
    - 运行软件包中设置环境变量脚本，命令如下：
 
-```bash
+   ```bash
      source ${ASCEND_PATH}/set_env.sh
-```
+   ```
 
    - `${ASCEND_PATH}` 请替换相关软件包的实际安装路径。
 
@@ -126,48 +126,48 @@
 
    - 设置环境变量，dump 出编译过程中的模型图：
 
-```bash
+   ```bash
      export DUMP_GE_GRAPH=1
-```
+   ```
 
    - 进入当前目录 `data` 目录执行 `.py` 文件导出 onnx（文件中使用了 onnx 库，运行前请确保安装）：
 
-```bash
+   ```bash
      python gen_onnx.py
-```
+   ```
 
    - 也可指定 shape 参数导出不同 shape 的模型：
 
-```bash
+   ```bash
      python gen_onnx.py --batch 32 --m 64 --k 8
-```
+   ```
 
    - 执行结束后，在 `data` 目录下生成 `.onnx` 格式的模型文件，名称为 `model.onnx`。
    - 执行 ATC 工具命令（关于 ATC 工具的详细说明，请前往[昇腾文档](https://www.hiascend.com/zh/document)搜索文档"ATC离线模型编译工具"），`soc_version` 请根据实际环境修改：
 
-```bash
+   ```bash
      atc --model=./model.onnx --framework=5 --soc_version=Ascend910B3 --output=./model_fused
-```
+   ```
 
    - 日志中出现如下打印：
 
-```text
+   ```text
      Define pattern for BmmToMulReducePass
      Define MeetRequirements for BmmToMulReducePass
      Define replacement for BmmToMulReducePass
      Created node: Mul
      Created node: ReduceSumD
      Replacement success
-```
+   ```
 
 3. 一键式验证（可选）
 
    - 使用 `quick_verify.sh` 脚本可一键完成编译、ATC、dump 图检查。脚本中的 `soc_version` 默认为 `Ascend910B3`，请根据实际环境修改脚本中 atc 命令的 `--soc_version` 参数（参考[使用 ATC 离线推理](#程序运行)中的说明）：
 
-```bash
+   ```bash
      cd data
      ./quick_verify.sh [batch] [m] [k]
-```
+   ```
 
    - 默认参数：batch=100, m=2333, k=4
 

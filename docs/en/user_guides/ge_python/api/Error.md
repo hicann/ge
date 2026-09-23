@@ -24,7 +24,7 @@ class GeError(RuntimeError):
 ## Attribute Description
 
 | Attribute | Type | Description |
-| | :--- | :--- | :--- |
+| :--- | :--- | :--- |
 | error_message | Optional[str] | Internal error information reported by GE ErrMgr |
 | api_name | Optional[str] | Name of failed Python API or underlying GE API |
 | context | Dict[str, Any] | Context information supplemented by Python interface, such as graph_id, stream, output_file |

@@ -1,6 +1,6 @@
 # C++ Fusion Pass Development Guide
 
-This guide is for developers who want to write GE fusion passes in C++. It is recommended to first read the language-independent mechanism description: [Fusion Pattern Pass Mechanism](../../docs/zh/design/features/fusion_pattern_pass.md).
+This guide is for developers who want to write GE fusion passes in C++. It is recommended to first read the language-independent mechanism description: [Fusion Pattern Pass Mechanism](../../docs/en/design/features/fusion_pattern_pass.md).
 
 C++ passes are delivered as dynamic libraries. Developers implement a pass class, register it with GE, and compile it into a `.so`. When GE compiles a model, it loads the `.so` and executes the pass at a specified stage.
 
@@ -402,7 +402,7 @@ When using `atc`, can add `--log=debug`.
 
 ## 13. Recommended Reading Order
 
-1. [Fusion Pattern Pass Mechanism](../../docs/zh/design/features/fusion_pattern_pass.md)
+1. [Fusion Pattern Pass Mechanism](../../docs/en/design/features/fusion_pattern_pass.md)
 2. [AddZeroPass C++ example](pattern_base_pass/4_add_zero_pass/cpp/README.md)
 3. [MatMul+Add C++ example](pattern_base_pass/1_fuse_matmul_add_pass/cpp/README.md)
 4. [capture tensor C++ example](pattern_base_pass/2_fuse_matmul_add_pass_with_capture_tensor/cpp/README.md)

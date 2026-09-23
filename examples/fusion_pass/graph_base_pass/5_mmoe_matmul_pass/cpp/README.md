@@ -9,7 +9,7 @@
 ### 与 pattern_base_pass 版本的区别
 
 | 特性 | pattern_base_pass 版本 | graph_base_pass 版本（本样例） |
-|------|----------------------|------------------------------|
+| ------ | ---------------------- | ------------------------------ |
 | 注册方式 | REG_FUSION_PASS + FusionBasePass | REGISTER_CUSTOM_PASS + CustomPassFn |
 | 合并节点数 | 固定 2 节点合并 | 支持全量 N 节点合并 |
 | 依赖 | 需要 gen_es_api、es_all 库 | 仅依赖 graph、register 库 |
@@ -89,7 +89,7 @@ Y  = x @ W                                        [m, k] @ [k, n*N] = [m, n*N]
 
    `${ASCEND_PATH}`为CANN软件包安装目录下的cann路径。请替换相关软件包的实际安装路径，例如`${INSTALL_PATH}/cann`。
 
-2. 执行如下命令进行编译，编译结束后，在**build**目录下生成动态库文件**libmmoe_matmul_pass.so**。
+1. 执行如下命令进行编译，编译结束后，在**build**目录下生成动态库文件**libmmoe_matmul_pass.so**。
 
    依次执行:
 
@@ -98,7 +98,7 @@ Y  = x @ W                                        [m, k] @ [k, n*N] = [m, n*N]
    cmake .. && make
 ```
 
-3. 成功编译后通过make install将动态库文件libmmoe_matmul_pass.so安装到自定义融合pass目录下。
+1. 成功编译后通过make install将动态库文件libmmoe_matmul_pass.so安装到自定义融合pass目录下。
 
 ```bash
    make install
@@ -118,7 +118,7 @@ Y  = x @ W                                        [m, k] @ [k, n*N] = [m, n*N]
    source ${ASCEND_PATH}/set_env.sh
 ```
 
-2. 使用ATC离线推理。
+1. 使用ATC离线推理。
 
    - 设置环境变量，dump出编译过程中的模型图：
 
@@ -126,7 +126,7 @@ Y  = x @ W                                        [m, k] @ [k, n*N] = [m, n*N]
      export DUMP_GE_GRAPH=1
 ```
 
-   - 在**data**目录执行ONNX模型生成脚本：
+- 在**data**目录执行ONNX模型生成脚本：
 
 ```bash
      python3 gen_onnx.py --experts 4
@@ -134,7 +134,7 @@ Y  = x @ W                                        [m, k] @ [k, n*N] = [m, n*N]
 
      执行结束后，在**data**目录下生成ONNX模型文件**model.onnx**。
 
-   - 执行ATC命令，其中soc_version根据实际模型运行环境填写：
+- 执行ATC命令，其中soc_version根据实际模型运行环境填写：
 
 ```bash
      atc --model=./model.onnx --framework=5 --soc_version=Ascend910B3 --output=./model_fused
@@ -142,13 +142,13 @@ Y  = x @ W                                        [m, k] @ [k, n*N] = [m, n*N]
 
      执行完命令后会在**data**目录下生成**model_fused.om**模型文件。
 
-   - 检查执行结果：
+- 检查执行结果：
 
-     - 自定义Pass生效时，对比NPU编译过程中间dump图，发现模型已按照预期被优化：
-       - 融合前（PreRunBegin图）：存在 N 个 MatMul 节点
-       - 融合后（RunCustomPass_AfterInferShape图）：存在 1 个大 MatMul + 1 个 SplitV + 1 个 ConcatV2D
+  - 自定义Pass生效时，对比NPU编译过程中间dump图，发现模型已按照预期被优化：
+    - 融合前（PreRunBegin图）：存在 N 个 MatMul 节点
+    - 融合后（RunCustomPass_AfterInferShape图）：存在 1 个大 MatMul + 1 个 SplitV + 1 个 ConcatV2D
 
-     - 日志中出现如下打印：
+  - 日志中出现如下打印：
 
 ```text
        MmoeMatmulPass begin.
@@ -158,7 +158,7 @@ Y  = x @ W                                        [m, k] @ [k, n*N] = [m, n*N]
        MmoeMatmulPass end.
 ```
 
-3. 使用一键验证脚本。
+1. 使用一键验证脚本。
 
 ```bash
    cd data

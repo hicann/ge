@@ -31,7 +31,7 @@ Each pattern may have Tile on either the input0 or input1 side of BMM, resulting
 
 - Compiler: GCC >= 7.3.x
 - Python and its dependency library versions: python>=3.9, onnx, numpy
-- [Environment Preparation](../../../../../docs/zh/build.md#1-环境准备) completed.
+- [Environment Preparation](../../../../../docs/en/build.md#1-environment-preparation) completed.
 
 ## Implementation Steps
 
@@ -140,7 +140,7 @@ Assume the CANN software package installation directory is INSTALL_PATH, for exa
 ```
 
    - After execution, a `.onnx` format model file named `model.onnx` is generated in the `data` directory.
-   - Execute the ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/zh/document) and search for "ATC Offline Model Compilation Tool"), replace `soc_version` according to your actual environment:
+   - Execute the ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/en/document) and search for "ATC Offline Model Compilation Tool"), replace `soc_version` according to your actual environment:
 
 ```bash
      atc --model=./model.onnx --framework=5 --soc_version=xxx --output=./model_fused

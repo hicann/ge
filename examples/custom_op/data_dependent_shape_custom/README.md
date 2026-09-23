@@ -138,6 +138,7 @@ data_dependent_shape_custom
 - 当前环境是否具备可用 NPU 和可用 Ascend C 编译环境。
 
 ## 注意事项 / 限制
+
 - `WhereLikeCustom` 当前样例输入为一维 `bool[8]`，因此实际输出为匹配位置索引，shape 为 `[true_count, 1]`。
 - `.asc` 编译参数当前固定为 `--npu-arch=dav-2201`，如目标芯片不同需调整 `CMakeLists.txt`。
 

@@ -23,7 +23,7 @@ This sample demonstrates `PatternMatcherConfig` functionality using MatMul+Add f
 
 - Compiler: GCC >= 7.3.x
 - Python and dependencies: python>=3.9, pytorch>=2.1
-- [Environment preparation](../../../../../docs/zh/build.md) completed.
+- [Environment preparation](../../../../../docs/en/build.md) completed.
 
 ## Implementation Steps
 
@@ -81,7 +81,7 @@ Assume CANN software package installation directory is INSTALL_PATH, e.g., `/hom
    make install
    ```
 
-6. During compilation, the es so that the pass so depends on is generated in the build directory (located at `build/es_output/lib64`, named `libes_all.so`). `make install` only installs the pass so; the es so remains in the build directory. The runtime lookup path is already configured via `$ORIGIN` and the build directory path in CMakeLists.txt:
+5. During compilation, the es so that the pass so depends on is generated in the build directory (located at `build/es_output/lib64`, named `libes_all.so`). `make install` only installs the pass so; the es so remains in the build directory. The runtime lookup path is already configured via `$ORIGIN` and the build directory path in CMakeLists.txt:
    - If the build directory remains in place, the pass so can find the es so directly via the build path at runtime, and no extra action is required.
    - If the build directory is deleted or the pass so is relocated (the original build path is no longer accessible at runtime), copy the es so to the pass so installation directory (i.e., `${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes`) so that it resides in the same directory as the pass so. It is then loaded from the same directory via `$ORIGIN` at runtime, without setting `LD_LIBRARY_PATH`.
 
@@ -138,7 +138,7 @@ Assume CANN software package installation directory is INSTALL_PATH, e.g., `/hom
      ```
 
      - After execution, .air format model file named graph.air generated in data directory.
-     - Execute ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/zh/document) and search for "ATC Offline Model Compilation Tool"), modify `soc_version` based on actual environment:
+     - Execute ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/en/document) and search for "ATC Offline Model Compilation Tool"), modify `soc_version` based on actual environment:
 
        ```bash
        atc --framework=1 --model=./graph.air --soc_version=xxx --output=./model  --input_shape="input_0:2,3;input_1:3,2"

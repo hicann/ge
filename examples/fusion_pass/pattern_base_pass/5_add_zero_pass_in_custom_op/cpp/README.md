@@ -9,7 +9,7 @@
 
 ## 目录结构
 
-```
+```tree
 ├── README.md                     // C++ 样例说明
 ├── src
 │   ├──addcustom_zero_pass.cpp   // pass实现文件
@@ -51,31 +51,32 @@
 
 3. 根据实际情况修改**CMakeLists.txt**文件中的如下信息。
 
-  - ASCEND_PATH：可以设置默认的软件包路径，如果通过set_env.sh设置了`$ASCEND_HOME_PATH`，无需修改。
+- ASCEND_PATH：可以设置默认的软件包路径，如果通过set_env.sh设置了`$ASCEND_HOME_PATH`，无需修改。
 
-  - PASS_SO_DIR：可以设置自定义融合pass动态库安装目录名，默认为`pass_so_dir`。
+- PASS_SO_DIR：可以设置自定义融合pass动态库安装目录名，默认为`pass_so_dir`。
 
-  - target_include_directories：需要包含的头文件，对于本示例，无需修改。如果是用户自行开发的代码，当需要添加头文件时，在示例下方直接增加行即可，注意不要删除原有项目。如果网络中有自定义算子，请增加自定义算子的原型定义头文件。
+- target_include_directories：需要包含的头文件，对于本示例，无需修改。如果是用户自行开发的代码，当需要添加头文件时，在示例下方直接增加行即可，注意不要删除原有项目。如果网络中有自定义算子，请增加自定义算子的原型定义头文件。
 
-  - target_link_libraries：需要链接的库，对于本示例，无需修改。如果是用户自行开发的代码，当需要添加链接库时，在示例下方直接增加行即可，注意不要删除原有项目。
+- target_link_libraries：需要链接的库，对于本示例，无需修改。如果是用户自行开发的代码，当需要添加链接库时，在示例下方直接增加行即可，注意不要删除原有项目。
 
-  >   禁止链接软件包中的其他so，否则后续升级可能会导致兼容性问题。
+  > 禁止链接软件包中的其他so，否则后续升级可能会导致兼容性问题。
 
-4. 依次执行:
+1. 依次执行:
 
    ```
    mkdir build && cd build
    cmake ..
    ```
 
-5. 完成pass的编写后，执行如下命令编译自定义pass so，并将编译后的动态库文件libadd_zero_pass.so拷贝到自定义融合pass目录下，其中“xxx”为用户自定义目录。
+2. 完成pass的编写后，执行如下命令编译自定义pass so，并将编译后的动态库文件libadd_zero_pass.so拷贝到自定义融合pass目录下，其中“xxx”为用户自定义目录。
    可以在make后增加可选参数`-j$(nproc)`用于并行执行构建任务，`$(nproc)`动态获取CPU核心数。
+
    ```
    make -j$(nproc) add_custom_zero_pass
    make install
    ```
 
-6. 编译过程中会在 build 目录下生成 pass so 依赖的 es so（位于 `build/es_output/lib64`，文件名为 `libes_all.so` 和 `libes_custom.so`）。`make install` 仅安装 pass so，es so 仍留在 build 目录。CMakeLists.txt 中已通过 `$ORIGIN` 与构建目录路径配置运行时查找路径：
+3. 编译过程中会在 build 目录下生成 pass so 依赖的 es so（位于 `build/es_output/lib64`，文件名为 `libes_all.so` 和 `libes_custom.so`）。`make install` 仅安装 pass so，es so 仍留在 build 目录。CMakeLists.txt 中已通过 `$ORIGIN` 与构建目录路径配置运行时查找路径：
    - 若 build 目录保留在原位，pass so 运行时可直接通过构建路径找到 es so，无需额外操作。
    - 若 build 目录被删除或 pass so 迁移到其他位置（运行时无法再访问原构建路径），需将 es so 拷贝到 pass so 的安装目录（即 `${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes`）与 pass so 同目录存放，运行时通过 `$ORIGIN` 从同目录加载，无需额外设置 `LD_LIBRARY_PATH`。
 
@@ -90,6 +91,7 @@
    ```
 
 ## pass编写
+
 1. 定义类`AddCustomZeroPass`继承`PatternFusionPass`。
 2. 重写基类`PatternFusionPass`中的3个函数：
    - `Patterns`定义匹配模板，用于在整图中获取与该模板相同的拓扑。
@@ -106,19 +108,24 @@
       ```
       source ${ASCEND_PATH}/set_env.sh
       ```
-      `${ASCEND_PATH}`为CANN软件包安装目录下的cann路径。请替换相关软件包的实际安装路径，例如`${INSTALL_PATH}/cann`。
 
+      `${ASCEND_PATH}`为CANN软件包安装目录下的cann路径。请替换相关软件包的实际安装路径，例如`${INSTALL_PATH}/cann`。
 
 2. 在线推理
    - 设置环境变量，dump出编译过程中的模型图：
+
       ```
       export DUMP_GE_GRAPH=1
       ```
+
    - 进入data目录执行.py文件进行在线推理：
+
       ```
       python torch_forward.py
       ```
+
    - 日志中出现如下打印：
+
      ```
      Define pattern for AddCustomZeroPass
      Define MeetRequirements for AddCustomZeroPass
@@ -135,6 +142,7 @@
       可以发现模型已按预期优化，即加零节点被删除。
 
    - 若未获得预期结果，可设置如下环境变量（如使用atc命令，还需添加参数`--log=debug`）让日志打印到屏幕，来定位原因。
+
      ```bash
       export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
       export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别

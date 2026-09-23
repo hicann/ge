@@ -21,7 +21,6 @@
 - 使用python及其依赖库版本：python==3.7、TensorFlow==1.15.0、numpy==1.21.6
 - 已完成[相关环境准备](../../../../docs/zh/build.md)。
 
-
 ## 程序编译<a name="section6645633456813"></a>
 
 假设CANN软件包的安装目录为INSTALL_PATH，例如`/home/HwHiAiUser/Ascend/`。
@@ -56,6 +55,7 @@
    mkdir build && cd build
    cmake .. && make
    ```
+
 4. 成功编译后通过make install将动态库文件libfuse_matmul_add_pass.so安装到自定义融合pass目录下。
 
    ```
@@ -80,10 +80,10 @@
 
      `${ASCEND_PATH}`请替换相关软件包的实际安装路径。
 
-
 2. 使用ATC离线推理。
 
     - 设置环境变量，dump出编译过程中的模型图：
+
       ```
       export DUMP_GE_GRAPH=1
       ```

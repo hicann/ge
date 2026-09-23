@@ -25,8 +25,8 @@
 - 使用python及其依赖库版本：python>=3.9 、pytorch>=2.1
 - 已完成[相关环境准备](../../../../../docs/zh/build.md)。
 
-
 ## 实现步骤
+
 1. 定义`MoveReluBeforeConcatPass`类继承`FusionBasePass`。
 2. 重写基类`FusionBasePass`中的`Run`方法，其中实现自定义pass逻辑。
 3. 定义`FindConcatNodesMeetRequirements`遍历图中节点，获取符合条件的Concat节点。
@@ -70,6 +70,7 @@
 
 4. 执行make命令编译自定义pass so，成功编译后通过make install将动态库文件libmove_relu_before_concat_pass.so安装到自定义融合pass目录下。
    可以在make后增加可选参数`-j$(nproc)`用于并行执行构建任务，`$(nproc)`动态获取CPU核心数。
+
    ```
    make -j$(nproc) move_relu_before_concat_pass
    make install
@@ -104,31 +105,44 @@
 2. 使用ATC离线推理。
 
     - 设置环境变量，dump出编译过程中的模型图：
+
       ```
       export DUMP_GE_GRAPH=1
       ```
+
     - 设置 build 目录环境变量，`BUILD_PATH` 为“程序编译”步骤中生成的 build 目录实际路径：
+
       ```
       export BUILD_PATH=/path/to/build
       ```
+
     - 安装es_all.whl
+
       ```
       pip install --force-reinstall --upgrade --target ${ASCEND_PATH}/python/site-packages/ ${BUILD_PATH}/es_output/whl/es_all-*.whl
       ```
+
     - 设置环境变量，添加es_all.so的路径
+
       ```
       export LD_LIBRARY_PATH="${BUILD_PATH}/es_output/lib64:${LD_LIBRARY_PATH}"
       ```
+
     - 进入data目录执行.py文件导出air：
+
       ```
       python es_gen_air.py
       ```
+
     - 执行结束后，在data目录下生成.air格式的模型文件，名称为graph.air。
     - 执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾文档](https://www.hiascend.com/zh/document)搜索文档“ATC离线模型编译工具”)，`soc_version`请根据实际环境修改：
+
       ```
       atc --model=./graph.air --framework=1 --soc_version=xxx --output=./model
       ```
+
     - 日志中出现如下打印：
+
       ```
       MoveReluBeforeConcatPass
       Define Replacement for MoveReluBeforeConcatPass
@@ -137,14 +151,19 @@
 
 3. 在线推理
     - 设置环境变量，dump出编译过程中的模型图：
+
        ```
        export DUMP_GE_GRAPH=1
        ```
+
     - 进入data目录执行.py文件进行在线推理（在线推理请确保已安装torch_npu插件）：
+
        ```
        python torch_forward.py
        ```
+
     - 日志中出现如下打印：
+
       ```
       MoveReluBeforeConcatPass
       Define Replacement for MoveReluBeforeConcatPass
@@ -161,6 +180,7 @@
       可以发现模型已按预期优化，即ReLu被移动到Concat前。
 
    - 若未获得预期结果，可设置如下环境变量（如使用atc命令，还需添加参数`--log=debug`）让日志打印到屏幕，来定位原因。
+
      ```bash
       export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
       export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别

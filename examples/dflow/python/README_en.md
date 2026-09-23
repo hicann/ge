@@ -35,9 +35,9 @@
 
 ## Environment Preparation
 
-- Refer to [Environment Preparation](../../../docs/zh/quick_install.md) to download and install driver/firmware/CANN software packages;
+- Refer to [Environment Preparation](../../../docs/en/quick_install.md) to download and install driver/firmware/CANN software packages;
 
-- Python version requirement: python3.12. The specific version should match the python version used when compiling the dataflow wheel package. If you need to use a different python version, you can refer to [Compilation](../../../docs/zh/build.md#43-编译) to recompile the ge_compiler package and install it;
+- Python version requirement: python3.12. The specific version should match the python version used when compiling the dataflow wheel package. If you need to use a different python version, you can refer to [Compilation](../../../docs/en/build.md#43-compilation) to recompile the ge_compiler package and install it;
 
 - The model generation script model_generator.py in the config directory depends on tensorflow-cpu and onnx, which need to be installed via pip3 install tensorflow-cpu and pip3 install onnx;
 

@@ -5,7 +5,6 @@
 本样例以MatMul+Add融合为GEMM的融合pass为例，介绍capture tensor 功能的使用，
 提供在线推理与atc工具离线编译模型两种验证方式，pass使用eager style api和融合接口实现。
 
-
 ## 目录结构<a name="section7668345634665"></a>
 
 ```
@@ -69,6 +68,7 @@
 
 4. 执行make命令编译自定义pass so，成功编译后通过make install将动态库文件libfuse_matmul_add_for_capture_tensor_sample_pass.so安装到自定义融合pass目录下。
    可以在make后增加可选参数`-j$(nproc)`用于并行执行构建任务，`$(nproc)`动态获取CPU核心数。
+
    ```
    make -j$(nproc) fuse_matmul_add_for_capture_tensor_sample_pass
    make install
@@ -103,19 +103,26 @@
 2. 使用ATC离线推理。
 
     - 设置环境变量，dump出编译过程中的模型图：
+
       ```
       export DUMP_GE_GRAPH=1
       ```
+
     - 进入data目录执行.py文件导出onnx（文件中使用了torch的onnx导出器，依赖额外的Python包onnx，运行前请确保安装。此外，ATC工具当前最高支持onnx opset_version 18,若当前torch默认导出更高版本，需显示指定，详情见脚本中注释）：
+
       ```
       python torch_gen_onnx.py
       ```
+
     - 执行结束后，在data目录下生成.onnx格式的模型文件，名称为model.onnx。
     - 执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾文档](https://www.hiascend.com/zh/document)搜索文档“ATC离线模型编译工具”)，`soc_version`请根据实际环境修改：
+
       ```
       atc --model=./model.onnx --framework=5 --soc_version=xxx --output=./model
       ```
+
     - 日志打印内容：
+
       ```
       Define pattern for FuseMatMulAndAddPass in capture tensor sample
       Define MeetRequirements for FuseMatMulAndAddPass in capture tensor sample
@@ -124,24 +131,33 @@
 
 3. 在线推理
     - 设置环境变量，dump出编译过程中的模型图：
+
        ```
        export DUMP_GE_GRAPH=1
        ```
+
     - 进入data目录执行.py文件进行在线推理（在线推理请确保已安装torch_npu插件），执行`torch_forward_1.py`：
+
        ```
        python torch_forward_1.py
        ```
+
    - 对于torch_forward_1.py，日志中出现如下打印：
+
      ```
      Define pattern for FuseMatMulAndAddPass in capture tensor sample
      Define MeetRequirements for FuseMatMulAndAddPass in capture tensor sample
      Define replacement for FuseMatMulAndAddPass in capture tensor sample
      ```
+
    - 执行`torch_forward_2.py`：
+
       ```
       python torch_forward_2.py
       ```
+
    - 对于torch_forward_2.py，日志中出现如下打印：
+
       ```
       Define pattern for FuseMatMulAndAddPass in capture tensor sample
       Define MeetRequirements for FuseMatMulAndAddPass in capture tensor sample
@@ -158,6 +174,7 @@
       可以发现模型已按预期优化，即MatMul与Add被GEMM替换。
 
    - 若未获得预期结果，可设置如下环境变量（如使用atc命令，还需添加参数`--log=debug`）让日志打印到屏幕，来定位原因。
+
      ```bash
       export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
       export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别

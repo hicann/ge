@@ -26,7 +26,7 @@ This sample demonstrates a minimum runnable type III custom operator execution p
 
 - CANN environment has been correctly installed and configured, e.g., executed `source ${ASCEND_HOME_PATH}/set_env.sh`.
 - Current environment has `ACL`, `GE`, `Graph`, `Ascend C` related headers and libraries.
-- Follow [installation guide](../../../docs/zh/quick_install.md) to complete toolkit and ops package installation.
+- Follow [installation guide](../../../docs/en/quick_install.md) to complete toolkit and ops package installation.
 
 ### Framework and Plugins
 

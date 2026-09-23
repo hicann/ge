@@ -42,7 +42,7 @@ cat /usr/local/Ascend/cann/<arch>-linux/ascend_ops_install.info
 #### 安装依赖
 
   以下所列为GE源码编译用到的依赖，请注意版本要求（如果遇到安装问题，请尝试切换镜像源）。
-  > [!NOTE] 注意
+  > [!NOTE] 说明
   > 如使用镜像方式进行项目体验，所有依赖已包含在[init_env.sh](../../scripts/init_env.sh)中，可跳过此安装依赖步骤。
 
 - GCC >= 7.3.x
@@ -94,12 +94,12 @@ bash scripts/check_env.sh
 | **[WARNING]** | 非关键依赖缺失或版本存在偏差 | 建议修复，不影响核心编译 |
 | **[ERROR]**   | 关键依赖缺失或版本不兼容     | 必须修复，否则无法编译   |
 
-> [!NOTE] 注意
+> [!NOTE]说明
 > 环境检查脚本中所有的检查项和版本约束严格来源于docs/zh/build.md和requirements.txt，如文档和依赖更新，请同步修改[脚本](../../scripts/check_env.sh)。
 
 ### 4.3 编译
 
-> [!NOTE] 注意
+> [!NOTE]说明
 > 若您的编译环境无法访问网络，由于无法通过`git`指令下载代码，须在联网环境中下载源码及三方库依赖后，手动上传至目标环境，参见[离线编译指导](./user_guides/offline_compile.md)。
 > 若您的编译环境可以访问网络，通过`git`指令下载代码后，编译过程中将自动下载开源第三方软件。
 
@@ -119,7 +119,7 @@ bash scripts/check_env.sh
 
 ### 4.4 本地验证（UT/ST）
 
-> [!NOTE] 注意
+> [!NOTE]说明
 > 若您的编译环境无法访问网络，请确保已经完成了[4.3 编译](#43-编译)章节中的[离线编译指导](./user_guides/offline_compile.md)。
 
 - 编译执行`UT`测试用例（x86_64默认开启asan）：

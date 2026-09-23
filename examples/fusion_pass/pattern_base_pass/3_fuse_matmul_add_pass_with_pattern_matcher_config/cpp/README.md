@@ -5,7 +5,6 @@
 本样例以`MatMul+Add`融合为`GEMM`的融合pass为例，介绍`PatternMatcherConfig`功能的使用，
 提供在线推理与atc工具离线编译模型两种验证方式，pass使用eager style api和融合接口实现。
 
-
 ## 目录结构<a name="section7668345634665"></a>
 
 ```
@@ -30,11 +29,13 @@
 ## 实现步骤
 
 1. 定义类`FuseMatMulAndAddPass`继承`PatternFusionPass`。重写构造函数：
+
     ```
-	explicit MatmulAddFusionPass() : PatternFusionPass(PatternMatcherConfigBuilder()
+   explicit MatmulAddFusionPass() : PatternFusionPass(PatternMatcherConfigBuilder()
                         .EnableConstValueMatch()
                         .EnableIrAttrMatch().Build()){}
     ```
+
 2. 重写基类`PatternFusionPass`中的2个函数：
    - `Patterns`定义匹配模板，用于在整图中获取与该模板相同的拓扑。
    - `Replacement`定义替换部分。
@@ -73,14 +74,15 @@
    cmake ..
    ```
 
-5. 执行如下命令编译自定义pass so，并将编译后的动态库文件libfuse_matmul_add_for_matcher_config_sample_pass.so拷贝到自定义融合pass目录下，其中“xxx”为用户自定义目录。
+4. 执行如下命令编译自定义pass so，并将编译后的动态库文件libfuse_matmul_add_for_matcher_config_sample_pass.so拷贝到自定义融合pass目录下，其中“xxx”为用户自定义目录。
    可以在make后增加可选参数`-j$(nproc)`用于并行执行构建任务，`$(nproc)`动态获取CPU核心数。
+
    ```
    make -j$(nproc) fuse_matmul_add_for_matcher_config_sample_pass
    make install
    ```
 
-6. 编译过程中会在 build 目录下生成 pass so 依赖的 es so（位于 `build/es_output/lib64`，文件名为 `libes_all.so`）。`make install` 仅安装 pass so，es so 仍留在 build 目录。CMakeLists.txt 中已通过 `$ORIGIN` 与构建目录路径配置运行时查找路径：
+5. 编译过程中会在 build 目录下生成 pass so 依赖的 es so（位于 `build/es_output/lib64`，文件名为 `libes_all.so`）。`make install` 仅安装 pass so，es so 仍留在 build 目录。CMakeLists.txt 中已通过 `$ORIGIN` 与构建目录路径配置运行时查找路径：
    - 若 build 目录保留在原位，pass so 运行时可直接通过构建路径找到 es so，无需额外操作。
    - 若 build 目录被删除或 pass so 迁移到其他位置（运行时无法再访问原构建路径），需将 es so 拷贝到 pass so 的安装目录（即 `${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes`）与 pass so 同目录存放，运行时通过 `$ORIGIN` 从同目录加载，无需额外设置 `LD_LIBRARY_PATH`。
 
@@ -106,32 +108,45 @@
 
      `${ASCEND_PATH}`请替换相关软件包的实际安装路径。
    - 设置环境变量，dump出编译过程中的模型图：
+
      ```
      export DUMP_GE_GRAPH=1
      ```
+
    - 设置 build 目录环境变量，`BUILD_PATH` 为“程序编译”步骤中生成的 build 目录实际路径：
+
      ```
      export BUILD_PATH=/path/to/build
      ```
+
    - 安装es_all.whl
+
      ```
      pip install --force-reinstall --upgrade --target ${ASCEND_PATH}/python/site-packages/ ${BUILD_PATH}/es_output/whl/es_all-*.whl
      ```
+
    - 设置环境变量，添加es_all.so的路径
+
      ```
      export LD_LIBRARY_PATH="${BUILD_PATH}/es_output/lib64:${LD_LIBRARY_PATH}"
      ```
+
 2. 使用ATC离线推理。
    - 进入data目录执行.py文件导出air（文件中使用了 es 的 python 接口来构图）：
+
      ```
      python es_gen_air.py
      ```
+
      - 执行结束后，在data目录下生成.air格式的模型文件，名称为graph.air。
      - 执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾文档](https://www.hiascend.com/zh/document)搜索文档“ATC离线模型编译工具”)，`soc_version`请根据实际环境修改：
+
        ```
        atc --framework=1 --model=./graph.air --soc_version=xxx --output=./model  --input_shape="input_0:2,3;input_1:3,2"
        ```
+
      - 运行成功后，日志中出现如下打印：
+
         ```
         Define pattern for MatMulAddFusionPass in matcher config sample
         Define replacement for MatMulAddFusionPass in matcher config sample
@@ -139,20 +154,27 @@
 
 3. 在线推理
    - 进入data目录执行.py文件进行在线推理（在线推理请确保已安装torch_npu插件），执行`es_forward_1.py`：
+
       ```
       python es_forward_1.py
       ```
+
    - 对于es_forward_1.py，日志中出现如下打印：
+
      ```
      Define pattern for MatMulAddFusionPass in matcher config sample
      Define replacement for MatMulAddFusionPass in matcher config sample
      ```
+
    - 执行`es_forward_2.py`与`es_forward_3.py`
+
       ```
       python es_forward_2.py
       python es_forward_3.py
       ```
+
    - 对于es_forward_2.py和es_forward_3.py，日志中出现如下打印：
+
       ```
       Define pattern for MatMulAddFusionPass in matcher config sample
       ```
@@ -166,6 +188,7 @@
 
      可以发现模型已按预期优化，即MatMul与Add被GEMM替换。
    - 若未获得预期结果，可设置如下环境变量（如使用atc命令，还需添加参数`--log=debug`）让日志打印到屏幕，来定位原因。
+
      ```bash
       export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
       export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别

@@ -1,6 +1,6 @@
 # Python Fusion Pass Development Guide
 
-This guide is for developers who want to write GE fusion passes in Python. It is recommended to first read the language-independent mechanism description: [Fusion Pattern Pass Mechanism](../../docs/zh/design/features/fusion_pattern_pass.md).
+This guide is for developers who want to write GE fusion passes in Python. It is recommended to first read the language-independent mechanism description: [Fusion Pattern Pass Mechanism](../../docs/en/design/features/fusion_pattern_pass.md).
 
 If you already understand the main workflow of "define pattern, match, filter, replacement, reconnect", you can start coding directly according to this guide.
 
@@ -329,7 +329,7 @@ First set CANN environment variables:
 source ${ASCEND_PATH}/set_env.sh
 ```
 
-`ASCEND_PATH` points to CANN Toolkit installation directory, more installation path information see [Quick Install](../../docs/zh/quick_install.md).
+`ASCEND_PATH` points to CANN Toolkit installation directory, more installation path information see [Quick Install](../../docs/en/quick_install.md).
 Python pass runtime will load precompiled binary components built based on `pybind11`, which is related to Python version. CANN package contains precompiled artifacts for multiple Python versions, and defaults to installing artifacts corresponding to current Python version. Runtime will prioritize loading artifacts matching current Python version; if no matching artifacts exist, will enter fallback compilation process, fallback compilation depends on `pybind11` already installed in current Python environment.
 
 Then tell GE where to load Python pass from:
@@ -398,7 +398,7 @@ When using `pyatc`, can also add `--log=debug`.
 
 ## 10. Recommended Reading Order
 
-1. [Fusion Pattern Pass Mechanism](../../docs/zh/design/features/fusion_pattern_pass.md)
+1. [Fusion Pattern Pass Mechanism](../../docs/en/design/features/fusion_pattern_pass.md)
 2. [AddZeroPass Python example](pattern_base_pass/4_add_zero_pass/python/README.md)
 3. [MatMul+Add Python example](pattern_base_pass/1_fuse_matmul_add_pass/python/README.md)
 4. [capture tensor Python example](pattern_base_pass/2_fuse_matmul_add_pass_with_capture_tensor/python/README.md)

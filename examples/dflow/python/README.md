@@ -1,4 +1,5 @@
 # Python样例使用指导
+
 ## 目录结构
 
 ```
@@ -33,6 +34,7 @@
 ```
 
 ## 环境准备
+
 - 参考[环境准备](../../../docs/zh/quick_install.md)下载安装驱动/固件/CANN软件包；
 
 - python 版本要求：python3.12 具体版本以dataflow wheel包编译时用的python版本为准，如果需要使用不同python版本，可以参考[编译](../../../docs/zh/build.md#43-编译)重新编译ge_compiler包并安装；
@@ -42,6 +44,7 @@
 - [sample_pytorch.py](sample_pytorch.py)、[sample_npu_model.py](sample_npu_model.py) 样例依赖torch_npu和torchvision包，torch_npu需要根据实际环境，安装对应的**torch**与**torch_npu**包(建议使用大于等于2.1.0的版本， [获取方法](https://gitcode.com/Ascend/pytorch))，torchvision与torch有配套关系，需要等torch安装完之后使用pip3 install torchvision安装。
 
 ## 运行样例
+
 numa_config.json文件用于配置dflow运行所需的设备资源信息，可使用tools目录下的脚本自动生成单机配置，如需自定义可参考[numa_config字段说明及样例](../../../docs/zh/user_guides/dflow/dflow_dev/python/appendices.md#numa_configjson配置)：
 
 ```bash

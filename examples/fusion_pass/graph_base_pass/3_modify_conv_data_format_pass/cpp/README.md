@@ -34,7 +34,6 @@
 5. 定义`DeleteTransposePairBehindIfExist`，广度遍历后续节点，删除转置操作。
 6. 注册`ConvTransFormatPass`到指定阶段。
 
-
 ## 程序编译
 
 假设CANN软件包的安装目录为INSTALL_PATH， 例如`/home/HwHiAiUser/Ascend/`。
@@ -70,6 +69,7 @@
 
 4. 执行如下命令编译自定义pass so，并将编译后的动态库文件libmodify_conv_data_format_pass.so安装到自定义融合pass目录下。
    可以在make后增加可选参数`-j$(nproc)`用于并行执行构建任务，`$(nproc)`动态获取CPU核心数。
+
    ```
    make -j$(nproc) modify_conv_data_format_pass
    make install
@@ -104,20 +104,27 @@
 2. 使用ATC离线推理。
 
     - 设置环境变量，dump出编译过程中的模型图：
+
       ```
       export DUMP_GE_GRAPH=1
       ```
+
     - 进入data目录执行.py文件导出onnx（文件中使用了torch的onnx导出器，依赖额外的Python包onnx，运行前确保安装。
       此外ATC工具当前最高支持onnx opset_version 18，若当前torch默认导出更高版本，请显式指定，见脚本中注释）：
+
       ```
       python torch_gen_onnx.py
       ```
+
     - 执行结束后，在data目录下生成.onnx格式的模型文件，名称为model.onnx。
     - 执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾社区](https://www.hiascend.com)搜索ATC离线模型编译工具)，`soc_version`请根据实际环境修改：
+
       ```
       atc --model=./model.onnx --framework=5 --soc_version=xxx --output=./model
       ```
+
     - 日志中出现如下打印：
+
       ```
       ConvTransFormatPass is starting
       Remove output edges success
@@ -127,14 +134,19 @@
 
 3. 在线推理
     - 设置环境变量，dump出编译过程中的模型图：
+
        ```
        export DUMP_GE_GRAPH=1
        ```
+
     - 进入data目录执行.py文件进行在线推理（在线推理请确保已安装torch_npu插件）：
+
        ```
        python torch_forward.py
        ```
+
     - 日志中出现如下打印：
+
       ```
       ConvTransFormatPass is starting
       Remove output edges success
@@ -152,6 +164,7 @@
    可以发现模型已按预期优化，即卷积算子的`data_format`被修改为`NHWC`，卷积算子后的`transpose`被删除。
 
    - 若未获得预期结果，可设置如下环境变量（如使用atc命令，还需添加参数`--log=debug`）让日志打印到屏幕，来定位原因。
+
      ```bash
       export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
       export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别

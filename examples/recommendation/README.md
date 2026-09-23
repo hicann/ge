@@ -15,9 +15,11 @@
 ```
 
 ## 环境要求
+
 - 已完成[昇腾AI软件栈在开发环境上的部署](../../docs/zh/quick_install.md)
 
 ## 实现步骤
+
 1. 图构建：使用aclgrphParseTensorFlow解析模型文件，构建GE计算图。
 2. 图编译与加载：通过GE API(ge::Graph, ge::Session)进行图的编译(Compile)和加载(Load)。
 3. 数据准备与执行：根据模型输入结构构造随机数据，使用GE API进行推理。
@@ -31,26 +33,35 @@
 假设toolkit的安装目录为install_path, 例如`/home/HwHiAiUser/Ascend/cann/`
 
 1. 配置环境变量。
+
    ```bash
    source ${install_path}/set_env.sh
    ```
+
 2. 执行如下命令，创建data目录，并[下载](https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/CANN/community/ge/DCN_v2.pb)模型pb文件，放入data目录。
+
    ```shell
    mkdir data
    ```
+
 3. 执行如下命令，编译生成可执行文件
+
    ```
    mkdir build && cd build
    cmake ..
    make
    ```
+
    执行后，在**build**目录下产生recomand_exec可执行文件
 
 4. 执行如下命令，测试推荐网络不开优化特性时的推理吞吐性能。
+
    ```shell
    ./recomand_exec
    ```
+
 5. 测试开启4个多实例、开启批量H2D、控核时的网络推理性能，其中aiCoreNum参考[GE图引擎接口 -> 数据类型 -> options参数说明](https://www.hiascend.com/document/redirect/CannCommunityAscendGraphApi)按照实际硬件信息调整。
+
    ```shell
    ./recomand_exec --multiInstanceNum=4 --enableBatchH2D=true --aiCoreNum="16|16"
    ```
