@@ -12,5 +12,5 @@
 
 | 目录 | 说明 |
 |------|------|
-| [pattern_base_pass](pattern_base_pass/README.md) | 推荐优先参考。通过 `PatternFusionPass` 或 `DecomposePass` 开发 pattern 类融合规则 |
-| [graph_base_pass](graph_base_pass/README.md) | 通过 graph 接口直接改图的样例，适合需要完全手动控制图修改的场景 |
+| [pattern_base_pass](pattern_base_pass/README.md) | 推荐优先参考。通过 `PatternFusionPass` 或 `DecomposePass` 开发 pattern 类融合规则。 |
+| [graph_base_pass](graph_base_pass/README.md) | 通过 graph 接口直接改图的样例，适合需要完全手动控制图修改的场景。 |

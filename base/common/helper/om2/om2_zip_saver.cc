@@ -317,8 +317,6 @@ Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::share
   auto input_json_array = JsonFile::json::array();
   for (size_t i = 0UL; i < model_data.model_meta.input_desc.size(); ++i) {
     const auto &desc = model_data.model_meta.input_desc[i];
-    const auto &desc_v2 =
-        (i < model_data.model_meta.input_desc_v2.size()) ? model_data.model_meta.input_desc_v2[i] : desc;
     JsonFile input_info;
     (void)input_info.Set("name", desc.GetName());
     (void)input_info.Set("index", i);
@@ -329,6 +327,8 @@ Status SerializeModelMeta(const gert::Om2ModelData &model_data, const std::share
       (void)input_info.Set("shape", desc.GetShape());
     }
     if (model_data.model_meta.has_aipp) {
+      const auto &desc_v2 =
+          (i < model_data.model_meta.input_desc_v2.size()) ? model_data.model_meta.input_desc_v2[i] : desc;
       (void)input_info.Set("shape_aclmdlGetInputDimsV2", desc_v2.GetShape());
     }
     (void)input_info.Set("data_type", TypeUtils::DataTypeToSerialString(desc.GetDataType()));

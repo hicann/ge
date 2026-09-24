@@ -14,7 +14,7 @@
 #include <memory>
 #include <vector>
 
-#include "es_Add.h"
+#include "es_custom_ops.h"
 #include "es_Sub.h"
 #include "ge/es_graph_builder.h"
 #include "ge/ge_api.h"
@@ -26,7 +26,7 @@ using namespace ge::es;
 
 namespace {
 constexpr uint32_t kHostCpuGraphId = 0U;
-constexpr uint32_t kAiCoreGraphId = 1U;
+constexpr uint32_t kDeviceGraphId = 1U;
 constexpr size_t kSmallElementCount = 4U;
 constexpr size_t kLargeElementCount = 1024U;
 constexpr float kExpectedSmallValues[kSmallElementCount] = {6.0f, 8.0f, 10.0f, 12.0f};
@@ -51,7 +51,7 @@ std::unique_ptr<ge::Graph> BuildSmallDataGraph(const char *name, size_t element_
   (void)x.SetAttrForNode(kAttrHostTensor, true);
   (void)y.SetAttrForNode(kAttrHostTensor, true);
   const auto sub_before_add = es::Sub(x, y);
-  const auto add = es::Add(sub_before_add, y);
+  const auto add = es::AddCustom(sub_before_add, y);
   auto dynamic_sub_input = graph_builder->CreateInput(2, "dynamic_sub_input", ge::DT_FLOAT, ge::FORMAT_ND, {-1});
   const auto sub_after_add = es::Sub(add, dynamic_sub_input);
   (void)graph_builder->SetOutput(sub_after_add, 0);
@@ -63,7 +63,7 @@ std::unique_ptr<ge::Graph> BuildLargeDataGraph(const char *name, size_t element_
   auto graph_builder = std::make_unique<EsGraphBuilder>(name);
   auto x = graph_builder->CreateInput(0, "data_x", ge::DT_FLOAT, ge::FORMAT_ND, {static_cast<int64_t>(element_count)});
   auto y = graph_builder->CreateInput(1, "data_y", ge::DT_FLOAT, ge::FORMAT_ND, {static_cast<int64_t>(element_count)});
-  auto add = es::Add(x, y);
+  auto add = es::AddCustom(x, y);
   (void)graph_builder->SetOutput(add, 0);
   return graph_builder->BuildAndReset();
 }
@@ -133,7 +133,7 @@ bool PrepareHostCpuInputs(std::vector<ge::Tensor> &inputs) {
 }
 
 bool RunHostCpuScenario(ge::Session &session) {
-  std::cout << "\n=== Scenario1: HostCpu Custom (Sub + Add + dynamic Sub) ===" << std::endl;
+  std::cout << "\n=== Scenario1: HostCpu Custom (Sub + AddCustom + dynamic Sub) ===" << std::endl;
 
   auto graph = BuildSmallDataGraph("HostCpuDataGraph", kSmallElementCount);
   if (graph == nullptr) {
@@ -176,16 +176,16 @@ bool RunHostCpuScenario(ge::Session &session) {
   return verified;
 }
 
-bool RunAiCoreScenario(ge::Session &session) {
-  std::cout << "\n=== Scenario2: AiCore (Data input + large shape + static graph) ===" << std::endl;
+bool RunDeviceScenario(ge::Session &session) {
+  std::cout << "\n=== Scenario2: Device (Data input + large shape + static graph) ===" << std::endl;
 
-  auto graph = BuildLargeDataGraph("AiCoreInputGraph", kLargeElementCount);
+  auto graph = BuildLargeDataGraph("DeviceInputGraph", kLargeElementCount);
   if (graph == nullptr) {
     std::cerr << "BuildLargeDataGraph failed" << std::endl;
     return false;
   }
 
-  const auto add_ret = session.AddGraph(kAiCoreGraphId, *graph);
+  const auto add_ret = session.AddGraph(kDeviceGraphId, *graph);
   if (add_ret != ge::SUCCESS) {
     std::cerr << "AddGraph failed, ret: " << add_ret << std::endl;
     return false;
@@ -205,21 +205,21 @@ bool RunAiCoreScenario(ge::Session &session) {
   ge::Tensor input_x;
   ge::Tensor input_y;
   if (!MakeInputTensor(x_values, input_x) || !MakeInputTensor(y_values, input_y)) {
-    (void)session.RemoveGraph(kAiCoreGraphId);
+    (void)session.RemoveGraph(kDeviceGraphId);
     return false;
   }
   inputs.push_back(input_x);
   inputs.push_back(input_y);
 
-  const auto run_ret = session.RunGraph(kAiCoreGraphId, inputs, outputs);
+  const auto run_ret = session.RunGraph(kDeviceGraphId, inputs, outputs);
   if (run_ret != ge::SUCCESS) {
     std::cerr << "RunGraph failed, ret: " << run_ret << std::endl;
-    (void)session.RemoveGraph(kAiCoreGraphId);
+    (void)session.RemoveGraph(kDeviceGraphId);
     return false;
   }
   if (outputs.empty()) {
     std::cerr << "RunGraph success but outputs is empty" << std::endl;
-    (void)session.RemoveGraph(kAiCoreGraphId);
+    (void)session.RemoveGraph(kDeviceGraphId);
     return false;
   }
 
@@ -229,7 +229,7 @@ bool RunAiCoreScenario(ge::Session &session) {
     std::cerr << "Output verification failed" << std::endl;
   }
 
-  (void)session.RemoveGraph(kAiCoreGraphId);
+  (void)session.RemoveGraph(kDeviceGraphId);
   return verified;
 }
 }  // namespace
@@ -237,14 +237,14 @@ bool RunAiCoreScenario(ge::Session &session) {
 namespace {
 constexpr const char *const kScenarioAll = "all";
 constexpr const char *const kScenarioHost = "host";
-constexpr const char *const kScenarioAiCore = "aicore";
+constexpr const char *const kScenarioDevice = "device";
 constexpr char kScenarioOptionPrefix[] = "--scenario=";
 
 void PrintUsage(const char *prog_name) {
-  std::cout << "Usage: " << prog_name << " [--scenario=all|host|aicore]" << std::endl;
+  std::cout << "Usage: " << prog_name << " [--scenario=all|host|device]" << std::endl;
   std::cout << "  --scenario=all     (default) Run both scenarios" << std::endl;
   std::cout << "  --scenario=host    Run HostCpu custom op scenario" << std::endl;
-  std::cout << "  --scenario=aicore  Run AICore built-in op scenario" << std::endl;
+  std::cout << "  --scenario=device  Run Device custom op scenario" << std::endl;
 }
 
 int RunScenarios(const std::string &scenario) {
@@ -269,8 +269,8 @@ int RunScenarios(const std::string &scenario) {
       }
     }
 
-    if (scenario == kScenarioAll || scenario == kScenarioAiCore) {
-      if (!RunAiCoreScenario(session)) {
+    if (scenario == kScenarioAll || scenario == kScenarioDevice) {
+      if (!RunDeviceScenario(session)) {
         ret_code = 1;
       }
     }
@@ -299,8 +299,8 @@ int main(int argc, char *argv[]) {
       return 0;
     }
   }
-  if (scenario != kScenarioAll && scenario != kScenarioHost && scenario != kScenarioAiCore) {
-    std::cerr << "Invalid scenario: " << scenario << ". Must be 'all', 'host' or 'aicore'." << std::endl;
+  if (scenario != kScenarioAll && scenario != kScenarioHost && scenario != kScenarioDevice) {
+    std::cerr << "Invalid scenario: " << scenario << ". Must be 'all', 'host' or 'device'." << std::endl;
     PrintUsage(argv[0]);
     return 1;
   }

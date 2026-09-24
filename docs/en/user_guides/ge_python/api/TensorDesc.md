@@ -3,9 +3,9 @@
 ## Product Support
 
 | Product | Support |
-| :----------- | :------: |
-| Atlas A3 Training Products/Atlas A3 Inference Products | √ |
-| Atlas A2 Training Products/Atlas A2 Inference Products | √ |
+| :------ | :------: |
+| Atlas A3 products | √ |
+| Atlas A2 products | √ |
 
 ## Module Import
 

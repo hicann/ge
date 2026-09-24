@@ -23,7 +23,7 @@ cpp/
 
 ### 3.1 Prepare CANN Package
 
-- Correctly install `toolkit` and `ops` packages through [Environment Preparation](../../../docs/zh/quick_install.md) section "Method 3: Manual Package Installation > Scenario 1: Experience master version capabilities or develop based on master version"
+- Correctly install `toolkit` and `ops` packages through [Environment Preparation](../../../docs/en/quick_install.md) section "Method 3: Manual Package Installation > Scenario 1: Experience master version capabilities or develop based on master version"
 - Set environment variables (assuming package is installed in /usr/local/Ascend/)
 
 ```bash

@@ -399,7 +399,7 @@ std::vector<std::string> SimpleZipArchiveReader::ListFiles() const {
   auto uz_ret = unzGoToFirstFile(zip_handle_);
   GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to go to the first file in the archive, ret = %d", uz_ret);
 
-  do {
+  while (uz_ret == UNZ_OK) {
     std::vector<char_t> name_buff(kMaxFileNameLength, '\0');
     uz_ret = unzGetCurrentFileInfo64(zip_handle_, nullptr, name_buff.data(), name_buff.size(), nullptr, 0, nullptr, 0);
     GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to get the current file information, ret = %d", uz_ret);
@@ -408,7 +408,7 @@ std::vector<std::string> SimpleZipArchiveReader::ListFiles() const {
       (void)file_list.emplace_back(file_name);
     }
     uz_ret = unzGoToNextFile(zip_handle_);
-  } while (uz_ret == UNZ_OK);
+  }
 
   GE_ASSERT_TRUE(uz_ret == UNZ_END_OF_LIST_OF_FILE, "unzGoToNextFile failed, ret=%d", uz_ret);
   return file_list;

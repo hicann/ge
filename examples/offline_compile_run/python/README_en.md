@@ -24,7 +24,7 @@ python/
 
 ### 3.1 Prepare CANN Package
 
-- Refer to [Environment Preparation](../../../docs/zh/quick_install.md) section "Method 3: Manual Package Installation > Scenario 1: Experience master version capabilities or develop based on master version", install the latest `toolkit` and `ops` packages.
+- Refer to [Environment Preparation](../../../docs/en/quick_install.md) section "Method 3: Manual Package Installation > Scenario 1: Experience master version capabilities or develop based on master version", install the latest `toolkit` and `ops` packages.
 - Set environment variables (assuming the package is installed in /usr/local/Ascend/)
 
 ```bash

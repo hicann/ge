@@ -47,17 +47,6 @@ typedef struct tagRtKernelInfo {
 
 typedef rtSmDesc_t rtL2Ctrl_t;
 
-typedef struct {
-  uint32_t addrOffset;
-  uint32_t dataOffset;
-} rtPlaceHolderInfo_t;
-
-typedef struct {
-  rtAicpuArgsEx_t baseArgs;
-  size_t cpuParamHeadOffset;
-  uint32_t rsv[4];
-} rtCpuKernelArgs_t;
-
 #define RT_MQ_QUERY_QUES_ATTR_ENTITY_TYPE ((rtMemQueueQueryCmd_t)2)
 
 typedef struct tagNodeInfo_t {
@@ -104,14 +93,6 @@ typedef enum rtKernelType {
 RTS_API rtError_t rtKernelLaunchWithHandleV2(void *hdl, const uint64_t tilingKey, uint32_t numBlocks,
                                              rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc, rtStream_t stm,
                                              const rtTaskCfgInfo_t *cfgInfo);
-
-RTS_API rtError_t rtVectorCoreKernelLaunchWithHandle(void *hdl, const uint64_t tilingKey, uint32_t numBlocks,
-                                                     rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc, rtStream_t stm,
-                                                     const rtTaskCfgInfo_t *cfgInfo);
-
-RTS_API rtError_t rtVectorCoreKernelLaunch(const void *stubFunc, uint32_t numBlocks, rtArgsEx_t *argsInfo,
-                                           rtSmDesc_t *smDesc, rtStream_t stm, uint32_t flags,
-                                           const rtTaskCfgInfo_t *cfgInfo);
 
 RTS_API rtError_t rtGetSocVersion(char_t *ver, const uint32_t maxLen);
 

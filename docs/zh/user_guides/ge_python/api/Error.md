@@ -8,8 +8,8 @@ from ge.error import GeError
 
 ## 功能说明
 
-`GeError` 是 GE Python API 在调用底层 GE 接口失败时抛出的异常类型，继承自 `RuntimeError`。
-原有捕获 `RuntimeError` 的代码仍然可以捕获该异常；需要读取 GE ErrMgr 内部错误信息和接口上下文时，
+`GeError` 是GE Python API在调用底层GE接口失败时抛出的异常类型，继承自 `RuntimeError`。
+原有捕获 `RuntimeError` 的代码仍然可以捕获该异常；需要读取GE ErrMgr内部错误信息和接口上下文时，
 可以捕获 `GeError`。
 
 ## 类定义

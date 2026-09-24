@@ -4764,7 +4764,18 @@ TEST_F(SymbolicShapeComputeUT, InferShapeForSimpleGraphShapeNEOriginShape) {
   ge::Tensor tensor1{td1};
   input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor1));
 
-  ASSERT_NE(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), ge::SUCCESS);
+  // 降级契约：Data 节点声明 rank 与运行期输入 rank 不一致时不打挂整个符号化，而是跳过该输入
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), ge::SUCCESS);
+  // 被跳过的 data1 不得残留空的 SymbolicDescAttr（否则会被 IsUnInferredNode 误判为推导成功）
+  auto data1_node = cg->FindNode("data1");
+  ASSERT_NE(data1_node, nullptr);
+  EXPECT_EQ(data1_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>(), nullptr);
+  // data0 声明为未知 rank(-2)，按运行期 rank 正常符号化
+  auto data0_node = cg->FindNode("data0");
+  ASSERT_NE(data0_node, nullptr);
+  auto data0_attr = data0_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(data0_attr, nullptr);
+  EXPECT_EQ(data0_attr->symbolic_tensor.GetOriginSymbolShape().GetDimNum(), 4U);
 }
 
 //

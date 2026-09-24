@@ -22,7 +22,7 @@ This sample demonstrates capture tensor functionality using MatMul+Add fusion to
 
 - Compiler: GCC >= 7.3.x
 - Python and dependencies: python>=3.9, pytorch>=2.1
-- [Environment preparation](../../../../../docs/zh/build.md) completed.
+- [Environment preparation](../../../../../docs/en/build.md) completed.
 
 ## Implementation Steps
 
@@ -114,7 +114,7 @@ This sample demonstrates capture tensor functionality using MatMul+Add fusion to
       ```
 
     - After execution, .onnx format model file named model.onnx generated in data directory.
-    - Execute ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/zh/document) and search for "ATC Offline Model Compilation Tool"), modify `soc_version` based on actual environment:
+    - Execute ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/en/document) and search for "ATC Offline Model Compilation Tool"), modify `soc_version` based on actual environment:
 
       ```bash
       atc --model=./model.onnx --framework=5 --soc_version=xxx --output=./model

@@ -1,9 +1,11 @@
 # 样例使用指导
 
 ## 1、功能描述
+
 本样例演示离线图编译执行的流程，关于编译图为离线模型更多信息，请参考 [生成离线模型](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900beta1/graph/graphdevg/atlasag_25_0030.html)。
 
 ## 2、目录结构
+
 ```angular2html
 python/
 ├── src/
@@ -19,9 +21,12 @@ python/
 ```
 
 ## 3、使用方法
+
 ### 3.1、准备cann包
+
 - 请参考 [环境准备](../../../docs/zh/quick_install.md) 中“方式三：手动安装软件包 > 场景1：体验master版本能力或基于master版本进行开发”，正确安装 `toolkit` 和 `ops` 包。
 - 设置环境变量 (假设包安装在/usr/local/Ascend/)
+
 ```
 source /usr/local/Ascend/cann/set_env.sh
 ```
@@ -29,28 +34,36 @@ source /usr/local/Ascend/cann/set_env.sh
 ### 3.2、图编译和图执行
 
 执行单模型样例：
+
 ```bash
 bash run_sample.sh -t sample_and_run_python
 ```
+
 该命令会：
+
 1. 构建 `Add` 图，离线编译并生成 `add_sample.om`
 2. 加载并执行该离线模型
 
 执行 bundle 样例：
+
 ```bash
 bash run_sample.sh -t sample_and_run_bundle_python
 ```
+
 该命令会：
+
 1. 将 `Add` 图与 `Mul` 图打成 Bundle，离线编译并生成 `bundle_sample.om`
 2. 加载 Bundle，并分别执行两个子模型
 
 离线编译在无卡场景下如需指定目标芯片版本，可增加 `--soc-version`：
+
 ```bash
 bash run_sample.sh --soc-version Ascend910B1 -t sample_and_run_python
 bash run_sample.sh --soc-version Ascend910B1 -t sample_and_run_bundle_python
 ```
 
 也可以拆分为“只做图编译”和“只做图执行”两个阶段：
+
 ```bash
 bash run_sample.sh -t build_model
 bash run_sample.sh -t run_infer
@@ -60,6 +73,7 @@ bash run_sample.sh -t run_bundle_infer
 ```
 
 执行成功后会看到：
+
 ```text
 [Success] sample 执行成功
 ```
@@ -67,11 +81,14 @@ bash run_sample.sh -t run_bundle_infer
 #### 输出文件说明
 
 执行成功后会在当前目录生成以下文件：
+
 - `add_sample.om` - 单模型离线文件
 - `bundle_sample.om` - Bundle 离线模型文件
 
 ### 3.3、日志打印
+
 可执行程序执行过程中如果需要日志打印来辅助定位，可以在 `bash run_sample.sh` 之前设置如下环境变量来让日志打印到屏幕
+
 ```bash
 export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
 export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别
@@ -80,12 +97,14 @@ export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别
 ## 4、核心流程介绍
 
 ### 4.1、单模型离线编译执行
+
 - 使用 `build_initialize` 初始化编译环境
 - 构建 `Graph` 并通过 `build_model` 生成离线模型
 - 使用 `save_model` 保存 `om` 文件
 - 通过 `acl.mdl.load_from_file`、`acl.mdl.execute` 执行离线模型
 
 ### 4.2、Bundle 离线编译执行
+
 - 使用 `GraphWithOptions` 组织多个 `Graph`
 - 通过 `bundle_build_model` 一次性构建 Bundle 模型
 - 使用 `bundle_save_model` 保存 `bundle_sample.om`

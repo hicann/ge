@@ -17,8 +17,8 @@ TaskScheduleData::TaskScheduleData(const void *exec_data)
   }
 }
 
-TaskScheduleData::TaskScheduleData(const void *exec_data, const FreeLaunchRelationCsr &free_launch_relation_csr)
+TaskScheduleData::TaskScheduleData(const void *exec_data, const FreeLaunchRelationCsr &relation_csr)
     : TaskScheduleData(exec_data) {
-  this->free_launch_relation_csr = free_launch_relation_csr;
+  this->free_launch_relation_csr = relation_csr;
 }
 }  // namespace gert

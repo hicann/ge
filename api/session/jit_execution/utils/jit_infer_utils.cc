@@ -238,6 +238,8 @@ void ClearInferredNodesWithAllDataNodes(std::vector<NodePtr> &inferred_nodes) {
       return;
     }
   }
+  GELOGI("All inferred nodes are graph input nodes, clear them to avoid useless slicing, size:%zu.",
+         inferred_nodes.size());
   inferred_nodes.clear();
 }
 
@@ -347,10 +349,10 @@ Status JitInferUtils::InferGraphAndGetInferredNodes(const ComputeGraphPtr &graph
   PropagatePullable(uninferred_nodes, inferred_nodes, pullable_categories);
   // 3. netoutput节点单独处理
   AssignNetOutputNodes(net_output_nodes, inferred_nodes, uninferred_nodes);
-  // 4. data节点单独处理
-  ClearInferredNodesWithAllDataNodes(inferred_nodes);
-  // 5. 去除悬空节点
+  // 4. 去除悬空节点(必须先于第5步，否则悬空节点会挡住第5步的清空)
   DeleteNodesWithoutParentNode(inferred_nodes);
+  // 5. data节点单独处理：集合只剩图输入类节点时清空，避免切出纯 Data 残片
+  ClearInferredNodesWithAllDataNodes(inferred_nodes);
   GELOGD("Infer node size: %zu", inferred_nodes.size());
   return SUCCESS;
 }

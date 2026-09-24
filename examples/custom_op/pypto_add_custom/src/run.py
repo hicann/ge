@@ -29,12 +29,18 @@ import torch_npu
 from pypto_add_kernel import NUM_ELEMENTS, pypto_add_kernel
 import tensor_bridge
 
-from es_custom import PyptoAddCustom
 from ge.es.graph_builder import GraphBuilder
 from ge.ge_global import GeApi
 from ge.graph import Tensor
 from ge.graph.types import DataType, Format, Placement
 from ge.session import Session
+
+try:
+    from ge.es.custom import PyptoAddCustom
+except ImportError as import_error:
+    raise RuntimeError(
+        "Custom-op ES APIs are unavailable. Run run.sh first."
+    ) from import_error
 
 GRAPH_ID = 0
 DEVICE_ID = int(os.environ.get("DEVICE_ID", "0"))

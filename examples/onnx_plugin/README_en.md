@@ -44,9 +44,9 @@ debug logging (see Section 3.6) to locate the offending file.
 - Refer to [Environment Preparation](../../docs/en/quick_install.md#1-environment-preparation), section "Method 3: Manual Package Installation > Scenario 1: Experience master version capabilities or develop based on master version", and install the `toolkit` and `ops` packages properly.
 - Set environment variables (assuming the packages are installed in /usr/local/Ascend/):
 
-```bash
-source /usr/local/Ascend/cann/set_env.sh
-```
+  ```bash
+  source /usr/local/Ascend/cann/set_env.sh
+  ```
 
 ### 3.2 Preparing Python Dependencies
 
@@ -349,7 +349,7 @@ The subgraph is built with the GE ES graph-building API: `GraphBuilder` builds
 the graph (creating inputs, setting outputs, building), and existing operators
 (Threshold, Mul, SplitD, and so on) are directly callable functions. For the
 full operator list and parameter descriptions, see the
-[ES Python API document](../../docs/zh/user_guides/es_graph/api/es_python.md).
+[ES Python API document](../../docs/en/user_guides/es_graph/api/es_python.md).
 
 Notes when writing `decompose`:
 

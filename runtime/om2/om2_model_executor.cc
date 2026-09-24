@@ -1956,7 +1956,7 @@ ge::Status GetOm2MemAndWeightSize(const void *model_data, size_t model_size, siz
   return ge::SUCCESS;
 }
 
-ge::Status GetOm2WorkspaceSize(const std::string &model_path, const bool query_zero_copy_size, size_t &work_size,
+ge::Status GetOm2WorkspaceSize(const std::string &model_path, bool query_zero_copy_size, size_t &work_size,
                                size_t &zero_copy_size) {
   ge::ModelData model_data;
   GE_CHK_STATUS_RET(LoadOm2DataFromFile(model_path, model_data), "[OM2][Query] Load model data from file failed.");
@@ -1970,8 +1970,8 @@ ge::Status GetOm2WorkspaceSize(const std::string &model_path, const bool query_z
   return GetOm2WorkspaceSizeFromArchive(archive, query_zero_copy_size, work_size, zero_copy_size);
 }
 
-ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, const bool query_zero_copy_size,
-                               size_t &work_size, size_t &zero_copy_size) {
+ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, bool query_zero_copy_size, size_t &work_size,
+                               size_t &zero_copy_size) {
   ge::RAIIZipArchive archive(static_cast<const uint8_t *>(model_data), model_size);
   GE_ASSERT_TRUE(archive.IsGood());
   return GetOm2WorkspaceSizeFromArchive(archive, query_zero_copy_size, work_size, zero_copy_size);

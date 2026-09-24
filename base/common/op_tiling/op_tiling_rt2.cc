@@ -579,13 +579,9 @@ ge::graphStatus RtParseAndTiling(const ge::Operator &op, const char_t *const com
 
   std::array<char_t, static_cast<size_t>(kSocVersionLen)> soc_version{};
   const char *soc_name = aclrtGetSocName();
-  if (soc_name == nullptr) {
-    GE_CHK_RT_RET(ACL_ERROR_FAILURE);
-  }
+  GE_ASSERT_NOTNULL(soc_name);
   const auto ret = strncpy_s(soc_version.data(), kSocVersionLen, soc_name, static_cast<uint32_t>(kSocVersionLen) - 1);
-  if (ret != 0) {
-    GE_CHK_RT_RET(ACL_ERROR_FAILURE);
-  }
+  GE_ASSERT_TRUE(ret == 0, "strncpy_s soc version failed, ret = %d", ret);
 
   fe::PlatformInfo platform_info;
   GE_ASSERT_SUCCESS(ge::CoreNumUtils::GetGeDefaultPlatformInfo(soc_version.data(), platform_info));

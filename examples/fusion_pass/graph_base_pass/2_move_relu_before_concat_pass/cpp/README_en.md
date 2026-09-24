@@ -23,7 +23,7 @@ using eager style api and fusion interfaces.
 
 - Compiler: GCC >= 7.3.x
 - Python and dependency versions: python>=3.9, pytorch>=2.1
-- Completed [environment preparation](../../../../../docs/zh/build.md).
+- Completed [environment preparation](../../../../../docs/en/build.md).
 
 ## Implementation Steps
 
@@ -135,7 +135,7 @@ Assume CANN package installation directory is INSTALL_PATH, e.g., `/home/HwHiAiU
       ```
 
     - After execution, .air format model file named graph.air is generated in data directory.
-    - Execute ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/zh/document) and search "ATC Offline Model Compilation Tool"), modify `soc_version` per actual environment:
+    - Execute ATC tool command (for detailed ATC tool instructions, visit [Ascend Documentation](https://www.hiascend.com/en/document) and search "ATC Offline Model Compilation Tool"), modify `soc_version` per actual environment:
 
       ```bash
       atc --model=./graph.air --framework=1 --soc_version=xxx --output=./model

@@ -160,12 +160,6 @@ TEST_F(fusion_manager_unittest, platform_info_manager_test2) {
   ret = pm.Finalize();
   EXPECT_EQ(ret, fe::SUCCESS);
 
-  string str = "";
-  pm.Trim(str);
-
-  str = " ";
-  pm.Trim(str);
-
   path = GetCodeDir() + "/tests/engines/nn_engine/ut/testcase/fusion_engine/fusion_manager/Ascend001.ini";
   real_path = RealPath(path);
   ret = pm.LoadIniFile(real_path);

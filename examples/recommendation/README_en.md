@@ -16,7 +16,7 @@ This sample is a high-performance inference example for recommendation networks,
 
 ## Environment Requirements
 
-- [Ascend AI Software Stack Deployment in Development Environment](../../docs/zh/quick_install.md) completed
+- [Ascend AI Software Stack Deployment in Development Environment](../../docs/en/quick_install.md) completed
 
 ## Implementation Steps
 

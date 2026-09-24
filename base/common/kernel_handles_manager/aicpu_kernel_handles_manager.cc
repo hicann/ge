@@ -62,12 +62,12 @@ aclrtBinHandle AicpuKernelHandlesManager::RegisterKernel(const KernelRegisterInf
   GE_MAKE_GUARD(json_guard, [&json_path]() { (void)std::remove(json_path.c_str()); });
   GE_ASSERT_TRUE(!json_path.empty());
   aclrtBinaryLoadOptions load_options;
-  aclrtBinaryLoadOption option;
+  aclrtBinaryLoadOption options;
   load_options.numOpt = 1;
-  load_options.options = &option;
-  option.type = ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE;
+  load_options.options = &options;
+  options.type = ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE;
   constexpr const int32_t cpu_kernel_mode = 0;
-  option.value.cpuKernelMode = cpu_kernel_mode;
+  options.value.cpuKernelMode = cpu_kernel_mode;
   aclrtBinHandle bin_handle;
   GE_ASSERT_RT_OK(aclrtBinaryLoadFromFile(json_path.c_str(), &load_options, &bin_handle));
 

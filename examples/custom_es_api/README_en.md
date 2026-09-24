@@ -6,7 +6,7 @@ This Sample aims to guide users on how to customize ES API <br>
 
 ## Quick Start
 
-1. Follow the [installation guide](../../docs/zh/quick_install.md) to correctly install `toolkit` and `ops` packages, and properly configure environment variables
+1. Follow the [installation guide](../../docs/en/quick_install.md) to correctly install `toolkit` and `ops` packages, and properly configure environment variables
 2. Run the script via command `bash run_sample.sh` [run_sample.sh](run_sample.sh)
 
 ## Expected Results

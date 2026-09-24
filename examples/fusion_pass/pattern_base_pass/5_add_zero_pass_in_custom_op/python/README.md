@@ -13,7 +13,7 @@
 
 ## 目录结构
 
-```
+```tree
 python/
 ├── README.md                     // Python 样例说明
 ├── CMakeLists.txt                // 生成 AddCustom / es_all Python ES API 的编译脚本

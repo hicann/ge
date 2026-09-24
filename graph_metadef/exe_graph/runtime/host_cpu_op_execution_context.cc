@@ -66,6 +66,13 @@ Tensor *HostCpuOpExecutionContext::MallocOutputTensor(size_t index, const Storag
   GE_ASSERT_TRUE(element_count >= 0);
   const int64_t logical_size = ge::GetSizeInBytes(element_count, dtype);
   GE_ASSERT_TRUE(logical_size >= 0);
+  if (logical_size == 0) {
+    auto &tensor_data = output_tensor->MutableTensorData();
+    GE_ASSERT_SUCCESS(tensor_data.SetAddr(nullptr, nullptr));
+    tensor_data.SetSize(0U);
+    tensor_data.SetPlacement(kOnHost);
+    return output_tensor;
+  }
   if (output_tensor->GetTensorData().GetSize() > 0U) {
     GE_ASSERT_TRUE(output_tensor->GetPlacement() == kOnHost, "Host CPU output tensor placement must be host.");
     return output_tensor;

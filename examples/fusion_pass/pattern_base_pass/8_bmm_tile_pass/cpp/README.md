@@ -66,7 +66,7 @@
 
    `${ASCEND_PATH}` 为 CANN 软件包安装目录下的 cann 路径。请替换相关软件包的实际安装路径，例如 `${INSTALL_PATH}/cann`。
 
-2. 根据实际情况修改当前目录 `CMakeLists.txt` 文件中的如下信息。
+1. 根据实际情况修改当前目录 `CMakeLists.txt` 文件中的如下信息。
 
    - ASCEND_PATH：可以设置默认的软件包路径，如果通过 `set_env.sh` 设置了 `$ASCEND_HOME_PATH`，无需修改。
 
@@ -78,7 +78,7 @@
 
      > 禁止链接软件包中的其他 so，否则后续升级可能会导致兼容性问题。
 
-3. 依次执行：
+2. 依次执行：
 
 ```bash
    mkdir build && cd build
@@ -87,7 +87,7 @@
 
    执行后，在 **build** 目录下产生的 es_all_build/generated_code 目录中包含 es 构图 api 的头文件及源码。
 
-4. 执行 `make` 命令编译自定义 pass so，成功编译后通过 `make install` 将动态库文件 `libbmm_tile_pass.so` 安装到自定义融合 pass 目录下。
+1. 执行 `make` 命令编译自定义 pass so，成功编译后通过 `make install` 将动态库文件 `libbmm_tile_pass.so` 安装到自定义融合 pass 目录下。
    可以在 `make` 后增加可选参数 `-j$(nproc)` 用于并行执行构建任务，`$(nproc)` 动态获取 CPU 核心数。
 
 ```bash
@@ -95,7 +95,7 @@
    make install
 ```
 
-5. 编译过程中会在 build 目录下生成 pass so 依赖的 es so（位于 `build/es_output/lib64`，文件名为 `libes_all.so`）。`make install` 仅安装 pass so，es so 仍留在 build 目录。CMakeLists.txt 中已通过 `$ORIGIN` 与构建目录路径配置运行时查找路径：
+1. 编译过程中会在 build 目录下生成 pass so 依赖的 es so（位于 `build/es_output/lib64`，文件名为 `libes_all.so`）。`make install` 仅安装 pass so，es so 仍留在 build 目录。CMakeLists.txt 中已通过 `$ORIGIN` 与构建目录路径配置运行时查找路径：
    - 若 build 目录保留在原位，pass so 运行时可直接通过构建路径找到 es so，无需额外操作。
    - 若 build 目录被删除或 pass so 迁移到其他位置（运行时无法再访问原构建路径），需将 es so 拷贝到 pass so 的安装目录（即 `${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes`）与 pass so 同目录存放，运行时通过 `$ORIGIN` 从同目录加载，无需额外设置 `LD_LIBRARY_PATH`。
 
@@ -123,32 +123,32 @@
 
 2. 使用 ATC 离线推理。
 
-   - 设置环境变量，dump 出编译过程中的模型图：
+- 设置环境变量，dump 出编译过程中的模型图：
 
 ```bash
      export DUMP_GE_GRAPH=1
 ```
 
-   - 进入当前目录 `data` 目录执行 `.py` 文件导出 onnx（文件中使用了 onnx 库，运行前请确保安装）：
+- 进入当前目录 `data` 目录执行 `.py` 文件导出 onnx（文件中使用了 onnx 库，运行前请确保安装）：
 
 ```bash
      python gen_onnx.py
 ```
 
-   - 也可指定 shape 参数导出不同 shape 的模型：
+- 也可指定 shape 参数导出不同 shape 的模型：
 
 ```bash
      python gen_onnx.py --batch 4 --m 128 --k 256 --n 512
 ```
 
-   - 执行结束后，在 `data` 目录下生成 `.onnx` 格式的模型文件，名称为 `model.onnx`。
-   - 执行 ATC 工具命令（关于 ATC 工具的详细说明，请前往[昇腾文档](https://www.hiascend.com/zh/document)搜索文档"ATC离线模型编译工具"），`soc_version` 请根据实际环境修改：
+- 执行结束后，在 `data` 目录下生成 `.onnx` 格式的模型文件，名称为 `model.onnx`。
+- 执行 ATC 工具命令（关于 ATC 工具的详细说明，请前往[昇腾文档](https://www.hiascend.com/zh/document)搜索文档"ATC离线模型编译工具"），`soc_version` 请根据实际环境修改：
 
 ```bash
      atc --model=./model.onnx --framework=5 --soc_version=xxx --output=./model_fused
 ```
 
-   - 日志中出现如下打印：
+- 日志中出现如下打印：
 
 ```text
      Define pattern for BmmTilePass
@@ -158,7 +158,7 @@
      InferShape success
 ```
 
-3. 一键式验证（可选）
+1. 一键式验证（可选）
 
    - 使用 `quick_verify.sh` 脚本可一键完成编译、ATC、dump 图检查和性能测试。脚本中的 `soc_version` 默认为 `Ascend910B3`，请根据实际环境修改脚本中 atc 命令的 `--soc_version` 参数（参考[使用 ATC 离线推理](#程序运行)中的说明）：
 
@@ -167,9 +167,9 @@
      ./quick_verify.sh [batch] [m] [k] [n] [test_rounds]
 ```
 
-   - 默认参数：batch=2, m=64, k=128, n=256, test_rounds=3
+- 默认参数：batch=2, m=64, k=128, n=256, test_rounds=3
 
-   - 脚本会自动：
+- 脚本会自动：
      1. 检查并编译 Pass（如未编译）
      2. 生成 ONNX 模型
      3. ATC 编译融合模型
@@ -177,9 +177,9 @@
      5. 运行多轮性能测试（如有 benchmark_model）
      6. 清理安装到 CANN 包下的自定义 pass so
 
-   - 若融合前 dump 图中没有 Tile 节点，或融合后 Tile 节点未被删除，脚本会直接退出失败。
+- 若融合前 dump 图中没有 Tile 节点，或融合后 Tile 节点未被删除，脚本会直接退出失败。
 
-4. 查看运行结果
+1. 查看运行结果
 
    - ATC 工具命令执行完成后，目录下生成一系列 `.pbtxt` 和 `.txt` 文件。
      对比以下 dump 图：

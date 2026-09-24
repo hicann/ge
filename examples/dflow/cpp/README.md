@@ -1,4 +1,5 @@
 # C++样例使用指导
+
 ## 目录结构
 
 ```
@@ -22,12 +23,13 @@
 └── sample_perf.cpp  该样例测试Feed和Fetch的接口性能
 ```
 
-
 ## 环境要求
+
 - 参考[环境准备](../../../docs/zh/quick_install.md)下载安装驱动/固件/CANN软件包；
 - config目录下的模型生成脚本 model_generator.py 依赖tensorflow，需通过pip3 install tensorflow安装。
 
 ## 程序编译
+
 ```bash
 # 执行config目录下的tensorflow原始模型生成脚本：
 python3 config/model_generator.py
@@ -41,6 +43,7 @@ cd ../output
 ```
 
 ## 运行样例
+
 numa_config.json文件用于配置dflow运行所需的设备资源信息，可使用tools目录下的脚本自动生成单机配置，如需自定义可参考[numa_config字段说明及样例](../../../docs/zh/user_guides/dflow/dflow_dev/cpp/appendices.md#numa_configjson配置)：
 
 ```bash

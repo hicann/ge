@@ -6,7 +6,7 @@ This offline sample demonstrates the offline compilation and deployment flow for
 
 ## Prerequisites
 
-- Refer to the [Installation Guide](../../../../docs/en/quick_install.md) to install the `toolkit` and `ops` packages.
+- Refer to the [Installation Guide](../../../../../docs/en/quick_install.md) to install the `toolkit` and `ops` packages.
 - Set the environment variables (assuming that the packages are installed in `/usr/local/Ascend/`):
   ```bash
   source /usr/local/Ascend/cann/set_env.sh
@@ -14,7 +14,7 @@ This offline sample demonstrates the offline compilation and deployment flow for
 
 ## Quick Run
 
-Run in `examples/custom_op/host_cpu_add_custom/offline`:
+Run in `examples/custom_op/host_cpu_add_custom/offline/cpp`:
 
 ```bash
 bash run.sh
@@ -39,7 +39,7 @@ output values: 6 8 10 12
 ## Key Files
 
 ```text
-offline
+offline/cpp
 ├── CMakeLists.txt
 ├── run.sh
 ├── ge

@@ -127,8 +127,8 @@ graphStatus CoreNumUtils::ValidateCoreNumWithOpDesc(const fe::PlatformInfo &plat
                                                     const ge::OpDescPtr &op_desc) {
   GE_ASSERT_NOTNULL(op_desc);
 
-  std::string aicore_num_str;
   if (op_desc->HasAttr(kAiCoreNumOp)) {
+    std::string aicore_num_str;
     if (!ge::AttrUtils::GetStr(op_desc, kAiCoreNumOp, aicore_num_str)) {
       return ReportParamError(kAiCoreNumOp, "<non-string>", "It is not string.");
     }
@@ -140,8 +140,8 @@ graphStatus CoreNumUtils::ValidateCoreNumWithOpDesc(const fe::PlatformInfo &plat
                                               static_cast<int32_t>(platform_info.soc_info.ai_core_cnt), op_core_num));
   }
 
-  std::string vector_core_num_str;
   if (op_desc->HasAttr(kVectorCoreNumOp)) {
+    std::string vector_core_num_str;
     if (!ge::AttrUtils::GetStr(op_desc, kVectorCoreNumOp, vector_core_num_str)) {
       return ReportParamError(kVectorCoreNumOp, "<non-string>", "It is not string.");
     }

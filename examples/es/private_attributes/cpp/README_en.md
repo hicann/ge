@@ -23,7 +23,7 @@ cpp/
 
 ### 3.1 Prepare CANN Package
 
-- Correctly install `toolkit` and `ops` packages following the installation guide [Environment Preparation](../../../../docs/zh/build.md#1-环境准备)
+- Correctly install `toolkit` and `ops` packages following the installation guide [Environment Preparation](../../../../docs/en/build.md#1-environment-preparation)
 - Set environment variables (assuming the package is installed in /usr/local/Ascend/)
 
 ```bash

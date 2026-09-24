@@ -110,6 +110,42 @@ TEST_F(HostCpuOpExecutionContextUT, MallocOutputTensorOk) {
   EXPECT_NE(output_tensor->GetAddr(), nullptr);
 }
 
+TEST_F(HostCpuOpExecutionContextUT, MallocOutputTensorZeroLengthOk) {
+  auto context = context_holder_.GetContext<HostCpuOpExecutionContext>();
+
+  ASSERT_NE(context, nullptr);
+  std::initializer_list<int64_t> origin_shape = {2, 0, 4};
+  std::initializer_list<int64_t> storage_shape = {2, 0, 4};
+  auto output_tensor = context->MallocOutputTensor(1, {origin_shape, storage_shape},
+                                                   {ge::FORMAT_ND, ge::FORMAT_ND, ExpandDimsType()}, ge::DT_FLOAT16);
+  ASSERT_NE(output_tensor, nullptr);
+  EXPECT_EQ(output_tensor->GetOriginShape(), origin_shape);
+  EXPECT_EQ(output_tensor->GetStorageShape(), storage_shape);
+  EXPECT_EQ(output_tensor->GetDataType(), ge::DT_FLOAT16);
+  EXPECT_EQ(output_tensor->GetPlacement(), kOnHost);
+  EXPECT_EQ(output_tensor->GetSize(), 0U);
+  EXPECT_EQ(output_tensor->GetAddr(), nullptr);
+}
+
+TEST_F(HostCpuOpExecutionContextUT, MallocOutputTensorZeroLengthAfterMallocOk) {
+  auto context = context_holder_.GetContext<HostCpuOpExecutionContext>();
+
+  ASSERT_NE(context, nullptr);
+  std::initializer_list<int64_t> non_zero_shape = {1, 2, 3, 4};
+  auto output_tensor = context->MallocOutputTensor(1, {non_zero_shape, non_zero_shape},
+                                                   {ge::FORMAT_ND, ge::FORMAT_ND, ExpandDimsType()}, ge::DT_FLOAT16);
+  ASSERT_NE(output_tensor, nullptr);
+  ASSERT_NE(output_tensor->GetAddr(), nullptr);
+
+  std::initializer_list<int64_t> zero_shape = {2, 0, 4};
+  output_tensor = context->MallocOutputTensor(1, {zero_shape, zero_shape},
+                                              {ge::FORMAT_ND, ge::FORMAT_ND, ExpandDimsType()}, ge::DT_FLOAT16);
+  ASSERT_NE(output_tensor, nullptr);
+  EXPECT_EQ(output_tensor->GetStorageShape(), zero_shape);
+  EXPECT_EQ(output_tensor->GetSize(), 0U);
+  EXPECT_EQ(output_tensor->GetAddr(), nullptr);
+}
+
 TEST_F(HostCpuOpExecutionContextUT, MallocOutputTensorRefOutputError) {
   auto context = context_holder_.GetContext<HostCpuOpExecutionContext>();
 

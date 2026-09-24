@@ -64,10 +64,14 @@ Status BuildDataSymbolizeInfo(const NodePtr &data_node, const std::vector<GeTens
   } else {
     info.inputShape = ge_tensor_desc.GetShape();
   }
-  // 动态shape，未配置inputHintShape，不支持符号化
-  if (info.inputShape.GetDims() == DUMMY_SHAPE) {
-    GELOGI("Node[%s] has placeholder shape, skip symbolization. Please check ge.inputHintShape configuration.",
-           data_node->GetNamePtr());
+  // 动态shape未配置inputHintShape(placeholder)，或声明 rank 与运行期输入 rank 不一致：
+  // 均属于"不支持符号化"，降级跳过该输入(下游退回传统推导)，而不是打挂整个符号化
+  if (info.inputShape.GetDims() == DUMMY_SHAPE ||
+      (!info.dataShape.IsUnknownDimNum() && info.dataShape.GetDimNum() != info.inputShape.GetDimNum())) {
+    GELOGW(
+        "Node[%s] is not symbolizable(placeholder shape or rank mismatch), skip symbolization. "
+        "Please check ge.inputHintShape configuration.",
+        data_node->GetNamePtr());
     return ge::UNSUPPORTED;
   }
   return SUCCESS;

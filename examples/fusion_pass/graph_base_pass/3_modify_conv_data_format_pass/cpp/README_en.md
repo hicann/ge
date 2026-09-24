@@ -23,7 +23,7 @@ This example uses eager style api and fusion interfaces.
 
 - Compiler: GCC >= 7.3.x
 - Python and dependency versions: python>=3.9, pytorch>=2.1
-- Completed [environment preparation](../../../../../docs/zh/build.md).
+- Completed [environment preparation](../../../../../docs/en/build.md).
 
 ## Implementation Steps
 

@@ -19,7 +19,7 @@ python/
 
 ### 3.1 Prepare CANN Package
 
-- Correctly install `toolkit` and `ops` packages following the installation guide [Environment Preparation](../../../../docs/zh/quick_install.md)
+- Correctly install `toolkit` and `ops` packages following the installation guide [Environment Preparation](../../../../docs/en/quick_install.md)
 - Set environment variables (assuming the package is installed in /usr/local/Ascend/)
 
 ```bash

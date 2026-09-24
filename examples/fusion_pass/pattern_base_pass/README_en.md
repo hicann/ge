@@ -24,6 +24,6 @@ This directory provides examples for implementing custom fusion passes by inheri
 
 Recommended to first read mechanism description, then choose language guide:
 
-- [Fusion Pattern Pass Mechanism](../../../docs/zh/design/features/fusion_pattern_pass.md)
+- [Fusion Pattern Pass Mechanism](../../../docs/en/design/features/fusion_pattern_pass.md)
 - [Python Fusion Pass Development Guide](../python_fusion_pass_development_guide.md)
 - [C++ Fusion Pass Development Guide](../cpp_fusion_pass_development_guide.md)

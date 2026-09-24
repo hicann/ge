@@ -1,6 +1,6 @@
 # Python 融合 Pass 开发指南
 
-本文面向想用 Python 编写 GE 融合 pass 的开发者。建议先阅读语言无关的机制说明：[融合 Pattern Pass 机制](../../docs/zh/design/features/fusion_pattern_pass.md)。
+本文面向想用 Python 编写 GE 融合 pass 的开发者，建议先阅读语言无关的机制说明：[融合 Pattern Pass 机制](../../docs/zh/design/features/fusion_pattern_pass.md)。
 
 如果你已经理解“定义 pattern、匹配、过滤、replacement、重连”这条主线，可以直接按本文写代码。
 

@@ -26,7 +26,7 @@ Provides two verification methods: online inference and ATC offline model compil
 
 - Compiler: GCC >= 7.3.x
 - Python and dependencies: python>=3.9, pytorch>=2.1
-- [Environment preparation](../../../../../docs/zh/build.md) completed.
+- [Environment preparation](../../../../../docs/en/build.md) completed.
 
 ## Preparation
 

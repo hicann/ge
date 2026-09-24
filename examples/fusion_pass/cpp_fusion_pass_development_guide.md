@@ -4,7 +4,7 @@
 
 C++ pass 的交付形态是动态库。开发者实现 pass 类，把它注册到 GE，然后编译成 `.so`。GE 编译模型时加载该 `.so`，在指定阶段执行 pass。
 
-如果你还在探索规则，建议先用 [Python 融合 Pass 开发指南](python_fusion_pass_development_guide.md) 快速验证；规则稳定后再迁移到 C++。
+如果你还在探索规则，建议先用[Python 融合 Pass 开发指南](python_fusion_pass_development_guide.md)快速验证；规则稳定后再迁移到 C++。
 
 ## 1. 选择哪种 pass
 

@@ -23,7 +23,7 @@ python/
 ## Prerequisites
 
 - CANN environment variables have been set via `source ${ASCEND_PATH}/set_env.sh`. For more details, refer to the environment variable configuration step in [C++ Sample README](../cpp/README.md)
-- CANN software package installation, refer to [Environment Preparation](../../../../../docs/zh/build.md#1-环境准备)
+- CANN software package installation, refer to [Environment Preparation](../../../../../docs/en/build.md#1-environment-preparation)
 - Python dependencies for graph compilation installed: `attrs`, `decorator`, `sympy`, `numpy`, `psutil`, `scipy`
 
 The run package already includes the `ge_py` wheel required for GE Python runtime. There is no need to separately install `ge_py-*.whl` in this section.

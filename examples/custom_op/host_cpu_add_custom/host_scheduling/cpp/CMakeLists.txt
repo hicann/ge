@@ -1,3 +1,13 @@
+# -----------------------------------------------------------------------------------------------------------
+# Copyright (c) 2026 Huawei Technologies Co., Ltd.
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+# CANN Open Software License Agreement Version 2.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+# -----------------------------------------------------------------------------------------------------------
+
 cmake_minimum_required(VERSION 3.16)
 project(host_cpu_add_custom_host_scheduling LANGUAGES CXX)
 
@@ -18,6 +28,9 @@ set(COMMON_COMPILE_OPTIONS
   -Wno-unused-parameter
 )
 
+set(ES_OUTPUT_DIR "${CMAKE_BINARY_DIR}/es_output")
+file(MAKE_DIRECTORY "${ES_OUTPUT_DIR}")
+
 set(PROJECT_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/output")
 file(MAKE_DIRECTORY "${PROJECT_OUTPUT_DIR}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
@@ -37,6 +50,10 @@ endif()
 
 set(CUSTOM_OP_OUTPUT_DIR "${PROJECT_OUTPUT_DIR}/op_graph/lib/${OPP_OS_TYPE}/${OPP_CPU_TYPE}")
 file(MAKE_DIRECTORY "${CUSTOM_OP_OUTPUT_DIR}")
+set(CUSTOM_OP_INCLUDE_DIR "${PROJECT_OUTPUT_DIR}/op_graph/include")
+file(MAKE_DIRECTORY "${CUSTOM_OP_INCLUDE_DIR}")
+set(OP_PROTO_HEADER_SOURCE_FILE "${CMAKE_SOURCE_DIR}/ge/add_custom_ir.h")
+configure_file("${OP_PROTO_HEADER_SOURCE_FILE}" "${CUSTOM_OP_INCLUDE_DIR}/add_custom_ir.h" COPYONLY)
 
 set(ASCEND_HOME_PATH_OVERRIDE "" CACHE PATH "Optional ASCEND_HOME_PATH override")
 if(ASCEND_HOME_PATH_OVERRIDE)
@@ -45,9 +62,45 @@ else()
   set(ASCEND_HOME_PATH "$ENV{ASCEND_HOME_PATH}")
 endif()
 
+if(ASCEND_HOME_PATH)
+  message(STATUS "ASCEND_HOME_PATH: ${ASCEND_HOME_PATH}")
+  list(APPEND CMAKE_MODULE_PATH "${ASCEND_HOME_PATH}/include/ge/cmake")
+  find_package(GenerateEsPackage REQUIRED)
+
+  add_library(add_custom_op_proto SHARED
+    ge/add_custom_ir.cc
+  )
+  target_compile_options(add_custom_op_proto PRIVATE
+    -fvisibility=hidden
+  )
+  target_compile_definitions(add_custom_op_proto PRIVATE
+    _GLIBCXX_USE_CXX11_ABI=0
+    OP_PROTO_LIB
+  )
+  target_include_directories(add_custom_op_proto PRIVATE
+    "${CMAKE_SOURCE_DIR}/ge"
+    "${ASCEND_HOME_PATH}/include"
+    "${ASCEND_HOME_PATH}/include/graph"
+    "${ASCEND_HOME_PATH}/include/register"
+    "${ASCEND_HOME_PATH}/include/external"
+  )
+
+  add_es_library(
+    ES_LINKABLE_AND_ALL_TARGET es_custom
+    OPP_PROTO_TARGET add_custom_op_proto
+    OUTPUT_PATH ${ES_OUTPUT_DIR}
+  )
+else()
+  message(WARNING "ASCEND_HOME_PATH is empty. Configure succeeds, but compilation requires a valid CANN toolkit path.")
+endif()
+
 if(HOST_CPU_ADD_BUILD_CUSTOM_OP)
+  set(KERNEL_SOURCE_FILE "${CMAKE_SOURCE_DIR}/add_custom_kernel/add_custom.asc")
+  configure_file("${KERNEL_SOURCE_FILE}" "${CUSTOM_OP_OUTPUT_DIR}/add_custom.asc" COPYONLY)
+
   add_library(cust_opapi SHARED
     ge/custom_op.cpp
+    ge/utils/rtc_kernel_loader.cpp
   )
   target_compile_options(cust_opapi PRIVATE ${COMMON_COMPILE_OPTIONS})
   target_compile_definitions(cust_opapi PRIVATE
@@ -55,8 +108,9 @@ if(HOST_CPU_ADD_BUILD_CUSTOM_OP)
   )
 
   if(ASCEND_HOME_PATH)
-    message(STATUS "ASCEND_HOME_PATH: ${ASCEND_HOME_PATH}")
     target_include_directories(cust_opapi PRIVATE
+      "${CMAKE_SOURCE_DIR}/add_custom_kernel"
+      "${CMAKE_SOURCE_DIR}/ge"
       "${ASCEND_HOME_PATH}/include"
       "${ASCEND_HOME_PATH}/include/graph"
       "${ASCEND_HOME_PATH}/include/register"
@@ -66,10 +120,19 @@ if(HOST_CPU_ADD_BUILD_CUSTOM_OP)
     target_link_libraries(cust_opapi PRIVATE
       -Wl,--no-as-needed
       ascendcl
+      acl_rtc
+      acl_rt
+      ge_compiler
+      ge_common
+      ge_executor
+      ge_runner
+      ge_runner_v2
+      runtime
       register
       gert
       pthread
       dl
+      lowering
       -Wl,--as-needed
     )
   endif()
@@ -79,6 +142,13 @@ if(HOST_CPU_ADD_BUILD_CUSTOM_OP)
     LIBRARY_OUTPUT_DIRECTORY "${CUSTOM_OP_OUTPUT_DIR}"
     RUNTIME_OUTPUT_DIRECTORY "${CUSTOM_OP_OUTPUT_DIR}"
     ARCHIVE_OUTPUT_DIRECTORY "${CUSTOM_OP_OUTPUT_DIR}"
+  )
+
+  install(FILES "${KERNEL_SOURCE_FILE}"
+    DESTINATION "${CUSTOM_OP_OUTPUT_DIR}"
+  )
+  install(FILES "${OP_PROTO_HEADER_SOURCE_FILE}"
+    DESTINATION "${CUSTOM_OP_INCLUDE_DIR}"
   )
 endif()
 
@@ -93,6 +163,8 @@ if(HOST_CPU_ADD_BUILD_SESSION_RUN)
 
   if(ASCEND_HOME_PATH)
     target_include_directories(host_cpu_add_custom_host_scheduling_session_run PRIVATE
+      "${CUSTOM_OP_INCLUDE_DIR}"
+      "${ES_OUTPUT_DIR}/include/es_custom"
       "${ASCEND_HOME_PATH}/include"
       "${ASCEND_HOME_PATH}/include/graph"
       "${ASCEND_HOME_PATH}/include/ge"
@@ -103,8 +175,9 @@ if(HOST_CPU_ADD_BUILD_SESSION_RUN)
     target_link_libraries(host_cpu_add_custom_host_scheduling_session_run PRIVATE
       -Wl,--no-as-needed
       es_math
-      eager_style_graph_builder_base
       -Wl,--as-needed
+      es_custom
+      eager_style_graph_builder_base
       graph
       ge_runner
       ge_compiler
@@ -112,9 +185,12 @@ if(HOST_CPU_ADD_BUILD_SESSION_RUN)
       graph_base
       c_sec
     )
+    add_dependencies(host_cpu_add_custom_host_scheduling_session_run es_custom)
   endif()
 
   set_target_properties(host_cpu_add_custom_host_scheduling_session_run PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    BUILD_RPATH "$ORIGIN:${ES_OUTPUT_DIR}/lib64"
+    INSTALL_RPATH "$ORIGIN:${ES_OUTPUT_DIR}/lib64"
   )
 endif()

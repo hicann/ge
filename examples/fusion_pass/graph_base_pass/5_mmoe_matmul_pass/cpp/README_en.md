@@ -52,7 +52,7 @@ Matrix multiplication is distributive over column concatenation: `x @ [w1 | w2 |
 - Compiler: GCC >= 7.3.x
 - CANN version >= 8.5.0 (REGISTER_CUSTOM_PASS supported since 8.5.0)
 - Python >= 3.7, depends on onnx, numpy
-- [Environment preparation](../../../../../docs/zh/build.md) completed.
+- [Environment preparation](../../../../../docs/en/build.md) completed.
 
 ## Implementation Steps
 

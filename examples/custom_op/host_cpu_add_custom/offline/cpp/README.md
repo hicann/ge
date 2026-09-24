@@ -6,7 +6,7 @@
 
 ## 前置依赖
 
-- 参考[安装指导](../../../../docs/zh/quick_install.md)完成 `toolkit` 和 `ops` 包安装。
+- 参考[安装指导](../../../../../docs/zh/quick_install.md)完成 `toolkit` 和 `ops` 包安装。
 - 设置环境变量（假设包安装在 `/usr/local/Ascend/`）：
   ```bash
   source /usr/local/Ascend/cann/set_env.sh
@@ -14,7 +14,7 @@
 
 ## 快速运行
 
-在 `examples/custom_op/host_cpu_add_custom/offline` 目录执行：
+在 `examples/custom_op/host_cpu_add_custom/offline/cpp` 目录执行：
 
 ```bash
 bash run.sh
@@ -39,7 +39,7 @@ output values: 6 8 10 12
 ## 关键文件
 
 ```text
-offline
+offline/cpp
 ├── CMakeLists.txt
 ├── run.sh
 ├── ge
