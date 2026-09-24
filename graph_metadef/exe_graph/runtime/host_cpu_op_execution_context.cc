@@ -13,13 +13,12 @@
 #include "common/checker.h"
 #include "exe_graph/runtime/gert_mem_allocator.h"
 #include "graph/operator_factory.h"
+#include "graph/types.h"
 #include "graph/utils/op_desc_utils.h"
-#include "graph/utils/math_util.h"
 #include "graph/op_desc.h"
 
 namespace gert {
 namespace {
-constexpr size_t kMemAlignment = 512U;
 
 void SetTensorDesc(const StorageShape &shape, const StorageFormat &format, ge::DataType dtype, Tensor *dst) {
   auto &storage_shape = dst->MutableStorageShape();
@@ -63,17 +62,25 @@ Tensor *HostCpuOpExecutionContext::MallocOutputTensor(size_t index, const Storag
   GE_ASSERT_NOTNULL(output_tensor);
   SetTensorDesc(shape, format, dtype, output_tensor);
 
-  const size_t tensor_size = shape.GetStorageShape().GetShapeSize() * GetSizeByDataType(dtype);
-  size_t aligned_tensor_size = tensor_size;
-  GE_ASSERT_TRUE(!ge::RoundUpOverflow(tensor_size, kMemAlignment, aligned_tensor_size));
+  const int64_t element_count = shape.GetStorageShape().GetShapeSize();
+  GE_ASSERT_TRUE(element_count >= 0);
+  const int64_t logical_size = ge::GetSizeInBytes(element_count, dtype);
+  GE_ASSERT_TRUE(logical_size >= 0);
+  if (logical_size == 0) {
+    auto &tensor_data = output_tensor->MutableTensorData();
+    GE_ASSERT_SUCCESS(tensor_data.SetAddr(nullptr, nullptr));
+    tensor_data.SetSize(0U);
+    tensor_data.SetPlacement(kOnHost);
+    return output_tensor;
+  }
   if (output_tensor->GetTensorData().GetSize() > 0U) {
     GE_ASSERT_TRUE(output_tensor->GetPlacement() == kOnHost, "Host CPU output tensor placement must be host.");
     return output_tensor;
   }
 
-  auto new_tensor_data = gert_allocator->MallocTensorDataFromL1(aligned_tensor_size);
+  auto new_tensor_data = gert_allocator->MallocTensorDataFromL1(static_cast<size_t>(logical_size));
   GE_ASSERT_TRUE((new_tensor_data.GetAddr() != nullptr) && (new_tensor_data.GetSize() > 0U),
-                 "Malloc host output tensor data failed, size: %zu", aligned_tensor_size);
+                 "Malloc host output tensor data failed, size: %zu", static_cast<size_t>(logical_size));
   GE_ASSERT_SUCCESS(output_tensor->MutableTensorData().ShareFrom(new_tensor_data));
   return output_tensor;
 }

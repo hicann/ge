@@ -182,6 +182,7 @@ graph = builder.build_and_reset()
 **使用示例**:
 ```python
 from ge.es import GraphBuilder
+from ge.graph import DataType, Format
 
 builder = GraphBuilder("my_graph")
 

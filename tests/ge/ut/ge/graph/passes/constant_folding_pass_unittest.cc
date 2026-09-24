@@ -100,9 +100,29 @@ REG_OP(IrDefinedHostFold)
     .INPUT(x1, TensorType({DT_UINT8}))
     .OPTIONAL_INPUT(bias, TensorType({DT_UINT8}))
     .OUTPUT(y, TensorType({DT_UINT8}))
-    .OP_END_FACTORY_REG(IrDefinedHostFold)
+    .OP_END_FACTORY_REG(IrDefinedHostFold);
 
-        REG_OP_BACKEND(TestHostCustomFoldOp, "IrDefinedHostFold", ge::OpBackend::kHostCPU);
+REG_OP_BACKEND(TestHostCustomFoldOp, "IrDefinedHostFold", ge::OpBackend::kHostCPU);
+
+REG_OP(BottomHostFold)
+    .INPUT(x, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(BottomHostFold);
+
+REG_OP(HostCustomFold)
+    .INPUT(x, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(HostCustomFold);
+
+REG_OP(PriorityMaskHostFold)
+    .INPUT(x, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(PriorityMaskHostFold);
+
+REG_OP(HostCustomFoldExecuteFailed)
+    .INPUT(x, TensorType({DT_UINT8}))
+    .OUTPUT(y, TensorType({DT_UINT8}))
+    .OP_END_FACTORY_REG(HostCustomFoldExecuteFailed);
 
 class TestNonHostCustomFoldOp final : public BaseCustomOp {};
 
@@ -1237,8 +1257,8 @@ TEST_F(UtestGraphPassesConstantFoldingPass, test_compute_with_host_cpu_custom_op
   ASSERT_EQ(outputs.size(), 1U);
   EXPECT_EQ(outputs[0]->GetTensorDesc().GetDataType(), DT_UINT8);
   EXPECT_EQ(outputs[0]->GetTensorDesc().GetPlacement(), kPlacementHost);
-  // Host CPU output buffers are allocated with 512-byte alignment.
-  EXPECT_EQ(outputs[0]->GetData().GetSize(), 512U);
+  // Host CPU output buffers are allocated with the real tensor size.
+  EXPECT_EQ(outputs[0]->GetData().GetSize(), 3U);
   EXPECT_NE(outputs[0]->GetData().GetData(), nullptr);
   EXPECT_EQ(outputs[0]->GetData().GetData()[0], 1U);
   EXPECT_EQ(outputs[0]->GetData().GetData()[1], 2U);
