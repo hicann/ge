@@ -152,7 +152,7 @@ static TuneResult_t GetAndCheckTBETime(const std::vector<std::vector<struct Prof
         return TUNE_E_PARA;
       }
       rowTime[i] = time[i][j];
-      TUNE_DEBUG("GDAT Time[%llu] Index[%u] Op[%s]", rowTime[i], i, taskTBEList[0][j].opName.c_str());
+      TUNE_DEBUG("GDAT Time[%llu us] Index[%u] Op[%s]", rowTime[i], i, taskTBEList[0][j].opName.c_str());
     }
     std::sort(rowTime.begin(), rowTime.end());
     uint64_t sum = 0;
@@ -164,7 +164,7 @@ static TuneResult_t GetAndCheckTBETime(const std::vector<std::vector<struct Prof
     }
     bpTimeTmp.opName = taskTBEList[0][j].opName;
     bpTimeTmp.time = static_cast<uint64_t>(static_cast<double>(sum) / static_cast<double>(times));
-    TUNE_DEBUG("Valid GDAT Loops[%llu] Op[%s] time[%llu]", times, bpTimeTmp.opName.c_str(), bpTimeTmp.time);
+    TUNE_DEBUG("Valid GDAT Loops[%llu] Op[%s] time[%llu us]", times, bpTimeTmp.opName.c_str(), bpTimeTmp.time);
     bpTimeInfo.push_back(bpTimeTmp);
   }
 
@@ -207,7 +207,7 @@ TuneResult_t GetBPTimeFromProfiling(const std::vector<std::vector<struct Profili
       }
     }
     if (taskTBENode.size() == 0) {
-      TUNE_ERROR("can't not find TensorRedirect, error!");
+      TUNE_ERROR("Can't find TensorRedirect.");
       return TUNE_E_DATA_NOT_MATCH;
     }
     taskTBEList.push_back(taskTBENode);
@@ -298,7 +298,7 @@ TuneResult_t GetGradientInfo(const std::vector<struct GradientNode> &graNode,
                              const std::vector<struct BPTimeInfo> &bpTimeInfo,
                              std::vector<struct GradientInfo> &graInfo) {
   if (graNode.size() != bpTimeInfo.size()) {
-    TUNE_ERROR("GraNode size[%llu] and BpTimeInfo size[%llu] are not match", graNode.size(), bpTimeInfo.size());
+    TUNE_ERROR("GraNode size[%llu] and BpTimeInfo size[%llu] do not match", graNode.size(), bpTimeInfo.size());
     return TUNE_E_DATA_NOT_MATCH;
   }
 
@@ -327,7 +327,8 @@ TuneResult_t GetGradientInfo(const std::vector<struct GradientNode> &graNode,
 
   for (const auto &it : graInfo) {
     TUNE_INFO(
-        "[GradientInfo] opName[%s] groupName[%s] dataType[%s] time[%llu] gradientSize[%llu] graphId[%u] index[%u]",
+        "[GradientInfo] opName[%s] groupName[%s] dataType[%s] time[%llu us] gradientSize[%llu B] "
+        "graphId[%u] index[%u]",
         it.opName.c_str(), it.groupName.c_str(), it.dataType.c_str(), it.time, it.gradientSize, it.graphId, it.index);
   }
 

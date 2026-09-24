@@ -89,7 +89,7 @@ HcclResult HCCLOpsKernelInfoStore::GetCollectiveTypeFromTaskInfo(const ge::GETas
     sCollectiveType = hcclInfo.hccl_type;
   } else {
     HCCL_ERROR(
-        "[Get][CollectiveType]errNo[0x%016llx] get collective type from task info failed. HcclType[%s] is"
+        "[Get][CollectiveType]errNo[0x%016llx] get collective type from task info failed. HcclType[%s] is "
         "invalid.",
         HCOM_ERROR_CODE(HCCL_E_PARA), hcclInfo.hccl_type.c_str());
     return HCCL_E_PARA;
@@ -107,7 +107,7 @@ HcclResult HCCLOpsKernelInfoStore::GetCountFromTaskInfo(const ge::GETaskKernelHc
 HcclResult HCCLOpsKernelInfoStore::GetStreamMainFromTaskInfo(const ge::GETaskInfo &taskDef, rtStream_t &stream) {
   stream = taskDef.stream;
   CHK_PRT_RET((stream == nullptr),
-              HCCL_ERROR("[Get][Stream]errNo[0x%016llx] get stream failed. stream from task"
+              HCCL_ERROR("[Get][Stream]errNo[0x%016llx] get stream failed. stream from task "
                          "info is null.",
                          HCOM_ERROR_CODE(HCCL_E_PARA)),
               HCCL_E_PARA);

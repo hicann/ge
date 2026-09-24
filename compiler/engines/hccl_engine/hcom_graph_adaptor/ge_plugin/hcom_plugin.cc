@@ -186,7 +186,7 @@ ge::Status HcomPlugin::ProfilingModeParser(const std::map<string, string> &optio
         if (iter->second.find("task_trace") != iter->second.npos) {
           ret = HcomSetProfilingMode(HcomProfilingMode::PROFILING_OPEN, iter->second.c_str());
           CHK_PRT_RET(ret != HCCL_SUCCESS,
-                      HCCL_ERROR("[Init][HcomPlugin]errNo[0x%016llx] Initialize: enable"
+                      HCCL_ERROR("[Init][HcomPlugin]errNo[0x%016llx] Initialize: enable "
                                  "profiling mode failed.",
                                  HCOM_ERROR_CODE(ret)),
                       ge::INTERNAL_ERROR);
@@ -314,7 +314,7 @@ HcclResult HcomPlugin::ConfigHcclDeterministic(const std::map<string, string> &o
       }
     } else {
       HCCL_WARNING(
-          "ParserHcclDeterministicDesc: key[ge.deterministic] has been set by"
+          "ParserHcclDeterministicDesc: key[ge.deterministic] has been set by "
           "HCCL_DETERMINISTIC Env, so will not be reset again");
       return HCCL_SUCCESS;
     }
