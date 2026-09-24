@@ -45,7 +45,7 @@ This sample demonstrates a minimum runnable GE custom operator sinking pipeline:
 
 ## Quick Run
 
-Execute in `examples/custom_op/compilable_add_custom` directory:
+Execute in `examples/custom_op/compilable_add_custom` directory
 
 ### Recommended Method
 
