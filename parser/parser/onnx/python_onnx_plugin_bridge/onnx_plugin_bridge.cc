@@ -80,10 +80,12 @@ class OnnxPluginBridge {
       }
       // LCOV_EXCL_START
     } catch (const py::error_already_set &error) {
+      REPORT_INNER_ERR_MSG("E19999", "Load Python ONNX plugins failed: %s.", error.what());
       GELOGE(FAILED, "Load Python ONNX plugins failed: %s", error.what());
       ResetBridgeStateUnlocked();
       return FAILED;
     } catch (const std::exception &error) {
+      REPORT_INNER_ERR_MSG("E19999", "Register Python ONNX plugins failed: %s.", error.what());
       GELOGE(FAILED, "Register Python ONNX plugins failed: %s", error.what());
       ResetBridgeStateUnlocked();
       return FAILED;
@@ -129,9 +131,11 @@ class OnnxPluginBridge {
       return SUCCESS;
     } catch (const py::error_already_set &error) {
       if (error.matches(invalid_return_exception_.ptr())) {
+        REPORT_INNER_ERR_MSG("E19999", "Python ONNX plugin parse_node returned an invalid value.");
         GELOGE(PARAM_INVALID, "Python ONNX plugin parse_node returned an invalid value.");
         return PARAM_INVALID;
       }
+      REPORT_INNER_ERR_MSG("E19999", "Python ONNX plugin parse_node failed: %s.", error.what());
       GELOGE(FAILED, "Python ONNX plugin parse_node failed: %s", error.what());
       return FAILED;
       // LCOV_EXCL_START
@@ -157,9 +161,11 @@ class OnnxPluginBridge {
       return SUCCESS;
     } catch (const py::error_already_set &error) {
       if (error.matches(invalid_return_exception_.ptr())) {
+        REPORT_INNER_ERR_MSG("E19999", "Python ONNX plugin parse_operator returned an invalid value.");
         GELOGE(PARAM_INVALID, "Python ONNX plugin parse_operator returned an invalid value.");
         return PARAM_INVALID;
       }
+      REPORT_INNER_ERR_MSG("E19999", "Python ONNX plugin parse_operator failed: %s.", error.what());
       GELOGE(FAILED, "Python ONNX plugin parse_operator failed: %s", error.what());
       return FAILED;
       // LCOV_EXCL_START
@@ -186,9 +192,11 @@ class OnnxPluginBridge {
       return subgraph.CopyFrom(*replacement_graph) == GRAPH_SUCCESS ? SUCCESS : FAILED;
     } catch (const py::error_already_set &error) {
       if (error.matches(invalid_decompose_return_exception_.ptr())) {
+        REPORT_INNER_ERR_MSG("E19999", "Python ONNX plugin decompose returned an invalid graph.");
         GELOGE(PARAM_INVALID, "Python ONNX plugin decompose returned an invalid graph.");
         return PARAM_INVALID;
       }
+      REPORT_INNER_ERR_MSG("E19999", "Python ONNX plugin decompose failed: %s.", error.what());
       GELOGE(FAILED, "Python ONNX plugin decompose failed: %s", error.what());
       return FAILED;
       // LCOV_EXCL_START
@@ -259,7 +267,8 @@ class OnnxPluginBridge {
     return true;
   }
 
-  bool RegisterDescriptorUnlocked(const onnx_bridge::PythonOnnxPluginRegistrar &registrar, const py::dict &descriptor) {
+  bool RegisterDescriptorUnlocked(const onnx_bridge::PythonOnnxPluginRegistrar &registrar,
+                                  const py::dict &descriptor) const {
     const auto target = py::cast<std::string>(descriptor["target"]);
     const auto origins = py::cast<std::vector<std::string>>(descriptor["origin_types"]);
     const auto callback_kinds = ParseCallbackKinds(descriptor);

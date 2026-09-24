@@ -65,14 +65,9 @@ pip3 install torch numpy onnx
 Verified end to end (export, ATC compilation, ACL execution, and result
 comparison all passed) on:
 
-| Item | Version |
-| ---- | ------- |
-| SoC | Ascend910_9362 (Atlas A3) |
-| CANN | 9.2.0 |
-| Python | 3.12 |
-| PyTorch | 2.7.1 and 2.8.0 (CPU build, both verified) |
-| onnx | 1.21.0 |
-| NumPy | 1.26.4 |
+- Python 3.12. Temporary requirement: the Python version used to build the run
+  package must match the Python version used to run this sample.
+- onnx 1.21.0
 
 ### 3.3 One-Shot Run
 
@@ -168,14 +163,15 @@ files:
 - MyElu: one-to-one mapping; the graph contains an Elu node with the `alpha`
   attribute relayed.
 
-To inspect compilation logs, add `--log=debug` to the atc command above and set
-the screen-printing environment variable `export ASCEND_SLOG_PRINT_TO_STDOUT=1`
-before running. See the
+To inspect compilation logs, add `--log=info` (or a higher log level) to the
+atc command above and set the screen-printing environment variable
+`export ASCEND_SLOG_PRINT_TO_STDOUT=1` before running. See the
 [atc --log parameter description](../../docs/zh/user_guides/atc_tools/CLI_options/--log.md)
-for details. When a plugin callback raises a Python exception, the default error
-output contains only the error code (for example, E19999); the Python-side
-information (exception type, statement, plugin file, and line number) is also
-only visible with the debug logging above.
+for details. When a plugin callback raises a Python exception or a plugin file
+fails to load, the default error output (E19999) already carries the
+Python-side information (exception type, failing statement, plugin file, and
+line number); use the log level above only when the full compilation log is
+needed.
 
 ## 4. Plugin and Callback Writing
 
@@ -191,6 +187,11 @@ Integrating a custom operator involves two kinds of work:
 | `parse_node` | Read attributes by name (preferred) | `thresholded_relu_plugin.py` |
 | `parse_operator` | Parse attributes as a whole (few cases, see 4.2) | `my_elu_plugin.py` |
 | `decompose` | Replace the node with a subgraph of existing operators | `thresholded_relu_plugin.py` |
+
+Only one plugin can be registered for a given `source`, and the `opsets` of
+different plugins must not overlap (for example, `opsets=(1,)` together with
+`opsets=(1, 2)` is rejected) - a conflict aborts compilation with an explicit
+error at startup.
 
 ### 4.1 parse_node: Read Attributes by Name
 
@@ -214,13 +215,67 @@ Supported attribute types: int, float, string, and homogeneous lists of them.
 If the node carries tensor or subgraph attributes, `node.attrs` raises an
 error directly; use `parse_operator` instead (see 4.2).
 
-Ports: no registration is needed when the target operator has a fixed number
-of inputs and outputs; when the number is variable, ports must be registered
-with `register_input`, `register_output`, `register_optional_input`,
-`register_dynamic_input`, and `register_dynamic_output`.
+Input and output registration: no registration is needed when the target
+operator has a fixed number of inputs and outputs; when the number is
+variable, each one must be registered with `register_input`,
+`register_output`, `register_optional_input`, `register_dynamic_input`, or
+`register_dynamic_output`.
+
+First, what "wiring" is: an ONNX model is a dataflow graph. A node does not
+hold data itself - it only names data: what its inputs are called and what its
+outputs are called. For example, a model may contain two nodes:
+
+```text
+node 1 (Conv):  input=["image", "weights"]   output="conv_out"
+node 2 (Add):   input=["conv_out", "bias"]   output="out"
+```
+
+The first input of node 2, "conv_out", is just a name; the node that actually
+produces it is node 1. Wiring is the step GE performs after reading all nodes:
+for each node input name, find the node that produces that data, and connect
+the producer's output to the consumer's input. Only after everything is wired
+can data flow between nodes.
+
+The difference between the two input registration methods (outputs have no
+optional variant):
+
+- `register_input`: registers a required input. It states that every node
+  using this operator has data wired to this position - ONNX models are
+  exported under exactly this convention;
+- `register_optional_input`: registers an optional input. It states that
+  whether this position is wired is decided by each node in the model. When a
+  node leaves it unwired, the input simply carries no data - the framework
+  fills in no value, and what "unwired" means is defined by the target
+  operator itself. For example, the `value` input of ThresholdV2 is optional;
+  when unwired, that operator treats it as 0 - its own rule, not a framework
+  default. It is perfectly legal for the operator on node A to wire the input
+  while the same operator on node B does not; an unwired node only produces a
+  warning during wiring, not an error.
+
+Wiring does not match by name; it matches by position: every ONNX operator
+type has its input list and order defined in the ONNX standard (for example,
+Conv takes X, W, then B, with B optional), and each node fills in data names
+in that order - the "i-th input" is the `i`-th entry of the node input list
+("conv_out" is the 0th in the example above). GE connects the node's `i`-th
+input to the `i`-th input of the target operator; on the target side, this
+order is fixed in the operator definition for fixed-count operators, and is
+the registration order otherwise (the first one registered is the 0th). Two
+hard requirements follow:
+
+- Fill every position: register every position, in the input order of the
+  ONNX operator (required ones with `register_input`, optional ones with
+  `register_optional_input`). Do not register only the positions you expect
+  to be used - as soon as any node may wire data at position `k`, input `k`
+  must be registered, or wiring fails with
+  `E19999: Resolve operator IO name failed`;
+- Keep the order right: the registration order must match the input order of
+  the ONNX operator. Counter-example: the operator takes X, W, then optional
+  B, but the plugin registers B first - the data of X then flows into the B
+  input; compilation succeeds, and the mismatch only surfaces later during
+  shape inference or execution.
 
 Example: `plugin/thresholded_relu_plugin.py` - reads `alpha` onto the target
-operator and registers ports.
+operator and registers its inputs and outputs.
 
 ### 4.2 parse_operator: Parse Attributes as a Whole
 
@@ -234,10 +289,17 @@ Use `parse_operator` in the following cases:
 
 The callback receives two operators:
 
-- `source`: the operator converted from the ONNX node (read-only). It has a
-  single attribute named `attribute`, whose content is the JSON string of all
-  node attributes. For example, if `alpha_f=1.0` was written at export time,
-  `source` gives:
+- `source`: the operator converted from the ONNX node (read-only). All
+  attributes of the node are packed into one JSON string, stored in the
+  `attribute` attribute of `source`; retrieve it with
+  `source.get_attr("attribute")` (`source` also carries framework-filled
+  information such as the node name and the operator type, but `attribute` is
+  all you need for parsing node attributes). The structure of the JSON string:
+  the outermost object has a single `attribute` key whose value is an array -
+  one object per attribute on the node; each object describes one attribute
+  with `name` (the attribute name), `type` (the type code), and the key that
+  holds the value - which key holds the value depends on the attribute type.
+  For example, if `alpha_f=1.0` was written at export time, `source` gives:
 
 ```json
 {
@@ -252,18 +314,28 @@ The callback receives two operators:
 }
 ```
 
-  where `name` is the attribute name and `type` is the type code (1 = float,
+  The type codes are the ONNX-standard attribute type numbers: 1 = float,
   2 = int, 3 = string, 4 = tensor, 5 = subgraph, 6 = float list, 7 = int list,
-  8 = string list). Scalar attributes (`f`/`i`/`s`) hold their values as
-  strings, so convert them when using; list attributes (`floats`/`ints`/
-  `strings`) come as plain JSON arrays; tensor (`t`) and subgraph (`g`)
-  attributes appear as complete structure dictionaries;
+  8 = string list. Scalar
+  attributes (`f`/`i`/`s`) hold their values as strings, so convert them when
+  using; list attributes (`floats`/`ints`/`strings`) come as plain JSON
+  arrays; tensor (`t`) and subgraph (`g`) attributes appear as complete
+  structure dictionaries - a tensor attribute means the attribute value itself
+  is a tensor (for example, the `value` attribute of the Constant operator),
+  and a subgraph attribute means the attribute value itself is a subgraph (for
+  example, `then_branch`/`else_branch` of the control-flow operator If, or
+  `body` of Loop); you normally do not need to parse their fields field by
+  field.
 
 - `target`: the target operator, likewise written with `set_attr`.
 
 Example: `plugin/my_elu_plugin.py` - parses `alpha` out of the JSON and relays
 it to Elu. This example has a single float attribute that `parse_node` could
 handle as well; it is used here to demonstrate how to read the JSON.
+
+For the complete description of every value field of `attribute` (including
+composite types such as tensor and subgraph), see the
+[parse_operator interface doc](../../docs/zh/api/graph_engine_api/python/ge/onnx_plugin/OnnxPlugin/parse_operator.md).
 
 ### 4.3 decompose: Replace the Node with a Subgraph of Existing Operators
 

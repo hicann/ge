@@ -1226,6 +1226,8 @@ add_executable(ut_onnx_plugin_bridge_utest
 
 add_dependencies(ut_onnx_plugin_bridge_utest
     ge_python_onnx_plugin_bridge
+    ge_python_custom_op_bridge
+    _ge_custom_op_native
 )
 
 target_compile_options(ut_onnx_plugin_bridge_utest PRIVATE
@@ -1243,12 +1245,15 @@ target_include_directories(ut_onnx_plugin_bridge_utest PRIVATE
     ${AIR_CODE_DIR}/parser/parser
     ${AIR_CODE_DIR}/inc/parser
     ${AIR_CODE_DIR}/inc/parser/external
+    ${AIR_CODE_DIR}/runtime
     ${pybind11_INCLUDE_DIR}
 )
 
 target_compile_definitions(ut_onnx_plugin_bridge_utest PRIVATE
     google=ascend_private
     ONNX_PYTHON_PLUGIN_BRIDGE_PATH="$<TARGET_FILE:ge_python_onnx_plugin_bridge>"
+    CUSTOM_OP_PYBIND_BRIDGE_PATH="$<TARGET_FILE:ge_python_custom_op_bridge>"
+    CUSTOM_OP_NATIVE_MODULE_PATH="$<TARGET_FILE:_ge_custom_op_native>"
 )
 
 target_link_options(ut_onnx_plugin_bridge_utest PRIVATE

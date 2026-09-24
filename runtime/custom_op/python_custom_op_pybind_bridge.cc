@@ -267,6 +267,7 @@ class PythonCustomOpPybindBridge {
     try {
       descriptors_obj = bridge_module_.attr("load_and_get_op_descriptors")();
     } catch (const py::error_already_set &err) {
+      REPORT_INNER_ERR_MSG("E19999", "Load python custom op descriptors failed: %s.", err.what());
       GELOGE(FAILED, "Load python custom op descriptors failed: %s", err.what());
       return FAILED;
     }

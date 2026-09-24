@@ -10,7 +10,7 @@ OnnxPlugin类是ONNX Plugin的descriptor（描述符）。一个descriptor实例
 
 三类回调对应解析流程的不同阶段，可按需组合：
 
-- `parse_node`与`parse_operator`属于同一参数解析阶段，两者同时绑定时仅`parse_operator`生效，`parse_node`不会被调用。
+- `parse_node`与`parse_operator`属于同一参数解析阶段，二者选其一绑定即可。"同时绑定"指对同一个descriptor先调用[`parse_node`](parse_node.md)、再调用[`parse_operator`](parse_operator.md)各绑一个回调：解析阶段只调用`parse_operator`绑定的回调，`parse_node`绑定的回调被忽略且不会报错，因此不要同时绑定两者。
 - `decompose`独立于参数解析阶段，可与任一参数解析回调组合，也可单独绑定。
 
 回调通过装饰器方式绑定，装饰器返回原函数，绑定回调时完成descriptor注册。同一类回调重复绑定时抛出`ValueError`。descriptor创建后，`source`、`domain`、`opsets`和`target`不可修改。
