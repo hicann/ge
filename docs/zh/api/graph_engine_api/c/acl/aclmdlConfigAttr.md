@@ -135,7 +135,7 @@ Device上模型所需工作内存（存放模型执行过程中的临时数据�
 
 ## ACL\_MDL\_INPUTQ\_NUM\_SIZET取值说明
 
-模型输入队列大小 ,带队列加载模型时，该选项必选，与ACL\_MDL\_INPUTQ\_ADDR\_PTR选项配合使用。该选项对应的值为size\_t类型。
+模型输入队列大小，带队列加载模型时，该选项必选，与ACL\_MDL\_INPUTQ\_ADDR\_PTR选项配合使用。该选项对应的值为size\_t类型。
 
 <!-- npu="IPV350" id5 -->
 当前版本不支持该配置。

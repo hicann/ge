@@ -14,7 +14,7 @@
 <!-- npu="A3,910b" id4 -->
 - 针对同一个算子，如果通过[--op\_precision\_mode](--op_precision_mode.md)参数配置了enable\_hi\_float\_32\_execution或enable\_float\_32\_execution，该场景下不建议再与[--allow\_hf32](--allow_hf32.md)参数同时使用，若同时使用，则优先级如下：
 
-    op\_precision\_mode\(ByNodeName，按节点名称设置精度模式\) \> allow\_hf32 \> op\_precision\_mode\(ByOpType，按算子类型设置精度模式\)
+    op\_precision\_mode（ByNodeName，按节点名称设置精度模式） \> allow\_hf32 \> op\_precision\_mode（ByOpType，按算子类型设置精度模式）
 <!-- end id4 -->
 
 关联参数示意图如[图1](#fig1)所示。

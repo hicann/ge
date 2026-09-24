@@ -8,7 +8,7 @@ GE图引擎接口头文件在如下目录：
   - `${INSTALL_DIR}/include/acl/`
 
 - 执行类接口：
-  - `${INSTALL_DIR}}/include/ge/`
+  - `${INSTALL_DIR}/include/ge/`
   - `${INSTALL_DIR}/include/graph/`
   - `${INSTALL_DIR}/include/external/`
   - `${INSTALL_DIR}/include/acl/`

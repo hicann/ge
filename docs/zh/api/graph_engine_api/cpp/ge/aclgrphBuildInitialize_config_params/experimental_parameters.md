@@ -28,7 +28,7 @@ HF32是昇腾推出的专门用于算子内部计算的单精度浮点类型，�
 
 - 针对同一个算子，如果通过OP\_PRECISION\_MODE参数配置了enable\_hi\_float\_32\_execution或enable\_float\_32\_execution，该场景下不建议再与ALLOW\_HF32参数同时使用，若同时使用，则优先级如下：
 
-    OP\_PRECISION\_MODE\(ByNodeName，按节点名称设置精度模式\) \> ALLOW\_HF32 \> OP\_PRECISION\_MODE\(ByOpType，按算子类型设置精度模式\)。
+    OP\_PRECISION\_MODE（ByNodeName，按节点名称设置精度模式） \> ALLOW\_HF32 \> OP\_PRECISION\_MODE（ByOpType，按算子类型设置精度模式）。
 
 - 由于ALLOW\_HF32是使用HF32自动代替float32，要想该参数生效，必须保证被涉及算子的输入或者输出类型为float32。由于PRECISION\_MODE\_V2参数默认值为fp16，原始网络模型中算子类型为float32时会被强制转为float16类型，该场景下使用ALLOW\_HF32参数不生效，建议修改PRECISION\_MODE\_V2参数值为**origin**（PRECISION\_MODE参数默认值为force\_fp16，建议修改为**must\_keep\_origin\_dtype**或者**force\_fp32**）。
 

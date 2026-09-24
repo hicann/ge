@@ -63,7 +63,7 @@ nodename4=support_out_of_bound_index
 <!-- npu="A3,910b" id5 -->
 - 针对同一个算子，如果通过OP\_PRECISION\_MODE数配置了enable\_hi\_float\_32\_execution或enable\_float\_32\_execution，该场景下不建议再与ALLOW\_HF32参数同时使用，若同时使用，则优先级如下：
 
-    op\_precision\_mode\(ByNodeName，按节点名称设置精度模式\) \> allow\_hf32 \> op\_precision\_mode\(ByOpType，按算子类型设置精度模式\)
+    op\_precision\_mode（ByNodeName，按节点名称设置精度模式） \> allow\_hf32 \> op\_precision\_mode（ByOpType，按算子类型设置精度模式）
 <!-- end id5 -->
 
 - 该参数不建议配置，若使用高性能或者高精度模式，网络性能或者精度不是最优，则可以使用该参数，通过配置ini文件调整某个具体算子的精度模式。

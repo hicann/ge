@@ -373,7 +373,7 @@ x ----\
     - ge\_onnx\_xxxx\_PreRunBegin.pbtxt：融合前的图
     - ge\_onnx\_xxxx\_RunCustomPassBeforeInfershape.pbtxt：融合后的图
 
-    运行成功后，日志中会出现类似输出\(input\_0名字实际可能有区别\)：
+    运行成功后，日志中会出现类似输出（input\_0名字实际可能有区别）：
 
     ```text
     [PythonAddZeroConstValueMatchPass] matched=PythonAddZeroConstValueMatchPass_add_zero_pattern captured=input_0:0
