@@ -28,6 +28,10 @@ ge::graphStatus DavinciModelFinalizer(KernelContext *context) {
   for (const auto davinci_model : davinci_models) {
     davinci_model->UnbindTaskSinkStream();
   }
+  // Eager 自定义算子申请的辅流也绑定在 rt model 上，必须先解绑销毁，再销毁模型流
+  for (const auto davinci_model : davinci_models) {
+    davinci_model->UnbindAndDestroyAttachedStreams();
+  }
   for (const auto davinci_model : davinci_models) {
     davinci_model->DestroyStream();
   }

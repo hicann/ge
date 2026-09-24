@@ -12,6 +12,7 @@
 #include "graph_builder/converter_checker.h"
 #include "graph_builder/bg_tensor.h"
 #include "graph_builder/bg_infer_shape.h"
+#include "graph_builder/bg_attached_stream_provider.h"
 #include "common/checker.h"
 #include "exe_graph/lowering/frame_selector.h"
 #include "kernel/common_kernel_impl/build_tensor.h"
@@ -146,6 +147,11 @@ LowerResult LoweringCustomNode(const ge::NodePtr &node, const LowerInput &lower_
   input_holders.emplace_back(allocator_holder);
   input_holders.emplace_back(lower_input.global_data->GetStream());
   input_holders.emplace_back(custom_executor_func);
+  // 辅流容器：Init 图创建、执行器析构时释放，per-executor 隔离。
+  // 必须插在 custom_executor_func 之后、infer 模板 tensor 之前，与 CustomOpInput 枚举顺序保持一致。
+  const auto attached_stream_provider = bg::GetAttachedStreamProvider(*lower_input.global_data);
+  LOWER_REQUIRE_NOTNULL(attached_stream_provider);
+  input_holders.emplace_back(attached_stream_provider);
   // Check inference_rule
   const auto op_desc = node->GetOpDesc();
   LOWER_REQUIRE_NOTNULL(op_desc);

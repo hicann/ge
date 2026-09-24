@@ -109,6 +109,7 @@ set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "graph/load/hccl_task_info_unittest.cc"
     "graph/load/custom_task_info_unittest.cc"
     "graph/load/attached_stream_collection_unittest.cc"
+    "graph/load/davinci_model_attached_stream_unittest.cc"
     "graph/load/kernel_ex_task_info_unittest.cc"
     "graph/load/kernel_task_info_unittest.cc"
     "graph/load/kernel_manager_unittest.cc"

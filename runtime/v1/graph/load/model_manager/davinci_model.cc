@@ -380,7 +380,7 @@ DavinciModel::~DavinciModel() noexcept {
     // clear exception dump info before stream release
     exception_dumper_.Clear();
     UnbindTaskSinkStream();
-    attached_stream_collection_.UnbindAndDestroy();
+    UnbindAndDestroyAttachedStreams();
     DestroyStream();
     DestroyResources();
     GELOGI("Npu model: %u success to finalize.", model_id_);
@@ -5872,6 +5872,17 @@ void DavinciModel::UnbindTaskSinkStream() {
     GE_LOGW_IF(aclmdlRIUnbindStream(rt_model_handle_, rt_entry_stream_) != ACL_SUCCESS, "Unbind stream failed!");
   }
   GELOGD("Npu model: %u success to unbind streams.", model_id_);
+}
+
+void DavinciModel::UnbindAndDestroyAttachedStreams() {
+  // check rt ctx is exist. rt api call will cause error log when ctx does not exist
+  aclrtContext current_ctx = nullptr;
+  if (aclrtGetCurrentContext(&current_ctx) != ACL_SUCCESS) {
+    return;
+  }
+  // 内部已清空缓存并置空 model 句柄，重复调用无副作用
+  attached_stream_collection_.UnbindAndDestroy();
+  GELOGD("Npu model: %u success to unbind and destroy attached streams.", model_id_);
 }
 
 void DavinciModel::DestroyStream() {
