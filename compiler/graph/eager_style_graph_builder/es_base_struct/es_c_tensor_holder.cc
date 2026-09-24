@@ -48,6 +48,7 @@ struct EsCTensorHolder::EsCTensorHolderImpl {
   }
   ge::Status SetDataType(const ge::DataType data_type) {
     auto td = GetTd();
+    td.SetOriginDataType(data_type);
     td.SetDataType(data_type);
     UpdateTd(td);
     return ge::SUCCESS;

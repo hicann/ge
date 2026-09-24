@@ -123,6 +123,7 @@ class TensorDescImpl {
   Format origin_format_ = FORMAT_ND;
   bool origin_format_is_set_ = false;
   DataType data_type_ = DT_FLOAT;
+  DataType origin_data_type_ = DT_UNDEFINED;
   Shape origin_shape_;
   bool origin_shape_is_set_ = false;
   int64_t size_ = 0;
@@ -467,6 +468,19 @@ DataType TensorDesc::GetDataType() const {
 void TensorDesc::SetDataType(DataType dt) {
   if (impl != nullptr) {
     impl->data_type_ = dt;
+  }
+}
+
+DataType TensorDesc::GetOriginDataType() const {
+  if (impl != nullptr) {
+    return impl->origin_data_type_;
+  }
+  return DT_UNDEFINED;
+}
+
+void TensorDesc::SetOriginDataType(const DataType origin_data_type) {
+  if (impl != nullptr) {
+    impl->origin_data_type_ = origin_data_type;
   }
 }
 
@@ -948,6 +962,7 @@ Tensor Tensor::Clone() const {
 GeTensorDesc TensorAdapter::TensorDesc2GeTensorDesc(const TensorDesc &tensor_desc) {
   GeTensorDesc ge_tensor_desc(GeShape(tensor_desc.GetShape().GetDims()), tensor_desc.GetFormat(),
                               tensor_desc.GetDataType());
+  ge_tensor_desc.SetOriginDataType(tensor_desc.GetOriginDataType());
   if (tensor_desc.impl->origin_format_is_set_) {
     (void)AttrUtils::SetBool(ge_tensor_desc, ATTR_NAME_ORIGIN_FORMAT_IS_SET, true);
   }
@@ -987,6 +1002,7 @@ GeTensorDesc TensorAdapter::TensorDesc2GeTensorDesc(const TensorDesc &tensor_des
 TensorDesc TensorAdapter::GeTensorDesc2TensorDesc(const GeTensorDesc &ge_tensor_desc) {
   TensorDesc tensor_desc(Shape(ge_tensor_desc.GetShape().GetDims()), ge_tensor_desc.GetFormat(),
                          ge_tensor_desc.GetDataType());
+  tensor_desc.SetOriginDataType(ge_tensor_desc.GetOriginDataType());
   if (TensorUtils::IsOriginShapeInited(ge_tensor_desc)) {
     tensor_desc.SetOriginShape(Shape(ge_tensor_desc.GetOriginShape().GetDims()));
   }
