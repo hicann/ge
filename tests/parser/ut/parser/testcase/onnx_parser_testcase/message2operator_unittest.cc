@@ -196,4 +196,71 @@ TEST_F(UtestMessage2Operator, message_to_operator_repeated_message_field) {
   auto ret = Message2Operator::ParseOperatorAttrs(attribute, 1, op_src);
   EXPECT_EQ(ret, SUCCESS);
 }
+
+static Json GetOnnxAttributeJson(ge::Operator &op_src) {
+  std::string attr_json;
+  EXPECT_EQ(op_src.GetAttr("attribute", attr_json), ge::GRAPH_SUCCESS);
+  return Json::parse(attr_json);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_onnx_attr_int_default_value) {
+  ge::onnx::NodeProto input_node;
+  ge::onnx::AttributeProto *attribute = input_node.add_attribute();
+  attribute->set_name("int_attr");
+  attribute->set_type(onnx::AttributeProto::INT);
+  attribute->set_i(0);
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(&input_node, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+  const Json json = GetOnnxAttributeJson(op_src);
+  ASSERT_EQ(json["attribute"].size(), 1U);
+  EXPECT_EQ(json["attribute"][0]["name"], "int_attr");
+  EXPECT_EQ(json["attribute"][0]["type"], 2);
+  EXPECT_EQ(json["attribute"][0]["i"], 0);
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_onnx_attr_float_default_value) {
+  ge::onnx::NodeProto input_node;
+  ge::onnx::AttributeProto *attribute = input_node.add_attribute();
+  attribute->set_name("float_attr");
+  attribute->set_type(onnx::AttributeProto::FLOAT);
+  attribute->set_f(0.0F);
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(&input_node, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+  const Json json = GetOnnxAttributeJson(op_src);
+  ASSERT_EQ(json["attribute"].size(), 1U);
+  EXPECT_EQ(json["attribute"][0]["f"], "0");
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_onnx_attr_string_default_value) {
+  ge::onnx::NodeProto input_node;
+  ge::onnx::AttributeProto *attribute = input_node.add_attribute();
+  attribute->set_name("str_attr");
+  attribute->set_type(onnx::AttributeProto::STRING);
+  attribute->set_s("");
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(&input_node, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+  const Json json = GetOnnxAttributeJson(op_src);
+  ASSERT_EQ(json["attribute"].size(), 1U);
+  EXPECT_EQ(json["attribute"][0]["s"], "");
+}
+
+TEST_F(UtestMessage2Operator, message_to_operator_onnx_attr_ints_not_affected) {
+  ge::onnx::NodeProto input_node;
+  ge::onnx::AttributeProto *attribute = input_node.add_attribute();
+  attribute->set_name("ints_attr");
+  attribute->set_type(onnx::AttributeProto::INTS);
+  attribute->add_ints(1);
+  attribute->add_ints(0);
+  attribute->add_ints(2);
+  ge::Operator op_src("add", "Add");
+  auto ret = Message2Operator::ParseOperatorAttrs(&input_node, 1, op_src);
+  EXPECT_EQ(ret, SUCCESS);
+  const Json json = GetOnnxAttributeJson(op_src);
+  ASSERT_EQ(json["attribute"].size(), 1U);
+  EXPECT_EQ(json["attribute"][0]["ints"], Json::array({1, 0, 2}));
+  EXPECT_FALSE(json["attribute"][0].contains("i"));
+}
 }  // namespace ge

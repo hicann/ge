@@ -47,15 +47,15 @@ class Pb2Json {
 
   static void EnumJson2Json(Json &json);
 
+  static void OneField2Json(const ProtobufMsg &message, const ProtobufFieldDescriptor *field,
+                            const ProtobufReflection *reflection, const std::set<std::string> &black_fields, Json &json,
+                            bool enum2str, int depth);
+
  protected:
   static void Enum2Json(const ProtobufEnumValueDescriptor *enum_value_desc, const ProtobufFieldDescriptor *field,
                         bool enum2str, Json &json);
 
   static void RepeatedEnum2Json(const ProtobufEnumValueDescriptor *enum_value_desc, bool enum2str, Json &json);
-
-  static void OneField2Json(const ProtobufMsg &message, const ProtobufFieldDescriptor *field,
-                            const ProtobufReflection *reflection, const std::set<std::string> &black_fields, Json &json,
-                            bool enum2str, int depth);
 
   static std::string TypeBytes2String(std::string &field_name, std::string &type_bytes);
 
