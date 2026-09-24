@@ -14,11 +14,12 @@
 #include "framework/common/helper/model_save_helper_factory.h"
 #include "common/file_constant_utils/file_constant_utils.h"
 #include "common/ge_common/ge_types.h"
-#include "common/helper/om2/zip_archive_writer.h"
-#include "common/helper/om2/om2_zip_saver.h"
-#include "common/helper/om2/om2_package_contants.h"
-#include "common/helper/om2/json_file.h"
-#include "common/om2/om2_model_data.h"
+#include "framework/common/gert_model_data_serialize.h"
+#include "framework/common/gert_model_data_deserialize.h"
+#include "framework/om2/model_data/om2_package_contants.h"
+#include "framework/common/json_file.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "common/om2/codegen/om2_codegen.h"
 #include "common/om2/codegen/om2_codegen_utils.h"
 #include "framework/omg/omg_inner_types.h"
@@ -33,12 +34,11 @@
 #include "graph/manager/graph_var_manager.h"
 #include "common/helper/om2/rt_var_resource_builder.h"
 #include "common/op_so_store/op_so_store_utils.h"
+#include "framework/common/gert_model_data_repack.h"
 
 namespace ge {
 namespace {
 constexpr auto kAttrKernelName = "_kernelname";
-const std::string kOm2ConstantsConfigSuffix = "_constants_config.json";
-const std::string kOm2ExternalWeightDirName = "weight";
 
 constexpr size_t kAippDimPartsNum = 6U;
 constexpr size_t kAippDimNameIdx = 2U;
@@ -88,128 +88,6 @@ Status GetDynamicBatchInfo(const OpDescPtr &op_desc, JsonFile::json &batch_info,
     }
     batch_info.push_back(batch_shape);
   }
-  return SUCCESS;
-}
-
-bool EndsWith(const std::string &str, const std::string &suffix) {
-  return (str.size() >= suffix.size()) && (str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0);
-}
-
-std::string StripOm2ArchiveRoot(const std::string &entry_name) {
-  const auto pos = entry_name.find('/');
-  return (pos == std::string::npos) ? entry_name : entry_name.substr(pos + 1U);
-}
-
-bool IsOm2ConstantsConfigEntry(const std::string &entry_name) {
-  return (entry_name.find("data/model_") == 0U) && EndsWith(entry_name, kOm2ConstantsConfigSuffix);
-}
-
-bool ShouldCompressRepackedOm2Entry(const std::string &entry_name) {
-  const std::string model_dir_prefix = "data/model_";
-  const std::string runtime_dir = "/runtime/";
-  if (entry_name.find(model_dir_prefix) != 0U) {
-    return false;
-  }
-  const auto model_index_start = model_dir_prefix.length();
-  const auto runtime_pos = entry_name.find(runtime_dir, model_index_start);
-  return (runtime_pos != std::string::npos) && (runtime_pos > model_index_start);
-}
-
-std::string MakeOm2ExternalWeightPath(const std::string &output_file_name, const std::string &file_name) {
-  std::string path = output_file_name;
-  const char_t *const om_dir = mmDirName(&path[0]);
-  if (om_dir == nullptr) {
-    return "";
-  }
-  return std::string(om_dir) + "/" + kOm2ExternalWeightDirName + "/" + file_name;
-}
-
-Status RewriteOm2ConstantsConfig(const std::string &output_file_name, JsonFile &constants_json,
-                                 std::map<std::string, std::string> &old_file_to_new_file, bool &changed) {
-  JsonFile::json consts_json;
-  if (!constants_json.Get("consts", consts_json) || !consts_json.is_object()) {
-    return SUCCESS;
-  }
-  for (auto &const_item : consts_json.items()) {
-    auto &const_info = const_item.value();
-    if (!const_info.is_object()) {
-      continue;
-    }
-    JsonFile const_info_json(const_info);
-    std::string type;
-    if (const_info_json.Get("type", type) && (type == "INTERNAL")) {
-      continue;
-    }
-    std::string old_file_path;
-    if (!const_info_json.Get("file_path", old_file_path) || old_file_path.empty()) {
-      continue;
-    }
-    std::string file_name;
-    if (!const_info_json.Get("file_name", file_name) || file_name.empty()) {
-      file_name = StringUtils::GetFileName(old_file_path);
-    }
-    GE_ASSERT_TRUE(!file_name.empty(), "[OM2] External weight file name is empty, file_path=%s", old_file_path.c_str());
-    const std::string new_file_path = MakeOm2ExternalWeightPath(output_file_name, file_name);
-    GE_ASSERT_TRUE(!new_file_path.empty(), "[OM2] Failed to make external weight path, output=%s",
-                   output_file_name.c_str());
-    const_info["file_name"] = file_name;
-    (void)const_info.erase("file_path");
-    old_file_to_new_file[old_file_path] = new_file_path;
-    changed = true;
-  }
-  if (changed) {
-    (void)constants_json.Set("consts", consts_json);
-  }
-  return SUCCESS;
-}
-
-Status CollectOm2ExternalWeightRelocation(const std::string &output_file_name, const SimpleZipArchiveReader &archive,
-                                          const std::vector<std::string> &archive_entries,
-                                          std::map<std::string, std::string> &rewritten_configs,
-                                          std::map<std::string, std::string> &old_file_to_new_file) {
-  for (const auto &entry_name : archive_entries) {
-    const std::string relative_entry_name = StripOm2ArchiveRoot(entry_name);
-    if (!IsOm2ConstantsConfigEntry(relative_entry_name)) {
-      continue;
-    }
-    size_t buffer_size = 0U;
-    const auto buffer = archive.ExtractToMem(entry_name, buffer_size);
-    GE_ASSERT_NOTNULL(buffer, "[OM2] Failed to extract constants config entry %s", entry_name.c_str());
-    const JsonFile const_json_readonly(reinterpret_cast<const uint8_t *>(buffer.get()), buffer_size);
-    GE_ASSERT_TRUE(const_json_readonly.IsValid(), "[OM2] Invalid constants config entry %s", entry_name.c_str());
-    JsonFile const_json(const_json_readonly.Raw());
-    bool changed = false;
-    GE_ASSERT_SUCCESS(RewriteOm2ConstantsConfig(output_file_name, const_json, old_file_to_new_file, changed));
-    if (changed) {
-      rewritten_configs[entry_name] = const_json.Dump();
-    }
-  }
-  return SUCCESS;
-}
-
-Status RepackOm2Model(const std::string &output_file_name, const SimpleZipArchiveReader &archive,
-                      const std::vector<std::string> &archive_entries,
-                      const std::map<std::string, std::string> &rewritten_configs, ModelBufferData &relocated_model) {
-  auto zip_writer = MakeShared<ZipArchiveWriter>(output_file_name);
-  GE_ASSERT_NOTNULL(zip_writer);
-  GE_ASSERT_TRUE(zip_writer->IsMemFileOpened());
-  for (const auto &entry_name : archive_entries) {
-    const std::string relative_entry_name = StripOm2ArchiveRoot(entry_name);
-    const auto rewritten_config = rewritten_configs.find(entry_name);
-    if (rewritten_config != rewritten_configs.end()) {
-      GE_ASSERT_TRUE(zip_writer->WriteBytes(relative_entry_name, rewritten_config->second.data(),
-                                            rewritten_config->second.size(),
-                                            ShouldCompressRepackedOm2Entry(relative_entry_name)));
-      continue;
-    }
-    size_t buffer_size = 0U;
-    const auto buffer = archive.ExtractToMem(entry_name, buffer_size);
-    GE_ASSERT_NOTNULL(buffer, "[OM2] Failed to extract archive entry %s", entry_name.c_str());
-    GE_ASSERT_TRUE(buffer_size > 0U, "[OM2] Empty archive entry %s is invalid", entry_name.c_str());
-    GE_ASSERT_TRUE(zip_writer->WriteBytes(relative_entry_name, buffer.get(), buffer_size,
-                                          ShouldCompressRepackedOm2Entry(relative_entry_name)));
-  }
-  GE_ASSERT_TRUE(zip_writer->SaveModelData(relocated_model, false));
   return SUCCESS;
 }
 
@@ -401,21 +279,23 @@ static Status ParseAippDimInfo(const std::string &info_str, ge::InputOutputDims 
   return SUCCESS;
 }
 
-static Status ParseAippDims(const std::vector<std::string> &dim_strs, std::vector<ge::InputOutputDims> &dims) {
+static Status ParseAippDims(const std::vector<std::string> &dim_strs,
+                            std::vector<std::unique_ptr<ge::InputOutputDims>> &dims) {
   for (const auto &s : dim_strs) {
-    ge::InputOutputDims dim_info;
-    GE_CHK_STATUS_RET(ParseAippDimInfo(s, dim_info), "[Parse][AippDimInfo] failed for: %s", s.c_str());
+    auto dim_info = std::make_unique<ge::InputOutputDims>();
+    GE_CHK_STATUS_RET(ParseAippDimInfo(s, *dim_info), "[Parse][AippDimInfo] failed for: %s", s.c_str());
     dims.push_back(std::move(dim_info));
   }
   return SUCCESS;
 }
 
 static Status ExtractAippMetaFromOpDesc(const OpDescPtr &op_desc, const std::map<std::string, uint32_t> &data_index_map,
-                                        gert::Om2AippMeta &meta) {
+                                        gert::GertModelDataAippMeta &meta) {
   GELOGD("[OM2] Extract AIPP meta from node: %s", op_desc->GetName().c_str());
   GeAttrValue::NamedAttrs aipp_attr;
   if (ge::AttrUtils::GetNamedAttrs(op_desc, ATTR_NAME_AIPP, aipp_attr)) {
-    ConvertAippAttrToConfigInfo(aipp_attr, meta.aipp_config_info);
+    meta.aipp_config_info = std::make_unique<ge::AippConfigInfo>();
+    ConvertAippAttrToConfigInfo(aipp_attr, *meta.aipp_config_info);
   }
   if (meta.aipp_type == ge::DATA_WITH_DYNAMIC_AIPP) {
     const std::string *related_name = ge::AttrUtils::GetStr(op_desc, ATTR_DATA_AIPP_DATA_NAME_MAP);
@@ -432,12 +312,13 @@ static Status ExtractAippMetaFromOpDesc(const OpDescPtr &op_desc, const std::map
   GE_CHK_STATUS_RET(ParseAippDims(aipp_inputs, meta.aipp_input_dims));
   GE_CHK_STATUS_RET(ParseAippDims(aipp_outputs, meta.aipp_output_dims));
   if (!aipp_inputs.empty()) {
-    ParseOrigInputInfoFromStr(aipp_inputs[0], meta.orig_input_info);
+    meta.orig_input_info = std::make_unique<ge::OriginInputInfo>();
+    ParseOrigInputInfoFromStr(aipp_inputs[0], *meta.orig_input_info);
   }
   return SUCCESS;
 }
 
-static Status CollectAippMetas(const ComputeGraphPtr &graph, gert::Om2ModelMeta &model_meta) {
+static Status CollectAippMetas(const ComputeGraphPtr &graph, gert::GertModelDataModelMeta &model_meta) {
   std::map<std::string, uint32_t> data_index_map;
   for (const auto &node : graph->GetDirectNode()) {
     const auto op_desc = node->GetOpDesc();
@@ -467,16 +348,267 @@ static Status CollectAippMetas(const ComputeGraphPtr &graph, gert::Om2ModelMeta 
     if (input_index >= model_meta.aipp_infos.size()) {
       model_meta.aipp_infos.resize(input_index + 1U);
     }
-    gert::Om2AippMeta &meta = model_meta.aipp_infos[input_index];
+    if (!model_meta.aipp_infos[input_index]) {
+      model_meta.aipp_infos[input_index] = std::make_unique<gert::GertModelDataAippMeta>();
+    }
+    gert::GertModelDataAippMeta &meta = *model_meta.aipp_infos[input_index];
     meta.aipp_type = aipp_type;
     const Status ret = ExtractAippMetaFromOpDesc(op_desc, data_index_map, meta);
     if (ret != SUCCESS) {
       GELOGE(ret, "[OM2] ExtractAippMetaFromOpDesc failed for node: %s", op_desc->GetName().c_str());
       return ret;
     }
-    model_meta.has_aipp = true;
+    model_meta.has_aipp = 1U;
   }
   GELOGI("[OM2] Collected %zu AIPP metas", model_meta.aipp_infos.size());
+  return SUCCESS;
+}
+
+Status CollectSerializableCustomOps(const std::set<std::string> &used_custom_op_types,
+                                    std::vector<std::pair<std::string, PortableOp *>> &serializable_ops) {
+  // PortableOp 与非 PortableOp 自定义算子可混合使用：仅 PortableOp 需要携带序列化数据，
+  // 非 PortableOp 算子的 kernel 由算子so自行管理，无需序列化数据。
+  serializable_ops.reserve(used_custom_op_types.size());
+  for (const auto &op_type_str : used_custom_op_types) {
+    auto serializable_op = CustomOpFactory::GetCustomOpCommonCapability<PortableOp>(AscendString(op_type_str.c_str()));
+    if (serializable_op != nullptr) {
+      (void)serializable_ops.emplace_back(op_type_str, serializable_op);
+    }
+  }
+  return SUCCESS;
+}
+
+Status SerializeCustomOpToBinary(const std::string &op_type, PortableOp *serializable_op,
+                                 std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &kernel_binaries) {
+  if (serializable_op == nullptr) {
+    GELOGE(FAILED, "[OM2] serializable custom op is null, op_type:%s", op_type.c_str());
+    return FAILED;
+  }
+  std::vector<uint8_t> buffer;
+  const auto ret = serializable_op->Serialize(buffer);
+  if (ret != GRAPH_SUCCESS) {
+    GELOGE(ret, "[OM2] serialize failed, op_type:%s", op_type.c_str());
+    return ret;
+  }
+  if (buffer.empty()) {
+    GELOGW("[OM2] serialized buffer is empty, skip, op_type:%s", op_type.c_str());
+    return SUCCESS;
+  }
+  auto bin_data = new (std::nothrow) uint8_t[buffer.size()];
+  if (bin_data == nullptr) {
+    GELOGE(FAILED, "[Allocate][Mem]Allocate mem failed");
+    return FAILED;
+  }
+  auto kb = std::make_unique<gert::GertModelDataKernelBinary>();
+  kb->data = ge::ReadonlyByteBuffer(bin_data, ge::ConditionalDeleter{true});
+  kb->data_size = buffer.size();
+  GE_ASSERT_EOK(memcpy_s(bin_data, buffer.size(), buffer.data(), buffer.size()));
+  const size_t hash_id = std::hash<std::string>{}(std::string(kb->data.get(), kb->data.get() + kb->data_size));
+  const auto entry_path = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";
+  kb->name = gert::GertMakeStr(entry_path);
+  kernel_binaries.push_back(std::move(kb));
+  return SUCCESS;
+}
+
+void CollectTbeKernels(const GeModelPtr &ge_model,
+                       std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &kernel_binaries,
+                       std::unordered_set<std::string> &added_kernels) {
+  const auto &graph = ge_model->GetGraph();
+  const auto &tbe_kernel_store = ge_model->GetTBEKernelStore();
+  for (const auto &node : graph->GetNodes(graph->GetGraphUnknownFlag())) {
+    std::string kernel_name;
+    const auto kernel_name_ptr = AttrUtils::GetStr(node->GetOpDesc(), kAttrKernelName);
+    if (kernel_name_ptr != nullptr) {
+      kernel_name = *kernel_name_ptr;
+    }
+    auto kernel_bin = tbe_kernel_store.FindKernel(kernel_name);
+    if ((kernel_bin != nullptr) && (added_kernels.count(kernel_name) == 0)) {
+      gert::GertModelDataKernelBinary kb;
+      kb.name = gert::GertMakeStr(Om2CodegenUtils::GetKernelNameWithExtension(kernel_name));
+      kb.data = ge::ReadonlyByteBuffer(kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
+      kb.data_size = kernel_bin->GetBinDataSize();
+      kernel_binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kb)));
+      (void)added_kernels.insert(kernel_name);
+    }
+
+    std::string atomic_kernel_name;
+    const auto atomic_kernel_name_ptr = AttrUtils::GetStr(node->GetOpDesc(), ATOMIC_ATTR_TBE_KERNEL_NAME);
+    if (atomic_kernel_name_ptr != nullptr) {
+      atomic_kernel_name = *atomic_kernel_name_ptr;
+    }
+    if (!atomic_kernel_name.empty()) {
+      const auto atomic_kernel_bin = tbe_kernel_store.FindKernel(atomic_kernel_name);
+      if ((atomic_kernel_bin != nullptr) && (added_kernels.count(atomic_kernel_name) == 0)) {
+        gert::GertModelDataKernelBinary kb;
+        kb.name = gert::GertMakeStr(Om2CodegenUtils::GetKernelNameWithExtension(atomic_kernel_name));
+        kb.data = ge::ReadonlyByteBuffer(atomic_kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
+        kb.data_size = atomic_kernel_bin->GetBinDataSize();
+        kernel_binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kb)));
+        (void)added_kernels.insert(atomic_kernel_name);
+      }
+    }
+  }
+}
+
+void CollectCustAicpuKernels(const GeModelPtr &ge_model,
+                             std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &kernel_binaries,
+                             std::unordered_set<std::string> &added_kernels) {
+  const auto &graph = ge_model->GetGraph();
+  const auto &cust_aicpu_kernel_store = ge_model->GetCustAICPUKernelStore();
+  if (cust_aicpu_kernel_store.DataSize() > 0U) {
+    for (const auto &node : graph->GetNodes(graph->GetGraphUnknownFlag())) {
+      const auto op_desc = node->GetOpDesc();
+      GE_IF_BOOL_EXEC(op_desc == nullptr, continue);
+      const auto cust_aicpu_kernel = op_desc->TryGetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, CustAICPUKernelPtr());
+      GE_IF_BOOL_EXEC(cust_aicpu_kernel == nullptr, continue);
+      std::string kernel_name = cust_aicpu_kernel->GetName();
+      auto kernel_bin = cust_aicpu_kernel_store.FindKernel(kernel_name);
+      if ((kernel_bin != nullptr) && (added_kernels.count(kernel_name) == 0)) {
+        const size_t hash_id = std::hash<std::string>{}(
+            std::string(reinterpret_cast<const char *>(kernel_bin->GetBinData()), kernel_bin->GetBinDataSize()));
+        gert::GertModelDataKernelBinary kb;
+        kb.name = gert::GertMakeStr(std::to_string(hash_id) + "_CustAicpuKernel.o");
+        kb.data = ge::ReadonlyByteBuffer(kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
+        kb.data_size = kernel_bin->GetBinDataSize();
+        kernel_binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kb)));
+        (void)added_kernels.insert(cust_aicpu_kernel->GetName());
+      }
+    }
+  }
+}
+
+Status BuildModelInputDescs(const ModelIoNodes &io_nodes, gert::GertModelDataModelMeta &model_meta) {
+  for (const auto &[index, op_desc] : io_nodes.input_ops) {
+    (void)index;
+    const auto &tensor_desc = op_desc->GetInputDescPtr(0);
+    GE_ASSERT_NOTNULL(tensor_desc);
+
+    gert::GertTensorDesc desc = gert::MakeGertTensorDesc(op_desc->GetName(), tensor_desc->GetDataType(),
+                                                         tensor_desc->GetFormat(), tensor_desc->GetShape().GetDims());
+
+    int64_t input_size = 0;
+    const auto output_desc = op_desc->GetOutputDescPtr(0U);
+    if ((output_desc != nullptr) && AttrUtils::GetInt(*output_desc, ATTR_NAME_SPECIAL_INPUT_SIZE, input_size) &&
+        (input_size > 0)) {
+      desc.size = static_cast<size_t>(input_size);
+    } else {
+      GE_CHK_STATUS_RET(TensorUtils::GetSize(*tensor_desc, input_size), "[Get][InputSize] failed for op: %s.",
+                        op_desc->GetName().c_str());
+      desc.size = static_cast<size_t>(input_size);
+    }
+
+    std::vector<std::pair<int64_t, int64_t>> range;
+    if (tensor_desc->GetShapeRange(range) == SUCCESS) {
+      desc.shape_range = range;
+    }
+
+    gert::GertTensorDesc desc_v2 = gert::MakeGertTensorDesc(desc);
+    std::vector<int64_t> model_input_dims;
+    if (op_desc->HasAttr(ATTR_NAME_INPUT_DIMS)) {
+      (void)AttrUtils::GetListInt(op_desc, ATTR_NAME_INPUT_DIMS, model_input_dims);
+    } else {
+      model_input_dims = tensor_desc->GetShape().GetDims();
+    }
+    desc_v2.shape = model_input_dims;
+
+    std::vector<int64_t> origin_input_dims;
+    if (op_desc->HasAttr(ATTR_MBATCH_ORIGIN_INPUT_DIMS) &&
+        AttrUtils::GetListInt(op_desc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_input_dims)) {
+      model_meta.origin_input_dims.push_back(origin_input_dims);
+    } else {
+      model_meta.origin_input_dims.push_back(tensor_desc->GetShape().GetDims());
+    }
+
+    model_meta.input_desc.push_back(std::move(desc));
+    model_meta.input_desc_v2.push_back(std::move(desc_v2));
+  }
+  return SUCCESS;
+}
+
+Status BuildSingleOutputDesc(const OpDescPtr &op_desc, const std::vector<std::string> &out_node_name, const size_t i,
+                             gert::GertModelDataModelMeta &model_meta) {
+  const auto out_size = op_desc->GetInputsSize();
+  const auto src_name = op_desc->GetSrcName();
+  const auto src_index = op_desc->GetSrcIndex();
+  std::string output_name;
+  if (out_size == out_node_name.size()) {
+    const bool contains_colon = out_node_name[i].find(':') != std::string::npos;
+    output_name = contains_colon ? out_node_name[i] : (out_node_name[i] + ":" + std::to_string(src_index[i]));
+  } else {
+    output_name = std::string("output_") + std::to_string(i) + "_" + src_name[i] + "_" + std::to_string(src_index[i]);
+  }
+
+  const auto &tensor_desc = op_desc->GetInputDescPtr(static_cast<uint32_t>(i));
+  GE_ASSERT_NOTNULL(tensor_desc);
+
+  gert::GertTensorDesc desc = gert::MakeGertTensorDesc(output_name, tensor_desc->GetDataType(),
+                                                       tensor_desc->GetFormat(), tensor_desc->GetShape().GetDims());
+
+  int64_t tensor_size = 0;
+  if (AttrUtils::GetInt(tensor_desc, ATTR_NAME_SPECIAL_OUTPUT_SIZE, tensor_size) && (tensor_size > 0)) {
+    desc.size = static_cast<size_t>(tensor_size);
+  } else {
+    (void)TensorUtils::GetTensorSizeInBytes(*tensor_desc, tensor_size);
+    desc.size = static_cast<size_t>(tensor_size);
+  }
+
+  std::vector<std::pair<int64_t, int64_t>> range;
+  if (tensor_desc->GetShapeRange(range) == SUCCESS) {
+    desc.shape_range = range;
+  }
+
+  gert::GertTensorDesc desc_v2 = gert::MakeGertTensorDesc(desc);
+  model_meta.output_desc.push_back(std::move(desc));
+  model_meta.output_desc_v2.push_back(std::move(desc_v2));
+  return SUCCESS;
+}
+
+Status BuildModelOutputDescs(const GeModelPtr &ge_model, const ModelIoNodes &io_nodes, ModelMetaExtraInfo &extra_info,
+                             gert::GertModelDataModelMeta &model_meta) {
+  std::vector<std::string> out_node_name;
+  (void)AttrUtils::GetListStr(ge_model, ATTR_MODEL_OUT_NODES_NAME, out_node_name);
+
+  for (const auto &op_desc : io_nodes.output_ops) {
+    const auto out_size = op_desc->GetInputsSize();
+    const auto src_name = op_desc->GetSrcName();
+    const auto src_index = op_desc->GetSrcIndex();
+    GE_ASSERT_TRUE(src_name.size() >= out_size && src_index.size() >= out_size);
+
+    for (size_t i = 0UL; i < out_size; ++i) {
+      GE_CHK_STATUS_RET_NOLOG(BuildSingleOutputDesc(op_desc, out_node_name, i, model_meta));
+    }
+
+    std::vector<std::string> shape_info;
+    if (AttrUtils::GetListStr(op_desc, ATTR_NAME_DYNAMIC_OUTPUT_DIMS, shape_info)) {
+      for (const auto &s : shape_info) {
+        extra_info.dynamic_output_shape.push_back(s);
+      }
+    }
+  }
+  return SUCCESS;
+}
+
+Status FillModelMetaScalars(const GeModelPtr &ge_model, const ModelIoNodes &io_nodes, ModelMetaExtraInfo &extra_info,
+                            gert::GertModelDataModelMeta &model_meta) {
+  GE_ASSERT_SUCCESS(CollectDynamicBatchInfo(io_nodes.case_ops, extra_info));
+
+  model_meta.model_name = gert::GertMakeStr(ge_model->GetName());
+  int64_t work_size = 0;
+  (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, work_size);
+  model_meta.work_size = static_cast<uint64_t>(work_size);
+  int64_t zero_copy_size = 0;
+  (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_ZERO_COPY_MEMORY_SIZE, zero_copy_size);
+  model_meta.zero_copy_size = zero_copy_size;
+  model_meta.dynamic_batch_info = extra_info.dynamic_batch_info;
+  model_meta.dynamic_type = extra_info.dynamic_type;
+  const std::vector<std::string> dynamic_output_shape = extra_info.dynamic_output_shape;
+  for (const auto &s : dynamic_output_shape) {
+    model_meta.dynamic_output_shape.emplace_back(gert::GertMakeStr(s));
+  }
+  const std::vector<std::string> user_designate_shape_order = extra_info.user_designate_shape_order;
+  for (const auto &s : user_designate_shape_order) {
+    model_meta.user_designate_shape_order.emplace_back(gert::GertMakeStr(s));
+  }
   return SUCCESS;
 }
 
@@ -507,12 +639,11 @@ Status Om2PackageHelper::SaveToOmModel(const GeModelPtr &ge_model, const std::st
   GE_ASSERT_NOTNULL(ge_model, "ge_model is nullptr");
   GE_ASSERT_TRUE(!output_file.empty(), "[OM2] Empty path of the output file is invalid");
 
-  gert::Om2ModelData model_data;
+  gert::GertModelData model_data;
   GE_ASSERT_SUCCESS(BuildOm2ModelData(ge_model, model_data, ge_root_model));
 
-  // Serialize to ZIP via Om2ZipSaver
   const std::string writer_path = (!is_offline_ && !ge_model->GetName().empty()) ? ge_model->GetName() : output_file;
-  GE_ASSERT_SUCCESS(Om2ZipSaver::Save(model_data, model, is_offline_, writer_path));
+  GE_ASSERT_SUCCESS(gert::SerializeGertModelData(model_data, model, is_offline_, writer_path));
 
   GELOGI("[OM2] Successfully created OM2 model");
   return SUCCESS;
@@ -525,20 +656,15 @@ void Om2PackageHelper::SetSaveMode(const bool val) {
 Status Om2PackageHelper::RelocateExternalWeights(const std::string &output_file_name, const ModelBufferData &model,
                                                  ModelBufferData &relocated_model, bool &relocated) {
   relocated = false;
-  SimpleZipArchiveReader archive(model.data.get(), model.length);
-  if (!archive.IsGood()) {
-    GELOGW("[OM2] Model buffer has zip magic but is not a valid zip archive, save original buffer.");
-    return SUCCESS;
-  }
-  const auto archive_entries = archive.ListFiles();
-  std::map<std::string, std::string> rewritten_configs;
   std::map<std::string, std::string> old_file_to_new_file;
-  GE_ASSERT_SUCCESS(CollectOm2ExternalWeightRelocation(output_file_name, archive, archive_entries, rewritten_configs,
-                                                       old_file_to_new_file));
+  gert::GertBuffer relocated_buffer;
+  GE_ASSERT_SUCCESS(gert::RepackOm2ModelData(output_file_name, model.data.get(), model.length, relocated_buffer,
+                                             old_file_to_new_file));
   if (old_file_to_new_file.empty()) {
     return SUCCESS;
   }
-  GE_ASSERT_SUCCESS(RepackOm2Model(output_file_name, archive, archive_entries, rewritten_configs, relocated_model));
+  relocated_model.data = relocated_buffer.data;
+  relocated_model.length = relocated_buffer.length;
   GE_ASSERT_SUCCESS(FileConstantUtils::MoveExternalWeightFiles(old_file_to_new_file));
   relocated = true;
   return SUCCESS;
@@ -554,73 +680,59 @@ Status Om2PackageHelper::ExtractVisualJson(const void *model_data, size_t model_
   GE_ASSERT_NOTNULL(model_data, "[OM2] model_data is nullptr");
   GE_ASSERT_TRUE(model_len > 0U, "[OM2] model_len is 0");
 
-  const auto *data = static_cast<const uint8_t *>(model_data);
-  SimpleZipArchiveReader reader(data, model_len);
-  if (!reader.IsGood()) {
-    report_extract_failed("Failed to open OM2 ZIP archive.");
-    return FAILED;
-  }
-
-  const auto file_list = reader.ListFiles();
-  std::string entry_path;
-  for (const auto &f : file_list) {
-    if (((f.find("/debug/ge_visual_") != std::string::npos) && EndsWith(f, ".json")) ||
-        EndsWith(f, "/debug/visual.json") || EndsWith(f, "debug/visual.json")) {
-      entry_path = f;
-      break;
-    }
-  }
-  if (entry_path.empty()) {
-    report_extract_failed("visual JSON not found in OM2 archive.");
-    return FAILED;
-  }
-
-  size_t json_size = 0U;
-  auto json_buf = reader.ExtractToMem(entry_path, json_size);
-  if ((json_buf == nullptr) || (json_size == 0U)) {
+  gert::GertModelData om2_data;
+  const uint32_t deserialize_ret = gert::DeserializeGertModelData(static_cast<const uint8_t *>(model_data), model_len,
+                                                                  &om2_data, gert::GertDeserializeFiles::kVisualJson);
+  const bool visual_json_valid = (!om2_data.models.empty() && (om2_data.models[0]->debug != nullptr) &&
+                                  (om2_data.models[0]->debug->visual_json != nullptr));
+  if ((deserialize_ret != 0U) || !visual_json_valid) {
     report_extract_failed("Failed to extract visual JSON from OM2 archive.");
     return FAILED;
   }
 
-  (void)json_out.assign(reinterpret_cast<const char *>(json_buf.get()), json_size);
-  GELOGI("[OM2] Extracted visual JSON, entry:%s, size:%zu", entry_path.c_str(), json_out.size());
+  json_out = gert::GertGetStr(om2_data.models[0]->debug->visual_json);
+  GELOGI("[OM2] Extracted visual JSON, size:%zu", json_out.size());
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildProgramBody(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
+Status Om2PackageHelper::BuildProgramBody(const GeModelPtr &ge_model, gert::GertModelData &model_data,
+                                          gert::GertModelDataModel &unit) {
   GELOGI("[OM2] Begin to build program body");
-  auto &body = model_data.program_body;
+  auto &body = *unit.runtime;
   Om2Codegen codegen;
-  GE_ASSERT_SUCCESS(codegen.Om2CodegenAndCompile(ge_model, model_data));
+  GE_ASSERT_SUCCESS(codegen.Om2CodegenAndCompile(ge_model, model_data, unit));
   GE_ASSERT_TRUE(!body.source_artifacts.empty());
 
   for (const auto &artifact : body.source_artifacts) {
-    if (artifact.file_name.find(".so") != std::string::npos) {
-      body.so_artifact = artifact;
+    if (std::string(gert::GertGetStr(artifact.file_name)).find(".so") != std::string::npos) {
+      body.so_artifact.file_name = gert::GertMakeStr(artifact.file_name);
+      body.so_artifact.data = gert::GertMakeBytes(gert::GertGetStr(artifact.data), artifact.data_len);
+      body.so_artifact.data_len = artifact.data_len;
       break;
     }
   }
 
-  auto &const_metas = model_data.constants_data.consts;
-  auto &var_metas = model_data.var_metas;
+  auto &const_metas = unit.constants_config->consts;
+  const auto var_metas_size = (unit.variables_config != nullptr) ? unit.variables_config->var_metas.size() : 0UL;
   GELOGI("[OM2] Successfully built program body, artifacts count=%zu, const_metas count=%zu, var_metas count=%zu",
-         body.source_artifacts.size(), const_metas.size(), var_metas.size());
+         body.source_artifacts.size(), const_metas.size(), var_metas_size);
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildCustomSharedLibs(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data) {
+Status Om2PackageHelper::BuildCustomSharedLibs(const GeRootModelPtr &ge_root_model, gert::GertModelData &model_data) {
   GELOGI("[OM2] Begin to build custom kernel shared libraries");
   GE_ASSERT_NOTNULL(ge_root_model);
   if (!OpSoStoreUtils::IsSoBinType(ge_root_model->GetSoInOmFlag(), SoBinType::kCustomOp)) {
     return SUCCESS;
   }
-  GE_ASSERT_SUCCESS(ReadCustomOpSoToBuffer(ge_root_model->GetCustomOpSoSet(), model_data.custom_shared_libs));
+  GE_ASSERT_SUCCESS(ReadCustomOpSoToBuffer(ge_root_model->GetCustomOpSoSet(), model_data.custom_ops->libraries));
   GELOGI("[OM2] Save %zu custom op so to OpSoStore success.", ge_root_model->GetCustomOpSoSet().size());
   return SUCCESS;
 }
 
-Status Om2PackageHelper::ReadCustomOpSoToBuffer(const std::unordered_set<std::string> &ops_so_set,
-                                                std::vector<gert::Om2KernelBinary> &shared_lib_binaries) {
+Status Om2PackageHelper::ReadCustomOpSoToBuffer(
+    const std::unordered_set<std::string> &ops_so_set,
+    std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &shared_lib_binaries) {
   for (const auto &op_so : ops_so_set) {
     uint32_t bin_len = 0U;
     auto op_so_bin = GetBinDataFromFile(op_so, bin_len);
@@ -628,12 +740,11 @@ Status Om2PackageHelper::ReadCustomOpSoToBuffer(const std::unordered_set<std::st
     const auto &pos = op_so.find_last_of("/");
     GE_ASSERT_TRUE(pos != std::string::npos);
     const auto &so_name = op_so.substr(pos + 1UL);
-    const auto &vendor_name = op_so.substr(0, pos);
     const size_t hash_id = std::hash<std::string>{}(std::string(op_so_bin.get(), op_so_bin.get() + bin_len));
-    gert::Om2KernelBinary kb;
-    kb.name = std::to_string(bin_len) + "_" + std::to_string(hash_id) + "_" + so_name;
-    kb.data = ge::ReadonlyByteBuffer(reinterpret_cast<uint8_t *>(op_so_bin.release()), ge::ConditionalDeleter{true});
-    kb.data_size = bin_len;
+    auto kb = std::make_unique<gert::GertModelDataKernelBinary>();
+    kb->name = gert::GertMakeStr(std::to_string(bin_len) + "_" + std::to_string(hash_id) + "_" + so_name);
+    kb->data = ge::ReadonlyByteBuffer(reinterpret_cast<uint8_t *>(op_so_bin.release()), ge::ConditionalDeleter{true});
+    kb->data_size = bin_len;
     (void)shared_lib_binaries.emplace_back(std::move(kb));
 
     GELOGD("[OM2] Serialized custom op so '%s', bin size:%zu", so_name.c_str(), bin_len);
@@ -678,302 +789,93 @@ Status Om2PackageHelper::CollectUsedCustomOpTypes(const GeRootModelPtr &ge_root_
 }
 
 Status Om2PackageHelper::BuildCustomKernelBinaries(const GeRootModelPtr &ge_root_model,
-                                                   gert::Om2ModelData &model_data) {
+                                                   gert::GertModelData &model_data) {
   GELOGI("[OM2] Begin to build custom kernel binaries");
-  auto &kernel_binaries = model_data.custom_kernel_binaries;
+  auto &kernel_binaries = model_data.custom_ops->binaries;
 
   std::set<std::string> used_custom_op_types;
   GE_ASSERT_SUCCESS(CollectUsedCustomOpTypes(ge_root_model, used_custom_op_types));
-
   if (used_custom_op_types.empty()) {
     GELOGI("[OM2] No custom ops used in graph, skip building custom kernels.");
     return SUCCESS;
   }
 
-  // PortableOp 与非 PortableOp 自定义算子可混合使用：仅 PortableOp 需要携带序列化数据，
-  // 非 PortableOp 算子的 kernel 由算子so自行管理，无需序列化数据。
   std::vector<std::pair<std::string, PortableOp *>> serializable_ops;
-  serializable_ops.reserve(used_custom_op_types.size());
-  for (const auto &op_type_str : used_custom_op_types) {
-    auto serializable_op = CustomOpFactory::GetCustomOpCommonCapability<PortableOp>(AscendString(op_type_str.c_str()));
-    if (serializable_op != nullptr) {
-      (void)serializable_ops.emplace_back(op_type_str, serializable_op);
-    }
-  }
-
+  GE_CHK_STATUS_RET_NOLOG(CollectSerializableCustomOps(used_custom_op_types, serializable_ops));
   for (const auto &[op_type, serializable_op] : serializable_ops) {
-    if (serializable_op == nullptr) {
-      GELOGE(FAILED, "[OM2] serializable custom op is null, op_type:%s", op_type.c_str());
-      return FAILED;
-    }
-
-    std::vector<uint8_t> buffer;
-    const auto ret = serializable_op->Serialize(buffer);
-    if (ret != GRAPH_SUCCESS) {
-      GELOGE(ret, "[OM2] serialize failed, op_type:%s", op_type.c_str());
-      return ret;
-    }
-    if (buffer.empty()) {
-      GELOGW("[OM2] serialized buffer is empty, skip, op_type:%s", op_type.c_str());
-      continue;
-    }
-
-    auto bin_data = new (std::nothrow) uint8_t[buffer.size()];
-    if (bin_data == nullptr) {
-      GELOGE(FAILED, "[Allocate][Mem]Allocate mem failed");
-      return FAILED;
-    }
-    gert::Om2KernelBinary kb;
-    kb.data = ge::ReadonlyByteBuffer(bin_data, ge::ConditionalDeleter{true});
-    kb.data_size = buffer.size();
-    GE_ASSERT_EOK(memcpy_s(bin_data, buffer.size(), buffer.data(), buffer.size()));
-    const size_t hash_id = std::hash<std::string>{}(std::string(kb.data.get(), kb.data.get() + kb.data_size));
-    const auto entry_path = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";
-    kb.name = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";
-    const size_t kb_data_size = kb.data_size;
-    kernel_binaries.push_back(std::move(kb));
-    GELOGD("[OM2] Serialized custom op '%s', bin size:%zu", op_type.c_str(), kb_data_size);
+    GE_CHK_STATUS_RET_NOLOG(SerializeCustomOpToBinary(op_type, serializable_op, kernel_binaries));
   }
   GELOGI("[OM2] Successfully built custom kernel binaries, count=%zu", kernel_binaries.size());
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildKernelBinaries(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
+Status Om2PackageHelper::BuildKernelBinaries(const GeModelPtr &ge_model, gert::GertModelData &model_data) {
   GELOGI("[OM2] Begin to build kernel binaries");
   const auto &graph = ge_model->GetGraph();
   GE_ASSERT_NOTNULL(graph);
-  std::vector<gert::Om2KernelBinary> &kernel_binaries = model_data.kernel_binaries;
-
-  // Collect TBE kernels
-  const auto &tbe_kernel_store = ge_model->GetTBEKernelStore();
+  auto &kernel_binaries = model_data.kernels->binaries;
   std::unordered_set<std::string> added_kernels;
-  for (const auto &node : graph->GetNodes(graph->GetGraphUnknownFlag())) {
-    std::string kernel_name;
-    const auto kernel_name_ptr = AttrUtils::GetStr(node->GetOpDesc(), kAttrKernelName);
-    if (kernel_name_ptr != nullptr) {
-      kernel_name = *kernel_name_ptr;
-    }
-    auto kernel_bin = tbe_kernel_store.FindKernel(kernel_name);
-    if ((kernel_bin != nullptr) && (added_kernels.count(kernel_name) == 0)) {
-      gert::Om2KernelBinary kb;
-      kb.name = Om2CodegenUtils::GetKernelNameWithExtension(kernel_name);
-      kb.data = ge::ReadonlyByteBuffer(kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
-      kb.data_size = kernel_bin->GetBinDataSize();
-      kernel_binaries.push_back(std::move(kb));
-      (void)added_kernels.insert(kernel_name);
-    }
 
-    std::string atomic_kernel_name;
-    const auto atomic_kernel_name_ptr = AttrUtils::GetStr(node->GetOpDesc(), ATOMIC_ATTR_TBE_KERNEL_NAME);
-    if (atomic_kernel_name_ptr != nullptr) {
-      atomic_kernel_name = *atomic_kernel_name_ptr;
-    }
-    if (!atomic_kernel_name.empty()) {
-      const auto atomic_kernel_bin = tbe_kernel_store.FindKernel(atomic_kernel_name);
-      if ((atomic_kernel_bin != nullptr) && (added_kernels.count(atomic_kernel_name) == 0)) {
-        gert::Om2KernelBinary kb;
-        kb.name = Om2CodegenUtils::GetKernelNameWithExtension(atomic_kernel_name);
-        kb.data = ge::ReadonlyByteBuffer(atomic_kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
-        kb.data_size = atomic_kernel_bin->GetBinDataSize();
-        kernel_binaries.push_back(std::move(kb));
-        (void)added_kernels.insert(atomic_kernel_name);
-      }
-    }
-  }
-
-  // Collect CustAICPU kernels
-  const auto &cust_aicpu_kernel_store = ge_model->GetCustAICPUKernelStore();
-  if (cust_aicpu_kernel_store.DataSize() > 0U) {
-    for (const auto &node : graph->GetNodes(graph->GetGraphUnknownFlag())) {
-      const auto op_desc = node->GetOpDesc();
-      GE_IF_BOOL_EXEC(op_desc == nullptr, continue);
-      const auto cust_aicpu_kernel = op_desc->TryGetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, CustAICPUKernelPtr());
-      GE_IF_BOOL_EXEC(cust_aicpu_kernel == nullptr, continue);
-      std::string kernel_name = cust_aicpu_kernel->GetName();
-      auto kernel_bin = cust_aicpu_kernel_store.FindKernel(kernel_name);
-      if ((kernel_bin != nullptr) && (added_kernels.count(kernel_name) == 0)) {
-        const size_t hash_id = std::hash<std::string>{}(
-            std::string(reinterpret_cast<const char *>(kernel_bin->GetBinData()), kernel_bin->GetBinDataSize()));
-        gert::Om2KernelBinary kb;
-        kb.name = std::to_string(hash_id) + "_CustAicpuKernel.o";
-        kb.data = ge::ReadonlyByteBuffer(kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
-        kb.data_size = kernel_bin->GetBinDataSize();
-        kernel_binaries.push_back(std::move(kb));
-        (void)added_kernels.insert(cust_aicpu_kernel->GetName());
-      }
-    }
-  }
-
+  CollectTbeKernels(ge_model, kernel_binaries, added_kernels);
+  CollectCustAicpuKernels(ge_model, kernel_binaries, added_kernels);
   GELOGI("[OM2] Successfully built kernel binaries, count=%zu", kernel_binaries.size());
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildModelMeta(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
+Status Om2PackageHelper::BuildModelMeta(const GeModelPtr &ge_model, gert::GertModelDataModel &unit) {
   GELOGI("[OM2] Begin to build model meta");
   const auto &graph = ge_model->GetGraph();
   GE_ASSERT_NOTNULL(graph);
-  gert::Om2ModelMeta &model_meta = model_data.model_meta;
+  gert::GertModelDataModelMeta &model_meta = *unit.model_meta;
 
   ModelIoNodes io_nodes;
   GE_ASSERT_SUCCESS(CollectModelIoNodes(graph, io_nodes));
-
-  // Build input descriptors
-  for (const auto &[index, op_desc] : io_nodes.input_ops) {
-    (void)index;
-    const auto &tensor_desc = op_desc->GetInputDescPtr(0);
-    GE_ASSERT_NOTNULL(tensor_desc);
-
-    ge::Om2TensorDesc desc;
-    desc.SetName(op_desc->GetName());
-    desc.SetDataType(tensor_desc->GetDataType());
-    desc.SetFormat(tensor_desc->GetFormat());
-    desc.SetShape(tensor_desc->GetShape().GetDims());
-
-    int64_t input_size = 0;
-    const auto output_desc = op_desc->GetOutputDescPtr(0U);
-    if ((output_desc != nullptr) && AttrUtils::GetInt(*output_desc, ATTR_NAME_SPECIAL_INPUT_SIZE, input_size) &&
-        (input_size > 0)) {
-      desc.SetSize(static_cast<size_t>(input_size));
-    } else {
-      GE_CHK_STATUS_RET(TensorUtils::GetSize(*tensor_desc, input_size), "[Get][InputSize] failed for op: %s.",
-                        op_desc->GetName().c_str());
-      desc.SetSize(static_cast<size_t>(input_size));
-    }
-
-    std::vector<std::pair<int64_t, int64_t>> range;
-    if (tensor_desc->GetShapeRange(range) == SUCCESS) {
-      desc.SetShapeRange(range);
-    }
-
-    ge::Om2TensorDesc desc_v2 = desc;
-    std::vector<int64_t> model_input_dims;
-    if (op_desc->HasAttr(ATTR_NAME_INPUT_DIMS)) {
-      (void)AttrUtils::GetListInt(op_desc, ATTR_NAME_INPUT_DIMS, model_input_dims);
-    } else {
-      model_input_dims = tensor_desc->GetShape().GetDims();
-    }
-    desc_v2.SetShape(model_input_dims);
-
-    std::vector<int64_t> origin_input_dims;
-    if (op_desc->HasAttr(ATTR_MBATCH_ORIGIN_INPUT_DIMS) &&
-        AttrUtils::GetListInt(op_desc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_input_dims)) {
-      model_meta.origin_input_dims.push_back(origin_input_dims);
-    } else {
-      model_meta.origin_input_dims.push_back(tensor_desc->GetShape().GetDims());
-    }
-
-    model_meta.input_desc.push_back(desc);
-    model_meta.input_desc_v2.push_back(desc_v2);
-  }
-
-  // Build output descriptors
-  std::vector<std::string> out_node_name;
-  (void)AttrUtils::GetListStr(ge_model, ATTR_MODEL_OUT_NODES_NAME, out_node_name);
   ModelMetaExtraInfo extra_info;
 
-  for (const auto &op_desc : io_nodes.output_ops) {
-    const auto out_size = op_desc->GetInputsSize();
-    const auto src_name = op_desc->GetSrcName();
-    const auto src_index = op_desc->GetSrcIndex();
-    GE_ASSERT_TRUE(src_name.size() >= out_size && src_index.size() >= out_size);
-
-    for (size_t i = 0UL; i < out_size; ++i) {
-      std::string output_name;
-      if (out_size == out_node_name.size()) {
-        const bool contains_colon = out_node_name[i].find(':') != std::string::npos;
-        output_name = contains_colon ? out_node_name[i] : (out_node_name[i] + ":" + std::to_string(src_index[i]));
-      } else {
-        output_name =
-            std::string("output_") + std::to_string(i) + "_" + src_name[i] + "_" + std::to_string(src_index[i]);
-      }
-
-      const auto &tensor_desc = op_desc->GetInputDescPtr(static_cast<uint32_t>(i));
-      GE_ASSERT_NOTNULL(tensor_desc);
-
-      ge::Om2TensorDesc desc;
-      desc.SetName(output_name);
-      desc.SetDataType(tensor_desc->GetDataType());
-      desc.SetFormat(tensor_desc->GetFormat());
-      desc.SetShape(tensor_desc->GetShape().GetDims());
-
-      int64_t tensor_size = 0;
-      if (AttrUtils::GetInt(tensor_desc, ATTR_NAME_SPECIAL_OUTPUT_SIZE, tensor_size) && (tensor_size > 0)) {
-        desc.SetSize(static_cast<size_t>(tensor_size));
-      } else {
-        (void)TensorUtils::GetTensorSizeInBytes(*tensor_desc, tensor_size);
-        desc.SetSize(static_cast<size_t>(tensor_size));
-      }
-
-      std::vector<std::pair<int64_t, int64_t>> range;
-      if (tensor_desc->GetShapeRange(range) == SUCCESS) {
-        desc.SetShapeRange(range);
-      }
-
-      model_meta.output_desc.push_back(desc);
-      model_meta.output_desc_v2.push_back(desc);
-    }
-
-    std::vector<std::string> shape_info;
-    if (AttrUtils::GetListStr(op_desc, ATTR_NAME_DYNAMIC_OUTPUT_DIMS, shape_info)) {
-      for (const auto &s : shape_info) {
-        extra_info.dynamic_output_shape.push_back(s);
-      }
-    }
-  }
-
-  GE_ASSERT_SUCCESS(CollectDynamicBatchInfo(io_nodes.case_ops, extra_info));
-
-  model_meta.model_name = ge_model->GetName();
-  int64_t work_size = 0;
-  (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, work_size);
-  model_meta.work_size = static_cast<size_t>(work_size);
-  int64_t zero_copy_size = 0;
-  (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_ZERO_COPY_MEMORY_SIZE, zero_copy_size);
-  model_meta.zero_copy_size = zero_copy_size;
-  model_meta.dynamic_batch_info = extra_info.dynamic_batch_info;
-  model_meta.dynamic_type = extra_info.dynamic_type;
-  model_meta.dynamic_output_shape = extra_info.dynamic_output_shape;
-  model_meta.user_designate_shape_order = extra_info.user_designate_shape_order;
-
+  GE_CHK_STATUS_RET_NOLOG(BuildModelInputDescs(io_nodes, model_meta));
+  GE_CHK_STATUS_RET_NOLOG(BuildModelOutputDescs(ge_model, io_nodes, extra_info, model_meta));
+  GE_CHK_STATUS_RET_NOLOG(FillModelMetaScalars(ge_model, io_nodes, extra_info, model_meta));
   GE_CHK_STATUS_RET(CollectAippMetas(graph, model_meta));
 
   GELOGI("[OM2] Successfully built model meta");
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildConstantsData(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
+Status Om2PackageHelper::BuildConstantsData(const GeModelPtr &ge_model, gert::GertModelDataModel &unit,
+                                            std::unique_ptr<gert::GertModelDataConstantsData> &weight_slot) {
   GELOGI("[OM2] Begin to build constants data");
-  gert::Om2ConstantsData &data = model_data.constants_data;
-  auto &const_metas = data.consts;
+  gert::GertModelDataConstantsConfig &config = *unit.constants_config;
+  auto &const_metas = config.consts;
 
   bool has_internal_const = false;
   for (const auto &const_meta : const_metas) {
-    if (const_meta.type == "INTERNAL") {
+    if (std::string(gert::GertGetStr(const_meta->type)) == "INTERNAL") {
       has_internal_const = true;
       break;
     }
   }
 
-  data.internal_weight_size = has_internal_const ? ge_model->GetWeightSize() : 0U;
+  config.internal_weight_size = has_internal_const ? ge_model->GetWeightSize() : 0U;
   if (has_internal_const) {
     const uint8_t *weight_ptr = ge_model->GetWeightData();
     GE_ASSERT_NOTNULL(weight_ptr, "[OM2] Weight data pointer is null");
-    data.weight_data = ge::ReadonlyByteBuffer(weight_ptr, ge::ConditionalDeleter{false});
+    weight_slot = std::make_unique<gert::GertModelDataConstantsData>();
+    weight_slot->size = static_cast<uint64_t>(ge_model->GetWeightSize());
+    weight_slot->data = ge::ReadonlyByteBuffer(weight_ptr, ge::ConditionalDeleter{false});
   }
 
   GELOGI("[OM2] Successfully built constants data, internal_weight_size=%zu, consts count=%zu",
-         data.internal_weight_size, data.consts.size());
+         config.internal_weight_size, config.consts.size());
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) {
+Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::GertModelDataModel &unit) {
   GELOGI("[OM2] Begin to build debug info");
   const auto &graph = ge_model->GetGraph();
   GE_ASSERT_NOTNULL(graph);
-  gert::Om2DebugInfo &debug_info = model_data.debug_info;
+  gert::GertModelDataDebug &debug_info = *unit.debug;
 
   auto op_attr_object = JsonFile::json::object();
-
   for (const auto &node : graph->GetNodes(graph->GetGraphUnknownFlag())) {
     const auto &op_desc = node->GetOpDesc();
     GE_ASSERT_NOTNULL(op_desc);
@@ -990,33 +892,40 @@ Status Om2PackageHelper::BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2Mod
       op_attr_object[op_desc->GetName()] = op_attr_entry;
     }
   }
-
-  JsonFile op_attr_json(op_attr_object);
-  model_data.op_attr_json = op_attr_json.Dump();
+  const JsonFile op_attr_json(op_attr_object);
+  unit.op_attr_json = gert::GertMakeStr(op_attr_json.Dump());
 
   GE_ASSERT_SUCCESS(SetOm2CompatibleOmInfoList(ge_model));
-  GE_ASSERT_SUCCESS(VisualJsonConverter::SerializeFromGeModel(ge_model, debug_info.visual_json));
+  std::string visual_json;
+  GE_ASSERT_SUCCESS(VisualJsonConverter::SerializeFromGeModel(ge_model, visual_json));
+  debug_info.visual_json = gert::GertMakeStr(visual_json);
   GELOGI("[OM2] Successfully built debug info");
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildManifest(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data) {
+Status Om2PackageHelper::BuildManifest(gert::GertModelData &model_data) {
   GELOGI("[OM2] Begin to build manifest");
-  gert::Om2Manifest &manifest = model_data.manifest;
-  manifest.compatibility.compiler_version = gert::OM2_VERSION;
-  if (ge_root_model != nullptr) {
-    manifest.model_num = static_cast<uint32_t>(ge_root_model->GetSubgraphInstanceNameToModel().size());
-  } else {
-    manifest.model_num = 1U;
-  }
-  manifest.atc_command = domi::GetContext().atc_cmdline;
+  gert::GertModelDataManifest &manifest = *model_data.manifest;
+  manifest.compatibility.compiler_version = gert::GertMakeStr(gert::GERT_EXECUTOR_VERSION);
+  manifest.model_num = static_cast<uint64_t>(model_data.models.size());
+  manifest.atc_command = gert::GertMakeStr(domi::GetContext().atc_cmdline);
   GELOGI("[OM2] Successfully built manifest");
   return SUCCESS;
 }
 
-Status Om2PackageHelper::BuildOm2ModelData(const GeModelPtr &ge_model, gert::Om2ModelData &model_data,
+Status Om2PackageHelper::BuildOm2ModelData(const GeModelPtr &ge_model, gert::GertModelData &model_data,
                                            const GeRootModelPtr &ge_root_model) {
   GE_ASSERT_NOTNULL(ge_model, "[OM2] ge_model is nullptr");
+
+  auto &unit = *model_data.models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  unit.runtime = std::make_unique<gert::GertModelDataRuntime>();
+  unit.model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  unit.constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
+  unit.debug = std::make_unique<gert::GertModelDataDebug>();
+  // 入口统一分配目录聚合结构（多次构建追加模型时仅首次分配）
+  gert::InitGertModelData(model_data);
+  model_data.constants->constants_data.emplace_back();
+  model_data.manifest = std::make_unique<gert::GertModelDataManifest>();
 
   // Set model-level attrs for OM2 JSON compatibility
   const bool set_atc_cmdline =
@@ -1033,23 +942,26 @@ Status Om2PackageHelper::BuildOm2ModelData(const GeModelPtr &ge_model, gert::Om2
 
   GE_ASSERT_SUCCESS(BuildCustomKernelBinaries(ge_root_model, model_data));
   GE_ASSERT_SUCCESS(BuildCustomSharedLibs(ge_root_model, model_data));
-  GE_ASSERT_SUCCESS(BuildProgramBody(ge_model, model_data));
+  GE_ASSERT_SUCCESS(BuildProgramBody(ge_model, model_data, unit));
   GE_ASSERT_SUCCESS(BuildKernelBinaries(ge_model, model_data));
-  GE_ASSERT_SUCCESS(BuildModelMeta(ge_model, model_data));
-  GE_ASSERT_SUCCESS(BuildConstantsData(ge_model, model_data));
+  GE_ASSERT_SUCCESS(BuildModelMeta(ge_model, unit));
+  GE_ASSERT_SUCCESS(BuildConstantsData(ge_model, unit, model_data.constants->constants_data[0]));
 
   const auto compute_graph = ge_model->GetGraph();
-  model_data.graph_id = (compute_graph != nullptr) ? compute_graph->GetGraphID() : 0U;
+  if (unit.variables_config == nullptr) {
+    unit.variables_config = std::make_unique<gert::GertModelDataVariablesConfig>();
+  }
+  unit.variables_config->graph_id = (compute_graph != nullptr) ? compute_graph->GetGraphID() : 0U;
   const auto session_id = GetContext().SessionId();
   auto var_manager = ge::VarManager::Instance(session_id);
   if (var_manager != nullptr) {
-    GE_ASSERT_SUCCESS(
-        gert::BuildRTVarResource(*var_manager, ge_model->GetGraph(), model_data.var_metas, model_data.rt_var_resource));
+    GE_ASSERT_SUCCESS(gert::BuildRTVarResource(*var_manager, ge_model->GetGraph(), unit.variables_config->var_metas,
+                                               unit.variables_config->entries));
   }
-  GE_ASSERT_SUCCESS(BuildDebugInfo(ge_model, model_data));
-  GE_ASSERT_SUCCESS(BuildManifest(ge_root_model, model_data));
+  GE_ASSERT_SUCCESS(BuildDebugInfo(ge_model, unit));
+  GE_ASSERT_SUCCESS(BuildManifest(model_data));
 
-  GELOGI("[OM2] Successfully built Om2ModelData");
+  GELOGI("[OM2] Successfully built GertModelData");
   return SUCCESS;
 }
 

@@ -8,48 +8,106 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/helper/om2/zip_archive_writer.h"
+#include "framework/common/zip_archive_writer.h"
 
-#include <algorithm>
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <vector>
 
 #include "common/checker.h"
-#include "common/debug/ge_log.h"
+#include "common/debug/log.h"
 #include "common/math/ge_math_util.h"
 #include "common/scope_guard.h"
-#include "ge/ge_ir_build.h"
-#include "graph_metadef/graph/utils/file_utils.h"
-#include "graph_metadef/graph/utils/math_util.h"
 #include "mmpa/mmpa_api.h"
+#include "securec.h"
 
-namespace ge {
+#include "zip_archive_mem_file.h"
+
+namespace gert {
 namespace {
-constexpr int32_t kMemZipOk = 0;
-constexpr int32_t kMemZipError = -1;
+// mmpa 版建目录（语义与 graph_metadef file_utils 的 CreateDir 一致：逐级检查+创建）。
+int32_t CheckAndMkdir(const char *tmp_dir_path, const mmMode_t mode) {
+  if (mmAccess2(tmp_dir_path, M_F_OK) != EN_OK) {
+    const int32_t ret = mmMkdir(tmp_dir_path, mode);
+    if (ret != 0) {
+      if (errno == EEXIST) {
+        return 0;
+      }
+      GELOGW("[MEMZIP] Create directory %s failed, reason:%s", tmp_dir_path, strerror(errno));
+      return ret;
+    }
+  }
+  return 0;
+}
+
+int32_t CreateDir(const std::string &directory_path) {
+  if (directory_path.empty() || directory_path.length() >= static_cast<size_t>(MMPA_MAX_PATH)) {
+    GELOGW("[MEMZIP] Directory path invalid: %s", directory_path.c_str());
+    return -1;
+  }
+  constexpr uint32_t mkdir_mode =
+      static_cast<uint32_t>(M_IRUSR) | static_cast<uint32_t>(M_IWUSR) | static_cast<uint32_t>(M_IXUSR);
+  const auto mode = static_cast<mmMode_t>(mkdir_mode);
+  std::string current_path;
+  current_path.reserve(directory_path.length());
+  for (const char c : directory_path) {
+    current_path += c;
+    if ((c == '/') || (c == '\\')) {
+      const int32_t ret = CheckAndMkdir(current_path.c_str(), mode);
+      if (ret != 0) {
+        return ret;
+      }
+    }
+  }
+  return CheckAndMkdir(directory_path.c_str(), mode);
+}
+
+ge::Status SaveBinToFile(const char *const data, size_t length, const std::string &file_path) {
+  if (data == nullptr || length == 0UL) {
+    GELOGE(ge::FAILED, "[MEMZIP] SaveBinToFile param invalid: data is nullptr or length is zero.");
+    return ge::FAILED;
+  }
+  const size_t split_pos = file_path.find_last_of('/');
+  const std::string dir_path = (split_pos == std::string::npos) ? "" : file_path.substr(0U, split_pos);
+  if (!dir_path.empty() && (CreateDir(dir_path) != 0)) {
+    GELOGE(ge::FAILED, "[MEMZIP] Create directory failed, path: %s", file_path.c_str());
+    return ge::FAILED;
+  }
+  std::ofstream ofs(file_path, std::ios::binary | std::ios::trunc);
+  if (!ofs.is_open()) {
+    GELOGE(ge::FAILED, "[MEMZIP] Open file failed, path: %s", file_path.c_str());
+    return ge::FAILED;
+  }
+  ofs.write(data, static_cast<std::streamsize>(length));
+  ofs.close();
+  if (ofs.fail()) {
+    GELOGE(ge::FAILED, "[MEMZIP] Write data to file failed, path: %s", file_path.c_str());
+    return ge::FAILED;
+  }
+  return ge::SUCCESS;
+}
+
 constexpr uint64_t kMemInitialCapacity = 64UL * 1024UL;
 constexpr uint32_t kMemGrowFactor = 2U;
+constexpr uint32_t kMaxWriteSize = std::numeric_limits<uint32_t>::max();
 constexpr int64_t kBufSize = 16384L;        // same as UNZ_BUFSIZE
 constexpr size_t kBufVectorSize = 16384UL;  // same as UNZ_BUFSIZE
-constexpr uint32_t kMaxWriteSize = std::numeric_limits<uint32_t>::max();
-constexpr uint32_t kMaxFileNameLength = 4096U;  // same as UNZ_MAXFILENAMEINZIP
 
 int MemGrow(MemoryFile *mem_file, const uint64_t new_size) {
   if (new_size <= mem_file->capacity) {
     return kMemZipOk;
   }
-
   uint64_t new_capacity = mem_file->capacity;
   if (new_capacity == 0) {
     new_capacity = kMemInitialCapacity;
   }
-
   while (new_capacity < new_size) {
-    if (CheckUint64MulOverflow(new_capacity, kMemGrowFactor) != SUCCESS) {
-      GELOGE(FAILED,
+    if (ge::CheckUint64MulOverflow(new_capacity, kMemGrowFactor) != ge::SUCCESS) {
+      GELOGE(ge::FAILED,
              "[MEMZIP] Memory file capacity overflow: current_capacity[%lu bytes], grow_factor[%u], target_size[%zu "
              "bytes]",
              new_capacity, kMemGrowFactor, new_size);
@@ -57,24 +115,22 @@ int MemGrow(MemoryFile *mem_file, const uint64_t new_size) {
     }
     new_capacity *= kMemGrowFactor;
   }
-
   const auto new_buffer = static_cast<uint8_t *>(std::malloc(new_capacity));
   if (new_buffer == nullptr) {
-    GELOGE(FAILED, "[MEMZIP] Failed to allocate memory: target_capacity[%lu bytes], error_msg[%s]", new_capacity,
+    GELOGE(ge::FAILED, "[MEMZIP] Failed to allocate memory: target_capacity[%lu bytes], error_msg[%s]", new_capacity,
            strerror(errno));
     return kMemZipError;
   }
-
   if ((mem_file->buffer != nullptr) && (mem_file->length > 0)) {
     const auto ret = GeMemcpy(new_buffer, new_capacity, mem_file->buffer, mem_file->length);
-    if (ret != SUCCESS) {
-      GELOGE(FAILED, "[MEMZIP] Failed to copy memory: dest_ptr[%p], dest_max[%lu], src_ptr[%p], src_size[%lu], ret=%d",
+    if (ret != ge::SUCCESS) {
+      GELOGE(ge::FAILED,
+             "[MEMZIP] Failed to copy memory: dest_ptr[%p], dest_max[%lu], src_ptr[%p], src_size[%lu], ret=%d",
              new_buffer, new_capacity, mem_file->buffer, mem_file->capacity, ret);
       std::free(new_buffer);
       return kMemZipError;
     }
   }
-
   std::free(mem_file->buffer);
   mem_file->buffer = new_buffer;
   mem_file->capacity = new_capacity;
@@ -83,12 +139,10 @@ int MemGrow(MemoryFile *mem_file, const uint64_t new_size) {
 
 voidpf ZCALLBACK MemOpenFileFuncWithBuffer(voidpf opaque, const void *filename, int mode) {
   (void)filename;
-
   const auto mem_file = static_cast<MemoryFile *>(opaque);
   if (mem_file == nullptr) {
     return nullptr;
   }
-
   mem_file->buffer = nullptr;
   mem_file->length = 0UL;
   mem_file->capacity = 0UL;
@@ -96,48 +150,19 @@ voidpf ZCALLBACK MemOpenFileFuncWithBuffer(voidpf opaque, const void *filename, 
   mem_file->error = kMemZipOk;
   mem_file->grow_mode = 1;
   mem_file->release_from_outside = 1;
-
   const auto mode_value = static_cast<uint32_t>(mode);
   if ((mode_value & static_cast<uint32_t>(ZLIB_FILEFUNC_MODE_CREATE)) != 0U) {
     if (MemGrow(mem_file, kMemInitialCapacity) != kMemZipOk) {
-      GELOGE(FAILED, "[MEMZIP] Failed to allocate initial capacity[%zu bytes]", kMemInitialCapacity);
+      GELOGE(ge::FAILED, "[MEMZIP] Failed to allocate initial capacity[%zu bytes]", kMemInitialCapacity);
       return nullptr;
     }
   }
-
   return mem_file;
-}
-
-template <typename T>
-uLong MemReadFileImpl(T *mem_file, void *buf, const uLong size) {
-  if (mem_file == nullptr) {
-    return 0;
-  }
-
-  uLong bytes_to_read = size;
-  if (mem_file->position + bytes_to_read > mem_file->length) {
-    bytes_to_read = mem_file->length - mem_file->position;
-  }
-
-  if (bytes_to_read > 0) {
-    const auto ret = GeMemcpy(static_cast<uint8_t *>(buf), size, &mem_file->buffer[mem_file->position], bytes_to_read);
-    if (ret != SUCCESS) {
-      GELOGE(FAILED,
-             "[MEMZIP] Failed to copy, ret=%d: dest_ptr[%p], dest_max[%zu], src_base_ptr[%p], src_position[%zu], "
-             "src_size[%zu]",
-             ret, buf, size, mem_file->buffer, mem_file->position, bytes_to_read);
-      return 0;
-    }
-    mem_file->position += bytes_to_read;
-  }
-
-  return bytes_to_read;
 }
 
 uLong ZCALLBACK MemReadFileFunc(voidpf opaque, voidpf stream, void *buf, uLong size) {
   const auto mem_file = static_cast<MemoryFile *>(stream);
   (void)opaque;
-
   if (mem_file == nullptr || mem_file->error != kMemZipOk) {
     return 0;
   }
@@ -147,98 +172,60 @@ uLong ZCALLBACK MemReadFileFunc(voidpf opaque, voidpf stream, void *buf, uLong s
 uLong ZCALLBACK MemWriteFileFunc(voidpf opaque, voidpf stream, const void *buf, uLong size) {
   const auto mem_file = static_cast<MemoryFile *>(stream);
   (void)opaque;
-
   if (mem_file == nullptr || mem_file->error != kMemZipOk) {
-    GELOGE(FAILED, "[MEMZIP] Opaque pointer is null or file is invalid");
+    GELOGE(ge::FAILED, "[MEMZIP] Opaque pointer is null or file is invalid");
     return 0;
   }
-
   if (size == 0) {
     return 0;
   }
-
   if (mem_file->position > std::numeric_limits<uint64_t>::max() - size) {
-    GELOGE(FAILED, "[MEMZIP] Position overflow: position=%zu, size=%zu", mem_file->position, size);
+    GELOGE(ge::FAILED, "[MEMZIP] Position overflow: position=%zu, size=%zu", mem_file->position, size);
     mem_file->error = kMemZipError;
     return 0;
   }
   const uint64_t new_size = mem_file->position + size;
   if (new_size > mem_file->capacity) {
     if (MemGrow(mem_file, new_size) != kMemZipOk) {
-      GELOGE(FAILED, "[MEMZIP] Failed to expand memory capacity[%zu bytes]", new_size);
+      GELOGE(ge::FAILED, "[MEMZIP] Failed to expand memory capacity[%zu bytes]", new_size);
       mem_file->error = kMemZipError;
       return 0;
     }
   }
   const auto ret = memcpy_s(&mem_file->buffer[mem_file->position], size, buf, size);
   if (ret != EOK) {
-    GELOGE(FAILED,
+    GELOGE(ge::FAILED,
            "[MEMZIP] Failed to copy, ret=%d: dest_base_ptr[%p], dest_position[%zu], dest_max[%zu], src_ptr[%p], "
            "src_size[%zu]",
            ret, mem_file->buffer, mem_file->position, mem_file->capacity - mem_file->position, buf, size);
     return 0;
   }
-
   mem_file->position += size;
-
   if (mem_file->position > mem_file->length) {
     mem_file->length = mem_file->position;
   }
-
   return size;
 }
 
 ZPOS64_T ZCALLBACK MemTell64FileFunc(voidpf opaque, voidpf stream) {
   const auto mem_file = static_cast<MemoryFile *>(stream);
   (void)opaque;
-
   if (mem_file == nullptr) {
     return static_cast<ZPOS64_T>(-1);
   }
-
   return mem_file->position;
-}
-
-template <typename T>
-long MemSeek64FileImpl(T *mem_file, const ZPOS64_T offset, const int origin) {
-  if (mem_file == nullptr) {
-    return kMemZipError;
-  }
-
-  uint64_t new_position;
-  switch (origin) {
-    case ZLIB_FILEFUNC_SEEK_CUR:
-      new_position = mem_file->position + offset;
-      break;
-    case ZLIB_FILEFUNC_SEEK_END:
-      new_position = mem_file->length + offset;
-      break;
-    case ZLIB_FILEFUNC_SEEK_SET:
-      new_position = offset;
-      break;
-    default:
-      return kMemZipError;
-  }
-
-  if (new_position > mem_file->length) {
-    return kMemZipError;
-  }
-
-  mem_file->position = new_position;
-  return kMemZipOk;
 }
 
 long ZCALLBACK MemSeek64FileFunc(voidpf opaque, voidpf stream, ZPOS64_T offset, int origin) {
   const auto mem_file = static_cast<MemoryFile *>(stream);
   (void)opaque;
-
   if (mem_file == nullptr) {
-    GELOGE(FAILED, "[MEMZIP] Get invalid memory file");
+    GELOGE(ge::FAILED, "[MEMZIP] Get invalid memory file");
     return kMemZipError;
   }
   const auto ret = MemSeek64FileImpl(mem_file, offset, origin);
   if (ret != kMemZipOk) {
-    GELOGE(FAILED, "[MEMZIP] Failed to seek, current_position=%zu, offset=%zu, origin=%d, file_length=%zu",
+    GELOGE(ge::FAILED, "[MEMZIP] Failed to seek, current_position=%zu, offset=%zu, origin=%d, file_length=%zu",
            mem_file->position, static_cast<uint64_t>(offset), origin, mem_file->length);
   }
   return ret;
@@ -247,27 +234,22 @@ long ZCALLBACK MemSeek64FileFunc(voidpf opaque, voidpf stream, ZPOS64_T offset, 
 int ZCALLBACK MemCloseFileFunc(voidpf opaque, voidpf stream) {
   const auto mem_file = static_cast<MemoryFile *>(stream);
   (void)opaque;
-
   if (mem_file == nullptr) {
     return kMemZipError;
   }
-
   if ((mem_file->buffer != nullptr) && (mem_file->release_from_outside == 0)) {
     std::free(mem_file->buffer);
     *mem_file = {};
   }
-
   return kMemZipOk;
 }
 
 int ZCALLBACK MemErrorFileFunc(voidpf opaque, voidpf stream) {
   const auto mem_file = static_cast<MemoryFile *>(stream);
   (void)opaque;
-
   if (mem_file == nullptr) {
     return kMemZipError;
   }
-
   return mem_file->error;
 }
 
@@ -282,177 +264,27 @@ void FillMemFileFuncWithBuffer(zlib_filefunc64_def *file_func_def, MemoryFile *m
   file_func_def->opaque = mem_file;
 }
 
-voidpf ZCALLBACK MemOpenFileFuncReadonly(voidpf opaque, const void *filename, int mode) {
-  (void)filename;
-  (void)mode;
-
-  const auto mem_file_readonly = static_cast<SimpleZipMemoryFileReadonly *>(opaque);
-  if (mem_file_readonly == nullptr) {
-    GELOGE(FAILED, "[MEMZIP] Opaque pointer is null. Cannot initialize memory file.");
-    return nullptr;
-  }
-  mem_file_readonly->position = 0UL;
-  return mem_file_readonly;
-}
-
-uLong ZCALLBACK MemReadFileFuncReadonly(voidpf opaque, voidpf stream, void *buf, uLong size) {
-  const auto mem_file = static_cast<SimpleZipMemoryFileReadonly *>(stream);
-  (void)opaque;
-  return MemReadFileImpl(mem_file, buf, size);
-}
-
-uLong ZCALLBACK MemWriteFileFuncReadonly(voidpf opaque, voidpf stream, const void *buf, uLong size) {
-  (void)opaque;
-  (void)stream;
-  (void)buf;
-  (void)size;
-  return 0;
-}
-
-ZPOS64_T ZCALLBACK MemTell64FileFuncReadonly(voidpf opaque, voidpf stream) {
-  const auto mem_file = static_cast<SimpleZipMemoryFileReadonly *>(stream);
-  (void)opaque;
-
-  if (mem_file == nullptr) {
-    return static_cast<ZPOS64_T>(-1);
-  }
-  return mem_file->position;
-}
-
-long ZCALLBACK MemSeek64FileFuncReadonly(voidpf opaque, voidpf stream, ZPOS64_T offset, int origin) {
-  const auto mem_file = static_cast<SimpleZipMemoryFileReadonly *>(stream);
-  (void)opaque;
-  return MemSeek64FileImpl(mem_file, offset, origin);
-}
-
-int ZCALLBACK MemCloseFileFuncReadonly(voidpf opaque, voidpf stream) {
-  (void)opaque;
-  (void)stream;
-  return kMemZipOk;
-}
-
-int ZCALLBACK MemErrorFileFuncReadonly(voidpf opaque, voidpf stream) {
-  const auto mem_file = static_cast<SimpleZipMemoryFileReadonly *>(stream);
-  (void)opaque;
-
-  if (mem_file == nullptr) {
-    return kMemZipError;
-  }
-  return kMemZipOk;
-}
-
-void FillMemFileFuncReadonly(zlib_filefunc64_def *file_func_def, SimpleZipMemoryFileReadonly *mem_file) {
-  file_func_def->zopen64_file = &MemOpenFileFuncReadonly;
-  file_func_def->zread_file = &MemReadFileFuncReadonly;
-  file_func_def->zwrite_file = &MemWriteFileFuncReadonly;
-  file_func_def->ztell64_file = &MemTell64FileFuncReadonly;
-  file_func_def->zseek64_file = &MemSeek64FileFuncReadonly;
-  file_func_def->zclose_file = &MemCloseFileFuncReadonly;
-  file_func_def->zerror_file = &MemErrorFileFuncReadonly;
-  file_func_def->opaque = mem_file;
-}
-
 std::string GetBaseName(const std::string &path) {
   if (path.empty()) {
     return "";
   }
-
   const auto pos_slash = path.find_last_of('/');
   std::string file_name = (pos_slash == std::string::npos) ? path : path.substr(pos_slash + 1U);
   if (file_name.empty()) {
     return "";
   }
-
   const auto pos_dot = file_name.find_last_of('.');
   if ((pos_dot == std::string::npos) || (pos_dot == 0)) {
     return file_name;
   }
-
   return file_name.substr(0, pos_dot);
 }
 }  // namespace
 
-SimpleZipArchiveReader::SimpleZipArchiveReader(const uint8_t *data, size_t length) : mem_file_{data, length, 0} {
-  if (mem_file_.buffer == nullptr || mem_file_.length == 0) {
-    GELOGE(FAILED, "Invalid zip archive data, data is [%p] and size is [%zu]", mem_file_.buffer, mem_file_.length);
-    return;
-  }
-
-  zlib_filefunc64_def file_funcs;
-  FillMemFileFuncReadonly(&file_funcs, &mem_file_);
-  zip_handle_ = unzOpen2_64(nullptr, &file_funcs);
-  if (zip_handle_ == nullptr) {
-    GELOGE(FAILED, "Failed to open ZIP file from memory");
-  }
-}
-
-SimpleZipArchiveReader::~SimpleZipArchiveReader() {
-  if (zip_handle_ != nullptr) {
-    (void)unzClose(zip_handle_);
-  }
-}
-
-std::vector<std::string> SimpleZipArchiveReader::ListFiles() const {
-  GE_ASSERT_NOTNULL(zip_handle_, "Invalid status of archive");
-
-  std::vector<std::string> file_list;
-  auto uz_ret = unzGoToFirstFile(zip_handle_);
-  GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to go to the first file in the archive, ret = %d", uz_ret);
-
-  while (uz_ret == UNZ_OK) {
-    std::vector<char_t> name_buff(kMaxFileNameLength, '\0');
-    uz_ret = unzGetCurrentFileInfo64(zip_handle_, nullptr, name_buff.data(), name_buff.size(), nullptr, 0, nullptr, 0);
-    GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to get the current file information, ret = %d", uz_ret);
-    const std::string file_name(name_buff.data());
-    if (!file_name.empty() && file_name.back() != '/') {
-      (void)file_list.emplace_back(file_name);
-    }
-    uz_ret = unzGoToNextFile(zip_handle_);
-  }
-
-  GE_ASSERT_TRUE(uz_ret == UNZ_END_OF_LIST_OF_FILE, "unzGoToNextFile failed, ret=%d", uz_ret);
-  return file_list;
-}
-
-ReadonlyByteBuffer SimpleZipArchiveReader::ExtractToMem(const std::string &entry_name, size_t &buffer_size) const {
-  GE_ASSERT_NOTNULL(zip_handle_, "Invalid status of archive");
-
-  auto uz_ret = unzLocateFile(zip_handle_, entry_name.c_str(), 0);
-  GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to locate file [%s], ret = %d", entry_name.c_str(), uz_ret);
-
-  uz_ret = unzOpenCurrentFile(zip_handle_);
-  GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to open file [%s], ret = %d", entry_name.c_str(), uz_ret);
-  GE_MAKE_GUARD(zipfile_guard, [this]() { (void)unzCloseCurrentFile(zip_handle_); });
-
-  unz_file_info64 file_info{};
-  uz_ret = unzGetCurrentFileInfo64(zip_handle_, &file_info, nullptr, 0, nullptr, 0, nullptr, 0);
-  GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to get the current file information, ret = %d", uz_ret);
-  GE_ASSERT_TRUE(file_info.uncompressed_size > 0);
-  buffer_size = file_info.uncompressed_size;
-
-  auto mutable_buffer = std::make_unique<uint8_t[]>(buffer_size);
-  GE_ASSERT_NOTNULL(mutable_buffer, "Failed to allocate buffer, size = %zu", buffer_size);
-  size_t total_read = 0;
-  int32_t bytes_read = 0;
-  do {
-    const uint32_t remaining = static_cast<uint32_t>(
-        std::min<size_t>(buffer_size - total_read, static_cast<size_t>(std::numeric_limits<int32_t>::max())));
-    bytes_read = unzReadCurrentFile(zip_handle_, mutable_buffer.get() + total_read, remaining);
-
-    GE_ASSERT_TRUE(bytes_read >= 0, "Failed to read file [%s], ret = %d", entry_name.c_str(), bytes_read);
-    total_read += static_cast<size_t>(bytes_read);
-  } while (bytes_read > 0);
-
-  GE_ASSERT_TRUE(total_read == buffer_size, "Failed to extract file [%s], expected = %zu bytes, actual = %zu bytes",
-                 entry_name.c_str(), buffer_size, total_read);
-  GELOGI("Successfully extract file [%s], total_read = %zu bytes", entry_name.c_str(), total_read);
-  return ReadonlyByteBuffer(mutable_buffer.release(), ConditionalDeleter{true});
-}
-
 ZipArchiveWriter::ZipArchiveWriter(const std::string &archive_path)
     : archive_path_(archive_path), base_name_(GetBaseName(archive_path)) {
   if (!InitArchive()) {
-    GELOGE(FAILED, "Failed to initialize archive [%s]", archive_path.c_str());
+    GELOGE(ge::FAILED, "Failed to initialize archive [%s]", archive_path.c_str());
   }
 }
 
@@ -488,7 +320,7 @@ bool ZipArchiveWriter::WriteFile(const std::string &entry_name, const std::strin
   GE_ASSERT_TRUE(ret == ZIP_OK, "Failed to open zip entry [%s], ret = %d", arc_name_with_prefix.c_str(), ret);
   GE_MAKE_GUARD(close_file_in_zip, [this]() { (void)zipCloseFileInZip(zip_handle_); });
 
-  std::vector<char_t> buffer(kBufVectorSize);
+  std::vector<char> buffer(kBufVectorSize);
   auto remaining = static_cast<int64_t>(file_size);
   while (remaining > 0) {
     const int64_t chunk = remaining > kBufSize ? kBufSize : remaining;
@@ -553,7 +385,7 @@ bool ZipArchiveWriter::WriteEndOfFile() {
   return true;
 }
 
-bool ZipArchiveWriter::SaveModelData(ModelBufferData &model, bool save_to_file) {
+bool ZipArchiveWriter::SaveModelData(gert::GertBuffer &model, bool save_to_file) {
   return save_to_file ? SaveModelDataToFile() : SaveModelDataToBuffer(model);
 }
 
@@ -563,7 +395,7 @@ bool ZipArchiveWriter::SaveModelDataToFile() {
   return true;
 }
 
-bool ZipArchiveWriter::SaveModelDataToBuffer(ModelBufferData &model) {
+bool ZipArchiveWriter::SaveModelDataToBuffer(gert::GertBuffer &model) {
   GE_ASSERT_TRUE(WriteEndOfFile());
   GE_ASSERT_NOTNULL(mem_file_.buffer);
   GE_ASSERT_TRUE(mem_file_.length > 0U);
@@ -582,4 +414,4 @@ bool ZipArchiveWriter::InitArchive() {
   return true;
 }
 
-}  // namespace ge
+}  // namespace gert

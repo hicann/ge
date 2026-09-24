@@ -17,12 +17,12 @@
 #define private public
 #include "model/acl_resource_manager.h"
 #include "model/acl_resource_manager_om2.h"
-#include "model/acl_model_impl_om2.h"
 #undef private
 #include "model/aipp_param_check.h"
 #include "framework/executor/ge_executor.h"
 #include "common/ge_types.h"
-#include "framework/common/om2_tensor_desc.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "acl_stub.h"
 #include "graph/ge_context.h"
 
@@ -133,36 +133,40 @@ ge::Status GetModelDescInfo_Invoke3(uint32_t modelId, std::vector<ge::TensorDesc
   return ge::SUCCESS;
 }
 
-ge::Status GetOm2ModelDescInfo_Invoke(const std::vector<ge::Om2TensorDesc> *&inputDesc,
-                                      const std::vector<ge::Om2TensorDesc> *&outputDesc, bool new_model_desc) {
+ge::Status GetOm2ModelDescInfo_Invoke(const std::vector<gert::GertTensorDesc> *&inputDesc,
+                                      const std::vector<gert::GertTensorDesc> *&outputDesc, bool new_model_desc) {
   (void)new_model_desc;
-  static const std::vector<ge::Om2TensorDesc> input_desc = [] {
-    ge::Om2TensorDesc desc;
-    desc.SetName("input");
-    desc.SetDataType(ge::DT_FLOAT);
-    desc.SetFormat(ge::FORMAT_ND);
-    desc.SetShape({1});
-    desc.SetShapeRange({});
-    desc.SetSize(sizeof(float));
-    return std::vector<ge::Om2TensorDesc>{desc};
+  static const std::vector<gert::GertTensorDesc> input_desc = [] {
+    gert::GertTensorDesc desc;
+    desc.name = gert::GertMakeStr("input");
+    desc.data_type = ge::DT_FLOAT;
+    desc.format = ge::FORMAT_ND;
+    desc.shape = {1};
+    desc.shape_range = {};
+    desc.size = sizeof(float);
+    std::vector<gert::GertTensorDesc> result;
+    result.push_back(std::move(desc));
+    return result;
   }();
-  static const std::vector<ge::Om2TensorDesc> output_desc = [] {
-    ge::Om2TensorDesc desc;
-    desc.SetName("output");
-    desc.SetDataType(ge::DT_FLOAT);
-    desc.SetFormat(ge::FORMAT_ND);
-    desc.SetShape({1});
-    desc.SetShapeRange({});
-    desc.SetSize(sizeof(float));
-    return std::vector<ge::Om2TensorDesc>{desc};
+  static const std::vector<gert::GertTensorDesc> output_desc = [] {
+    gert::GertTensorDesc desc;
+    desc.name = gert::GertMakeStr("output");
+    desc.data_type = ge::DT_FLOAT;
+    desc.format = ge::FORMAT_ND;
+    desc.shape = {1};
+    desc.shape_range = {};
+    desc.size = sizeof(float);
+    std::vector<gert::GertTensorDesc> result;
+    result.push_back(std::move(desc));
+    return result;
   }();
   inputDesc = &input_desc;
   outputDesc = &output_desc;
   return ge::SUCCESS;
 }
 
-ge::Status GetOm2ModelDescInfoNull_Invoke(const std::vector<ge::Om2TensorDesc> *&inputDesc,
-                                          const std::vector<ge::Om2TensorDesc> *&outputDesc, bool new_model_desc) {
+ge::Status GetOm2ModelDescInfoNull_Invoke(const std::vector<gert::GertTensorDesc> *&inputDesc,
+                                          const std::vector<gert::GertTensorDesc> *&outputDesc, bool new_model_desc) {
   (void)new_model_desc;
   inputDesc = nullptr;
   outputDesc = nullptr;
@@ -582,8 +586,8 @@ TEST_F(UTEST_ACL_Model, aclmdlGetDesc_Ok_GetDescFromOm2) {
   auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
   ASSERT_NE(om2_executor, nullptr);
   acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(modelId, std::move(om2_executor));
-  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc> *&>(),
-                                                                    A<const std::vector<ge::Om2TensorDesc> *&>(), _))
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(A<const std::vector<gert::GertTensorDesc> *&>(),
+                                                                    A<const std::vector<gert::GertTensorDesc> *&>(), _))
       .WillRepeatedly(Invoke(GetOm2ModelDescInfo_Invoke));
 
   aclmdlDesc *desc = aclmdlCreateDesc();
@@ -5102,8 +5106,8 @@ TEST_F(UTEST_ACL_Model, aclmdlExecuteV2_Om2Executor_RoutesToOm2ModelExecute) {
   auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
   ASSERT_NE(om2_executor, nullptr);
   acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(modelId, std::move(om2_executor));
-  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc> *&>(),
-                                                                    A<const std::vector<ge::Om2TensorDesc> *&>(), _))
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(A<const std::vector<gert::GertTensorDesc> *&>(),
+                                                                    A<const std::vector<gert::GertTensorDesc> *&>(), _))
       .WillRepeatedly(Invoke(GetOm2ModelDescInfoNull_Invoke));
 
   aclmdlExecConfigHandle *handle = aclmdlCreateExecConfigHandle();
@@ -5207,25 +5211,6 @@ TEST_F(UTEST_ACL_Model, aclmdlGetOpAttr_NotInOpAttrValueMap_ReturnsNull) {
   aclmdlDestroyDesc(desc);
 }
 
-TEST_F(UTEST_ACL_Model, aclmdlGetOpAttrImplOm2_NotInOpAttrValueMap_ReturnsEmptyString) {
-  aclmdlDesc *desc = aclmdlCreateDesc();
-  EXPECT_NE(desc, nullptr);
-
-  const char *opName = "test_op";
-  const char *attr = "_datadump_original_op_names";
-
-  const char *result = aclmdlGetOpAttrImplOm2(desc, opName, attr);
-  EXPECT_NE(result, nullptr);
-  EXPECT_EQ(std::string(result), "");
-
-  desc->opAttrValueMap[opName]["other_attr"] = "some_value";
-  result = aclmdlGetOpAttrImplOm2(desc, opName, attr);
-  EXPECT_NE(result, nullptr);
-  EXPECT_EQ(std::string(result), "");
-
-  aclmdlDestroyDesc(desc);
-}
-
 TEST_F(UTEST_ACL_Model, aclmdlGetDescFromFile_Om2Model_PopulatesDescAndMap) {
   // Test that aclmdlGetDescFromFile detects OM2 and populates desc via lightweight GetOm2ModelMetadata
   aclmdlDesc *desc = aclmdlCreateDesc();
@@ -5242,30 +5227,31 @@ TEST_F(UTEST_ACL_Model, aclmdlGetDescFromFile_Om2Model_PopulatesDescAndMap) {
 
   // Mock GetOm2ModelMetadata to return valid tensor descs (lightweight metadata parsing)
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2ModelMetadata(An<const void *>(), _, _, _, _, _))
-      .WillOnce(Invoke([](const void *model_data, size_t model_size, std::vector<ge::Om2TensorDesc> &input_desc,
-                          std::vector<ge::Om2TensorDesc> &input_desc_v2, std::vector<ge::Om2TensorDesc> &output_desc,
-                          std::vector<ge::Om2TensorDesc> &output_desc_v2) {
-        ge::Om2TensorDesc in_desc;
-        in_desc.SetName("input");
-        in_desc.SetDataType(ge::DT_FLOAT);
-        in_desc.SetFormat(ge::FORMAT_ND);
-        in_desc.SetShape({1});
-        in_desc.SetShapeRange({});
-        in_desc.SetSize(sizeof(float));
-        input_desc.push_back(in_desc);
-        input_desc_v2.push_back(in_desc);
+      .WillOnce(
+          Invoke([](const void *model_data, size_t model_size, std::vector<gert::GertTensorDesc> &input_desc,
+                    std::vector<gert::GertTensorDesc> &input_desc_v2, std::vector<gert::GertTensorDesc> &output_desc,
+                    std::vector<gert::GertTensorDesc> &output_desc_v2) {
+            gert::GertTensorDesc in_desc;
+            in_desc.name = gert::GertMakeStr("input");
+            in_desc.data_type = ge::DT_FLOAT;
+            in_desc.format = ge::FORMAT_ND;
+            in_desc.shape = {1};
+            in_desc.shape_range = {};
+            in_desc.size = sizeof(float);
+            input_desc.push_back(std::move(in_desc));
+            input_desc_v2.push_back(gert::MakeGertTensorDesc(in_desc));
 
-        ge::Om2TensorDesc out_desc;
-        out_desc.SetName("output");
-        out_desc.SetDataType(ge::DT_FLOAT);
-        out_desc.SetFormat(ge::FORMAT_ND);
-        out_desc.SetShape({1});
-        out_desc.SetShapeRange({});
-        out_desc.SetSize(sizeof(float));
-        output_desc.push_back(out_desc);
-        output_desc_v2.push_back(out_desc);
-        return ge::SUCCESS;
-      }));
+            gert::GertTensorDesc out_desc;
+            out_desc.name = gert::GertMakeStr("output");
+            out_desc.data_type = ge::DT_FLOAT;
+            out_desc.format = ge::FORMAT_ND;
+            out_desc.shape = {1};
+            out_desc.shape_range = {};
+            out_desc.size = sizeof(float);
+            output_desc.push_back(std::move(out_desc));
+            output_desc_v2.push_back(gert::MakeGertTensorDesc(out_desc));
+            return ge::SUCCESS;
+          }));
 
   aclError ret = aclmdlGetDescFromFile(desc, om2ModelPath);
   EXPECT_EQ(ret, ACL_SUCCESS);
@@ -5301,30 +5287,31 @@ TEST_F(UTEST_ACL_Model, PopulateDescFromOm2Data_ValidOm2Data_PopulatesOpAttrValu
 
   // Mock GetOm2ModelMetadata to return valid tensor descs (lightweight metadata parsing)
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2ModelMetadata(An<const void *>(), _, _, _, _, _))
-      .WillOnce(Invoke([](const void *model_data, size_t model_size, std::vector<ge::Om2TensorDesc> &input_desc,
-                          std::vector<ge::Om2TensorDesc> &input_desc_v2, std::vector<ge::Om2TensorDesc> &output_desc,
-                          std::vector<ge::Om2TensorDesc> &output_desc_v2) {
-        ge::Om2TensorDesc in_desc;
-        in_desc.SetName("input");
-        in_desc.SetDataType(ge::DT_FLOAT);
-        in_desc.SetFormat(ge::FORMAT_ND);
-        in_desc.SetShape({1});
-        in_desc.SetShapeRange({});
-        in_desc.SetSize(sizeof(float));
-        input_desc.push_back(in_desc);
-        input_desc_v2.push_back(in_desc);
+      .WillOnce(
+          Invoke([](const void *model_data, size_t model_size, std::vector<gert::GertTensorDesc> &input_desc,
+                    std::vector<gert::GertTensorDesc> &input_desc_v2, std::vector<gert::GertTensorDesc> &output_desc,
+                    std::vector<gert::GertTensorDesc> &output_desc_v2) {
+            gert::GertTensorDesc in_desc;
+            in_desc.name = gert::GertMakeStr("input");
+            in_desc.data_type = ge::DT_FLOAT;
+            in_desc.format = ge::FORMAT_ND;
+            in_desc.shape = {1};
+            in_desc.shape_range = {};
+            in_desc.size = sizeof(float);
+            input_desc.push_back(std::move(in_desc));
+            input_desc_v2.push_back(gert::MakeGertTensorDesc(in_desc));
 
-        ge::Om2TensorDesc out_desc;
-        out_desc.SetName("output");
-        out_desc.SetDataType(ge::DT_FLOAT);
-        out_desc.SetFormat(ge::FORMAT_ND);
-        out_desc.SetShape({1});
-        out_desc.SetShapeRange({});
-        out_desc.SetSize(sizeof(float));
-        output_desc.push_back(out_desc);
-        output_desc_v2.push_back(out_desc);
-        return ge::SUCCESS;
-      }));
+            gert::GertTensorDesc out_desc;
+            out_desc.name = gert::GertMakeStr("output");
+            out_desc.data_type = ge::DT_FLOAT;
+            out_desc.format = ge::FORMAT_ND;
+            out_desc.shape = {1};
+            out_desc.shape_range = {};
+            out_desc.size = sizeof(float);
+            output_desc.push_back(std::move(out_desc));
+            output_desc_v2.push_back(gert::MakeGertTensorDesc(out_desc));
+            return ge::SUCCESS;
+          }));
 
   // Call aclmdlGetDescFromFile to trigger PopulateDescFromOm2Data flow
   const char *testPath = "/tmp/test.om";
@@ -5457,8 +5444,8 @@ TEST_F(UTEST_ACL_Model, aclmdlGetDesc_Om2ModelId_RoutesToOm2Impl) {
   auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
   ASSERT_NE(om2_executor, nullptr);
   acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
-  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc> *&>(),
-                                                                    A<const std::vector<ge::Om2TensorDesc> *&>(), _))
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(A<const std::vector<gert::GertTensorDesc> *&>(),
+                                                                    A<const std::vector<gert::GertTensorDesc> *&>(), _))
       .WillRepeatedly(Invoke(GetOm2ModelDescInfo_Invoke));
 
   // Get model descriptor - should route to OM2 implementation
@@ -7348,29 +7335,30 @@ TEST_F(UTEST_ACL_Model, aclmdlSetInputDynamicDims_Om2_WithVariousDimCounts_Succe
   for (const auto &dims : test_dims) {
     size_t dimCount = dims.dimCount;
     // Set up mocks to return dynamic shape matching current dimCount
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc> *&>(),
-                                                                      A<const std::vector<ge::Om2TensorDesc> *&>(), _))
-        .WillRepeatedly(Invoke([dimCount](const std::vector<ge::Om2TensorDesc> *&inputDesc,
-                                          const std::vector<ge::Om2TensorDesc> *&outputDesc, bool) -> ge::Status {
-          static std::vector<ge::Om2TensorDesc> in_desc;
-          static std::vector<ge::Om2TensorDesc> out_desc;
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+                GetModelDescInfo(A<const std::vector<gert::GertTensorDesc> *&>(),
+                                 A<const std::vector<gert::GertTensorDesc> *&>(), _))
+        .WillRepeatedly(Invoke([dimCount](const std::vector<gert::GertTensorDesc> *&inputDesc,
+                                          const std::vector<gert::GertTensorDesc> *&outputDesc, bool) -> ge::Status {
+          static std::vector<gert::GertTensorDesc> in_desc;
+          static std::vector<gert::GertTensorDesc> out_desc;
           in_desc.clear();
-          ge::Om2TensorDesc desc;
-          desc.SetName("input");
-          desc.SetDataType(ge::DT_FLOAT);
-          desc.SetFormat(ge::FORMAT_ND);
+          gert::GertTensorDesc desc;
+          desc.name = gert::GertMakeStr("input");
+          desc.data_type = ge::DT_FLOAT;
+          desc.format = ge::FORMAT_ND;
           std::vector<int64_t> shape(dimCount, -1);
-          desc.SetShape(shape);
-          desc.SetSize(sizeof(float));
-          in_desc.push_back(desc);
+          desc.shape = shape;
+          desc.size = sizeof(float);
+          in_desc.push_back(std::move(desc));
           out_desc.clear();
-          ge::Om2TensorDesc odesc;
-          odesc.SetName("output");
-          odesc.SetDataType(ge::DT_FLOAT);
-          odesc.SetFormat(ge::FORMAT_ND);
-          odesc.SetShape({1});
-          odesc.SetSize(sizeof(float));
-          out_desc.push_back(odesc);
+          gert::GertTensorDesc odesc;
+          odesc.name = gert::GertMakeStr("output");
+          odesc.data_type = ge::DT_FLOAT;
+          odesc.format = ge::FORMAT_ND;
+          odesc.shape = {1};
+          odesc.size = sizeof(float);
+          out_desc.push_back(std::move(odesc));
           inputDesc = &in_desc;
           outputDesc = &out_desc;
           return ge::SUCCESS;
@@ -7548,28 +7536,28 @@ TEST_F(UTEST_ACL_Model, DynamicGearWorkflow_MultipleSetDynamicSizes) {
   EXPECT_EQ(ret, ACL_SUCCESS);
 
   // Mock for SetInputDynamicDims
-  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc> *&>(),
-                                                                    A<const std::vector<ge::Om2TensorDesc> *&>(), _))
-      .WillRepeatedly(Invoke([](const std::vector<ge::Om2TensorDesc> *&inputDesc,
-                                const std::vector<ge::Om2TensorDesc> *&outputDesc, bool) -> ge::Status {
-        static std::vector<ge::Om2TensorDesc> in_desc;
-        static std::vector<ge::Om2TensorDesc> out_desc;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(A<const std::vector<gert::GertTensorDesc> *&>(),
+                                                                    A<const std::vector<gert::GertTensorDesc> *&>(), _))
+      .WillRepeatedly(Invoke([](const std::vector<gert::GertTensorDesc> *&inputDesc,
+                                const std::vector<gert::GertTensorDesc> *&outputDesc, bool) -> ge::Status {
+        static std::vector<gert::GertTensorDesc> in_desc;
+        static std::vector<gert::GertTensorDesc> out_desc;
         in_desc.clear();
-        ge::Om2TensorDesc desc;
-        desc.SetName("input");
-        desc.SetDataType(ge::DT_FLOAT);
-        desc.SetFormat(ge::FORMAT_ND);
-        desc.SetShape({1, 3, 224, 224});
-        desc.SetSize(sizeof(float) * 1 * 3 * 224 * 224);
-        in_desc.push_back(desc);
+        gert::GertTensorDesc desc;
+        desc.name = gert::GertMakeStr("input");
+        desc.data_type = ge::DT_FLOAT;
+        desc.format = ge::FORMAT_ND;
+        desc.shape = {1, 3, 224, 224};
+        desc.size = sizeof(float) * 1 * 3 * 224 * 224;
+        in_desc.push_back(std::move(desc));
         out_desc.clear();
-        ge::Om2TensorDesc odesc;
-        odesc.SetName("output");
-        odesc.SetDataType(ge::DT_FLOAT);
-        odesc.SetFormat(ge::FORMAT_ND);
-        odesc.SetShape({1, 1000});
-        odesc.SetSize(sizeof(float) * 1000);
-        out_desc.push_back(odesc);
+        gert::GertTensorDesc odesc;
+        odesc.name = gert::GertMakeStr("output");
+        odesc.data_type = ge::DT_FLOAT;
+        odesc.format = ge::FORMAT_ND;
+        odesc.shape = {1, 1000};
+        odesc.size = sizeof(float) * 1000;
+        out_desc.push_back(std::move(odesc));
         inputDesc = &in_desc;
         outputDesc = &out_desc;
         return ge::SUCCESS;

@@ -8,24 +8,18 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef BASE_COMMON_HELPER_ZIP_ARCHIVE_WRITER_H
-#define BASE_COMMON_HELPER_ZIP_ARCHIVE_WRITER_H
+#ifndef INC_FRAMEWORK_COMMON_ZIP_ARCHIVE_WRITER_H_
+#define INC_FRAMEWORK_COMMON_ZIP_ARCHIVE_WRITER_H_
 
-#include <cstdint>
 #include <cstddef>
-#include <memory>
+#include <cstdint>
 #include <string>
 #include <unordered_set>
-#include <vector>
 
-#include "common/ge_common/ge_types.h"
-#include "minizip/ioapi.h"
-#include "minizip/unzip.h"
 #include "minizip/zip.h"
+#include "framework/om2/model_data/gert_model_data.h"
 
-namespace ge {
-struct ModelBufferData;
-
+namespace gert {
 struct MemoryFile {
   uint8_t *buffer;               // Writable buffer.
   uint64_t length;               // Actual writable buffer content length.
@@ -36,32 +30,10 @@ struct MemoryFile {
   int32_t release_from_outside;  // 0 means zipClose releases buffer, 1 means external release.
 };
 
-struct SimpleZipMemoryFileReadonly {
-  const uint8_t *buffer;  // Read-only buffer managed by caller.
-  uint64_t length;        // Actual read-only buffer content length.
-  uint64_t position;      // Current position.
-};
-
-class SimpleZipArchiveReader {
- public:
-  SimpleZipArchiveReader(const uint8_t *data, size_t length);
-  ~SimpleZipArchiveReader();
-  bool IsGood() const {
-    return zip_handle_ != nullptr;
-  }
-  std::vector<std::string> ListFiles() const;
-  ReadonlyByteBuffer ExtractToMem(const std::string &entry_name, size_t &buffer_size) const;
-
- private:
-  SimpleZipMemoryFileReadonly mem_file_;
-  unzFile zip_handle_ = nullptr;
-};
-
-class ZipArchiveWriter {
+class GERT_MODEL_DATA_API ZipArchiveWriter {
  public:
   explicit ZipArchiveWriter(const std::string &archive_path);
   ~ZipArchiveWriter();
-  bool WriteFile(const std::string &entry_name, const std::string &src_file_path, const bool compress = true);
   /**
    * Write a memory buffer as a file entry into the opened zip archive.
    * @param entry_name  Name of the file inside the zip archive.
@@ -71,7 +43,8 @@ class ZipArchiveWriter {
    * @return true on success, false if any error occurs.
    */
   bool WriteBytes(const std::string &entry_name, const void *data, const size_t data_size, const bool compress = true);
-  bool SaveModelData(ModelBufferData &model, bool save_to_file);
+  bool WriteFile(const std::string &entry_name, const std::string &file_path, const bool compress = true);
+  bool SaveModelData(gert::GertBuffer &model, bool save_to_file);
   bool SaveModelDataToFile();
   bool IsMemFileOpened() const {
     return (zip_handle_ != nullptr) && (mem_file_.buffer != nullptr);
@@ -80,7 +53,7 @@ class ZipArchiveWriter {
  private:
   bool InitArchive();
   bool WriteEndOfFile();
-  bool SaveModelDataToBuffer(ModelBufferData &model);
+  bool SaveModelDataToBuffer(gert::GertBuffer &model);
 
  private:
   std::string archive_path_;
@@ -89,6 +62,6 @@ class ZipArchiveWriter {
   MemoryFile mem_file_{};
   std::unordered_set<std::string> files_written_;
 };
-}  // namespace ge
+}  // namespace gert
 
-#endif  // BASE_COMMON_HELPER_ZIP_ARCHIVE_WRITER_H
+#endif  // INC_FRAMEWORK_COMMON_ZIP_ARCHIVE_WRITER_H_

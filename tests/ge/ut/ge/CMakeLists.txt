@@ -405,7 +405,7 @@ set(BASE_COMMON_TEST_FILES
     "common/ge_op_utils_unittest.cc"
     "common/ge_root_model_unittest.cc"
     "common/om2_utils_unittest.cc"
-    "common/om2_model_data_unittest.cc"
+    "common/gert_model_data_unittest.cc"
     "common/thread_pool_unittest.cc"
     "common/nano_dbg_data_unittest.cc"
     "common/nano_model_save_helper_unittest.cc"
@@ -970,6 +970,7 @@ target_link_libraries(ut_libge_common_utest
     slice
     ge_graph_dsl
     om2_executor
+    gert_model_data_deserializer
     ge_compiler
     ge_runner
     ge_executor_shared
@@ -1541,6 +1542,7 @@ target_link_libraries(ut_libge_distinct_load_utest
     register
     opp_registry
     om2_executor
+    gert_model_data_deserializer
     -Wl,-z,muldefs
     -Wl,--whole-archive
     ge_graph_dsl ge_runtime_stub

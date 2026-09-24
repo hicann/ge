@@ -8,27 +8,26 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_COMMON_HELPER_OM2_RT_VAR_RESOURCE_BUILDER_H_
-#define GE_COMMON_HELPER_OM2_RT_VAR_RESOURCE_BUILDER_H_
+/*
+ * Public serialization API header.
+ * Declares the entry point that serializes GertModelData structures
+ * into OM2 ZIP model data.
+ */
 
-#include <memory>
-#include <vector>
+#ifndef INC_FRAMEWORK_COMMON_GERT_MODEL_DATA_SERIALIZE_H_
+#define INC_FRAMEWORK_COMMON_GERT_MODEL_DATA_SERIALIZE_H_
 
+#include <string>
+#include "common/ge_common/ge_types.h"
+#include "ge/ge_ir_build.h"
 #include "framework/om2/model_data/gert_model_data.h"
-
-namespace ge {
-class VarManager;
-class ComputeGraph;
-using ComputeGraphPtr = std::shared_ptr<ComputeGraph>;
-}  // namespace ge
 
 namespace gert {
 
-// 从 VarManager 构建变量条目（含各自 init_data，随 entry 内嵌）
-ge::Status BuildRTVarResource(ge::VarManager &var_manager, const ge::ComputeGraphPtr &compute_graph,
-                              const std::vector<std::unique_ptr<gert::GertModelDataVarMeta>> &var_metas,
-                              std::vector<RTVarEntry> &entries);
+// 序列化 GertModelData 为 OM2 ZIP 模型数据（ModelBufferData 由调用方持有）
+GERT_MODEL_DATA_API ge::Status SerializeGertModelData(const GertModelData &model_data, ge::ModelBufferData &model,
+                                                      const bool is_offline, const std::string &writer_path = "");
 
 }  // namespace gert
 
-#endif  // GE_COMMON_HELPER_OM2_RT_VAR_RESOURCE_BUILDER_H_
+#endif  // INC_FRAMEWORK_COMMON_GERT_MODEL_DATA_SERIALIZE_H_

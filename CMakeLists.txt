@@ -462,6 +462,8 @@ if (NOT BUILD_OPEN_PROJECT)
                 ge_runner_v2 dflow_runner data_flow_base custom_op_runtime
                 ge_compiler aicore_utils slice air_headers
                 om2_executor
+                gert_model_data_deserializer
+                gert_model_data_serializer
                 # 开发环境某些没有下载parser目录
                 # _caffe_parser fmk_onnx_parser fmk_parser parser_common
                 EXPORT air-targets

@@ -8,37 +8,35 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef RUNTIME_OM2_ZIP_ARCHIVE_READER_H
-#define RUNTIME_OM2_ZIP_ARCHIVE_READER_H
+#ifndef INC_FRAMEWORK_COMMON_ZIP_ARCHIVE_READER_H_
+#define INC_FRAMEWORK_COMMON_ZIP_ARCHIVE_READER_H_
 
-#include <cstdint>
 #include <cstddef>
-#include <memory>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "common/ge_common/ge_types.h"
 #include "minizip/unzip.h"
+#include "framework/om2/model_data/gert_model_data.h"
 
-namespace ge {
+namespace gert {
 struct MemoryFileReadonly {
   const uint8_t *buffer;  // Read-only buffer managed by caller.
   uint64_t length;        // Actual read-only buffer content length.
   uint64_t position;      // Current position.
 };
 
-class RAIIZipArchive {
+class GERT_MODEL_DATA_API ZipArchiveReader {
  public:
   /**
-   * Constructs a RAIIZipArchive object using a ZIP archive that already
+   * Constructs a ZipArchiveReader object using a ZIP archive that already
    * resides in memory.
    * @param data Pointer to the beginning of the ZIP data in memory.
    * @param length Size of the ZIP data in bytes.
    */
-  RAIIZipArchive(const uint8_t *data, const size_t length);
-
-  ~RAIIZipArchive();
+  ZipArchiveReader(const uint8_t *data, const size_t length);
+  ~ZipArchiveReader();
   bool IsGood() const {
     return (zip_handle_ != nullptr) && entry_cache_ready_;
   }
@@ -47,20 +45,26 @@ class RAIIZipArchive {
    * @return Vector containing relative paths of all files in the archive.
    */
   std::vector<std::string> ListFiles() const;
-  /**
-   * Extracts a single file from the ZIP archive to the specified directory.
-   * @param entry_name Filename (relative path) within the ZIP archive.
-   * @param output_dir Output directory. Will be created if it does not exist.
-   * @return true if extraction succeeded, false otherwise.
-   */
-  bool ExtractToFile(const std::string &entry_name, const std::string &output_dir) const;
-  ReadonlyByteBuffer ExtractToMem(const std::string &entry_name, size_t &buff_size) const;
+  ge::ReadonlyByteBuffer ExtractToMem(const std::string &entry_name, size_t &buff_size) const;
   /**
    * Checks if an entry exists in the ZIP archive.
    * @param entry_name Filename (relative path) within the ZIP archive.
    * @return true if the entry exists, false otherwise.
    */
   bool HasEntry(const std::string &entry_name) const;
+  /**
+   * Finds the full entry name by path relative to the archive root directory.
+   * @param relative_path Path without the archive root prefix (e.g. "data/model_0/model_meta.json").
+   * @return Full entry name, empty string if not found.
+   */
+  std::string FindEntry(const std::string &relative_path) const;
+  bool HasEntryByRelativePath(const std::string &relative_path) const;
+  /**
+   * Lists all entries whose path relative to the archive root starts with the prefix.
+   * @param relative_prefix Prefix relative to the archive root (e.g. "data/model_0/runtime/").
+   * @return Vector of full entry names.
+   */
+  std::vector<std::string> ListFilesByRelativePrefix(const std::string &relative_prefix) const;
 
  private:
   struct CachedZipEntry {
@@ -74,16 +78,17 @@ class RAIIZipArchive {
   bool BuildEntryCache();
   bool CacheCurrentEntry(const std::string &entry_name, const unz_file_info64 &file_info);
   bool GoToEntry(const std::string &entry_name) const;
-  bool GetCachedRawData(const std::string &entry_name, size_t &buff_size, ReadonlyByteBuffer &raw_data) const;
+  bool GetCachedRawData(const std::string &entry_name, size_t &buff_size, ge::ReadonlyByteBuffer &raw_data) const;
   bool GetRawDataOffset(const size_t pos_in_central_dir, const size_t buff_size, uint64_t &raw_data_offset) const;
 
  private:
   MemoryFileReadonly mem_file_{};
   unzFile zip_handle_ = nullptr;
   std::unordered_map<std::string, CachedZipEntry> entry_cache_;
+  std::unordered_map<std::string, std::string> relative_entry_cache_;
   std::vector<std::string> entry_names_;
   bool entry_cache_ready_ = false;
 };
-}  // namespace ge
+}  // namespace gert
 
-#endif  // RUNTIME_OM2_ZIP_ARCHIVE_READER_H
+#endif  // INC_FRAMEWORK_COMMON_ZIP_ARCHIVE_READER_H_

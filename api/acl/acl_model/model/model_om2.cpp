@@ -28,6 +28,7 @@
 #include "utils/acl_string_utils.h"
 #include "runtime/om2/om2_rt_var_manager.h"
 #include "runtime/om2/om2_external_weight_manager.h"
+#include "framework/common/gert_model_data_utils.h"
 
 namespace {
 constexpr int32_t DEFAULT_SYNC_TIMEOUT = -1;
@@ -127,7 +128,7 @@ const std::unordered_set<aclmdlConfigAttr> kOm2SupportedLoadConfigOpts = {
     ACL_MDL_WEIGHT_PATH_PTR, ACL_MDL_WITHOUT_GRAPH_INT32, ACL_MDL_WORKSPACE_MEM_OPTIMIZE};
 
 aclError PrepareOm2Tensor(std::vector<gert::Tensor> &tensor, std::vector<gert::Tensor *> &vec, const size_t inputNum,
-                          const aclmdlDataset *const dataset, const std::vector<ge::Om2TensorDesc> &tensorDesc,
+                          const aclmdlDataset *const dataset, const std::vector<gert::GertTensorDesc> &tensorDesc,
                           const uint32_t modelId) {
   for (size_t i = 0UL; i < inputNum; ++i) {
     const auto dataBuffer = dataset->blobs[i].dataBuf;
@@ -140,7 +141,7 @@ aclError PrepareOm2Tensor(std::vector<gert::Tensor> &tensor, std::vector<gert::T
     tensor[i].MutableTensorData().SetSize(dataBuffer->length);
 
     // Convert std::vector<int64_t> to gert::Shape
-    const auto &originShapeDims = tensorDesc[i].GetOriginShape();
+    const auto &originShapeDims = tensorDesc[i].shape;
     gert::Shape originShape;
     originShape.SetDimNum(originShapeDims.size());
     for (size_t j = 0U; j < originShapeDims.size(); ++j) {
@@ -148,7 +149,7 @@ aclError PrepareOm2Tensor(std::vector<gert::Tensor> &tensor, std::vector<gert::T
     }
     tensor[i].MutableOriginShape() = originShape;
 
-    const auto &storageshapeDims = tensorDesc[i].GetShape();
+    const auto &storageshapeDims = tensorDesc[i].shape;
     gert::Shape storageShape;
     storageShape.SetDimNum(storageshapeDims.size());
     for (size_t j = 0U; j < storageshapeDims.size(); ++j) {
@@ -156,17 +157,17 @@ aclError PrepareOm2Tensor(std::vector<gert::Tensor> &tensor, std::vector<gert::T
     }
     tensor[i].MutableStorageShape() = storageShape;
 
-    tensor[i].SetStorageFormat(tensorDesc[i].GetFormat());
-    tensor[i].SetOriginFormat(tensorDesc[i].GetOriginFormat());
-    tensor[i].SetDataType(tensorDesc[i].GetDataType());
+    tensor[i].SetStorageFormat(tensorDesc[i].format);
+    tensor[i].SetOriginFormat(tensorDesc[i].format);
+    tensor[i].SetDataType(tensorDesc[i].data_type);
     vec[i] = &(tensor[i]);
   }
   return ACL_SUCCESS;
 }
 
-aclError Om2GetModelTensorDesc(const std::vector<ge::Om2TensorDesc> *&inputDesc,
-                               const std::vector<ge::Om2TensorDesc> *&outputDesc, size_t &inputNum, size_t &outputNum,
-                               const std::shared_ptr<gert::Om2ModelExecutor> &executor,
+aclError Om2GetModelTensorDesc(const std::vector<gert::GertTensorDesc> *&inputDesc,
+                               const std::vector<gert::GertTensorDesc> *&outputDesc, size_t &inputNum,
+                               size_t &outputNum, const std::shared_ptr<gert::Om2ModelExecutor> &executor,
                                const aclmdlDataset *const input, const aclmdlDataset *const output,
                                const uint32_t modelId) {
   const ge::Status getDescRet = executor->GetModelDescInfo(inputDesc, outputDesc);
@@ -327,10 +328,10 @@ aclError Om2ModelLoadFromMemWithMem(const void *const model, const size_t modelS
 }
 
 // FillModelDescFromTensorDescs - internal helper for populating aclmdlDesc
-aclError FillModelDescFromTensorDescs(aclmdlDesc *modelDesc, const std::vector<ge::Om2TensorDesc> &inputDesc,
-                                      const std::vector<ge::Om2TensorDesc> &outputDesc,
-                                      const std::vector<ge::Om2TensorDesc> &inputDescV2,
-                                      const std::vector<ge::Om2TensorDesc> &outputDescV2) {
+aclError FillModelDescFromTensorDescs(aclmdlDesc *modelDesc, const std::vector<gert::GertTensorDesc> &inputDesc,
+                                      const std::vector<gert::GertTensorDesc> &outputDesc,
+                                      const std::vector<gert::GertTensorDesc> &inputDescV2,
+                                      const std::vector<gert::GertTensorDesc> &outputDescV2) {
   // Check size consistency
   if ((inputDescV2.size() < inputDesc.size()) || (outputDescV2.size() < outputDesc.size())) {
     ACL_LOG_CALL_ERROR("[Get][ModelDescInfo]description v2 size less than description v1 size");
@@ -340,26 +341,26 @@ aclError FillModelDescFromTensorDescs(aclmdlDesc *modelDesc, const std::vector<g
   // Fill input descriptions
   for (size_t i = 0U; i < inputDesc.size(); ++i) {
     aclmdlTensorDesc tensorDesc;
-    tensorDesc.size = inputDesc[i].GetSize();
-    tensorDesc.name = inputDesc[i].GetName();
-    tensorDesc.format = static_cast<aclFormat>(inputDesc[i].GetFormat());
-    tensorDesc.dataType = static_cast<aclDataType>(inputDesc[i].GetDataType());
-    tensorDesc.dims = inputDesc[i].GetShape();
-    tensorDesc.dimsV2 = inputDescV2[i].GetShape();
-    tensorDesc.shapeRanges = inputDesc[i].GetShapeRange();
+    tensorDesc.size = inputDesc[i].size;
+    tensorDesc.name = gert::GertGetStr(inputDesc[i].name);
+    tensorDesc.format = static_cast<aclFormat>(inputDesc[i].format);
+    tensorDesc.dataType = static_cast<aclDataType>(inputDesc[i].data_type);
+    tensorDesc.dims = inputDesc[i].shape;
+    tensorDesc.dimsV2 = inputDescV2[i].shape;
+    tensorDesc.shapeRanges = inputDesc[i].shape_range;
     modelDesc->inputDesc.push_back(tensorDesc);
   }
 
   // Fill output descriptions
   for (size_t i = 0U; i < outputDesc.size(); ++i) {
     aclmdlTensorDesc tensorDesc;
-    tensorDesc.size = outputDesc[i].GetSize();
-    tensorDesc.name = outputDesc[i].GetName();
-    tensorDesc.format = static_cast<aclFormat>(outputDesc[i].GetFormat());
-    tensorDesc.dataType = static_cast<aclDataType>(outputDesc[i].GetDataType());
-    tensorDesc.dims = outputDesc[i].GetShape();
-    tensorDesc.dimsV2 = outputDescV2[i].GetShape();
-    tensorDesc.shapeRanges = outputDesc[i].GetShapeRange();
+    tensorDesc.size = outputDesc[i].size;
+    tensorDesc.name = gert::GertGetStr(outputDesc[i].name);
+    tensorDesc.format = static_cast<aclFormat>(outputDesc[i].format);
+    tensorDesc.dataType = static_cast<aclDataType>(outputDesc[i].data_type);
+    tensorDesc.dims = outputDesc[i].shape;
+    tensorDesc.dimsV2 = outputDescV2[i].shape;
+    tensorDesc.shapeRanges = outputDesc[i].shape_range;
     modelDesc->outputDesc.push_back(tensorDesc);
   }
 
@@ -371,10 +372,10 @@ aclError PopulateDescFromOm2Data(aclmdlDesc *modelDesc, const ge::ModelData &om2
   ACL_LOG_INFO("Populating aclmdlDesc from OM2 data");
 
   // Lightweight metadata parsing: only extracts model_meta.json from ZIP archive, no model loading
-  std::vector<ge::Om2TensorDesc> inputDesc;
-  std::vector<ge::Om2TensorDesc> inputDescV2;
-  std::vector<ge::Om2TensorDesc> outputDesc;
-  std::vector<ge::Om2TensorDesc> outputDescV2;
+  std::vector<gert::GertTensorDesc> inputDesc;
+  std::vector<gert::GertTensorDesc> inputDescV2;
+  std::vector<gert::GertTensorDesc> outputDesc;
+  std::vector<gert::GertTensorDesc> outputDescV2;
   ge::Status ret = gert::GetOm2ModelMetadata(om2Data.model_data, om2Data.model_len, inputDesc, inputDescV2, outputDesc,
                                              outputDescV2);
   if (ret != ge::SUCCESS) {
@@ -404,8 +405,8 @@ aclError Om2ModelExecuteCommon(uint32_t modelId, const aclmdlDataset *input, acl
   const bool dynamicFlag = HasInputTensorDesc(input);
 
   // Get model description info
-  const std::vector<ge::Om2TensorDesc> *inputDesc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *outputDesc = nullptr;
+  const std::vector<gert::GertTensorDesc> *inputDesc = nullptr;
+  const std::vector<gert::GertTensorDesc> *outputDesc = nullptr;
   size_t inputNum = 0;
   size_t outputNum = 0;
   auto ret = Om2GetModelTensorDesc(inputDesc, outputDesc, inputNum, outputNum, executor, input, output, modelId);
@@ -762,8 +763,8 @@ aclError aclmdlGetDescImplOm2(aclmdlDesc *modelDesc, uint32_t modelId) {
   ACL_REQUIRES_NOT_NULL(executor);
 
   // Get model desc info (v1)
-  const std::vector<ge::Om2TensorDesc> *inputDesc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *outputDesc = nullptr;
+  const std::vector<gert::GertTensorDesc> *inputDesc = nullptr;
+  const std::vector<gert::GertTensorDesc> *outputDesc = nullptr;
   ge::Status ret = executor->GetModelDescInfo(inputDesc, outputDesc);
   if (ret != ge::SUCCESS) {
     ACL_LOG_CALL_ERROR("[Get][ModelDescInfo]get om2 model description failed, ge result[%u], modelId[%u]", ret,
@@ -774,8 +775,8 @@ aclError aclmdlGetDescImplOm2(aclmdlDesc *modelDesc, uint32_t modelId) {
   ACL_REQUIRES_NOT_NULL(outputDesc);
 
   // Get model desc info (v2)
-  const std::vector<ge::Om2TensorDesc> *inputDescV2 = nullptr;
-  const std::vector<ge::Om2TensorDesc> *outputDescV2 = nullptr;
+  const std::vector<gert::GertTensorDesc> *inputDescV2 = nullptr;
+  const std::vector<gert::GertTensorDesc> *outputDescV2 = nullptr;
   ret = executor->GetModelDescInfo(inputDescV2, outputDescV2, true);
   if (ret != ge::SUCCESS) {
     ACL_LOG_CALL_ERROR("[Get][ModelDescInfo]get om2 model description v2 failed, ge result[%u], modelId[%u]", ret,
@@ -1535,8 +1536,8 @@ aclError aclmdlSetInputDynamicDimsImplOm2(uint32_t modelId, aclmdlDataset *datas
 
   // Step 1: Extract dynamic axis values using origin_input_dims (contains -1 for dynamic axes)
   // Must follow user_designate_shape_order (same as OM1's GetCurDynamicDims)
-  const std::vector<ge::Om2TensorDesc> *inputDesc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *outputDesc = nullptr;
+  const std::vector<gert::GertTensorDesc> *inputDesc = nullptr;
+  const std::vector<gert::GertTensorDesc> *outputDesc = nullptr;
   ge::Status descRet = executor->GetModelDescInfo(inputDesc, outputDesc);
   if (descRet != ge::SUCCESS || inputDesc == nullptr) {
     ACL_LOG_CALL_ERROR("[Get][ModelDescInfo] get input desc failed, ge result[%u], modelId[%u]", descRet, modelId);
@@ -1555,7 +1556,7 @@ aclError aclmdlSetInputDynamicDimsImplOm2(uint32_t modelId, aclmdlDataset *datas
   // Build name -> origin_dims map (origin_input_dims indexed same as input_desc)
   std::map<std::string, std::vector<int64_t>> nameToOriginDims;
   for (size_t i = 0U; i < inputDesc->size() && i < originInputDims.size(); ++i) {
-    nameToOriginDims[(*inputDesc)[i].GetName()] = originInputDims[i];
+    nameToOriginDims[gert::GertGetStr((*inputDesc)[i].name)] = originInputDims[i];
   }
 
   // Concatenate origin dims in user_designate_shape_order, identify dynamic axes via < 0

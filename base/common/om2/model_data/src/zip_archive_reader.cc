@@ -8,70 +8,40 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "zip_archive_reader.h"
+#include "framework/common/zip_archive_reader.h"
 
 #include <algorithm>
-#include <fstream>
 #include <limits>
+#include <memory>
 #include <vector>
 
-#include "base/err_msg.h"
 #include "common/checker.h"
 #include "common/debug/log.h"
 #include "common/scope_guard.h"
-#include "graph_metadef/graph/utils/math_util.h"
-#include "mmpa/mmpa_api.h"
-#include "om2_file_utils.h"
 
-namespace ge {
+#include "zip_archive_mem_file.h"
+
+namespace gert {
 namespace {
-constexpr int kMemZipOk = 0;
-constexpr int kMemZipError = -1;
-constexpr uint32_t kMaxFileNameLength = 4096U;  // same as UNZ_MAXFILENAMEINZIP
-constexpr int64_t kBufSize = 16384UL;           // same as UNZ_BUFSIZE
+constexpr uint32_t kMaxFileNameLength = 4096U;
 constexpr uint64_t kMaxCompressedEntriesUncompressedSize = 10ULL * 1024ULL * 1024ULL * 1024ULL;
 
 voidpf ZCALLBACK MemOpenFileFuncReadonly(voidpf opaque, const void *filename, int mode) {
   (void)filename;
   (void)mode;
-
   const auto mem_file_readonly = static_cast<MemoryFileReadonly *>(opaque);
   if (mem_file_readonly == nullptr) {
-    GELOGE(FAILED, "[MEMZIP] Opaque pointer is null. Cannot initialize memory file.");
+    GELOGE(ge::FAILED, "[MEMZIP] Opaque pointer is null. Cannot initialize memory file.");
     return nullptr;
   }
-
   mem_file_readonly->position = 0;
-
   return mem_file_readonly;
 }
 
 uLong ZCALLBACK MemReadFileFuncReadonly(voidpf opaque, voidpf stream, void *buf, uLong size) {
   const auto mem_file = static_cast<MemoryFileReadonly *>(stream);
   (void)opaque;
-
-  if (mem_file == nullptr) {
-    return 0;
-  }
-
-  uLong bytes_to_read = size;
-  if (mem_file->position + bytes_to_read > mem_file->length) {
-    bytes_to_read = mem_file->length - mem_file->position;
-  }
-
-  if (bytes_to_read > 0) {
-    const auto ret = GeMemcpy(static_cast<uint8_t *>(buf), size, mem_file->buffer + mem_file->position, bytes_to_read);
-    if (ret != SUCCESS) {
-      GELOGE(FAILED,
-             "[MEMZIP] Failed to copy, ret=%d: dest_ptr[%p], dest_max[%zu], src_base_ptr[%p], src_position[%zu], "
-             "src_size[%zu]",
-             ret, buf, size, mem_file->buffer, mem_file->position, bytes_to_read);
-      return 0;
-    }
-    mem_file->position += bytes_to_read;
-  }
-
-  return bytes_to_read;
+  return MemReadFileImpl(mem_file, buf, size);
 }
 
 uLong ZCALLBACK MemWriteFileFuncReadonly(voidpf opaque, voidpf stream, const void *buf, uLong size) {
@@ -85,43 +55,16 @@ uLong ZCALLBACK MemWriteFileFuncReadonly(voidpf opaque, voidpf stream, const voi
 ZPOS64_T ZCALLBACK MemTell64FileFuncReadonly(voidpf opaque, voidpf stream) {
   const auto mem_file = static_cast<MemoryFileReadonly *>(stream);
   (void)opaque;
-
   if (mem_file == nullptr) {
     return static_cast<ZPOS64_T>(-1);
   }
-
   return mem_file->position;
 }
 
 long ZCALLBACK MemSeek64FileFuncReadonly(voidpf opaque, voidpf stream, ZPOS64_T offset, int origin) {
   const auto mem_file = static_cast<MemoryFileReadonly *>(stream);
-  uint64_t new_position;
   (void)opaque;
-
-  if (mem_file == nullptr) {
-    return kMemZipError;
-  }
-
-  switch (origin) {
-    case ZLIB_FILEFUNC_SEEK_CUR:
-      new_position = mem_file->position + offset;
-      break;
-    case ZLIB_FILEFUNC_SEEK_END:
-      new_position = mem_file->length + offset;
-      break;
-    case ZLIB_FILEFUNC_SEEK_SET:
-      new_position = offset;
-      break;
-    default:
-      return kMemZipError;
-  }
-
-  if (new_position > mem_file->length) {
-    return kMemZipError;
-  }
-
-  mem_file->position = new_position;
-  return kMemZipOk;
+  return MemSeek64FileImpl(mem_file, offset, origin);
 }
 
 int ZCALLBACK MemCloseFileFuncReadonly(voidpf opaque, voidpf stream) {
@@ -150,23 +93,6 @@ void FillMemFileFuncReadonly(zlib_filefunc64_def *file_func_def, MemoryFileReado
   file_func_def->zclose_file = MemCloseFileFuncReadonly;
   file_func_def->zerror_file = MemErrorFileFuncReadonly;
   file_func_def->opaque = mem_file;
-}
-
-std::string ParentDirectory(const std::string &filepath) {
-  size_t last_slash = filepath.find_last_of('/');
-  if (last_slash != std::string::npos) {
-    return filepath.substr(0, last_slash);
-  }
-  return "";
-}
-
-bool MakeSureDirExists(const std::string &file_path) {
-  const auto parent_dir = ParentDirectory(file_path);
-  GE_ASSERT(!parent_dir.empty());
-  if (mmAccess2(parent_dir.c_str(), M_F_OK) != EN_OK) {
-    GE_ASSERT_TRUE(om2::CreateDir(parent_dir) == 0);
-  }
-  return true;
 }
 
 constexpr uint32_t kCdHeaderFixedSize = 46U;
@@ -272,9 +198,9 @@ bool LocateFileDataOffset(const MemoryFileReadonly &buffer, const uint64_t local
 }
 }  // namespace
 
-RAIIZipArchive::RAIIZipArchive(const uint8_t *data, const size_t length) : mem_file_{data, length, 0} {
+ZipArchiveReader::ZipArchiveReader(const uint8_t *data, const size_t length) : mem_file_{data, length, 0} {
   if (mem_file_.buffer == nullptr || mem_file_.length == 0) {
-    GELOGE(FAILED, "Invalid zip archive data, data is [%p] and size is [%zu]", mem_file_.buffer, mem_file_.length);
+    GELOGE(ge::FAILED, "Invalid zip archive data, data is [%p] and size is [%zu]", mem_file_.buffer, mem_file_.length);
     return;
   }
 
@@ -282,7 +208,7 @@ RAIIZipArchive::RAIIZipArchive(const uint8_t *data, const size_t length) : mem_f
   FillMemFileFuncReadonly(&file_funcs, &mem_file_);
   zip_handle_ = unzOpen2_64(nullptr, &file_funcs);
   if (zip_handle_ == nullptr) {
-    GELOGE(FAILED, "Failed to open ZIP file from memory");
+    GELOGE(ge::FAILED, "Failed to open ZIP file from memory");
     return;
   }
 
@@ -293,30 +219,30 @@ RAIIZipArchive::RAIIZipArchive(const uint8_t *data, const size_t length) : mem_f
   }
 }
 
-RAIIZipArchive::~RAIIZipArchive() {
+ZipArchiveReader::~ZipArchiveReader() {
   if (zip_handle_ != nullptr) {
     unzClose(zip_handle_);
   }
 }
 
-std::vector<std::string> RAIIZipArchive::ListFiles() const {
+std::vector<std::string> ZipArchiveReader::ListFiles() const {
   GE_ASSERT_TRUE(IsGood(), "Invalid status of archive");
   return entry_names_;
 }
 
-bool RAIIZipArchive::BuildEntryCache() {
+bool ZipArchiveReader::BuildEntryCache() {
   GE_ASSERT_NOTNULL(zip_handle_, "Invalid status of archive");
 
-  // 构造期完整遍历 central directory，缓存文件名列表和后续读取所需的 entry 位置。
   entry_cache_.clear();
+  relative_entry_cache_.clear();
   entry_names_.clear();
   entry_cache_ready_ = false;
   uint64_t total_uncompressed_size = 0U;
   auto uz_ret = unzGoToFirstFile(zip_handle_);
   GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to go to the first file in the archive, ret = %d", uz_ret);
 
-  do {
-    std::vector<char_t> name_buff(kMaxFileNameLength, '\0');
+  while (uz_ret == UNZ_OK) {
+    std::vector<char> name_buff(kMaxFileNameLength, '\0');
     unz_file_info64 file_info{};
     uz_ret =
         unzGetCurrentFileInfo64(zip_handle_, &file_info, name_buff.data(), name_buff.size(), nullptr, 0, nullptr, 0);
@@ -331,9 +257,10 @@ bool RAIIZipArchive::BuildEntryCache() {
           const std::string value = std::to_string(file_info.uncompressed_size);
           const std::string reason = "Total uncompressed size of compressed entries exceeds the 10 GiB limit.";
           (void)REPORT_PREDEFINED_ERR_MSG(
-              "E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-              std::vector<const char_t *>({"uncompressed_size", value.c_str(), reason.c_str()}));
-          GELOGE(FAILED, "Total uncompressed size of compressed entries exceeds limit, current = %llu, limit = %llu",
+              "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+              std::vector<const char *>({"uncompressed_size", value.c_str(), reason.c_str()}));
+          GELOGE(ge::FAILED,
+                 "Total uncompressed size of compressed entries exceeds limit, current = %llu, limit = %llu",
                  static_cast<unsigned long long>(file_info.uncompressed_size),
                  static_cast<unsigned long long>(kMaxCompressedEntriesUncompressedSize));
           return false;
@@ -344,14 +271,14 @@ bool RAIIZipArchive::BuildEntryCache() {
       entry_names_.emplace_back(file_name);
     }
     uz_ret = unzGoToNextFile(zip_handle_);
-  } while (uz_ret == UNZ_OK);
+  }
 
   GE_ASSERT_TRUE(uz_ret == UNZ_END_OF_LIST_OF_FILE, "unzGoToNextFile failed, ret=%d", uz_ret);
   entry_cache_ready_ = true;
   return true;
 }
 
-bool RAIIZipArchive::CacheCurrentEntry(const std::string &entry_name, const unz_file_info64 &file_info) {
+bool ZipArchiveReader::CacheCurrentEntry(const std::string &entry_name, const unz_file_info64 &file_info) {
   unz64_file_pos file_pos{};
   auto uz_ret = unzGetFilePos64(zip_handle_, &file_pos);
   GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to get file position for [%s], ret = %d", entry_name.c_str(), uz_ret);
@@ -366,10 +293,13 @@ bool RAIIZipArchive::CacheCurrentEntry(const std::string &entry_name, const unz_
   }
   const auto emplace_ret = entry_cache_.emplace(entry_name, cached_entry);
   GE_ASSERT_TRUE(emplace_ret.second, "Duplicate zip entry [%s]", entry_name.c_str());
+  const auto pos = entry_name.find('/');
+  const auto relative = (pos == std::string::npos) ? entry_name : entry_name.substr(pos + 1U);
+  relative_entry_cache_[relative] = entry_name;
   return true;
 }
 
-bool RAIIZipArchive::GoToEntry(const std::string &entry_name) const {
+bool ZipArchiveReader::GoToEntry(const std::string &entry_name) const {
   GE_ASSERT_TRUE(IsGood(), "Invalid status of archive");
   const auto iter = entry_cache_.find(entry_name);
   if (iter != entry_cache_.end()) {
@@ -380,17 +310,17 @@ bool RAIIZipArchive::GoToEntry(const std::string &entry_name) const {
     return true;
   }
 
-  GELOGE(FAILED, "Failed to locate file [%s] in zip entry cache", entry_name.c_str());
+  GELOGE(ge::FAILED, "Failed to locate file [%s] in zip entry cache", entry_name.c_str());
   return false;
 }
 
-bool RAIIZipArchive::GetCachedRawData(const std::string &entry_name, size_t &buff_size,
-                                      ReadonlyByteBuffer &raw_data) const {
-  raw_data = ReadonlyByteBuffer(nullptr, ConditionalDeleter{false});
+bool ZipArchiveReader::GetCachedRawData(const std::string &entry_name, size_t &buff_size,
+                                        ge::ReadonlyByteBuffer &raw_data) const {
+  raw_data = ge::ReadonlyByteBuffer(nullptr, ge::ConditionalDeleter{false});
   GE_ASSERT_TRUE(IsGood(), "Invalid status of archive");
   const auto iter = entry_cache_.find(entry_name);
   if (iter == entry_cache_.end()) {
-    GELOGE(FAILED, "Failed to locate file [%s] in zip entry cache", entry_name.c_str());
+    GELOGE(ge::FAILED, "Failed to locate file [%s] in zip entry cache", entry_name.c_str());
     return false;
   }
   if (!iter->second.raw_data_ready) {
@@ -401,12 +331,12 @@ bool RAIIZipArchive::GetCachedRawData(const std::string &entry_name, size_t &buf
   GE_ASSERT_TRUE(cached_entry.raw_data_offset <= mem_file_.length);
   GE_ASSERT_TRUE(cached_entry.uncompressed_size <= mem_file_.length - cached_entry.raw_data_offset);
   buff_size = cached_entry.uncompressed_size;
-  raw_data = ReadonlyByteBuffer(mem_file_.buffer + cached_entry.raw_data_offset, ConditionalDeleter{false});
+  raw_data = ge::ReadonlyByteBuffer(mem_file_.buffer + cached_entry.raw_data_offset, ge::ConditionalDeleter{false});
   return true;
 }
 
-bool RAIIZipArchive::GetRawDataOffset(const size_t pos_in_central_dir, const size_t buff_size,
-                                      uint64_t &raw_data_offset) const {
+bool ZipArchiveReader::GetRawDataOffset(const size_t pos_in_central_dir, const size_t buff_size,
+                                        uint64_t &raw_data_offset) const {
   ZipEntryInfo entry_info{};
   GE_ASSERT_TRUE(ParseCentralDirEntry(mem_file_, pos_in_central_dir, entry_info));
   GE_ASSERT_TRUE(entry_info.compressed_size == entry_info.uncompressed_size,
@@ -419,46 +349,44 @@ bool RAIIZipArchive::GetRawDataOffset(const size_t pos_in_central_dir, const siz
   return true;
 }
 
-bool RAIIZipArchive::ExtractToFile(const std::string &entry_name, const std::string &output_dir) const {
-  GE_ASSERT_TRUE(IsGood(), "Invalid status of archive");
-  GE_ASSERT_TRUE(!output_dir.empty(), "The name of output directory is empty");
-
-  GE_ASSERT_TRUE(GoToEntry(entry_name), "Failed to locate file [%s]", entry_name.c_str());
-
-  auto uz_ret = unzOpenCurrentFile(zip_handle_);
-  GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to open file [%s], ret = %d", entry_name.c_str(), uz_ret);
-  GE_MAKE_GUARD(zipfile_guard, [this]() { (void)unzCloseCurrentFile(zip_handle_); });
-
-  auto output_path = output_dir + "/" + entry_name;
-  GE_ASSERT_TRUE(MakeSureDirExists(output_path));
-  std::ofstream ofs(output_path, std::ios::binary);
-  GE_ASSERT_TRUE(ofs.is_open(), "Failed to open file [%s]", output_path.c_str());
-
-  std::vector<char> buffer(kBufSize);
-  size_t total_read = 0;
-  int32_t bytes_read = 0;
-
-  while ((bytes_read = unzReadCurrentFile(zip_handle_, buffer.data(), buffer.size())) > 0) {
-    ofs.write(buffer.data(), bytes_read);
-    total_read += bytes_read;
-  }
-  GE_ASSERT_TRUE(bytes_read == 0, "Failed to read file [%s], ret = %d", entry_name.c_str(), bytes_read);
-  GELOGI("Successfully extract file [%s], total_read = %d bytes", entry_name.c_str(), total_read);
-
-  return true;
-}
-
-bool RAIIZipArchive::HasEntry(const std::string &entry_name) const {
+bool ZipArchiveReader::HasEntry(const std::string &entry_name) const {
   if (!IsGood()) {
     return false;
   }
   return entry_cache_.find(entry_name) != entry_cache_.end();
 }
 
-ReadonlyByteBuffer RAIIZipArchive::ExtractToMem(const std::string &entry_name, size_t &buff_size) const {
+std::string ZipArchiveReader::FindEntry(const std::string &relative_path) const {
+  if (!IsGood()) {
+    return "";
+  }
+  const auto it = relative_entry_cache_.find(relative_path);
+  return (it != relative_entry_cache_.end()) ? it->second : "";
+}
+
+bool ZipArchiveReader::HasEntryByRelativePath(const std::string &relative_path) const {
+  return !FindEntry(relative_path).empty();
+}
+
+std::vector<std::string> ZipArchiveReader::ListFilesByRelativePrefix(const std::string &relative_prefix) const {
+  std::vector<std::string> result;
+  if (!IsGood()) {
+    return result;
+  }
+  for (const auto &entry : entry_names_) {
+    const auto pos = entry.find('/');
+    const auto relative = (pos == std::string::npos) ? entry : entry.substr(pos + 1U);
+    if (relative.find(relative_prefix) == 0U) {
+      result.push_back(entry);
+    }
+  }
+  return result;
+}
+
+ge::ReadonlyByteBuffer ZipArchiveReader::ExtractToMem(const std::string &entry_name, size_t &buff_size) const {
   GE_ASSERT_TRUE(IsGood(), "Invalid status of archive");
 
-  ReadonlyByteBuffer raw_data(nullptr, ConditionalDeleter{false});
+  ge::ReadonlyByteBuffer raw_data(nullptr, ge::ConditionalDeleter{false});
   GE_ASSERT_TRUE(GetCachedRawData(entry_name, buff_size, raw_data));
   if (raw_data != nullptr) {
     return raw_data;
@@ -492,7 +420,7 @@ ReadonlyByteBuffer RAIIZipArchive::ExtractToMem(const std::string &entry_name, s
                  entry_name.c_str(), buff_size, total_read);
   GELOGI("Successfully extract file [%s], total_read = %d bytes", entry_name.c_str(), total_read);
 
-  return ReadonlyByteBuffer(mutable_buffer.release(), ConditionalDeleter{true});
+  return ge::ReadonlyByteBuffer(mutable_buffer.release(), ge::ConditionalDeleter{true});
 }
 
-}  // namespace ge
+}  // namespace gert

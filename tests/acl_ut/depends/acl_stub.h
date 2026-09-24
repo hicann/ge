@@ -210,15 +210,15 @@ class aclStub {
                                          size_t &zero_copy_size);
   virtual ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, bool query_zero_copy_size,
                                          size_t &work_size, size_t &zero_copy_size);
-  virtual ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<ge::Om2TensorDesc> &input_desc,
-                                         std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                                         std::vector<ge::Om2TensorDesc> &output_desc,
-                                         std::vector<ge::Om2TensorDesc> &output_desc_v2);
+  virtual ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<gert::GertTensorDesc> &input_desc,
+                                         std::vector<gert::GertTensorDesc> &input_desc_v2,
+                                         std::vector<gert::GertTensorDesc> &output_desc,
+                                         std::vector<gert::GertTensorDesc> &output_desc_v2);
   virtual ge::Status GetOm2ModelMetadata(const void *model_data, size_t model_size,
-                                         std::vector<ge::Om2TensorDesc> &input_desc,
-                                         std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                                         std::vector<ge::Om2TensorDesc> &output_desc,
-                                         std::vector<ge::Om2TensorDesc> &output_desc_v2);
+                                         std::vector<gert::GertTensorDesc> &input_desc,
+                                         std::vector<gert::GertTensorDesc> &input_desc_v2,
+                                         std::vector<gert::GertTensorDesc> &output_desc,
+                                         std::vector<gert::GertTensorDesc> &output_desc_v2);
   virtual ge::Status IsOm2Model(const void *data, size_t size, bool &is_support);
   virtual ge::Status IsOm2Model(const char *file_path, bool &is_support);
   virtual ge::Status GetModelDescInfo(std::vector<ge::TensorDesc> &input_desc, std::vector<ge::TensorDesc> &output_desc,
@@ -484,19 +484,22 @@ class MockFunctionTest : public aclStub {
   MOCK_METHOD5(GetOm2WorkspaceSize, ge::Status(const void *model_data, size_t model_size, bool query_zero_copy_size,
                                                size_t &work_size, size_t &zero_copy_size));
   MOCK_METHOD5(GetOm2ModelMetadata,
-               ge::Status(const std::string &model_path, std::vector<ge::Om2TensorDesc> &input_desc,
-                          std::vector<ge::Om2TensorDesc> &input_desc_v2, std::vector<ge::Om2TensorDesc> &output_desc,
-                          std::vector<ge::Om2TensorDesc> &output_desc_v2));
+               ge::Status(const std::string &model_path, std::vector<gert::GertTensorDesc> &input_desc,
+                          std::vector<gert::GertTensorDesc> &input_desc_v2,
+                          std::vector<gert::GertTensorDesc> &output_desc,
+                          std::vector<gert::GertTensorDesc> &output_desc_v2));
   MOCK_METHOD6(GetOm2ModelMetadata,
-               ge::Status(const void *model_data, size_t model_size, std::vector<ge::Om2TensorDesc> &input_desc,
-                          std::vector<ge::Om2TensorDesc> &input_desc_v2, std::vector<ge::Om2TensorDesc> &output_desc,
-                          std::vector<ge::Om2TensorDesc> &output_desc_v2));
+               ge::Status(const void *model_data, size_t model_size, std::vector<gert::GertTensorDesc> &input_desc,
+                          std::vector<gert::GertTensorDesc> &input_desc_v2,
+                          std::vector<gert::GertTensorDesc> &output_desc,
+                          std::vector<gert::GertTensorDesc> &output_desc_v2));
   MOCK_METHOD3(IsOm2Model, ge::Status(const void *data, size_t size, bool &is_support));
   MOCK_METHOD2(IsOm2Model, ge::Status(const char *file_path, bool &is_support));
   MOCK_METHOD3(GetModelDescInfo, ge::Status(std::vector<ge::TensorDesc> &input_desc,
                                             std::vector<ge::TensorDesc> &output_desc, bool new_model_desc));
-  MOCK_METHOD3(GetModelDescInfo, ge::Status(const std::vector<ge::Om2TensorDesc> *&input_desc,
-                                            const std::vector<ge::Om2TensorDesc> *&output_desc, bool new_model_desc));
+  MOCK_METHOD3(GetModelDescInfo,
+               ge::Status(const std::vector<gert::GertTensorDesc> *&input_desc,
+                          const std::vector<gert::GertTensorDesc> *&output_desc, bool new_model_desc));
 
   // fe function
   MOCK_METHOD0(InitializePlatformInfo, uint32_t());

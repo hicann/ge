@@ -14,7 +14,7 @@
 #include "graph/ge_context.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "common/model/external_allocator_manager.h"
-#include "common/om2/om2_model_data.h"
+#include "framework/om2/model_data/gert_model_data.h"
 #include "common/helper/om2/om2_utils.h"
 #include "common/memory/tensor_trans_utils.h"
 #include "graph/manager/graph_var_manager.h"
@@ -1038,7 +1038,7 @@ Status ModelExecutor::LoadOm2Graph(const GeRootModelPtr &ge_root_model, const Gr
   uint32_t device_id = GetContext().DeviceId();
   GE_CHK_STATUS_RET(ModelUtils::SetDevice(device_id), "[Call][SetDevice] failed, device_id:%u", device_id);
   const auto &model_data = ge_root_model->GetOm2ModelData();
-  GE_ASSERT_NOTNULL(model_data, "[OM2][Check] Missing Om2ModelData.");
+  GE_ASSERT_NOTNULL(model_data, "[OM2][Check] Missing GertModelData.");
 
   const uint32_t graph_id = graph_node->GetGraphId();
   uint32_t model_id = ge_root_model->GetModelId();
@@ -1082,36 +1082,37 @@ Status ModelExecutor::LoadOm2Graph(const GeRootModelPtr &ge_root_model, const Gr
 }
 
 Status ModelExecutor::GetOm2ModelTensorDesc(const GraphNodePtr &graph_node,
-                                            const std::vector<ge::Om2TensorDesc> *&input_desc,
-                                            const std::vector<ge::Om2TensorDesc> *&output_desc) const {
+                                            const std::vector<gert::GertTensorDesc> *&input_desc,
+                                            const std::vector<gert::GertTensorDesc> *&output_desc) const {
   GE_CHECK_NOTNULL(graph_node);
   const auto ge_root_model = graph_node->GetGeRootModel();
   GE_CHECK_NOTNULL(ge_root_model);
   const auto &model_data = ge_root_model->GetOm2ModelData();
-  GE_ASSERT_NOTNULL(model_data, "[OM2][Check] Missing Om2ModelData.");
-  const auto &model_meta = model_data->model_meta;
+  GE_ASSERT_NOTNULL(model_data, "[OM2][Check] Missing GertModelData.");
+  GE_ASSERT_TRUE(!model_data->models.empty(), "[OM2][Check] models is empty.");
+  const auto &model_meta = *model_data->models[0]->model_meta;
   input_desc = &model_meta.input_desc;
   output_desc = &model_meta.output_desc;
   return SUCCESS;
 }
 
 Status ModelExecutor::PrepareOm2Outputs(const GraphNodePtr &graph_node, std::vector<gert::Tensor> &outputs) const {
-  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *input_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *output_desc = nullptr;
   GE_ASSERT_SUCCESS(GetOm2ModelTensorDesc(graph_node, input_desc, output_desc));
   GE_ASSERT_NOTNULL(output_desc);
   outputs.clear();
   outputs.reserve(output_desc->size());
   for (const auto &desc : *output_desc) {
     GeTensor ge_tensor;
-    ge_tensor.MutableTensorDesc().SetShape(GeShape(desc.GetShape()));
-    ge_tensor.MutableTensorDesc().SetOriginShape(GeShape(desc.GetOriginShape()));
-    ge_tensor.MutableTensorDesc().SetDataType(desc.GetDataType());
-    ge_tensor.MutableTensorDesc().SetFormat(desc.GetFormat());
-    ge_tensor.MutableTensorDesc().SetOriginFormat(desc.GetOriginFormat());
-    const auto aligned_ptr = MakeShared<AlignedPtr>(desc.GetByteSize(), kOm2OutputMemAlignment);
+    ge_tensor.MutableTensorDesc().SetShape(GeShape(desc.shape));
+    ge_tensor.MutableTensorDesc().SetOriginShape(GeShape(desc.shape));
+    ge_tensor.MutableTensorDesc().SetDataType(desc.data_type);
+    ge_tensor.MutableTensorDesc().SetFormat(desc.format);
+    ge_tensor.MutableTensorDesc().SetOriginFormat(desc.format);
+    const auto aligned_ptr = MakeShared<AlignedPtr>(desc.size, kOm2OutputMemAlignment);
     GE_ASSERT_NOTNULL(aligned_ptr);
-    (void)ge_tensor.SetData(aligned_ptr, desc.GetByteSize());
+    (void)ge_tensor.SetData(aligned_ptr, desc.size);
     ge_tensor.MutableTensorDesc().SetPlacement(Placement::kPlacementHost);
 
     gert::Tensor gert_tensor;

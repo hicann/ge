@@ -34,7 +34,7 @@
 #include "graph/custom_op/cast.h"
 #include "framework/common/host_cpu_fusion_attr.h"
 #include "graph/op_so_bin.h"
-#include "common/om2/om2_model_data.h"
+#include "framework/om2/model_data/gert_model_data.h"
 
 namespace ge {
 namespace {

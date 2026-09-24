@@ -39,7 +39,7 @@ class Om2CodegenModelBuilder {
   static Status CreateTaskCodeBuilders(const GeModelPtr &model, AstBuildContext &ast,
                                        std::vector<TaskCodeBuilderPtr> &task_builders, Om2CodegenModel &codegen_model);
   Status Build(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
-               Om2CodegenModel &codegen_model, Om2ConstMetas &const_metas);
+               Om2CodegenModel &codegen_model, gert::GertModelDataConstMetas &const_metas);
 
  private:
   Status BuildOpDescLookup(const GeModelPtr &model);
@@ -53,9 +53,15 @@ class Om2CodegenModelBuilder {
   Status CollectNetOutputIoItems(const Node &node, const OpDescPtr &op_desc, uint32_t &next_model_output_index,
                                  std::vector<OutputModelIoItem> &output_items, std::set<int64_t> &io_offsets) const;
   Status BuildConstInputs(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
-                          Om2CodegenModel &codegen_model, Om2ConstMetas &const_metas);
-  Status BuildFileConstInputs(const GeModelPtr &model, Om2CodegenModel &codegen_model, Om2ConstMetas &const_metas);
-  Status BuildVarInputs(const GeModelPtr &model, Om2CodegenModel &codegen_model, std::vector<Om2VarMeta> &var_metas);
+                          Om2CodegenModel &codegen_model, gert::GertModelDataConstMetas &const_metas);
+  Status BuildFileConstInputs(const GeModelPtr &model, Om2CodegenModel &codegen_model,
+                              gert::GertModelDataConstMetas &const_metas);
+  Status BuildVarInputs(const GeModelPtr &model, Om2CodegenModel &codegen_model,
+                        std::vector<gert::GertModelDataVarMeta> &var_metas);
+  Status BuildVarInputForNode(const OpDescPtr &op_desc, const std::string &node_type,
+                              std::vector<gert::GertModelDataVarMeta> &var_metas, size_t &var_index);
+  Status ParseVarRootAndSize(const OpDescPtr &op_desc, const GeTensorDescPtr &output_desc, uint64_t &root,
+                             uint64_t &size);
   Status BuildKernelRegistry(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
                              Om2CodegenModel &codegen_model);
   Status BuildTaskSemantics(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
@@ -66,7 +72,8 @@ class Om2CodegenModelBuilder {
                           Om2CodegenModel &codegen_model);
   Status BuildHostArgsOffsets(const std::multimap<uint64_t, uint64_t> &io_addr_offset_map,
                               Om2CodegenModel &codegen_model) const;
-  Status CollectConstInputsFromOp(const OpDescPtr &op_desc, Om2CodegenModel &codegen_model, Om2ConstMetas &const_metas);
+  Status CollectConstInputsFromOp(const OpDescPtr &op_desc, Om2CodegenModel &codegen_model,
+                                  gert::GertModelDataConstMetas &const_metas);
   Status UpdateStreamFlag(const GeModelPtr &model, Om2CodegenModel &codegen_model) const;
   Status InitStreamActive(const OpDescPtr &op_desc, std::set<uint32_t> &active_stream_indication) const;
   Status InitStreamSwitch(const OpDescPtr &op_desc, std::set<uint32_t> &active_stream_indication) const;

@@ -34,18 +34,15 @@
 #include "graph_metadef/common/ge_common/util.h"
 #include "rt_external_mem.h"
 #include "rt_external_stream.h"
-#include "common/helper/om2/json_file.h"
-#include "nlohmann/json.hpp"
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "file_const_loader.h"
 #include "om2_external_weight_manager.h"
 #include "om2_file_utils.h"
 #include "om2_malloc_helper.h"
 #include "om2_rt_var_manager.h"
-#include "common/om2/rt_var_resource.h"
-#include "zip_archive_reader.h"
-#include "common/om2/om2_model_data.h"
-#include "om2_aipp_utils.h"
+#include "framework/common/gert_model_data_deserialize.h"
+#include "framework/common/gert_model_data_utils.h"
+#include "framework/common/json_file.h"
 #include <fstream>
 #include <vector>
 
@@ -91,10 +88,10 @@ struct RunModelInfo {
 struct ModelMetaInfo {
   size_t work_size = 0U;
   size_t zero_copy_size = 0U;
-  std::vector<ge::Om2TensorDesc> input_desc;
-  std::vector<ge::Om2TensorDesc> output_desc;
-  std::vector<ge::Om2TensorDesc> input_desc_v2;
-  std::vector<ge::Om2TensorDesc> output_desc_v2;
+  std::vector<gert::GertTensorDesc> input_desc;
+  std::vector<gert::GertTensorDesc> output_desc;
+  std::vector<gert::GertTensorDesc> input_desc_v2;
+  std::vector<gert::GertTensorDesc> output_desc_v2;
   std::vector<std::vector<int64_t>> dynamic_batch_info;
   int32_t dynamic_type = 0;
   std::vector<std::string> dynamic_output_shape;
@@ -158,31 +155,37 @@ ge::Status CreateSoMemFd(const std::string &file_name, const void *data, const s
   return ge::SUCCESS;
 }
 
-bool IsFileNameEndsWith(const std::string &file_name, const std::string &ext) {
-  return file_name.size() >= ext.size() && file_name.compare(file_name.size() - ext.size(), ext.size(), ext) == 0;
+uint64_t GetNextSessionId() {
+  static std::atomic<uint64_t> atomic_session_id(0);
+  return atomic_session_id.fetch_add(1);
 }
 
-ge::Status ExtractEntryToString(const ge::RAIIZipArchive &archive, const std::string &entry_name, std::string &out) {
-  size_t buffer_size{0U};
-  const auto buffer = archive.ExtractToMem(entry_name, buffer_size);
-  GE_ASSERT_NOTNULL(buffer, "[OM2] Failed to extract entry %s", entry_name.c_str());
-  GE_ASSERT_TRUE(buffer_size > 0U, "[OM2] Empty archive entry %s", entry_name.c_str());
-  out.assign(reinterpret_cast<const char *>(buffer.get()), buffer_size);
+uint64_t ResolveSessionId(const Om2ModelLoadArg &load_arg) {
+  return (load_arg.rt_session == nullptr) ? GetNextSessionId() : load_arg.rt_session->GetSessionId();
+}
+
+ge::Status RtMallocBuffer(size_t size, void *&ptr) {
+  ptr = nullptr;
+  if (size == 0U) {
+    return ge::SUCCESS;
+  }
+  const auto rt_ret = Om2Malloc(&ptr, size, RT_MEMORY_HBM, 0);
+  if (rt_ret != ACL_SUCCESS) {
+    GELOGE(ge::FAILED, "[OM2][Alloc] aclrtMalloc failed, size=%zu, rt_ret=%u", size, rt_ret);
+    return ge::FAILED;
+  }
   return ge::SUCCESS;
 }
 
-ge::Status ParseTensorDescFromJson(const ge::JsonFile &json_file, ge::Om2TensorDesc &desc) {
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "name", [&](const std::string &v) { desc.SetName(v); });
-  ge::JsonFile::TryGetAndApply<std::vector<int64_t>>(json_file, "shape",
-                                                     [&](const std::vector<int64_t> &v) { desc.SetShape(v); });
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "data_type", [&](const std::string &v) {
-    desc.SetDataType(ge::TypeUtilsInner::SerialStringToDataType(v));
-  });
-  ge::JsonFile::TryGetAndApply<std::string>(
-      json_file, "format", [&](const std::string &v) { desc.SetFormat(ge::TypeUtilsInner::SerialStringToFormat(v)); });
-  ge::JsonFile::TryGetAndApply<size_t>(json_file, "size", [&](const size_t &v) { desc.SetSize(v); });
-  ge::JsonFile::TryGetAndApply<std::vector<std::pair<int64_t, int64_t>>>(
-      json_file, "shape_range", [&](const std::vector<std::pair<int64_t, int64_t>> &v) { desc.SetShapeRange(v); });
+ge::Status RtMemcpyH2D(void *dst, size_t dst_size, const void *src, size_t size) {
+  if (size == 0U) {
+    return ge::SUCCESS;
+  }
+  const auto rt_ret = aclrtMemcpy(dst, dst_size, src, size, ACL_MEMCPY_HOST_TO_DEVICE);
+  if (rt_ret != ACL_SUCCESS) {
+    GELOGE(ge::FAILED, "[OM2][Memcpy] rtMemcpy H2D failed, size=%zu, rt_ret=%u", size, rt_ret);
+    return ge::FAILED;
+  }
   return ge::SUCCESS;
 }
 
@@ -240,686 +243,21 @@ void ParseOpAttrJsonToMapInternal(const ge::JsonFile &op_attr_json,
   }
 }
 
-ge::Status DeserializeCodegenEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                   gert::Om2ModelData &model_data) {
-  ge::Om2CodegenArtifact artifact;
-  artifact.file_name = ExtractParentDirAndFileName(entry).second;
-  std::string content;
-  GE_ASSERT_SUCCESS(ExtractEntryToString(archive, entry, content));
-  artifact.data = std::move(content);
-  model_data.program_body.so_artifact = std::move(artifact);
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeWeightEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                  gert::Om2ModelData &model_data) {
-  size_t buffer_size{0U};
-  auto buffer = archive.ExtractToMem(entry, buffer_size);
-  GE_ASSERT_NOTNULL(buffer, "[OM2] Failed to extract entry %s", entry.c_str());
-  GE_ASSERT_TRUE(buffer_size > 0U, "[OM2] Empty archive entry %s", entry.c_str());
-  model_data.constants_data.weight_data = std::move(buffer);
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeConstantsConfigEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                           gert::Om2ModelData &model_data) {
-  size_t buff_size = 0U;
-  auto buff_data = archive.ExtractToMem(entry, buff_size);
-  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
-  GE_ASSERT_TRUE(buff_size > 0U);
-  const ge::JsonFile json_file(buff_data.get(), buff_size);
-  GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid constants config JSON from entry %s", entry.c_str());
-
-  size_t internal_weight_size{0U};
-  (void)json_file.Get("internal_weight_size", internal_weight_size);
-  model_data.constants_data.internal_weight_size = internal_weight_size;
-
-  ge::JsonFile::json consts_json;
-  if (json_file.Get("consts", consts_json) && consts_json.is_object()) {
-    for (auto &[key, val] : consts_json.items()) {
-      (void)key;
-      const ge::JsonFile val_file(val);
-      ge::Om2ConstMeta meta;
-      (void)val_file.Get("index", meta.index);
-      (void)val_file.Get("type", meta.type);
-      (void)val_file.Get("file_name", meta.file_name);
-      (void)val_file.Get("file_path", meta.file_path);
-      (void)val_file.Get("offset", meta.offset);
-      (void)val_file.Get("size", meta.size);
-      (void)model_data.constants_data.consts.emplace_back(std::move(meta));
-    }
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status ParseTransNodeFromJson(const ge::JsonFile &json_file, gert::RTTransNodeInfo &node_info) {
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "node_type",
-                                            [&](const std::string &v) { node_info.node_type = v; });
-  ge::JsonFile input_json;
-  if (json_file.Get("input", input_json)) {
-    GE_ASSERT_SUCCESS(ParseTensorDescFromJson(input_json, node_info.input));
-  }
-  ge::JsonFile output_json;
-  if (json_file.Get("output", output_json)) {
-    GE_ASSERT_SUCCESS(ParseTensorDescFromJson(output_json, node_info.output));
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status ParseCopyInfoFromJson(const ge::JsonFile &json_file, gert::RTCopyNodeInfo &copy_info) {
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "src_var_name",
-                                            [&](const std::string &v) { copy_info.src_var_name = v; });
-  ge::JsonFile src_tensor_desc_json;
-  if (json_file.Get("src_tensor_desc", src_tensor_desc_json)) {
-    GE_ASSERT_SUCCESS(ParseTensorDescFromJson(src_tensor_desc_json, copy_info.src_tensor_desc));
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status ParseVarEntryFromJson(const ge::JsonFile &json_file, const uint8_t *weight_data, size_t weight_data_size,
-                                 gert::RTVarEntry &entry) {
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "var_name", [&](const std::string &v) { entry.var_name = v; });
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "var_key", [&](const std::string &v) { entry.var_key = v; });
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "op_type", [&](const std::string &v) { entry.op_type = v; });
-  ge::JsonFile::TryGetAndApply<uint64_t>(json_file, "logic_addr", [&](const uint64_t &v) { entry.logic_addr = v; });
-  ge::JsonFile::TryGetAndApply<uint64_t>(json_file, "size", [&](const uint64_t &v) { entry.size = v; });
-  ge::JsonFile::TryGetAndApply<uint32_t>(json_file, "memory_type", [&](const uint32_t &v) { entry.memory_type = v; });
-  ge::JsonFile::TryGetAndApply<uint32_t>(json_file, "changed_graph_id",
-                                         [&](const uint32_t &v) { entry.changed_graph_id = v; });
-  ge::JsonFile::TryGetAndApply<uint32_t>(json_file, "allocated_graph_id",
-                                         [&](const uint32_t &v) { entry.allocated_graph_id = v; });
-
-  ge::JsonFile tensor_desc_json;
-  if (json_file.Get("tensor_desc", tensor_desc_json)) {
-    GE_ASSERT_SUCCESS(ParseTensorDescFromJson(tensor_desc_json, entry.tensor_desc));
-  }
-
-  ge::JsonFile::json trans_road_json;
-  if (json_file.Get("trans_road", trans_road_json) && trans_road_json.is_array()) {
-    for (const auto &node_json : trans_road_json) {
-      gert::RTTransNodeInfo node_info;
-      GE_ASSERT_SUCCESS(ParseTransNodeFromJson(ge::JsonFile(node_json), node_info));
-      entry.trans_road.emplace_back(std::move(node_info));
-    }
-  }
-
-  ge::JsonFile copy_info_json;
-  if (json_file.Get("copy_info", copy_info_json)) {
-    GE_ASSERT_SUCCESS(ParseCopyInfoFromJson(copy_info_json, entry.copy_info));
-  }
-
-  size_t init_data_offset = 0U;
-  size_t init_data_size = 0U;
-  (void)json_file.Get("init_data_offset", init_data_offset);
-  (void)json_file.Get("init_data_size", init_data_size);
-  if (init_data_size > 0U) {
-    const bool is_init_data_valid =
-        (init_data_offset <= weight_data_size) && (init_data_size <= (weight_data_size - init_data_offset));
-    if (!is_init_data_valid) {
-      GELOGW("[OM2][Var] Invalid or missing init data for var=%s, skip init_data.", entry.var_name.c_str());
-    } else {
-      entry.init_data.assign(weight_data + init_data_offset, weight_data + init_data_offset + init_data_size);
-    }
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status ParseVarMetaFromJson(const ge::JsonFile &json_file, ge::Om2VarMeta &meta) {
-  ge::JsonFile::TryGetAndApply<size_t>(json_file, "index", [&](const size_t &v) { meta.index = v; });
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "var_name", [&](const std::string &v) { meta.var_name = v; });
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "op_type", [&](const std::string &v) { meta.op_type = v; });
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "op_name", [&](const std::string &v) { meta.op_name = v; });
-
-  ge::JsonFile tensor_desc_json;
-  if (json_file.Get("tensor_desc", tensor_desc_json)) {
-    GE_ASSERT_SUCCESS(ParseTensorDescFromJson(tensor_desc_json, meta.tensor_desc));
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeVarResourceEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                       gert::Om2ModelData &model_data) {
-  size_t buff_size = 0U;
-  auto buff_data = archive.ExtractToMem(entry, buff_size);
-  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
-  GE_ASSERT_TRUE(buff_size > 0U);
-  const ge::JsonFile json_file(buff_data.get(), buff_size);
-  GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid var_resource.json");
-
-  const std::string weight_entry = ExtractParentDirAndFileName(entry).first + "var_weight_data";
-  size_t weight_data_size = 0U;
-  ge::ReadonlyByteBuffer weight_data(nullptr, ge::ConditionalDeleter{false});
-  if (archive.HasEntry(weight_entry)) {
-    weight_data = archive.ExtractToMem(weight_entry, weight_data_size);
-    GE_ASSERT_NOTNULL(weight_data, "[OM2] Failed to extract %s", weight_entry.c_str());
-  }
-
-  auto resource = std::make_unique<gert::RTVarResource>();
-  ge::JsonFile::json entries_json;
-  if (json_file.Get("entries", entries_json) && entries_json.is_object()) {
-    for (const auto &[key, val] : entries_json.items()) {
-      (void)key;
-      gert::RTVarEntry var_entry;
-      GE_ASSERT_SUCCESS(ParseVarEntryFromJson(ge::JsonFile(val), weight_data.get(), weight_data_size, var_entry));
-      GE_ASSERT_SUCCESS(resource->AddEntry(std::move(var_entry)));
-    }
-  }
-  model_data.rt_var_resource = std::move(resource);
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeVariablesConfigEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                           gert::Om2ModelData &model_data) {
-  size_t buff_size = 0U;
-  auto buff_data = archive.ExtractToMem(entry, buff_size);
-  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
-  GE_ASSERT_TRUE(buff_size > 0U);
-  const ge::JsonFile json_file(buff_data.get(), buff_size);
-  GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid variables config JSON from entry %s", entry.c_str());
-
-  (void)json_file.Get("graph_id", model_data.graph_id);
-  ge::JsonFile::json var_metas_json;
-  if (json_file.Get("var_metas", var_metas_json) && var_metas_json.is_array()) {
-    for (const auto &meta_json : var_metas_json) {
-      ge::Om2VarMeta meta;
-      GE_ASSERT_SUCCESS(ParseVarMetaFromJson(ge::JsonFile(meta_json), meta));
-      (void)model_data.var_metas.emplace_back(std::move(meta));
-    }
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeBinaryEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                  std::vector<Om2KernelBinary> &binaries) {
-  gert::Om2KernelBinary kernel_binary;
-  kernel_binary.name = ExtractParentDirAndFileName(entry).second;
-  size_t buffer_size{0U};
-  auto buffer = archive.ExtractToMem(entry, buffer_size);
-  GE_ASSERT_NOTNULL(buffer, "[OM2] Failed to extract entry %s", entry.c_str());
-  GE_ASSERT_TRUE(buffer_size > 0U, "[OM2] Empty archive entry %s", entry.c_str());
-  kernel_binary.data = std::move(buffer);
-  kernel_binary.data_size = buffer_size;
-  (void)binaries.emplace_back(std::move(kernel_binary));
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeKernelEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                  gert::Om2ModelData &model_data) {
-  return DeserializeBinaryEntry(archive, entry, model_data.kernel_binaries);
-}
-
-ge::Status DeserializeModelMetaEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                     gert::Om2ModelData &model_data) {
-  size_t buff_size = 0U;
-  auto buff_data = archive.ExtractToMem(entry, buff_size);
-  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
-  GE_ASSERT_TRUE(buff_size > 0U);
-  const ge::JsonFile json_file(buff_data.get(), buff_size);
-  GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid model_meta.json");
-
-  ge::JsonFile::json inputs_json;
-  if (json_file.Get("inputs", inputs_json) && inputs_json.is_array()) {
-    for (size_t i = 0UL; i < inputs_json.size(); ++i) {
-      const ge::JsonFile input_file(inputs_json[i]);
-      ge::Om2TensorDesc desc;
-      GE_ASSERT_SUCCESS(ParseTensorDescFromJson(input_file, desc));
-      GE_ASSERT_TRUE(!desc.GetShape().empty(), "[OM2] Input tensor at index %zu is missing 'shape' field", i);
-      std::vector<int64_t> max_gear_shape;
-      if (input_file.Get("max_gear_shape", max_gear_shape)) {
-        model_data.model_meta.origin_input_dims.emplace_back(desc.GetShape());
-        desc.SetShape(max_gear_shape);
-      }
-      model_data.model_meta.input_desc.emplace_back(desc);
-      ge::Om2TensorDesc desc_v2 = desc;
-      std::vector<int64_t> shape_v2;
-      if (input_file.Get("shape_aclmdlGetInputDimsV2", shape_v2)) {
-        desc_v2.SetShape(shape_v2);
-      }
-      model_data.model_meta.input_desc_v2.emplace_back(desc_v2);
-    }
-  }
-
-  ge::JsonFile::json outputs_json;
-  if (json_file.Get("outputs", outputs_json) && outputs_json.is_array()) {
-    for (const auto &output_json : outputs_json) {
-      const ge::JsonFile output_file(output_json);
-      ge::Om2TensorDesc desc;
-      GE_ASSERT_SUCCESS(ParseTensorDescFromJson(output_file, desc));
-      model_data.model_meta.output_desc.emplace_back(desc);
-      model_data.model_meta.output_desc_v2.emplace_back(desc);
-    }
-  }
-
-  ge::JsonFile dynamic_dims_file;
-  if (json_file.Get("dynamic_dims", dynamic_dims_file) && dynamic_dims_file.IsValid()) {
-    (void)dynamic_dims_file.Get("dynamic_type", model_data.model_meta.dynamic_type);
-    (void)dynamic_dims_file.Get("user_designate_shape_order", model_data.model_meta.user_designate_shape_order);
-
-    ge::JsonFile::json gears_json;
-    if (dynamic_dims_file.Get("gears", gears_json) && gears_json.is_array()) {
-      for (size_t gear_idx = 0UL; gear_idx < gears_json.size(); ++gear_idx) {
-        const ge::JsonFile gear_file(gears_json[gear_idx]);
-
-        std::vector<int64_t> inputs;
-        if (gear_file.Get("inputs", inputs)) {
-          model_data.model_meta.dynamic_batch_info.push_back(std::move(inputs));
-        }
-
-        ge::JsonFile::json outputs_json;
-        if (gear_file.Get("outputs", outputs_json) && outputs_json.is_array()) {
-          for (size_t out_idx = 0UL; out_idx < outputs_json.size(); ++out_idx) {
-            const auto &dims = outputs_json[out_idx];
-            if (dims.is_array()) {
-              std::string shape_str = std::to_string(gear_idx) + "," + std::to_string(out_idx);
-              for (size_t i = 0UL; i < dims.size(); ++i) {
-                shape_str += ",";
-                shape_str += std::to_string(dims[i].get<int64_t>());
-              }
-              model_data.model_meta.dynamic_output_shape.push_back(std::move(shape_str));
-            }
-          }
-        }
-      }
-    }
-  }
-
-  (void)json_file.Get("work_size", model_data.model_meta.work_size);
-  (void)json_file.Get("zero_copy_size", model_data.model_meta.zero_copy_size);
-  (void)json_file.Get("name", model_data.model_meta.model_name);
-
-  // 读取 aipp 字段
-  ge::JsonFile aipp_json;
-  if (json_file.Get("aipp", aipp_json) && aipp_json.IsValid()) {
-    const ge::Status aipp_ret =
-        om2::ParseAippJson(aipp_json, model_data.model_meta.aipp_infos, model_data.model_meta.has_aipp);
-    if (aipp_ret != ge::SUCCESS) {
-      GELOGW("[OM2][AIPP] ParseAippJson failed, ret=%u", aipp_ret);
-    }
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeOpAttrEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                                  gert::Om2ModelData &model_data) {
-  size_t buff_size = 0U;
-  auto buff_data = archive.ExtractToMem(entry, buff_size);
-  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
-  GE_ASSERT_TRUE(buff_size > 0U);
-  model_data.op_attr_json = std::string(reinterpret_cast<const char *>(buff_data.get()), buff_size);
-  return ge::SUCCESS;
-}
-
-static uint32_t ParseVersion(const std::string &version) {
-  uint32_t major = 0U;
-  uint32_t minor = 0U;
-  (void)sscanf_s(version.c_str(), "%u.%u", &major, &minor);
-  return major * 10000U + minor;
-}
-
-static uint32_t GetMajorVersion(uint32_t version) {
-  return version / 10000U;
-}
-
-static std::string BuildUsedFeaturesStr(const std::map<std::string, std::string> &used_features) {
-  if (used_features.empty()) {
-    return "{}";
-  }
-  ge::JsonFile json;
-  for (const auto &[name, version] : used_features) {
-    (void)json.Set(name, version);
-  }
-  return json.Dump(false);
-}
-
-static ge::Status ValidateVersionCompatibility(const gert::Om2Manifest &manifest) {
-  const uint32_t compiler_ver = ParseVersion(manifest.compatibility.compiler_version);
-  const uint32_t executor_ver = ParseVersion(OM2_VERSION);
-  const std::string features_str = BuildUsedFeaturesStr(manifest.compatibility.used_features);
-
-  if (GetMajorVersion(compiler_ver) > GetMajorVersion(executor_ver)) {
-    REPORT_INNER_ERR_MSG("E19999",
-                         "[OM2] Version incompatible: compiler_version=%s (major=%u) > executor_version=%s (major=%u), "
-                         "used_features=%s",
-                         manifest.compatibility.compiler_version.c_str(), GetMajorVersion(compiler_ver), OM2_VERSION,
-                         GetMajorVersion(executor_ver), features_str.c_str());
-    GELOGE(ACL_ERROR_GE_PARAM_INVALID,
-           "[OM2] Version incompatible: compiler_version=%s (major=%u) > executor_version=%s (major=%u)",
-           manifest.compatibility.compiler_version.c_str(), GetMajorVersion(compiler_ver), OM2_VERSION,
-           GetMajorVersion(executor_ver));
-    return ACL_ERROR_GE_PARAM_INVALID;
-  }
-
-  if (!manifest.compatibility.required_executor_version.empty()) {
-    const uint32_t required_ver = ParseVersion(manifest.compatibility.required_executor_version);
-    if (required_ver > executor_ver) {
-      REPORT_INNER_ERR_MSG("E19999",
-                           "[OM2] Version incompatible: required_executor_version=%s > executor_version=%s, "
-                           "used_features=%s",
-                           manifest.compatibility.required_executor_version.c_str(), OM2_VERSION, features_str.c_str());
-      GELOGE(ACL_ERROR_GE_PARAM_INVALID,
-             "[OM2] Version incompatible: required_executor_version=%s > executor_version=%s",
-             manifest.compatibility.required_executor_version.c_str(), OM2_VERSION);
-      return ACL_ERROR_GE_PARAM_INVALID;
-    }
-  }
-
-  return ge::SUCCESS;
-}
-
-ge::Status DeserializeManifest(const ge::RAIIZipArchive &archive, const std::string &entry,
-                               gert::Om2ModelData &model_data) {
-  size_t buff_size = 0U;
-  auto buff_data = archive.ExtractToMem(entry, buff_size);
-  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", entry.c_str());
-  GE_ASSERT_TRUE(buff_size > 0U);
-
-  const ge::JsonFile json_file(buff_data.get(), buff_size);
-  GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid manifest.json");
-
-  auto &manifest = model_data.manifest;
-  ge::JsonFile compat_json;
-  GE_ASSERT_TRUE(json_file.Get("compatibility", compat_json), "[OM2] manifest.json missing 'compatibility' field");
-  ge::JsonFile::TryGetAndApply<std::string>(compat_json, "compiler_version",
-                                            [&](const std::string &v) { manifest.compatibility.compiler_version = v; });
-  ge::JsonFile::TryGetAndApply<std::string>(compat_json, "required_executor_version", [&](const std::string &v) {
-    manifest.compatibility.required_executor_version = v;
-  });
-  ge::JsonFile::TryGetAndApply<std::map<std::string, std::string>>(
-      compat_json, "used_features",
-      [&](const std::map<std::string, std::string> &v) { manifest.compatibility.used_features = v; });
-
-  GE_ASSERT_TRUE(json_file.Get("model_num", manifest.model_num), "[OM2] manifest.json missing 'model_num' field");
-  ge::JsonFile::TryGetAndApply<std::string>(json_file, "atc_command",
-                                            [&](const std::string &v) { manifest.atc_command = v; });
-
-  GELOGI("[OM2] Manifest deserialized: compiler_version=%s, required_executor_version=%s, executor_version=%s",
-         manifest.compatibility.compiler_version.c_str(), manifest.compatibility.required_executor_version.c_str(),
-         OM2_VERSION);
-  return ge::SUCCESS;
-}
-
-struct Om2RequiredFiles {
-  bool has_manifest = false;
-  bool has_op_attr = false;
-  bool has_constants_config = false;
-  bool has_model_meta = false;
-  bool has_so = false;
-};
-
-ge::Status HandleArchiveEntry(const ge::RAIIZipArchive &archive, const std::string &entry,
-                              gert::Om2ModelData &model_data, Om2RequiredFiles &required) {
-  if (IsFileNameEndsWith(entry, "manifest.json")) {
-    required.has_manifest = true;
-    GE_ASSERT_SUCCESS(DeserializeManifest(archive, entry, model_data));
-    return ge::SUCCESS;
-  }
-  if (entry.find("/runtime/") != std::string::npos && IsFileNameEndsWith(entry, ".so")) {
-    required.has_so = true;
-    GE_ASSERT_SUCCESS(DeserializeCodegenEntry(archive, entry, model_data));
-    return ge::SUCCESS;
-  }
-  if (IsFileNameEndsWith(entry, "op_attr.json")) {
-    required.has_op_attr = true;
-    GE_ASSERT_SUCCESS(DeserializeOpAttrEntry(archive, entry, model_data));
-    return ge::SUCCESS;
-  }
-  if (IsFileNameEndsWith(entry, "model_meta.json")) {
-    required.has_model_meta = true;
-    GE_ASSERT_SUCCESS(DeserializeModelMetaEntry(archive, entry, model_data));
-    return ge::SUCCESS;
-  }
-  if (IsFileNameEndsWith(entry, "_constants_config.json")) {
-    required.has_constants_config = true;
-    GE_ASSERT_SUCCESS(DeserializeConstantsConfigEntry(archive, entry, model_data));
-    return ge::SUCCESS;
-  }
-  if (entry.find("data/constants/") != std::string::npos) {
-    if (entry.find("data/constants/constant_") != std::string::npos) {
-      GE_ASSERT_SUCCESS(DeserializeWeightEntry(archive, entry, model_data));
-    }
-    return ge::SUCCESS;
-  }
-  if (entry.find("data/variables/") != std::string::npos) {
-    if (IsFileNameEndsWith(entry, "var_resource.json")) {
-      GE_ASSERT_SUCCESS(DeserializeVarResourceEntry(archive, entry, model_data));
-    } else if (IsFileNameEndsWith(entry, "_variables_config.json")) {
-      GE_ASSERT_SUCCESS(DeserializeVariablesConfigEntry(archive, entry, model_data));
-    }
-    return ge::SUCCESS;
-  }
-  if (entry.find("data/kernels/") != std::string::npos && IsFileNameEndsWith(entry, ".o")) {
-    GE_ASSERT_SUCCESS(DeserializeKernelEntry(archive, entry, model_data));
-    return ge::SUCCESS;
-  }
-  if (entry.find("data/custom_ops/shared_libs") != std::string::npos && IsFileNameEndsWith(entry, ".so")) {
-    GE_ASSERT_SUCCESS(DeserializeBinaryEntry(archive, entry, model_data.custom_shared_libs));
-    return ge::SUCCESS;
-  }
-  if (entry.find("data/custom_ops/binaries_") != std::string::npos && IsFileNameEndsWith(entry, ".bin")) {
-    GE_ASSERT_SUCCESS(DeserializeBinaryEntry(archive, entry, model_data.custom_kernel_binaries));
-    return ge::SUCCESS;
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status CheckRequiredFile(bool found, const char *desc) {
-  if (found) {
-    return ge::SUCCESS;
-  }
-  REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
-                            std::vector<const char *>({"DeserializeOm2ModelDataFromArchive", desc}));
-  GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2] %s", desc);
-  return ACL_ERROR_GE_PARAM_INVALID;
-}
-
-ge::Status DeserializeOm2ModelDataFromArchive(ge::RAIIZipArchive &archive, gert::Om2ModelData &model_data) {
-  const auto &entries = archive.ListFiles();
-  if (entries.empty()) {
-    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2] ZIP archive is empty");
-    return ACL_ERROR_GE_PARAM_INVALID;
-  }
-
-  Om2RequiredFiles required;
-  for (const auto &entry : entries) {
-    GE_ASSERT_SUCCESS(HandleArchiveEntry(archive, entry, model_data, required));
-  }
-
-  GE_CHK_STATUS_RET_NOLOG(CheckRequiredFile(required.has_manifest, "manifest.json not found in ZIP archive."));
-  GE_CHK_STATUS_RET_NOLOG(CheckRequiredFile(required.has_op_attr, "op_attr.json not found in ZIP archive."));
-  GE_CHK_STATUS_RET_NOLOG(
-      CheckRequiredFile(required.has_constants_config, "constants config not found in ZIP archive."));
-  GE_CHK_STATUS_RET_NOLOG(CheckRequiredFile(required.has_model_meta, "model_meta.json not found in ZIP archive."));
-  GE_CHK_STATUS_RET_NOLOG(CheckRequiredFile(required.has_so, "Compiled .so not found in ZIP archive."));
-
-  GE_ASSERT_SUCCESS(ValidateVersionCompatibility(model_data.manifest));
-
-  GE_ASSERT_TRUE(!model_data.model_meta.model_name.empty(), "[OM2] model_meta.json not found in ZIP archive.");
-  GE_ASSERT_TRUE(!model_data.program_body.so_artifact.file_name.empty(),
-                 "[OM2] Compiled .so not found in ZIP archive.");
-  return ge::SUCCESS;
-}
-
-template <typename T>
-ge::Status GetModelJsonValue(const std::string &key, T &out, const ge::JsonFile &json_file) {
-  GE_ASSERT_TRUE(json_file.IsValid());
-  GE_ASSERT_TRUE(json_file.Get(key, out));
-  return ge::SUCCESS;
-}
-
-ge::Status SetTensorDesc(ge::JsonFile::json &tensor_array_json, std::vector<ge::Om2TensorDesc> &tensor_desc_array,
-                         const bool new_model_desc = false) {
-  for (ge::JsonFile::json &tensor : tensor_array_json) {
-    ge::JsonFile tensor_obj{tensor};
-    ge::Om2TensorDesc tensor_desc;
-    std::string name;
-    GE_ASSERT_TRUE(tensor_obj.Get("name", name));
-    tensor_desc.SetName(name);
-    std::string data_type;
-    GE_ASSERT_TRUE(tensor_obj.Get("data_type", data_type));
-    tensor_desc.SetDataType(ge::TypeUtilsInner::SerialStringToDataType(data_type));
-    std::string format;
-    GE_ASSERT_TRUE(tensor_obj.Get("format", format));
-    tensor_desc.SetFormat(ge::TypeUtilsInner::SerialStringToFormat(format));
-    int64_t size;
-    GE_ASSERT_TRUE(tensor_obj.Get("size", size));
-    tensor_desc.SetSize(static_cast<size_t>(size));
-    std::vector<int64_t> shape_dims;
-    bool got_shape = false;
-    if (new_model_desc) {
-      got_shape = tensor_obj.Get("shape_aclmdlGetInputDimsV2", shape_dims);
-    }
-    if (!got_shape) {
-      got_shape = tensor_obj.Get("max_gear_shape", shape_dims);
-    }
-    if (!got_shape) {
-      GE_ASSERT_TRUE(tensor_obj.Get("shape", shape_dims));
-    }
-    tensor_desc.SetShape(shape_dims);
-    std::vector<std::pair<int64_t, int64_t>> shape_range;
-    GE_ASSERT_TRUE(tensor_obj.Get("shape_range", shape_range));
-    tensor_desc.SetShapeRange(shape_range);
-    tensor_desc_array.emplace_back(tensor_desc);
-  }
-  return ge::SUCCESS;
-}
-
-uint64_t GetNextSessionId() {
-  static std::atomic<uint64_t> atomic_session_id(0);
-  return atomic_session_id.fetch_add(1);
-}
-
-uint64_t ResolveSessionId(const Om2ModelLoadArg &load_arg) {
-  return (load_arg.rt_session == nullptr) ? GetNextSessionId() : load_arg.rt_session->GetSessionId();
-}
-
-ge::Status GetOm2MemAndWeightSizeFromArchive(ge::RAIIZipArchive &archive, size_t &work_size,
-                                             size_t &internal_weight_size) {
-  work_size = 0U;
-  internal_weight_size = 0U;
-  const auto file_names = archive.ListFiles();
-  for (const auto &file_name : file_names) {
-    if (IsFileNameEndsWith(file_name, "model_meta.json")) {
-      size_t buff_size = 0UL;
-      auto buff_data = archive.ExtractToMem(file_name, buff_size);
-      GE_ASSERT_TRUE(buff_data != nullptr && buff_size != 0U);
-      const ge::JsonFile model_meta_json(buff_data.get(), buff_size);
-      GE_ASSERT_TRUE(model_meta_json.IsValid());
-      GE_ASSERT_SUCCESS(GetModelJsonValue("work_size", work_size, model_meta_json));
-      continue;
-    }
-    if (IsFileNameEndsWith(file_name, "_constants_config.json")) {
-      size_t buff_size = 0UL;
-      auto buff_data = archive.ExtractToMem(file_name, buff_size);
-      GE_ASSERT_TRUE(buff_data != nullptr && buff_size != 0U);
-      const ge::JsonFile constants_json(buff_data.get(), buff_size);
-      GE_ASSERT_TRUE(constants_json.IsValid());
-      (void)constants_json.Get("internal_weight_size", internal_weight_size);
-      continue;
-    }
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status GetOm2WorkspaceSizeFromArchive(ge::RAIIZipArchive &archive, const bool query_zero_copy_size,
-                                          size_t &work_size, size_t &zero_copy_size) {
-  work_size = 0U;
-  zero_copy_size = 0U;
-  const auto file_names = archive.ListFiles();
-  for (const auto &file_name : file_names) {
-    if (IsFileNameEndsWith(file_name, "model_meta.json")) {
-      size_t buff_size = 0UL;
-      auto buff_data = archive.ExtractToMem(file_name, buff_size);
-      GE_ASSERT_TRUE(buff_data != nullptr && buff_size != 0U);
-      const ge::JsonFile model_meta_json(buff_data.get(), buff_size);
-      GE_ASSERT_TRUE(model_meta_json.IsValid());
-      GE_ASSERT_SUCCESS(GetModelJsonValue("work_size", work_size, model_meta_json));
-      if (query_zero_copy_size) {
-        if (!model_meta_json.Get("zero_copy_size", zero_copy_size)) {
-          zero_copy_size = 0U;
-        }
-        if (zero_copy_size > work_size) {
-          GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Check] zero_copy_size[%zu] is larger than work_size[%zu].",
-                 zero_copy_size, work_size);
-          return ACL_ERROR_GE_PARAM_INVALID;
-        }
-      }
-      return ge::SUCCESS;
-    }
-  }
-  GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Get][ModelMeta] model_meta.json not found.");
-  return ACL_ERROR_GE_PARAM_INVALID;
-}
-
-ge::Status GetOm2ModelMetadataFromArchive(ge::RAIIZipArchive &archive, std::vector<ge::Om2TensorDesc> &input_desc,
-                                          std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                                          std::vector<ge::Om2TensorDesc> &output_desc,
-                                          std::vector<ge::Om2TensorDesc> &output_desc_v2) {
-  const auto file_names = archive.ListFiles();
-  for (const auto &file_name : file_names) {
-    if (!IsFileNameEndsWith(file_name, "model_meta.json")) {
-      continue;
-    }
-    size_t buff_size = 0UL;
-    auto buff_data = archive.ExtractToMem(file_name, buff_size);
-    GE_ASSERT_TRUE(buff_data != nullptr && buff_size != 0U);
-    const ge::JsonFile model_meta_json(buff_data.get(), buff_size);
-    GE_ASSERT_TRUE(model_meta_json.IsValid());
-
-    ge::JsonFile::json inputs;
-    GE_ASSERT_TRUE(model_meta_json.Get("inputs", inputs));
-    GE_ASSERT_SUCCESS(SetTensorDesc(inputs, input_desc));
-    GE_ASSERT_SUCCESS(SetTensorDesc(inputs, input_desc_v2, true));
-
-    ge::JsonFile::json outputs;
-    GE_ASSERT_TRUE(model_meta_json.Get("outputs", outputs));
-    GE_ASSERT_SUCCESS(SetTensorDesc(outputs, output_desc));
-    output_desc_v2 = output_desc;
-    return ge::SUCCESS;
-  }
-  GE_ASSERT_TRUE(false, "[OM2] model_meta.json not found in archive.");
-  return ge::FAILED;
-}
-
-ge::Status RtMallocBuffer(size_t size, void *&ptr) {
-  ptr = nullptr;
-  if (size == 0U) {
-    return ge::SUCCESS;
-  }
-  const auto rt_ret = Om2Malloc(&ptr, size, RT_MEMORY_HBM, 0);
-  if (rt_ret != ACL_SUCCESS) {
-    GELOGE(ge::FAILED, "[OM2][Alloc] aclrtMalloc failed, size=%zu, rt_ret=%u", size, rt_ret);
-    return ge::FAILED;
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status RtMemcpyH2D(void *dst, size_t dst_size, const void *src, size_t size) {
-  if (size == 0U) {
-    return ge::SUCCESS;
-  }
-  const auto rt_ret = aclrtMemcpy(dst, dst_size, src, size, ACL_MEMCPY_HOST_TO_DEVICE);
-  if (rt_ret != ACL_SUCCESS) {
-    GELOGE(ge::FAILED, "[OM2][Memcpy] rtMemcpy H2D failed, size=%zu, rt_ret=%u", size, rt_ret);
-    return ge::FAILED;
-  }
-  return ge::SUCCESS;
-}
-
-ge::Status ParseConstItems(const gert::Om2ConstantsData &config, std::vector<Om2ConstItem> &const_items,
+ge::Status ParseConstItems(const gert::GertModelDataConstantsConfig &config, std::vector<Om2ConstItem> &const_items,
                            size_t &internal_weight_size) {
   const_items.clear();
   internal_weight_size = config.internal_weight_size;
 
   for (const auto &meta : config.consts) {
     Om2ConstItem const_item;
-    const_item.index = meta.index;
-    const_item.type = meta.type;
-    const_item.file_name = meta.file_name;
+    const_item.index = meta->index;
+    const_item.type = gert::GertGetStr(meta->type);
+    const_item.file_name = gert::GertGetStr(meta->file_name);
     if (const_item.type != "INTERNAL") {
       GE_ASSERT_TRUE(!const_item.file_name.empty());
     }
-    const_item.offset = static_cast<size_t>(meta.offset);
-    const_item.size = static_cast<size_t>(meta.size);
+    const_item.offset = static_cast<size_t>(meta->offset);
+    const_item.size = static_cast<size_t>(meta->size);
     const_items.emplace_back(const_item);
   }
 
@@ -948,7 +286,7 @@ ge::Status ClassifyConstItems(const std::vector<Om2ConstItem> &const_items, Clas
   return ge::SUCCESS;
 }
 
-ge::Status ValidateVarMetas(const std::vector<ge::Om2VarMeta> &var_metas) {
+ge::Status ValidateVarMetas(const std::vector<std::unique_ptr<gert::GertModelDataVarMeta>> &var_metas) {
   if (var_metas.empty()) {
     return ge::SUCCESS;
   }
@@ -956,18 +294,36 @@ ge::Status ValidateVarMetas(const std::vector<ge::Om2VarMeta> &var_metas) {
   std::unordered_set<size_t> seen_indices;
   seen_indices.reserve(n);
   for (const auto &meta : var_metas) {
-    if (meta.index >= n) {
+    if (meta->index >= n) {
       GELOGE(ge::PARAM_INVALID, "[OM2][Var][Validate] var_meta index %zu out of range [0, %zu), var_name=%s.",
-             meta.index, n, meta.var_name.c_str());
+             meta->index, n, gert::GertGetStr(meta->var_name));
       return ge::PARAM_INVALID;
     }
-    if (!seen_indices.insert(meta.index).second) {
-      GELOGE(ge::PARAM_INVALID, "[OM2][Var][Validate] duplicate var_meta index %zu, var_name=%s.", meta.index,
-             meta.var_name.c_str());
+    if (!seen_indices.insert(meta->index).second) {
+      GELOGE(ge::PARAM_INVALID, "[OM2][Var][Validate] duplicate var_meta index %zu, var_name=%s.", meta->index,
+             gert::GertGetStr(meta->var_name));
       return ge::PARAM_INVALID;
     }
   }
   return ge::SUCCESS;
+}
+
+std::vector<gert::GertTensorDesc> DeepCopyGertTensorDescs(const std::vector<gert::GertTensorDesc> &srcs) {
+  std::vector<gert::GertTensorDesc> dsts;
+  dsts.reserve(srcs.size());
+  for (const auto &src : srcs) {
+    dsts.emplace_back(gert::MakeGertTensorDesc(src));
+  }
+  return dsts;
+}
+
+std::vector<std::string> UniquePtrStrVecToStringVec(const std::vector<std::unique_ptr<char[]>> &srcs) {
+  std::vector<std::string> dsts;
+  dsts.reserve(srcs.size());
+  for (const auto &src : srcs) {
+    dsts.emplace_back(gert::GertGetStr(src));
+  }
+  return dsts;
 }
 
 GertModelLoadCallbacks CreateGertModelLoadCallbacks() {
@@ -985,7 +341,7 @@ GertModelLoadCallbacks CreateGertModelLoadCallbacks() {
 
 class Om2ModelExecutor::Impl {
  public:
-  ge::Status LoadFromOm2ModelData(const gert::Om2ModelData &om2_data, ge::ReadonlyByteBuffer &weight_buf,
+  ge::Status LoadFromOm2ModelData(const gert::GertModelData &om2_data, ge::ReadonlyByteBuffer &weight_buf,
                                   std::vector<KernelBinInfo> &kernel_bin_info) {
     has_model_ = false;
     CloseMemFd(run_model_info_.so_fd);
@@ -994,18 +350,24 @@ class Om2ModelExecutor::Impl {
     weight_buf.reset(nullptr);
     kernel_bin_info.clear();
 
-    GE_ASSERT_SUCCESS(LoadModelMetaFromStruct(om2_data.model_meta));
+    GE_ASSERT_TRUE(!om2_data.models.empty(), "[OM2] models is empty");
+    const auto &unit = *om2_data.models[0];
+    GE_ASSERT_NOTNULL(unit.model_meta, "[OM2] model_meta is null");
+    GE_ASSERT_NOTNULL(unit.runtime, "[OM2] program_body is null");
+    GE_ASSERT_NOTNULL(unit.constants_config, "[OM2] constants_config is null");
+    GE_ASSERT_SUCCESS(LoadModelMetaFromStruct(*unit.model_meta));
     has_model_ = true;
 
-    GE_ASSERT_SUCCESS(BuildKernelBinInfoFromStruct(om2_data.kernel_binaries, kernel_bin_info));
+    GE_ASSERT_SUCCESS(BuildKernelBinInfoFromStruct(om2_data.kernels->binaries, kernel_bin_info));
 
     // Add custom kernel binaries
-    GE_ASSERT_SUCCESS(BuildKernelBinInfoFromStruct(om2_data.custom_kernel_binaries, kernel_bin_info));
+    GE_ASSERT_SUCCESS(BuildKernelBinInfoFromStruct(om2_data.custom_ops->binaries, kernel_bin_info));
 
     // dlopen custom kernel shared libraries
-    for (auto &kb : om2_data.custom_shared_libs) {
+    for (const auto &kb : om2_data.custom_ops->libraries) {
       CustSharedLibInfo so_info;
-      GE_ASSERT_SUCCESS(CreateSoMemFd(kb.name, kb.data.get(), kb.data_size, so_info.so_file, so_info.so_fd));
+      GE_ASSERT_SUCCESS(
+          CreateSoMemFd(gert::GertGetStr(kb->name), kb->data.get(), kb->data_size, so_info.so_file, so_info.so_fd));
       so_info.so_handle = mmDlopen(so_info.so_file.c_str(), MMPA_RTLD_NOW);
       if (so_info.so_handle == nullptr) {
         CloseMemFd(so_info.so_fd);
@@ -1018,21 +380,23 @@ class Om2ModelExecutor::Impl {
       run_model_info_.cust_shared_libs.emplace_back(so_info);
     }
 
-    GE_ASSERT_SUCCESS(LoadSoFromBuffer(om2_data.program_body.so_artifact));
-    GE_ASSERT_TRUE(!run_model_info_.so_file.empty(), "[OM2] Om2 compiled so not found in Om2ModelData.");
+    GE_ASSERT_SUCCESS(LoadSoFromBuffer(unit.runtime->so_artifact));
+    GE_ASSERT_TRUE(!run_model_info_.so_file.empty(), "[OM2] Om2 compiled so not found in GertModelData.");
 
     // Set up op_attr_json
-    if (!om2_data.op_attr_json.empty()) {
+    if (unit.op_attr_json != nullptr) {
+      const std::string op_attr_str(gert::GertGetStr(unit.op_attr_json));
       run_model_info_.op_attr_json =
-          ge::JsonFile(reinterpret_cast<const uint8_t *>(om2_data.op_attr_json.data()), om2_data.op_attr_json.size());
+          ge::JsonFile(reinterpret_cast<const uint8_t *>(op_attr_str.data()), op_attr_str.size());
       if (!run_model_info_.op_attr_json.IsValid()) {
         GELOGW("[OM2] op_attr.json is not valid, using empty json content.");
         run_model_info_.op_attr_json = ge::JsonFile(ge::JsonFile::json::object());
       }
     }
 
-    if (om2_data.constants_data.weight_data != nullptr) {
-      weight_buf = ge::ReadonlyByteBuffer(om2_data.constants_data.weight_data.get(), ge::ConditionalDeleter{false});
+    if (!om2_data.constants->constants_data.empty() && (om2_data.constants->constants_data[0] != nullptr)) {
+      weight_buf =
+          ge::ReadonlyByteBuffer(om2_data.constants->constants_data[0]->data.get(), ge::ConditionalDeleter{false});
     }
 
     return ge::SUCCESS;
@@ -1056,9 +420,9 @@ class Om2ModelExecutor::Impl {
   }
 
  private:
-  ge::Status LoadModelMetaFromStruct(const gert::Om2ModelMeta &meta) {
-    run_model_info_.model_name = meta.model_name;
-    run_model_info_.root_graph_name = meta.model_name;
+  ge::Status LoadModelMetaFromStruct(const gert::GertModelDataModelMeta &meta) {
+    run_model_info_.model_name = gert::GertGetStr(meta.model_name);
+    run_model_info_.root_graph_name = run_model_info_.model_name;
     model_meta_info_.work_size = meta.work_size;
     GE_ASSERT_TRUE(meta.zero_copy_size >= 0, "[OM2][Check] Invalid zero_copy_size=%ld.", meta.zero_copy_size);
     const auto zero_copy_size = static_cast<size_t>(meta.zero_copy_size);
@@ -1067,32 +431,39 @@ class Om2ModelExecutor::Impl {
                    meta.work_size);
     model_meta_info_.zero_copy_size = zero_copy_size;
     model_meta_info_.dynamic_batch_info = meta.dynamic_batch_info;
-    model_meta_info_.dynamic_type = meta.dynamic_type;
-    model_meta_info_.dynamic_output_shape = meta.dynamic_output_shape;
-    model_meta_info_.user_designate_shape_order = meta.user_designate_shape_order;
-    model_meta_info_.input_desc = meta.input_desc;
-    model_meta_info_.input_desc_v2 = meta.input_desc_v2;
+    model_meta_info_.dynamic_type = static_cast<int32_t>(meta.dynamic_type);
+    model_meta_info_.dynamic_output_shape = UniquePtrStrVecToStringVec(meta.dynamic_output_shape);
+    model_meta_info_.user_designate_shape_order = UniquePtrStrVecToStringVec(meta.user_designate_shape_order);
+    model_meta_info_.input_desc = DeepCopyGertTensorDescs(meta.input_desc);
+    model_meta_info_.input_desc_v2 = DeepCopyGertTensorDescs(meta.input_desc_v2);
     model_meta_info_.origin_input_dims = meta.origin_input_dims;
-    model_meta_info_.output_desc = meta.output_desc;
-    model_meta_info_.output_desc_v2 = meta.output_desc_v2;
-    has_aipp_ = meta.has_aipp;
-    aipp_infos_ = meta.aipp_infos;
+    model_meta_info_.output_desc = DeepCopyGertTensorDescs(meta.output_desc);
+    model_meta_info_.output_desc_v2 = DeepCopyGertTensorDescs(meta.output_desc_v2);
+    has_aipp_ = (meta.has_aipp != 0U);
+    aipp_infos_.reserve(meta.aipp_infos.size());
+    for (const auto &aipp : meta.aipp_infos) {
+      if (aipp != nullptr) {
+        aipp_infos_.push_back(gert::MakeGertModelDataAippMeta(*aipp));
+      } else {
+        aipp_infos_.push_back(std::make_unique<gert::GertModelDataAippMeta>());
+      }
+    }
     return ge::SUCCESS;
   }
 
-  ge::Status BuildKernelBinInfoFromStruct(const std::vector<gert::Om2KernelBinary> &kernels,
+  ge::Status BuildKernelBinInfoFromStruct(const std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &kernels,
                                           std::vector<KernelBinInfo> &info) {
     for (const auto &k : kernels) {
       KernelBinInfo bin_info;
-      bin_info.file = k.name;
-      // 创建非拥有引用：指向 Om2KernelBinary::data 的内部缓冲区。
-      // 生命周期约束：调用方必须保证 Om2ModelData 在 kernel 二进制使用期间保持存活。
+      bin_info.file = gert::GertGetStr(k->name);
+      // 创建非拥有引用：指向 GertModelDataKernelBinary::data 的内部缓冲区。
+      // 生命周期约束：调用方必须保证 GertModelData 在 kernel 二进制使用期间保持存活。
       // 当前调用链：LoadOm2Graph → Om2ModelManager::LoadModel → executor->Load(model_data, ...)
-      // 其中 model_data 通过 const & 传递，指向 GeRootModel 持有的 shared_ptr<Om2ModelData>，
+      // 其中 model_data 通过 const & 传递，指向 GeRootModel 持有的 shared_ptr<GertModelData>，
       // 因此只要 GeRootModel 存活（通常在整个 Session 生命周期内），数据就安全。
-      if (k.data != nullptr) {
-        bin_info.data = ge::ReadonlyByteBuffer(k.data.get(), ge::ConditionalDeleter{false});
-        bin_info.data_size = k.data_size;
+      if (k->data != nullptr) {
+        bin_info.data = ge::ReadonlyByteBuffer(k->data.get(), ge::ConditionalDeleter{false});
+        bin_info.data_size = k->data_size;
       } else {
         bin_info.data_size = 0U;
       }
@@ -1101,13 +472,13 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status LoadSoFromBuffer(const ge::Om2CodegenArtifact &so) {
-    if (so.data.empty() || so.file_name.empty()) {
+  ge::Status LoadSoFromBuffer(const gert::GertModelDataProgramBody &so) {
+    if (so.data == nullptr || so.data_len == 0U || gert::GertGetStr(so.file_name)[0] == '\0') {
       GELOGE(ge::FAILED, "[OM2] SO artifact data or file_name is empty.");
       return ge::FAILED;
     }
-    GE_ASSERT_SUCCESS(
-        CreateSoMemFd(so.file_name, so.data.data(), so.data.size(), run_model_info_.so_file, run_model_info_.so_fd));
+    GE_ASSERT_SUCCESS(CreateSoMemFd(gert::GertGetStr(so.file_name), gert::GertGetStr(so.data), so.data_len,
+                                    run_model_info_.so_file, run_model_info_.so_fd));
     return ge::SUCCESS;
   }
 
@@ -1142,12 +513,12 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status PrepareConstantsFromStruct(const gert::Om2ConstantsData &constants_data,
+  ge::Status PrepareConstantsFromStruct(const gert::GertModelDataConstantsConfig &constants_config,
                                         const ge::ReadonlyByteBuffer &weight_buf, const Om2ModelLoadArg &load_arg,
                                         std::vector<void *> &constants) {
     std::vector<Om2ConstItem> const_items;
     size_t internal_weight_size = 0U;
-    GE_ASSERT_SUCCESS(ParseConstItems(constants_data, const_items, internal_weight_size));
+    GE_ASSERT_SUCCESS(ParseConstItems(constants_config, const_items, internal_weight_size));
     if (const_items.empty()) {
       return ge::SUCCESS;
     }
@@ -1165,24 +536,29 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status PrepareVarAddrs(const gert::Om2ModelData &model_data, uint32_t device_id,
+  ge::Status PrepareVarAddrs(const gert::GertModelData &model_data, uint32_t device_id,
                              std::vector<void *> &var_addrs) const {
-    if (model_data.var_metas.empty()) {
+    const std::vector<std::unique_ptr<gert::GertModelDataVarMeta>> *var_metas = nullptr;
+    const auto *variables_config = model_data.models.empty() ? nullptr : model_data.models[0]->variables_config.get();
+    if (variables_config != nullptr) {
+      var_metas = &variables_config->var_metas;
+    }
+    if ((var_metas == nullptr) || var_metas->empty()) {
       return ge::SUCCESS;
     }
     auto var_manager = Om2RTVarManagerPool::Instance().GetManager(session_id_);
     GE_ASSERT_NOTNULL(var_manager);
 
-    var_addrs.resize(model_data.var_metas.size(), nullptr);
-    for (const auto &meta : model_data.var_metas) {
+    var_addrs.resize(var_metas->size(), nullptr);
+    for (const auto &meta : *var_metas) {
       void *dev_addr = nullptr;
-      GE_ASSERT_SUCCESS(var_manager->GetVarDevAddr(meta.var_name, device_id, dev_addr));
-      var_addrs[meta.index] = dev_addr;
+      GE_ASSERT_SUCCESS(var_manager->GetVarDevAddr(gert::GertGetStr(meta->var_name), device_id, dev_addr));
+      var_addrs[meta->index] = dev_addr;
     }
     return ge::SUCCESS;
   }
 
-  ge::Status CreateModelFromStruct(const gert::Om2ModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
+  ge::Status CreateModelFromStruct(const gert::GertModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
                                    std::vector<KernelBinInfo> &kernel_bin_info, const Om2ModelLoadArg &load_arg,
                                    uint64_t session_id, std::vector<void *> &constants,
                                    std::vector<void *> &var_addrs) {
@@ -1198,18 +574,21 @@ class Om2ModelExecutor::Impl {
       bin_sizes[i] = kernel_bin_info[i].data_size;
     }
     session_id_ = session_id;
-    GE_ASSERT_SUCCESS(PrepareConstantsFromStruct(model_data.constants_data, weight_buf, load_arg, constants));
-    if (model_data.rt_var_resource != nullptr) {
+    GE_ASSERT_TRUE(!model_data.models.empty(), "[OM2] models is empty");
+    GE_ASSERT_SUCCESS(
+        PrepareConstantsFromStruct(*model_data.models[0]->constants_config, weight_buf, load_arg, constants));
+    const auto *variables_config = model_data.models.empty() ? nullptr : model_data.models[0]->variables_config.get();
+    if ((variables_config != nullptr) && !variables_config->entries.empty()) {
       auto var_manager = Om2RTVarManagerPool::Instance().GetManager(session_id);
       GE_ASSERT_NOTNULL(var_manager);
-      GE_ASSERT_SUCCESS(var_manager->Init(*model_data.rt_var_resource));
+      GE_ASSERT_SUCCESS(var_manager->Init(variables_config->entries));
 
       std::vector<std::string> var_names;
-      for (const auto &meta : model_data.var_metas) {
-        var_names.push_back(meta.var_name);
+      for (const auto &meta : variables_config->var_metas) {
+        var_names.push_back(gert::GertGetStr(meta->var_name));
       }
-      GE_ASSERT_SUCCESS(
-          var_manager->TransAllVarData(var_names, static_cast<uint32_t>(load_arg.device_id), model_data.graph_id));
+      GE_ASSERT_SUCCESS(var_manager->TransAllVarData(var_names, static_cast<uint32_t>(load_arg.device_id),
+                                                     variables_config->graph_id));
       GE_ASSERT_SUCCESS(var_manager->CopyVarData(var_names, static_cast<uint32_t>(load_arg.device_id)));
     }
 
@@ -1237,7 +616,7 @@ class Om2ModelExecutor::Impl {
     return ge::GRAPH_SUCCESS;
   }
 
-  ge::Status CreateAndLoadModelFromStruct(const gert::Om2ModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
+  ge::Status CreateAndLoadModelFromStruct(const gert::GertModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
                                           std::vector<KernelBinInfo> &kernel_bin_info, const Om2ModelLoadArg &load_arg,
                                           uint64_t session_id) {
     std::vector<void *> constants;
@@ -1388,8 +767,8 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status GetModelDescInfo(const std::vector<ge::Om2TensorDesc> *&input_desc,
-                              const std::vector<ge::Om2TensorDesc> *&output_desc, const bool new_model_desc) const {
+  ge::Status GetModelDescInfo(const std::vector<gert::GertTensorDesc> *&input_desc,
+                              const std::vector<gert::GertTensorDesc> *&output_desc, bool new_model_desc) const {
     GE_ASSERT_TRUE(has_model_);
     if (new_model_desc) {
       input_desc = &model_meta_info_.input_desc_v2;
@@ -1496,55 +875,69 @@ class Om2ModelExecutor::Impl {
   }
 
   ge::Status GetAippInfo(const uint32_t index, ge::AippConfigInfo &aipp_info) const {
-    if (!has_aipp_ || index >= aipp_infos_.size()) {
+    if (!has_aipp_ || index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
       return ACL_ERROR_GE_AIPP_NOT_EXIST;
     }
-    if (aipp_infos_[index].aipp_type == ge::DATA_WITHOUT_AIPP) {
+    if (aipp_infos_[index]->aipp_type == ge::DATA_WITHOUT_AIPP) {
       return ACL_ERROR_GE_AIPP_NOT_EXIST;
     }
-    aipp_info = aipp_infos_[index].aipp_config_info;
+    if (aipp_infos_[index]->aipp_config_info == nullptr) {
+      return ACL_ERROR_GE_AIPP_NOT_EXIST;
+    }
+    aipp_info = *aipp_infos_[index]->aipp_config_info;
     return ge::SUCCESS;
   }
 
   ge::Status GetAippType(const uint32_t index, ge::InputAippType &aipp_type, size_t &aipp_data_index) const {
-    if (!has_aipp_ || index >= aipp_infos_.size()) {
+    if (!has_aipp_ || index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
       aipp_type = ge::DATA_WITHOUT_AIPP;
       aipp_data_index = kOm2InvalidAippDataIndex;
       return ge::SUCCESS;
     }
-    aipp_type = aipp_infos_[index].aipp_type;
+    aipp_type = aipp_infos_[index]->aipp_type;
     if (aipp_type != ge::DATA_WITH_DYNAMIC_AIPP) {
       aipp_data_index = kOm2InvalidAippDataIndex;
     } else {
-      aipp_data_index = aipp_infos_[index].aipp_data_index;
+      aipp_data_index = aipp_infos_[index]->aipp_data_index;
     }
     return ge::SUCCESS;
   }
 
   ge::Status GetOrigInputInfo(const uint32_t index, ge::OriginInputInfo &orig_input_info) const {
-    if (!has_aipp_ || index >= aipp_infos_.size()) {
+    if (!has_aipp_ || index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
       return ACL_ERROR_GE_AIPP_NOT_EXIST;
     }
-    if (aipp_infos_[index].aipp_type == ge::DATA_WITHOUT_AIPP) {
+    if (aipp_infos_[index]->aipp_type == ge::DATA_WITHOUT_AIPP) {
       return ACL_ERROR_GE_AIPP_NOT_EXIST;
     }
-    const auto &input_info = aipp_infos_[index].orig_input_info;
-    if ((input_info.format != ge::FORMAT_RESERVED) || (input_info.data_type != ge::DT_UNDEFINED)) {
-      orig_input_info = input_info;
+    const auto &input_info = aipp_infos_[index]->orig_input_info;
+    if (input_info == nullptr) {
+      return ge::SUCCESS;
+    }
+    if ((input_info->format != ge::FORMAT_RESERVED) || (input_info->data_type != ge::DT_UNDEFINED)) {
+      orig_input_info = *input_info;
     }
     return ge::SUCCESS;
   }
 
   ge::Status GetAllAippInputOutputDims(const uint32_t index, std::vector<ge::InputOutputDims> &input_dims,
                                        std::vector<ge::InputOutputDims> &output_dims) const {
-    if (!has_aipp_ || index >= aipp_infos_.size()) {
+    if (!has_aipp_ || index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
       return ACL_ERROR_GE_AIPP_NOT_EXIST;
     }
-    if (aipp_infos_[index].aipp_type == ge::DATA_WITHOUT_AIPP) {
+    if (aipp_infos_[index]->aipp_type == ge::DATA_WITHOUT_AIPP) {
       return ACL_ERROR_GE_AIPP_NOT_EXIST;
     }
-    input_dims = aipp_infos_[index].aipp_input_dims;
-    output_dims = aipp_infos_[index].aipp_output_dims;
+    for (const auto &d : aipp_infos_[index]->aipp_input_dims) {
+      if (d != nullptr) {
+        input_dims.push_back(*d);
+      }
+    }
+    for (const auto &d : aipp_infos_[index]->aipp_output_dims) {
+      if (d != nullptr) {
+        output_dims.push_back(*d);
+      }
+    }
     return ge::SUCCESS;
   }
 
@@ -1728,7 +1121,7 @@ class Om2ModelExecutor::Impl {
   // 当前档位维度值，由 SetDynamicSize 写入，GetCurrentShape 读取
   std::vector<uint64_t> cur_batch_size_;
   int32_t dynamic_type_ = 0;  // 0=FIXED
-  std::vector<Om2AippInfo> aipp_infos_;
+  std::vector<std::unique_ptr<gert::GertModelDataAippMeta>> aipp_infos_;
   bool has_aipp_ = false;
 };
 
@@ -1742,26 +1135,24 @@ Om2ModelExecutor::~Om2ModelExecutor() {
 
 ge::Status Om2ModelExecutor::Load(ge::ModelData &model_data, const Om2ModelLoadArg &load_arg,
                                   const uint64_t session_id) const {
-  gert::Om2ModelData om2_data;
-  ge::RAIIZipArchive archive(static_cast<const uint8_t *>(model_data.model_data), model_data.model_len);
-  if (!archive.IsGood()) {
-    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2] Failed to open OM2 ZIP archive for deserialization");
-    return ACL_ERROR_GE_PARAM_INVALID;
-  }
-  GE_ASSERT_SUCCESS(DeserializeOm2ModelDataFromArchive(archive, om2_data));
+  gert::GertModelData om2_data;
+  GE_CHK_STATUS_RET_NOLOG(gert::DeserializeGertModelData(static_cast<const uint8_t *>(model_data.model_data),
+                                                         model_data.model_len, &om2_data));
   Om2ModelLoadArg load_arg_with_path = load_arg;
   load_arg_with_path.om_path = model_data.om_path;
   load_arg_with_path.weight_path = model_data.weight_path;
   return Load(om2_data, load_arg_with_path, session_id);
 }
 
-ge::Status Om2ModelExecutor::Load(const gert::Om2ModelData &model_data, const Om2ModelLoadArg &load_arg,
+ge::Status Om2ModelExecutor::Load(const gert::GertModelData &model_data, const Om2ModelLoadArg &load_arg,
                                   const uint64_t session_id) const {
-  GE_ASSERT_SUCCESS(ValidateVarMetas(model_data.var_metas));
+  if (!model_data.models.empty() && (model_data.models[0]->variables_config != nullptr)) {
+    GE_ASSERT_SUCCESS(ValidateVarMetas(model_data.models[0]->variables_config->var_metas));
+  }
   ge::ReadonlyByteBuffer weight_buf;
   std::vector<KernelBinInfo> kernel_bin_info;
   GE_CHK_STATUS_RET(impl_->LoadFromOm2ModelData(model_data, weight_buf, kernel_bin_info),
-                    "[OM2][Load] Load from Om2ModelData failed.");
+                    "[OM2][Load] Load from GertModelData failed.");
   const auto check_work_size_ret = impl_->CheckExternalWorkSize(load_arg);
   if (check_work_size_ret != ge::SUCCESS) {
     return check_work_size_ret;
@@ -1783,8 +1174,8 @@ ge::Status Om2ModelExecutor::RunAsync(void *const stream, std::vector<gert::Tens
   return impl_->RunAsync(stream, inputs, outputs);
 }
 
-ge::Status Om2ModelExecutor::GetModelDescInfo(const std::vector<ge::Om2TensorDesc> *&input_desc,
-                                              const std::vector<ge::Om2TensorDesc> *&output_desc,
+ge::Status Om2ModelExecutor::GetModelDescInfo(const std::vector<gert::GertTensorDesc> *&input_desc,
+                                              const std::vector<gert::GertTensorDesc> *&output_desc,
                                               bool new_model_desc) const {
   return impl_->GetModelDescInfo(input_desc, output_desc, new_model_desc);
 }
@@ -1934,6 +1325,61 @@ std::unique_ptr<Om2ModelExecutor> LoadOm2ExecutorFromData(ge::ModelData &model_d
   return executor;
 }
 
+namespace {
+
+// 复用 DeserializeGertModelData 的文件类别掩码实现部分查询（原 GertQueryMemAndWeightSize 语义）
+ge::Status QueryMemAndWeightSizeFromData(const void *model_data, const size_t model_size, size_t &work_size,
+                                         size_t &internal_weight_size) {
+  gert::GertModelData om2_data;
+  const uint32_t ret = gert::DeserializeGertModelData(
+      static_cast<const uint8_t *>(model_data), model_size, &om2_data,
+      gert::GertDeserializeFiles::kModelMeta | gert::GertDeserializeFiles::kConstantsConfig);
+  GE_ASSERT_TRUE(ret == 0U, "[OM2][Query] Deserialize model meta and constants config failed, ret = %u.", ret);
+  GE_ASSERT_TRUE(!om2_data.models.empty(), "[OM2][Query] models is empty");
+  work_size = static_cast<size_t>(om2_data.models[0]->model_meta->work_size);
+  internal_weight_size = static_cast<size_t>(om2_data.models[0]->constants_config->internal_weight_size);
+  return ge::SUCCESS;
+}
+
+// 复用 DeserializeGertModelData 的文件类别掩码实现部分查询（主线 GetOm2WorkspaceSize 语义，
+// 保留其 zero_copy_size 不得大于 work_size 的校验）
+ge::Status QueryWorkspaceSizeFromData(const void *model_data, const size_t model_size, bool query_zero_copy_size,
+                                      size_t &work_size, size_t &zero_copy_size) {
+  gert::GertModelData om2_data;
+  const uint32_t ret = gert::DeserializeGertModelData(static_cast<const uint8_t *>(model_data), model_size, &om2_data,
+                                                      gert::GertDeserializeFiles::kModelMeta);
+  GE_ASSERT_TRUE(ret == 0U, "[OM2][Query] Deserialize model meta failed, ret = %u.", ret);
+  GE_ASSERT_TRUE(!om2_data.models.empty(), "[OM2][Query] models is empty");
+  work_size = static_cast<size_t>(om2_data.models[0]->model_meta->work_size);
+  zero_copy_size = query_zero_copy_size ? static_cast<size_t>(om2_data.models[0]->model_meta->zero_copy_size) : 0U;
+  if (zero_copy_size > work_size) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Check] zero_copy_size[%zu] is larger than work_size[%zu].",
+           zero_copy_size, work_size);
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
+  return ge::SUCCESS;
+}
+
+// 复用 DeserializeGertModelData 的文件类别掩码实现部分查询（原 GertQueryModelMetadata 语义）
+ge::Status QueryModelMetadataFromData(const void *model_data, const size_t model_size,
+                                      std::vector<gert::GertTensorDesc> &input_desc,
+                                      std::vector<gert::GertTensorDesc> &input_desc_v2,
+                                      std::vector<gert::GertTensorDesc> &output_desc,
+                                      std::vector<gert::GertTensorDesc> &output_desc_v2) {
+  gert::GertModelData om2_data;
+  const uint32_t ret = gert::DeserializeGertModelData(static_cast<const uint8_t *>(model_data), model_size, &om2_data,
+                                                      gert::GertDeserializeFiles::kModelMeta);
+  GE_ASSERT_TRUE(ret == 0U, "[OM2][Query] Deserialize model meta failed, ret = %u.", ret);
+  GE_ASSERT_TRUE(!om2_data.models.empty(), "[OM2][Query] models is empty");
+  input_desc = std::move(om2_data.models[0]->model_meta->input_desc);
+  input_desc_v2 = std::move(om2_data.models[0]->model_meta->input_desc_v2);
+  output_desc = std::move(om2_data.models[0]->model_meta->output_desc);
+  output_desc_v2 = std::move(om2_data.models[0]->model_meta->output_desc_v2);
+  return ge::SUCCESS;
+}
+
+}  // namespace
+
 ge::Status GetOm2MemAndWeightSize(const std::string &model_path, size_t &work_size, size_t &internal_weight_size) {
   ge::ModelData model_data;
   GE_CHK_STATUS_RET(LoadOm2DataFromFile(model_path, model_data), "[OM2][Query] Load model data from file failed.");
@@ -1942,18 +1388,12 @@ ge::Status GetOm2MemAndWeightSize(const std::string &model_path, size_t &work_si
       delete[] static_cast<const uint8_t *>(p);
     }
   });
-  ge::RAIIZipArchive archive(static_cast<uint8_t *>(model_data.model_data), model_data.model_len);
-  GE_ASSERT_TRUE(archive.IsGood());
-  GE_ASSERT_SUCCESS(GetOm2MemAndWeightSizeFromArchive(archive, work_size, internal_weight_size));
-  return ge::SUCCESS;
+  return QueryMemAndWeightSizeFromData(model_data.model_data, model_data.model_len, work_size, internal_weight_size);
 }
 
 ge::Status GetOm2MemAndWeightSize(const void *model_data, size_t model_size, size_t &work_size,
                                   size_t &internal_weight_size) {
-  ge::RAIIZipArchive archive(static_cast<const uint8_t *>(model_data), model_size);
-  GE_ASSERT_TRUE(archive.IsGood());
-  GE_ASSERT_SUCCESS(GetOm2MemAndWeightSizeFromArchive(archive, work_size, internal_weight_size));
-  return ge::SUCCESS;
+  return QueryMemAndWeightSizeFromData(model_data, model_size, work_size, internal_weight_size);
 }
 
 ge::Status GetOm2WorkspaceSize(const std::string &model_path, bool query_zero_copy_size, size_t &work_size,
@@ -1965,22 +1405,19 @@ ge::Status GetOm2WorkspaceSize(const std::string &model_path, bool query_zero_co
       delete[] static_cast<const uint8_t *>(p);
     }
   });
-  ge::RAIIZipArchive archive(static_cast<uint8_t *>(model_data.model_data), model_data.model_len);
-  GE_ASSERT_TRUE(archive.IsGood());
-  return GetOm2WorkspaceSizeFromArchive(archive, query_zero_copy_size, work_size, zero_copy_size);
+  return QueryWorkspaceSizeFromData(model_data.model_data, model_data.model_len, query_zero_copy_size, work_size,
+                                    zero_copy_size);
 }
 
 ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, bool query_zero_copy_size, size_t &work_size,
                                size_t &zero_copy_size) {
-  ge::RAIIZipArchive archive(static_cast<const uint8_t *>(model_data), model_size);
-  GE_ASSERT_TRUE(archive.IsGood());
-  return GetOm2WorkspaceSizeFromArchive(archive, query_zero_copy_size, work_size, zero_copy_size);
+  return QueryWorkspaceSizeFromData(model_data, model_size, query_zero_copy_size, work_size, zero_copy_size);
 }
 
-ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<ge::Om2TensorDesc> &input_desc,
-                               std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                               std::vector<ge::Om2TensorDesc> &output_desc,
-                               std::vector<ge::Om2TensorDesc> &output_desc_v2) {
+ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<gert::GertTensorDesc> &input_desc,
+                               std::vector<gert::GertTensorDesc> &input_desc_v2,
+                               std::vector<gert::GertTensorDesc> &output_desc,
+                               std::vector<gert::GertTensorDesc> &output_desc_v2) {
   ge::ModelData model_data;
   GE_CHK_STATUS_RET(LoadOm2DataFromFile(model_path, model_data), "[OM2][Query] Load model data from file failed.");
   std::shared_ptr<void> data_guarder(model_data.model_data, [](const void *const p) {
@@ -1988,20 +1425,15 @@ ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<ge::Om
       delete[] static_cast<const uint8_t *>(p);
     }
   });
-  ge::RAIIZipArchive archive(static_cast<uint8_t *>(model_data.model_data), model_data.model_len);
-  GE_ASSERT_TRUE(archive.IsGood());
-  GE_ASSERT_SUCCESS(GetOm2ModelMetadataFromArchive(archive, input_desc, input_desc_v2, output_desc, output_desc_v2));
-  return ge::SUCCESS;
+  return QueryModelMetadataFromData(model_data.model_data, model_data.model_len, input_desc, input_desc_v2, output_desc,
+                                    output_desc_v2);
 }
 
-ge::Status GetOm2ModelMetadata(const void *model_data, size_t model_size, std::vector<ge::Om2TensorDesc> &input_desc,
-                               std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                               std::vector<ge::Om2TensorDesc> &output_desc,
-                               std::vector<ge::Om2TensorDesc> &output_desc_v2) {
-  ge::RAIIZipArchive archive(static_cast<const uint8_t *>(model_data), model_size);
-  GE_ASSERT_TRUE(archive.IsGood());
-  GE_ASSERT_SUCCESS(GetOm2ModelMetadataFromArchive(archive, input_desc, input_desc_v2, output_desc, output_desc_v2));
-  return ge::SUCCESS;
+ge::Status GetOm2ModelMetadata(const void *model_data, size_t model_size, std::vector<gert::GertTensorDesc> &input_desc,
+                               std::vector<gert::GertTensorDesc> &input_desc_v2,
+                               std::vector<gert::GertTensorDesc> &output_desc,
+                               std::vector<gert::GertTensorDesc> &output_desc_v2) {
+  return QueryModelMetadataFromData(model_data, model_size, input_desc, input_desc_v2, output_desc, output_desc_v2);
 }
 
 ge::Status IsOm2Model(const void *data, size_t size, bool &is_support) {

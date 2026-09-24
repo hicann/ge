@@ -21,7 +21,8 @@
 #include <vector>
 
 #include "common/env_path.h"
-#include "common/om2/om2_model_data.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "common/helper/om2/om2_utils.h"
 #include "common/memory/tensor_trans_utils.h"
 #include "common/path_utils.h"
@@ -134,56 +135,73 @@ TEST_F(Om2OnlineSessionTest, GeRootModel_Om2DataLifecycle) {
   EXPECT_EQ(ge_root_model->GetOm2ModelData(), nullptr);
 
   // Set OM2 data
-  auto om2_data = std::make_shared<gert::Om2ModelData>();
-  om2_data->model_meta.model_name = "test_model";
-  om2_data->model_meta.work_size = 2048U;
+  auto om2_data = std::make_shared<gert::GertModelData>();
+  gert::InitGertModelData(*om2_data);
+  om2_data->models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  om2_data->constants->constants_data.emplace_back();
+  om2_data->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  om2_data->models[0]->model_meta->model_name = gert::GertMakeStr("test_model");
+  om2_data->models[0]->model_meta->work_size = 2048U;
   ge_root_model->SetOm2ModelData(om2_data);
 
   EXPECT_NE(ge_root_model->GetOm2ModelData(), nullptr);
-  EXPECT_EQ(ge_root_model->GetOm2ModelData()->model_meta.model_name, "test_model");
-  EXPECT_EQ(ge_root_model->GetOm2ModelData()->model_meta.work_size, 2048U);
+  EXPECT_EQ(std::string(gert::GertGetStr(ge_root_model->GetOm2ModelData()->models[0]->model_meta->model_name)),
+            "test_model");
+  EXPECT_EQ(ge_root_model->GetOm2ModelData()->models[0]->model_meta->work_size, 2048U);
 
   // Clear OM2 data
   ge_root_model->SetOm2ModelData(nullptr);
   EXPECT_EQ(ge_root_model->GetOm2ModelData(), nullptr);
 }
 
-// Test: Om2ModelData structure integrity
+// Test: GertModelData structure integrity
 TEST_F(Om2OnlineSessionTest, Om2ModelData_StructureIntegrity) {
-  gert::Om2ModelData model_data;
+  gert::GertModelData model_data;
+  gert::InitGertModelData(model_data);
+  model_data.models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  model_data.constants->constants_data.emplace_back();
+  model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
+  model_data.models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  model_data.models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
+  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
 
-  model_data.program_body.so_artifact.file_name = "libtest.so";
-  model_data.program_body.so_artifact.data = {0x7f, 0x45, 0x4c, 0x46};
+  model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest.so");
+  model_data.models[0]->runtime->so_artifact.data =
+      gert::GertMakeStr(std::string("\x7f"
+                                    "ELF",
+                                    4));
+  model_data.models[0]->runtime->so_artifact.data_len = 4U;
 
   // Populate model meta
-  model_data.model_meta.model_name = "test_model";
-  model_data.model_meta.work_size = 4096U;
+  model_data.models[0]->model_meta->model_name = gert::GertMakeStr("test_model");
+  model_data.models[0]->model_meta->work_size = 4096U;
 
-  // Populate kernel binaries
-  gert::Om2KernelBinary kernel;
-  kernel.name = "test_kernel";
+  gert::GertModelDataKernelBinary kernel;
+  kernel.name = gert::GertMakeStr("test_kernel");
   auto kbuf = std::make_unique<uint8_t[]>(3);
   kbuf[0] = 0x01;
   kbuf[1] = 0x02;
   kbuf[2] = 0x03;
   kernel.data = ge::ReadonlyByteBuffer(kbuf.release(), ge::ConditionalDeleter{true});
   kernel.data_size = 3U;
-  model_data.kernel_binaries.push_back(std::move(kernel));
+  model_data.kernels->binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kernel)));
 
   auto wbuf = std::make_unique<uint8_t[]>(4);
   wbuf[0] = 0xAA;
   wbuf[1] = 0xBB;
   wbuf[2] = 0xCC;
   wbuf[3] = 0xDD;
-  model_data.constants_data.weight_data = ge::ReadonlyByteBuffer(wbuf.release(), ge::ConditionalDeleter{true});
-  model_data.constants_data.internal_weight_size = 4U;
+  model_data.constants->constants_data[0]->data = ge::ReadonlyByteBuffer(wbuf.release(), ge::ConditionalDeleter{true});
+  model_data.constants->constants_data[0]->size = 4U;
+  model_data.models[0]->constants_config->internal_weight_size = 4U;
 
-  EXPECT_EQ(model_data.program_body.so_artifact.file_name, "libtest.so");
-  EXPECT_EQ(model_data.program_body.so_artifact.data.size(), 4U);
-  EXPECT_EQ(model_data.model_meta.work_size, 4096U);
-  EXPECT_EQ(model_data.kernel_binaries.size(), 1U);
-  EXPECT_EQ(model_data.kernel_binaries[0].name, "test_kernel");
-  EXPECT_EQ(model_data.constants_data.internal_weight_size, 4U);
+  EXPECT_EQ(std::string(gert::GertGetStr(model_data.models[0]->runtime->so_artifact.file_name)), "libtest.so");
+  EXPECT_EQ(model_data.models[0]->runtime->so_artifact.data_len, 4U);
+  EXPECT_EQ(model_data.models[0]->model_meta->work_size, 4096U);
+  EXPECT_EQ(model_data.kernels->binaries.size(), 1U);
+  EXPECT_EQ(std::string(gert::GertGetStr(model_data.kernels->binaries[0]->name)), "test_kernel");
+  EXPECT_EQ(model_data.constants->constants_data[0]->size, 4U);
+  EXPECT_EQ(model_data.models[0]->constants_config->internal_weight_size, 4U);
 }
 
 // Test: Multiple GeRootModel instances with OM2 data
@@ -193,19 +211,26 @@ TEST_F(Om2OnlineSessionTest, MultipleGeRootModels_IndependentOm2Data) {
   ASSERT_NE(model1, nullptr);
   ASSERT_NE(model2, nullptr);
 
-  auto data1 = std::make_shared<gert::Om2ModelData>();
-  data1->model_meta.model_name = "model_1";
+  auto data1 = std::make_shared<gert::GertModelData>();
+  gert::InitGertModelData(*data1);
+  data1->models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  data1->constants->constants_data.emplace_back();
+  data1->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  data1->models[0]->model_meta->model_name = gert::GertMakeStr("model_1");
   model1->SetOm2ModelData(data1);
 
-  auto data2 = std::make_shared<gert::Om2ModelData>();
-  data2->model_meta.model_name = "model_2";
+  auto data2 = std::make_shared<gert::GertModelData>();
+  gert::InitGertModelData(*data2);
+  data2->models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  data2->constants->constants_data.emplace_back();
+  data2->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  data2->models[0]->model_meta->model_name = gert::GertMakeStr("model_2");
   model2->SetOm2ModelData(data2);
 
-  // Each model has its own independent OM2 data
   EXPECT_NE(model1->GetOm2ModelData(), nullptr);
   EXPECT_NE(model2->GetOm2ModelData(), nullptr);
-  EXPECT_EQ(model1->GetOm2ModelData()->model_meta.model_name, "model_1");
-  EXPECT_EQ(model2->GetOm2ModelData()->model_meta.model_name, "model_2");
+  EXPECT_EQ(std::string(gert::GertGetStr(model1->GetOm2ModelData()->models[0]->model_meta->model_name)), "model_1");
+  EXPECT_EQ(std::string(gert::GertGetStr(model2->GetOm2ModelData()->models[0]->model_meta->model_name)), "model_2");
 
   // Clearing one doesn't affect the other
   model1->SetOm2ModelData(nullptr);
@@ -213,27 +238,34 @@ TEST_F(Om2OnlineSessionTest, MultipleGeRootModels_IndependentOm2Data) {
   EXPECT_NE(model2->GetOm2ModelData(), nullptr);
 }
 
-// Test: Om2ModelData shared_ptr semantics (Fork scenario)
+// Test: GertModelData shared_ptr semantics (Fork scenario)
 TEST_F(Om2OnlineSessionTest, Om2ModelData_SharedPtrFork) {
   auto ge_root_model = CreateSimpleGeRootModel();
   ASSERT_NE(ge_root_model, nullptr);
 
-  auto om2_data = std::make_shared<gert::Om2ModelData>();
-  om2_data->model_meta.model_name = "shared_model";
+  auto om2_data = std::make_shared<gert::GertModelData>();
+  gert::InitGertModelData(*om2_data);
+  om2_data->models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  om2_data->constants->constants_data.emplace_back();
+  om2_data->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  om2_data->models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
+  om2_data->constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  om2_data->models[0]->model_meta->model_name = gert::GertMakeStr("shared_model");
   auto wbuf2 = std::make_unique<uint8_t[]>(3);
   wbuf2[0] = 0x01;
   wbuf2[1] = 0x02;
   wbuf2[2] = 0x03;
-  om2_data->constants_data.weight_data = ge::ReadonlyByteBuffer(wbuf2.release(), ge::ConditionalDeleter{true});
-  om2_data->constants_data.internal_weight_size = 3U;
+  om2_data->constants->constants_data[0]->data = ge::ReadonlyByteBuffer(wbuf2.release(), ge::ConditionalDeleter{true});
+  om2_data->constants->constants_data[0]->size = 3U;
+  om2_data->models[0]->constants_config->internal_weight_size = 3U;
   ge_root_model->SetOm2ModelData(om2_data);
 
-  // Simulate fork: shared_ptr copy
-  auto forked_data = om2_data;  // shared_ptr copy, same underlying data
+  auto forked_data = om2_data;
 
   EXPECT_NE(ge_root_model->GetOm2ModelData(), nullptr);
-  EXPECT_EQ(forked_data->model_meta.model_name, "shared_model");
-  EXPECT_EQ(forked_data->constants_data.internal_weight_size, 3U);
+  EXPECT_EQ(std::string(gert::GertGetStr(forked_data->models[0]->model_meta->model_name)), "shared_model");
+  EXPECT_EQ(forked_data->constants->constants_data[0]->size, 3U);
+  EXPECT_EQ(forked_data->models[0]->constants_config->internal_weight_size, 3U);
 
   // Both point to the same data
   EXPECT_EQ(ge_root_model->GetOm2ModelData().get(), forked_data.get());
@@ -364,30 +396,52 @@ std::vector<uint8_t> ReadFileBytes(const std::string &path) {
   return data;
 }
 
-gert::Om2ModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
-  gert::Om2ModelData model_data;
-  model_data.model_meta.model_name = "st_om2_test_model";
-  model_data.model_meta.work_size = 1024U;
+gert::GertModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
+  gert::GertModelData model_data;
+  gert::InitGertModelData(model_data);
+  model_data.models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  model_data.constants->constants_data.emplace_back();
+  model_data.models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
+  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  model_data.models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
+  model_data.models[0]->debug = std::make_unique<gert::GertModelDataDebug>();
+  model_data.manifest = std::make_unique<gert::GertModelDataManifest>();
+  model_data.models[0]->model_meta->model_name = gert::GertMakeStr("st_om2_test_model");
+  model_data.models[0]->model_meta->work_size = 1024U;
 
-  ge::Om2TensorDesc input_desc;
-  input_desc.SetName("input");
-  input_desc.SetDataType(ge::DT_FLOAT);
-  input_desc.SetShape({1, 4});
-  input_desc.SetSize(16U);
-  model_data.model_meta.input_desc.push_back(input_desc);
-  model_data.model_meta.input_desc_v2.push_back(input_desc);
+  gert::GertTensorDesc input_desc;
+  input_desc.name = gert::GertMakeStr("input");
+  input_desc.data_type = ge::DT_FLOAT;
+  input_desc.shape = {1, 4};
+  input_desc.size = 16U;
+  model_data.models[0]->model_meta->input_desc.push_back(std::move(input_desc));
 
-  ge::Om2TensorDesc output_desc;
-  output_desc.SetName("output");
-  output_desc.SetDataType(ge::DT_FLOAT);
-  output_desc.SetShape({1, 4});
-  output_desc.SetSize(16U);
-  model_data.model_meta.output_desc.push_back(output_desc);
-  model_data.model_meta.output_desc_v2.push_back(output_desc);
+  gert::GertTensorDesc input_desc_v2;
+  input_desc_v2.name = gert::GertMakeStr("input");
+  input_desc_v2.data_type = ge::DT_FLOAT;
+  input_desc_v2.shape = {1, 4};
+  input_desc_v2.size = 16U;
+  model_data.models[0]->model_meta->input_desc_v2.push_back(std::move(input_desc_v2));
+
+  gert::GertTensorDesc output_desc;
+  output_desc.name = gert::GertMakeStr("output");
+  output_desc.data_type = ge::DT_FLOAT;
+  output_desc.shape = {1, 4};
+  output_desc.size = 16U;
+  model_data.models[0]->model_meta->output_desc.push_back(std::move(output_desc));
+
+  gert::GertTensorDesc output_desc_v2;
+  output_desc_v2.name = gert::GertMakeStr("output");
+  output_desc_v2.data_type = ge::DT_FLOAT;
+  output_desc_v2.shape = {1, 4};
+  output_desc_v2.size = 16U;
+  model_data.models[0]->model_meta->output_desc_v2.push_back(std::move(output_desc_v2));
 
   auto so_bytes = ReadFileBytes(so_path);
-  model_data.program_body.so_artifact.file_name = "libst_test_model_om2.so";
-  model_data.program_body.so_artifact.data = std::string(so_bytes.begin(), so_bytes.end());
+  model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libst_test_model_om2.so");
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(std::string(so_bytes.begin(), so_bytes.end()));
+  model_data.models[0]->runtime->so_artifact.data_len = so_bytes.size();
 
   return model_data;
 }
@@ -446,7 +500,7 @@ TEST_F(Om2OnlineModelExecutorTest, LoadAndUnload_Success) {
   GraphNodePtr graph_node = std::make_shared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
@@ -473,7 +527,7 @@ TEST_F(Om2OnlineModelExecutorTest, RunGraph_Success) {
   GraphNodePtr graph_node = std::make_shared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
@@ -516,7 +570,7 @@ TEST_F(Om2OnlineModelExecutorTest, RunGraph_EmptyOutputs_PrepareOm2Outputs) {
   GraphNodePtr graph_node = std::make_shared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
@@ -555,7 +609,7 @@ TEST_F(Om2OnlineModelExecutorTest, RunGraph_HostInput_Success) {
   GraphNodePtr graph_node = std::make_shared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
@@ -594,7 +648,7 @@ TEST_F(Om2OnlineModelExecutorTest, RunGraph_NotLoaded_ReturnsGraphNotExist) {
   ge_model->SetGraph(compute_graph);
   ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   GraphId graph_id = 5005;
@@ -668,7 +722,7 @@ TEST_F(Om2OnlineModelExecutorTest, RunGraphWithStream_Om2Mode_Success) {
   GraphNodePtr graph_node = std::make_shared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
@@ -705,7 +759,7 @@ TEST_F(Om2OnlineModelExecutorTest, ExecuteGraphWithStream_Om2Mode_Success) {
   GraphNodePtr graph_node = std::make_shared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
@@ -804,7 +858,7 @@ TEST_F(Om2OnlineModelExecutorTest, LoadGraph_ExternalConstAndFeatureMemory) {
   graph_node->SetConstMemoryBase(const_mem.data(), const_mem.size());
   graph_node->SetFeatureMemoryBase(feature_mem.data(), feature_mem.size());
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
@@ -826,9 +880,16 @@ TEST_F(Om2OnlineModelExecutorTest, GetCompiledModel_Om2Mode_Success) {
   graph_node->SetBuildFlag(true);
   graph_manager.AddGraphNode(graph_id, graph_node);
 
-  const auto om2_model_data = std::make_shared<gert::Om2ModelData>();
-  om2_model_data->model_meta.model_name = "om2_st_model";
-  om2_model_data->debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1})";
+  const auto om2_model_data = std::make_shared<gert::GertModelData>();
+  gert::InitGertModelData(*om2_model_data);
+  om2_model_data->models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  om2_model_data->constants->constants_data.emplace_back();
+  om2_model_data->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  om2_model_data->models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
+  om2_model_data->models[0]->debug = std::make_unique<gert::GertModelDataDebug>();
+  om2_model_data->models[0]->model_meta->model_name = gert::GertMakeStr("om2_st_model");
+  om2_model_data->models[0]->debug->visual_json =
+      gert::GertMakeStr(R"({"format":"ge_visual_json","format_version":1})");
   ge_root_model->SetOm2ModelData(om2_model_data);
 
   ModelBufferData model_buffer;

@@ -153,6 +153,7 @@ target_link_libraries(graph_engine_test
     ge_runner
     ge_runner_v2
     om2_executor
+    gert_model_data_deserializer
     ge_common_base
     davinci_executor
     custom_op_runtime
@@ -325,6 +326,7 @@ target_link_libraries(ge_common_atc
     ge_runner
     ge_runner_v2
     om2_executor
+    gert_model_data_deserializer
     ge_common_base
     gert
     register
@@ -523,6 +525,19 @@ target_link_libraries(graph_engine_compile_test
 add_subdirectory(fast_runtime_v2)
 add_subdirectory(fast_runtime_v2/dvpp/dvpp_rtkernel)
 add_subdirectory(autofuse)
+
+# ge_common 经 PUBLIC gert_model_data_serializer 传播构建目录静态库（连带其 PUBLIC 的
+# minizip/z），污染 ge_python_custom_op_bridge 的 link.txt；gen_fallback_resources 将其重写为
+# -l 后 CANN lib64 无此库，导致运行期 Python fallback codegen 链接失败。bridge 所需符号已
+# 内含于 libge_common.so，从接口中剔除该静态库（ge_common 自身链接不受影响，符号仍打入 .so）。
+if(TARGET ge_common)
+    get_target_property(_ge_common_iface ge_common INTERFACE_LINK_LIBRARIES)
+    if(_ge_common_iface)
+        list(REMOVE_ITEM _ge_common_iface gert_model_data_serializer)
+        set_target_properties(ge_common PROPERTIES INTERFACE_LINK_LIBRARIES "${_ge_common_iface}")
+    endif()
+    unset(_ge_common_iface)
+endif()
 
 include(CTest)
 enable_testing()

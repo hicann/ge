@@ -11,7 +11,8 @@
 #include <gtest/gtest.h>
 
 #include "common/helper/om2/rt_var_resource_builder.h"
-#include "common/om2/rt_var_resource.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "common/om2/codegen/om2_codegen_types.h"
 #include "graph/manager/graph_var_manager.h"
 #include "graph/compute_graph.h"
@@ -58,19 +59,18 @@ TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_WithVariableNode) {
   ASSERT_NE(node, nullptr);
   ASSERT_EQ(var_manager->SetVarAddr("test_var", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), ge::SUCCESS);
 
-  std::vector<ge::Om2VarMeta> var_metas;
-  ge::Om2VarMeta meta;
-  meta.var_name = "test_var";
-  var_metas.push_back(meta);
+  std::vector<std::unique_ptr<gert::GertModelDataVarMeta>> var_metas;
+  gert::GertModelDataVarMeta meta;
+  meta.var_name = gert::GertMakeStr("test_var");
+  var_metas.push_back(std::make_unique<gert::GertModelDataVarMeta>(std::move(meta)));
 
-  std::unique_ptr<gert::RTVarResource> resource;
-  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, resource), ge::SUCCESS);
-  ASSERT_NE(resource, nullptr);
-  EXPECT_FALSE(resource->GetAllEntries().empty());
+  std::vector<gert::RTVarEntry> entries;
+  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
+  EXPECT_FALSE(entries.empty());
 
-  const auto *entry = resource->GetEntryByName("test_var");
+  const auto *entry = gert::RTVarFindEntryByName(entries, "test_var");
   ASSERT_NE(entry, nullptr);
-  EXPECT_EQ(entry->op_type, ge::VARIABLE);
+  EXPECT_EQ(std::string(gert::GertGetStr(entry->op_type)), ge::VARIABLE);
   EXPECT_FALSE(entry->init_data.empty());
 }
 
@@ -98,18 +98,17 @@ TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_WithConstantOpNode) {
   ASSERT_NE(node, nullptr);
   ASSERT_EQ(var_manager->SetVarAddr("test_const", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), ge::SUCCESS);
 
-  std::vector<ge::Om2VarMeta> var_metas;
-  ge::Om2VarMeta meta;
-  meta.var_name = "test_const";
-  var_metas.push_back(meta);
+  std::vector<std::unique_ptr<gert::GertModelDataVarMeta>> var_metas;
+  gert::GertModelDataVarMeta meta;
+  meta.var_name = gert::GertMakeStr("test_const");
+  var_metas.push_back(std::make_unique<gert::GertModelDataVarMeta>(std::move(meta)));
 
-  std::unique_ptr<gert::RTVarResource> resource;
-  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, resource), ge::SUCCESS);
-  ASSERT_NE(resource, nullptr);
+  std::vector<gert::RTVarEntry> entries;
+  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
 
-  const auto *entry = resource->GetEntryByName("test_const");
+  const auto *entry = gert::RTVarFindEntryByName(entries, "test_const");
   ASSERT_NE(entry, nullptr);
-  EXPECT_EQ(entry->op_type, "Constant");
+  EXPECT_EQ(std::string(gert::GertGetStr(entry->op_type)), "Constant");
   EXPECT_FALSE(entry->init_data.empty());
 }
 
@@ -140,19 +139,18 @@ TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_WithTransRoad) {
   ASSERT_EQ(var_manager->SetChangedGraphId("trans_var", 42U), ge::SUCCESS);
   ASSERT_EQ(var_manager->SetAllocatedGraphId("trans_var", 7U), ge::SUCCESS);
 
-  std::vector<ge::Om2VarMeta> var_metas;
-  ge::Om2VarMeta meta;
-  meta.var_name = "trans_var";
-  var_metas.push_back(meta);
+  std::vector<std::unique_ptr<gert::GertModelDataVarMeta>> var_metas;
+  gert::GertModelDataVarMeta meta;
+  meta.var_name = gert::GertMakeStr("trans_var");
+  var_metas.push_back(std::make_unique<gert::GertModelDataVarMeta>(std::move(meta)));
 
-  std::unique_ptr<gert::RTVarResource> resource;
-  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, resource), ge::SUCCESS);
-  ASSERT_NE(resource, nullptr);
+  std::vector<gert::RTVarEntry> entries;
+  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
 
-  const auto *entry = resource->GetEntryByName("trans_var");
+  const auto *entry = gert::RTVarFindEntryByName(entries, "trans_var");
   ASSERT_NE(entry, nullptr);
   EXPECT_FALSE(entry->trans_road.empty());
-  EXPECT_EQ(entry->trans_road[0].node_type, "TransData");
+  EXPECT_EQ(std::string(gert::GertGetStr(entry->trans_road[0].node_type)), "TransData");
   EXPECT_EQ(entry->changed_graph_id, 42U);
   EXPECT_EQ(entry->allocated_graph_id, 7U);
 }
@@ -174,18 +172,17 @@ TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_WithVarMetas) {
   ASSERT_NE(node, nullptr);
   ASSERT_EQ(var_manager->SetVarAddr("meta_var", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), ge::SUCCESS);
 
-  std::vector<ge::Om2VarMeta> var_metas;
-  ge::Om2VarMeta meta;
+  std::vector<std::unique_ptr<gert::GertModelDataVarMeta>> var_metas;
+  gert::GertModelDataVarMeta meta;
   meta.index = 0;
-  meta.var_name = "meta_var";
-  meta.op_type = ge::VARIABLE;
-  meta.op_name = "meta_var";
-  var_metas.push_back(meta);
+  meta.var_name = gert::GertMakeStr("meta_var");
+  meta.op_type = gert::GertMakeStr(ge::VARIABLE);
+  meta.op_name = gert::GertMakeStr("meta_var");
+  var_metas.push_back(std::make_unique<gert::GertModelDataVarMeta>(std::move(meta)));
 
-  std::unique_ptr<gert::RTVarResource> resource;
-  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, resource), ge::SUCCESS);
-  ASSERT_NE(resource, nullptr);
-  EXPECT_FALSE(resource->GetAllEntries().empty());
+  std::vector<gert::RTVarEntry> entries;
+  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
+  EXPECT_FALSE(entries.empty());
 }
 
 TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_NoVariables) {
@@ -195,57 +192,59 @@ TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_NoVariables) {
   ASSERT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), ge::SUCCESS);
 
   auto graph = std::make_shared<ge::ComputeGraph>("test_graph");
-  std::unique_ptr<gert::RTVarResource> resource;
-  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, {}, resource), ge::SUCCESS);
-  ASSERT_NE(resource, nullptr);
-  EXPECT_TRUE(resource->GetAllEntries().empty());
+  std::vector<gert::RTVarEntry> entries;
+  ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, {}, entries), ge::SUCCESS);
+  EXPECT_TRUE(entries.empty());
 }
 
 TEST_F(Om2VarResourceBuilderTest, RTVarResource_GetEntryAndGetEntryByName) {
-  gert::RTVarResource resource;
+  std::vector<gert::RTVarEntry> entries;
   gert::RTVarEntry entry;
-  entry.var_name = "weight1";
-  ge::Om2TensorDesc desc;
-  desc.SetFormat(ge::FORMAT_NHWC);
-  desc.SetDataType(ge::DT_FLOAT);
-  entry.var_key = gert::RTVarResource::BuildVarKey("weight1", desc);
-  entry.tensor_desc = desc;
-  const std::string saved_key = entry.var_key;
-  ASSERT_EQ(resource.AddEntry(std::move(entry)), ge::SUCCESS);
+  entry.var_name = gert::GertMakeStr("weight1");
+  gert::GertTensorDesc desc;
+  desc.format = ge::FORMAT_NHWC;
+  desc.data_type = ge::DT_FLOAT;
+  entry.var_key = gert::GertMakeStr(gert::RTVarBuildKey("weight1", desc));
+  entry.tensor_desc = std::move(desc);
+  const std::string saved_key = gert::GertGetStr(entry.var_key);
+  ASSERT_EQ(gert::RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
 
-  const auto *found = resource.GetEntry(saved_key);
+  const auto *found = gert::RTVarFindEntry(entries, saved_key);
   ASSERT_NE(found, nullptr);
-  EXPECT_EQ(found->var_name, "weight1");
+  EXPECT_EQ(std::string(gert::GertGetStr(found->var_name)), "weight1");
 
-  const auto *by_name = resource.GetEntryByName("weight1");
+  const auto *by_name = gert::RTVarFindEntryByName(entries, "weight1");
   ASSERT_NE(by_name, nullptr);
-  EXPECT_EQ(by_name->var_key, saved_key);
+  EXPECT_EQ(std::string(gert::GertGetStr(by_name->var_key)), saved_key);
 
-  EXPECT_EQ(resource.GetEntry("nonexistent"), nullptr);
-  EXPECT_EQ(resource.GetEntryByName("nonexistent"), nullptr);
+  EXPECT_EQ(gert::RTVarFindEntry(entries, "nonexistent"), nullptr);
+  EXPECT_EQ(gert::RTVarFindEntryByName(entries, "nonexistent"), nullptr);
 }
 
 TEST_F(Om2VarResourceBuilderTest, RTVarResource_GetAllVarKeys) {
-  gert::RTVarResource resource;
+  std::vector<gert::RTVarEntry> entries;
   gert::RTVarEntry e1;
-  e1.var_name = "a";
-  e1.var_key = "a_key";
-  ASSERT_EQ(resource.AddEntry(std::move(e1)), ge::SUCCESS);
+  e1.var_name = gert::GertMakeStr("a");
+  e1.var_key = gert::GertMakeStr("a_key");
+  ASSERT_EQ(gert::RTVarAddEntry(entries, std::move(e1)), ge::SUCCESS);
 
   gert::RTVarEntry e2;
-  e2.var_name = "b";
-  e2.var_key = "b_key";
-  ASSERT_EQ(resource.AddEntry(std::move(e2)), ge::SUCCESS);
+  e2.var_name = gert::GertMakeStr("b");
+  e2.var_key = gert::GertMakeStr("b_key");
+  ASSERT_EQ(gert::RTVarAddEntry(entries, std::move(e2)), ge::SUCCESS);
 
-  auto keys = resource.GetAllVarKeys();
+  std::vector<std::string> keys;
+  for (const auto &entry : entries) {
+    keys.push_back(gert::GertGetStr(entry.var_key));
+  }
   EXPECT_EQ(keys.size(), 2U);
 }
 
 TEST_F(Om2VarResourceBuilderTest, RTVarResource_AddEntryEmptyKeyFails) {
-  gert::RTVarResource resource;
+  std::vector<gert::RTVarEntry> entries;
   gert::RTVarEntry entry;
-  entry.var_key = "";
-  EXPECT_NE(resource.AddEntry(std::move(entry)), ge::SUCCESS);
+  entry.var_key = gert::GertMakeStr("");
+  EXPECT_NE(gert::RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
 }
 
 }  // namespace

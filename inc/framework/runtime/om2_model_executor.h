@@ -15,11 +15,11 @@
 #include "common/ge_visibility.h"
 #include "common/ge_common/ge_types.h"
 #include "common/dynamic_aipp.h"
-#include "framework/common/om2_tensor_desc.h"
+#include "framework/om2/model_data/gert_model_data.h"
 #include "acl/acl_base_rt.h"
 
 namespace gert {
-struct Om2ModelData;
+struct GertModelData;
 class RtSession;
 
 struct VISIBILITY_EXPORT Om2ModelLoadArg {
@@ -48,15 +48,15 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
   Om2ModelExecutor &operator=(const Om2ModelExecutor &) = delete;
   Om2ModelExecutor &operator=(Om2ModelExecutor &&) = delete;
 
-  /// 新接口：直接从 Om2ModelData 加载（统一入口）
-  ge::Status Load(const gert::Om2ModelData &model_data, const Om2ModelLoadArg &load_arg,
+  /// 新接口：直接从 GertModelData 加载（统一入口）
+  ge::Status Load(const gert::GertModelData &model_data, const Om2ModelLoadArg &load_arg,
                   const uint64_t session_id) const;
   ge::Status Load(ge::ModelData &model_data, const Om2ModelLoadArg &load_arg, const uint64_t session_id) const;
   ge::Status Run(std::vector<gert::Tensor *> &inputs, std::vector<gert::Tensor *> &outputs) const;
   ge::Status RunAsync(void *const stream, std::vector<gert::Tensor *> &inputs,
                       std::vector<gert::Tensor *> &outputs) const;
-  ge::Status GetModelDescInfo(const std::vector<ge::Om2TensorDesc> *&input_desc,
-                              const std::vector<ge::Om2TensorDesc> *&output_desc, bool new_model_desc = false) const;
+  ge::Status GetModelDescInfo(const std::vector<gert::GertTensorDesc> *&input_desc,
+                              const std::vector<gert::GertTensorDesc> *&output_desc, bool new_model_desc = false) const;
   ge::Status GetModelAttrs(std::vector<std::string> &dynamic_output_shape) const;
   ge::Status GetDynamicBatchInfo(std::vector<std::vector<int64_t>> &dynamic_batch_info, int32_t &dynamic_type) const;
   ge::Status GetUserDesignateShapeOrder(std::vector<std::string> &user_designate_shape_order) const;
@@ -97,15 +97,15 @@ VISIBILITY_EXPORT ge::Status GetOm2WorkspaceSize(const std::string &model_path, 
 VISIBILITY_EXPORT ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, bool query_zero_copy_size,
                                                  size_t &work_size, size_t &zero_copy_size);
 VISIBILITY_EXPORT ge::Status GetOm2ModelMetadata(const std::string &model_path,
-                                                 std::vector<ge::Om2TensorDesc> &input_desc,
-                                                 std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                                                 std::vector<ge::Om2TensorDesc> &output_desc,
-                                                 std::vector<ge::Om2TensorDesc> &output_desc_v2);
+                                                 std::vector<gert::GertTensorDesc> &input_desc,
+                                                 std::vector<gert::GertTensorDesc> &input_desc_v2,
+                                                 std::vector<gert::GertTensorDesc> &output_desc,
+                                                 std::vector<gert::GertTensorDesc> &output_desc_v2);
 VISIBILITY_EXPORT ge::Status GetOm2ModelMetadata(const void *model_data, size_t model_size,
-                                                 std::vector<ge::Om2TensorDesc> &input_desc,
-                                                 std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                                                 std::vector<ge::Om2TensorDesc> &output_desc,
-                                                 std::vector<ge::Om2TensorDesc> &output_desc_v2);
+                                                 std::vector<gert::GertTensorDesc> &input_desc,
+                                                 std::vector<gert::GertTensorDesc> &input_desc_v2,
+                                                 std::vector<gert::GertTensorDesc> &output_desc,
+                                                 std::vector<gert::GertTensorDesc> &output_desc_v2);
 VISIBILITY_EXPORT std::unique_ptr<Om2ModelExecutor> LoadOm2ExecutorFromData(ge::ModelData &model_data,
                                                                             const Om2ModelLoadArg &load_arg,
                                                                             ge::graphStatus &error_code);

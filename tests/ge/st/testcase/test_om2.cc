@@ -10,8 +10,9 @@
 
 #include "framework/common/helper/om2_package_helper.h"
 #include "common/helper/visual_json_converter.h"
-#include "common/helper/om2/zip_archive_writer.h"
-#include "common/helper/om2/json_file.h"
+#include "framework/common/zip_archive_reader.h"
+#include "framework/common/zip_archive_writer.h"
+#include "framework/common/json_file.h"
 #include "common/util/error_manager/error_manager.h"
 #include "framework/omg/omg.h"
 #include "framework/runtime/om2_model_executor.h"
@@ -21,7 +22,6 @@
 #include "api/aclgrph/option_utils.h"
 #include "api/atc/main_impl.h"
 #include "file_utils.h"
-#include "runtime/om2/zip_archive_reader.h"
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <cerrno>
@@ -67,6 +67,7 @@
 #include "aicpu_engine_struct.h"
 #include "aicpu_task_struct.h"
 #include "engine/aicpu/kernel/aicpu_ext_info_handle.h"
+#include "framework/common/gert_model_data_utils.h"
 
 namespace ge {
 namespace {
@@ -128,6 +129,17 @@ using AicpuExtInfo = aicpu::FWKAdapter::ExtInfo;
 using AsyncWaitInfo = aicpu::FWKAdapter::AsyncWait;
 using WorkSpaceInfo = aicpu::FWKAdapter::WorkSpaceInfo;
 using AicpuSessionInfo = SessionInfo;
+
+std::vector<uint8_t> ReadFileToVector(const std::string &path) {
+  std::ifstream ifs(path, std::ios::binary);
+  return {std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>()};
+}
+
+bool WriteFileToZip(gert::ZipArchiveWriter &writer, const std::string &entry, const std::string &path,
+                    bool compress = true) {
+  auto data = ReadFileToVector(path);
+  return writer.WriteBytes(entry, data.data(), data.size(), compress);
+}
 
 bool IsFileNonEmpty(const std::string &path) {
   std::ifstream input(path, std::ios::in | std::ios::binary);
@@ -1060,7 +1072,7 @@ void CreateFakeOm2File(const std::string &work_dir, const std::string &output_fi
   WriteBinaryFile(constant_path, {1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U, 10U, 11U, 12U, 13U, 14U, 15U, 16U});
   WriteTextFile(constants_config_path, MakeFakeOm2ConstantsConfigJson());
 
-  ZipArchiveWriter zip_writer(output_file);
+  gert::ZipArchiveWriter zip_writer(output_file);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeFakeOm2ManifestJson();
   const auto model_meta = MakeFakeOm2ModelMetaJson();
@@ -1087,7 +1099,7 @@ std::string BuildValidOm2ProtoTxt() {
 }
 
 void CreateMinimalOm2File(const std::string &path, const std::string &proto_content) {
-  ZipArchiveWriter writer(path);
+  gert::ZipArchiveWriter writer(path);
   ASSERT_TRUE(writer.IsMemFileOpened());
   const std::string manifest =
       R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
@@ -1099,7 +1111,7 @@ void CreateMinimalOm2File(const std::string &path, const std::string &proto_cont
 }
 
 void CreateMinimalOm2FileWithoutProto(const std::string &path) {
-  ZipArchiveWriter writer(path);
+  gert::ZipArchiveWriter writer(path);
   ASSERT_TRUE(writer.IsMemFileOpened());
   const std::string manifest =
       R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
@@ -1135,7 +1147,7 @@ void ConstructOm2IoTensors(std::vector<gert::Tensor> &input_tensors, std::vector
   outputs = {&output_tensors[0]};
 }
 
-void ExpectOm2ArchiveFiles(const RAIIZipArchive &archive, const std::set<std::string> &expect_files) {
+void ExpectOm2ArchiveFiles(const gert::ZipArchiveReader &archive, const std::set<std::string> &expect_files) {
   const auto file_names = archive.ListFiles();
   // expect_files contains exact paths; generated debug files are checked by pattern.
   std::set<std::string> expect_exact = expect_files;
@@ -1161,7 +1173,8 @@ void ExpectOm2ArchiveFiles(const RAIIZipArchive &archive, const std::set<std::st
   EXPECT_EQ(exact_count, expect_exact.size());
 }
 
-void ExpectGeneratedMakefileSupportsEnvCompiler(const RAIIZipArchive &archive, const std::string &zip_base_name) {
+void ExpectGeneratedMakefileSupportsEnvCompiler(const gert::ZipArchiveReader &archive,
+                                                const std::string &zip_base_name) {
   size_t makefile_size = 0U;
   const auto makefile_data = archive.ExtractToMem(zip_base_name + "/data/model_0/runtime/csrc/Makefile", makefile_size);
   ASSERT_NE(makefile_data, nullptr);
@@ -1187,7 +1200,7 @@ void ExpectGeneratedMakefileSupportsEnvCompiler(const RAIIZipArchive &archive, c
   EXPECT_NE(makefile.find("$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) $(LDLIBS)"), std::string::npos);
 }
 
-JsonFile ExtractConstantsConfig(const RAIIZipArchive &archive, const std::string &zip_base_name) {
+ge::JsonFile ExtractConstantsConfig(const gert::ZipArchiveReader &archive, const std::string &zip_base_name) {
   size_t constants_config_size = 0U;
   const auto constants_config_buf =
       archive.ExtractToMem(zip_base_name + "/data/model_0/model_0_constants_config.json", constants_config_size);
@@ -1198,7 +1211,7 @@ JsonFile ExtractConstantsConfig(const RAIIZipArchive &archive, const std::string
   return JsonFile(reinterpret_cast<const uint8_t *>(constants_config_buf.get()), constants_config_size);
 }
 
-JsonFile ExtractVisualJson(const RAIIZipArchive &archive, const std::string &zip_base_name,
+JsonFile ExtractVisualJson(const gert::ZipArchiveReader &archive, const std::string &zip_base_name,
                            const uint32_t model_index = 0U) {
   size_t visual_json_size = 0U;
   const auto visual_json_buf = archive.ExtractToMem(
@@ -1623,10 +1636,69 @@ GeRootModelPtr CreateGeRootModelWithCustomOp() {
   return ge_root_model;
 }
 
+// build_config 校验/注入 ST：通过 SetGraphOption 注入 ge.buildConfig（RAII 恢复）
+class ScopedGraphOptions {
+ public:
+  explicit ScopedGraphOptions(const std::map<std::string, std::string> &options)
+      : old_options_(GetThreadLocalContext().GetAllGraphOptions()) {
+    GetThreadLocalContext().SetGraphOption(options);
+  }
+  ~ScopedGraphOptions() {
+    GetThreadLocalContext().SetGraphOption(old_options_);
+  }
+
+ private:
+  std::map<std::string, std::string> old_options_;
+};
+
+// 测试侧注入 -O0 编译选项，加速打包用例中 csrc→so 的 make 编译（受慢用例门禁约束）
+const std::map<std::string, std::string> kFastOm2BuildOptions = {
+    {"ge.buildConfig", "make -s CXXFLAGS='-std=c++17 -O0 -fPIC'"}};
+
+// ===== Suite 级 OM2 产物预构建（参考 PR #4974 模式）=====
+// csrc→so 编译单次约 2s，套件级一次性预构建各用例产物并落盘，用例仅读取断言，规避慢用例门禁
+static std::map<std::string, std::string> &SuiteOm2Files() {
+  static std::map<std::string, std::string> files;
+  return files;
+}
+
+// 持有各 Prepare 返回的 GeRootModel：保证产物借用的非拥有视图在用例执行期间有效
+static std::map<std::string, GeRootModelPtr> &SuiteOm2Models() {
+  static std::map<std::string, GeRootModelPtr> models;
+  return models;
+}
+
+static const std::string &SuiteWorkDir() {
+  static const std::string dir = EnvPath().GetOrCreateCaseTmpPath("Om2StSuite");
+  return dir;
+}
+
+using Om2FilePreparer = std::function<GeRootModelPtr(const std::string &)>;
+
+static void PrepareSuiteOm2(const std::string &key, const std::string &file_name, const Om2FilePreparer &preparer) {
+  // 各产物按 key 分子目录落盘：多数用例要求 zip 根名为 "fake_test"（由文件 basename 决定），不能共用同名文件
+  const std::string output_dir = EnvPath().GetOrCreateCaseTmpPath("Om2StSuite/" + key);
+  const std::string output_file = PathUtils::Join({output_dir, file_name});
+  const auto ge_root_model = preparer(output_file);
+  SuiteOm2Files()[key] = output_file;
+  SuiteOm2Models()[key] = ge_root_model;
+  EXPECT_TRUE(mmAccess2(output_file.c_str(), M_F_OK) == EOK) << "Suite om2 file missing: " << output_file;
+}
+
+static const std::string &SuiteOm2File(const std::string &key) {
+  return SuiteOm2Files().at(key);
+}
+
+static const GeRootModelPtr &SuiteOm2Model(const std::string &key) {
+  return SuiteOm2Models().at(key);
+}
+
 }  // namespace
 
 class Om2St : public testing::Test {
  public:
+  static void SetUpTestSuite();
+  static void TearDownTestSuite();
   void SetUp() override {
     const ::testing::TestInfo *test_info = ::testing::UnitTest::GetInstance()->current_test_info();
     test_case_name = test_info->test_case_name();  // Om2ST
@@ -1634,34 +1706,572 @@ class Om2St : public testing::Test {
     setenv("ASCEND_WORK_PATH", test_work_dir.c_str(), 1);
     const auto ascend_install_path = EnvPath().GetAscendInstallPath();
     setenv("ASCEND_HOME_PATH", ascend_install_path.c_str(), 1);
+    // 与用例内动态编译一致：-O0 加速 + LSAN 抑制（g++ 子进程）
+    setenv("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0", 1);
+    setenv("LSAN_OPTIONS", "exitcode=0", 1);
+    fast_build_guard_ = std::make_unique<ScopedGraphOptions>(kFastOm2BuildOptions);
   }
   void TearDown() override {
+    fast_build_guard_.reset();
     RemoveTestDir(test_work_dir);
     unsetenv("ASCEND_WORK_PATH");
     unsetenv("ASCEND_HOME_PATH");
+    unsetenv("ASAN_OPTIONS");
+    unsetenv("LSAN_OPTIONS");
   }
 
  public:
   std::string test_case_name;
   std::string test_work_dir;
   const std::string kZipFileBaseName = "fake_test";
+
+ protected:
+  std::unique_ptr<ScopedGraphOptions> fast_build_guard_;
 };
 
 class Om2CallbackSt : public Om2St {};
 
-TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
-  Om2PackageHelper om2_packager;
+// ===== Suite 预构建函数：各用例的"构建图 + 属性/节点设置 + 打包"搬移至此，一次构建全 suite 复用 =====
+static GeRootModelPtr PrepareAicoreNodeOm2(const std::string &output_file) {
   const auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
+  Om2PackageHelper om2_packager;
   ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
   SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareAtomicAicoreOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithAtomicAicoreOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareInternalConstOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithInternalConstOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareFileConstOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithFileConstOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+// 在线 buffer 打包后经 aclgrphSaveModel 落盘，缓存最终 .om2 文件
+static GeRootModelPtr PrepareOnlineBufferSavedOm2(const std::string &output_file) {
+  Om2PackageHelper om2_packager;
+  om2_packager.SetSaveMode(false);
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  // output_file 形如 "xxx/fake_test_saved.om2"，aclgrphSaveModel 需要无扩展名前缀
+  const std::string saved_prefix = output_file.substr(0, output_file.size() - strlen(".om2"));
+  const std::string package_file = saved_prefix + "_buffer.om2";
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, package_file, model_data, false), SUCCESS);
+  EXPECT_EQ(aclgrphSaveModel(saved_prefix, model_data), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareAicoreOp2Om2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp2();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareAicoreOpDynamicIoOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOpOfDynamicIo();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareAicpuOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithAicpuOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareCustAicpuOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithCustAicpuOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareTfAicpuOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithTfAicpuOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareCmoTaskOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithCmoTask(1U, 3U);
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareBarrierTaskOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithBarrierTask(3);
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareMbatchOriginDimsOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      const auto &shape = op_desc->GetOutputDescPtr(0)->GetShape().GetDims();
+      std::vector<int64_t> origin_dims = shape;
+      if (!origin_dims.empty()) {
+        origin_dims[0] = -1;
+      }
+      AttrUtils::SetListInt(op_desc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_dims);
+    }
+  }
+  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
+  GeTensorDesc case_input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
+  (void)case_desc->AddInputDesc(case_input_desc);
+  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
+  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(DYNAMIC_BATCH));
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", {1, 1, 224, 224});
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", {2, 1, 224, 224});
+  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, {"data1", "data2"});
+  (void)compute_graph->AddNode(case_desc);
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareDynamicBatchOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
+  GeTensorDesc case_input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
+  (void)case_desc->AddInputDesc(case_input_desc);
+  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
+  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(DYNAMIC_BATCH));
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", {1, 1, 224, 224});
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", {2, 1, 224, 224});
+  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, {"data1", "data2"});
+  (void)compute_graph->AddNode(case_desc);
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareDynamicOutputShapeOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
+  GeTensorDesc case_input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
+  (void)case_desc->AddInputDesc(case_input_desc);
+  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
+  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(DYNAMIC_BATCH));
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", {1, 1, 224, 224});
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", {2, 1, 224, 224});
+  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, {"data"});
+  (void)compute_graph->AddNode(case_desc);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    if (node->GetType() == NETOUTPUT) {
+      (void)AttrUtils::SetListStr(node->GetOpDesc(), ATTR_NAME_DYNAMIC_OUTPUT_DIMS, {"0,0,1,1000", "1,0,2,1000"});
+    } else if (node->GetType() == "Add") {
+      (void)AttrUtils::SetListStr(node->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES,
+                                  {"original_add_1", "original_add_2"});
+    }
+  }
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareSeparatelyCleanTaskOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithSeparatelyCleanAicoreOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareCustomOpOm2(const std::string &output_file) {
+  const AscendString kOpType("TestPortableOp");
+  CustomOpFactory::RegisterCustomOpCreator(
+      kOpType, []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestPortableCustomOp>(); });
+  const auto ge_root_model = CreateGeRootModelWithCustomOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  CustomOpFactory::RemoveCustomOps({kOpType});
+  return ge_root_model;
+}
+
+// ===== 后置 Prepare 所需的图节点辅助函数（原定义于文件后部，为保证匿名 namespace 内声明/定义一致而前移）=====
+static void AddVariableNodeToGraph(const ComputeGraphPtr &graph, const std::string &name,
+                                   const GeTensorDesc &tensor_desc, const std::vector<float> &init_values) {
+  auto op_desc = std::make_shared<OpDesc>(name, VARIABLE);
+  (void)op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({1024});
+  if (!init_values.empty()) {
+    auto init_tensor = std::make_shared<GeTensor>();
+    init_tensor->SetData(reinterpret_cast<const uint8_t *>(init_values.data()), init_values.size() * sizeof(float));
+    init_tensor->MutableTensorDesc() = tensor_desc;
+    auto output_desc = op_desc->MutableOutputDesc(0U);
+    if (output_desc != nullptr) {
+      (void)AttrUtils::SetTensor(*output_desc, ATTR_NAME_INIT_VALUE, init_tensor);
+    }
+  }
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+}
+
+static void AddConstantOpNodeToGraph(const ComputeGraphPtr &graph, const std::string &name,
+                                     const GeTensorDesc &tensor_desc, const std::vector<float> &weight_values) {
+  auto op_desc = std::make_shared<OpDesc>(name, CONSTANTOP);
+  (void)op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({2048});
+  if (!weight_values.empty()) {
+    auto weight_tensor = std::make_shared<GeTensor>();
+    weight_tensor->SetData(reinterpret_cast<const uint8_t *>(weight_values.data()),
+                           weight_values.size() * sizeof(float));
+    weight_tensor->MutableTensorDesc() = tensor_desc;
+    (void)AttrUtils::SetTensor(*op_desc, ATTR_NAME_WEIGHTS, weight_tensor);
+  }
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+}
+
+static void AddConstPlaceHolderNodeToGraph(const ComputeGraphPtr &graph, const std::string &name,
+                                           const GeTensorDesc &tensor_desc, int64_t device_addr) {
+  auto op_desc = std::make_shared<OpDesc>(name, CONSTPLACEHOLDER);
+  (void)op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({3072});
+  (void)AttrUtils::SetListInt(op_desc, "storage_shape", tensor_desc.GetShape().GetDims());
+  (void)AttrUtils::SetDataType(op_desc, "dtype", tensor_desc.GetDataType());
+  (void)AttrUtils::SetInt(op_desc, "size", 16L);
+  (void)AttrUtils::SetInt(op_desc, "placement", static_cast<int64_t>(Placement::kPlacementDevice));
+  (void)AttrUtils::SetInt(op_desc, "addr", device_addr);
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+}
+
+static GeRootModelPtr PrepareStaticAippOm2(const std::string &output_file) {
+  auto graph = gert::ShareGraph::AicoreStaticGraph();
+  graph->TopologicalSorting();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      ge::NamedAttrs aipp_attr;
+      aipp_attr.SetAttr("aipp_mode", ge::GeAttrValue::CreateFrom<int64_t>(domi::AippOpParams_AippMode_static_));
+      aipp_attr.SetAttr("input_format", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("src_image_size_w", ge::GeAttrValue::CreateFrom<int64_t>(640));
+      aipp_attr.SetAttr("src_image_size_h", ge::GeAttrValue::CreateFrom<int64_t>(480));
+      aipp_attr.SetAttr("crop", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("load_start_pos_w", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("load_start_pos_h", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("crop_size_w", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("crop_size_h", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("resize", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("resize_output_w", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("resize_output_h", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("padding", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("left_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("right_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("top_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("bottom_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("csc_switch", ge::GeAttrValue::CreateFrom<int64_t>(1));
+      aipp_attr.SetAttr("rbuv_swap_switch", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("ax_swap_switch", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("single_line_mode", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("related_input_rank", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      aipp_attr.SetAttr("max_src_image_size", ge::GeAttrValue::CreateFrom<int64_t>(8192));
+      aipp_attr.SetAttr("support_rotation", ge::GeAttrValue::CreateFrom<int64_t>(0));
+      (void)ge::AttrUtils::SetNamedAttrs(op_desc, ge::ATTR_NAME_AIPP, aipp_attr);
+      (void)ge::AttrUtils::SetStr(op_desc, ge::ATTR_DATA_RELATED_AIPP_MODE, "static_aipp");
+      (void)ge::AttrUtils::SetInt(op_desc, ge::ATTR_NAME_INDEX, 0);
+      const std::vector<std::string> aipp_inputs = {"NCHW:DT_FLOAT:data_0:100:4:1,3,640,480"};
+      (void)ge::AttrUtils::SetListStr(op_desc, ge::ATTR_NAME_AIPP_INPUTS, aipp_inputs);
+      const std::vector<std::string> aipp_outputs = {"NCHW:DT_FLOAT:data_0_out:200:4:1,3,640,480"};
+      (void)ge::AttrUtils::SetListStr(op_desc, ge::ATTR_NAME_AIPP_OUTPUTS, aipp_outputs);
+      break;
+    }
+  }
+
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef("Add",
+                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
+          .FakeTbeBin({"Add"})
+          .BuildGeRootModel();
+  EXPECT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc->GetType() == DATA) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+      if (op_desc->GetType() == "Add") {
+        op_desc->SetIsInputConst({true, true});
+        TensorUtils::SetDataOffset(*op_desc->MutableInputDesc(0), 0);
+        TensorUtils::SetDataOffset(*op_desc->MutableInputDesc(1), 200704);
+      }
+    }
+  }
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  const std::vector<uint8_t> weights_value(401408, 1U);
+  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weights_value.size()));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weights_value.size());
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareNoAippOm2(const std::string &output_file) {
+  auto graph = gert::ShareGraph::AicoreStaticGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef("Add",
+                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
+          .FakeTbeBin({"Add"})
+          .BuildGeRootModel();
+  EXPECT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc->GetType() == DATA) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  const std::vector<uint8_t> weights_value(512, 1U);
+  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weights_value.size()));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weights_value.size());
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareVarTestOm2(const std::string &output_file) {
+  constexpr uint64_t kSessionId = 100U;
+  GetContext().SetSessionId(kSessionId);
+  const auto var_manager = VarManager::Instance(kSessionId);
+  EXPECT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
+
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 16L);
+  AddVariableNodeToGraph(compute_graph, "test_var", tensor_desc, std::vector<float>(4, 2.0f));
+  EXPECT_EQ(var_manager->SetVarAddr("test_var", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
+
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareConstTestOm2(const std::string &output_file) {
+  constexpr uint64_t kSessionId = 101U;
+  GetContext().SetSessionId(kSessionId);
+  const auto var_manager = VarManager::Instance(kSessionId);
+  EXPECT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
+
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  GeTensorDesc tensor_desc(GeShape({2}), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 8L);
+  AddConstantOpNodeToGraph(compute_graph, "test_const", tensor_desc, std::vector<float>(2, 3.0f));
+  EXPECT_EQ(var_manager->SetVarAddr("test_const", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
+
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PreparePlaceholderTestOm2(const std::string &output_file) {
+  constexpr uint64_t kSessionId = 102U;
+  constexpr int64_t kDeviceAddr = 0x2000L;
+  GetContext().SetSessionId(kSessionId);
+  const auto var_manager = VarManager::Instance(kSessionId);
+  EXPECT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
+
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  GeTensorDesc tensor_desc(GeShape({1}), FORMAT_ND, DT_UINT8);
+  TensorUtils::SetSize(tensor_desc, 1L);
+  AddConstPlaceHolderNodeToGraph(compute_graph, "test_placeholder", tensor_desc, kDeviceAddr);
+  EXPECT_EQ(var_manager->SetVarAddr("test_placeholder", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
+
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareMixedVarTestOm2(const std::string &output_file) {
+  constexpr uint64_t kSessionId = 103U;
+  GetContext().SetSessionId(kSessionId);
+  const auto var_manager = VarManager::Instance(kSessionId);
+  EXPECT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
+
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 16L);
+  AddVariableNodeToGraph(compute_graph, "mixed_var", tensor_desc, std::vector<float>(4, 1.0f));
+  EXPECT_EQ(var_manager->SetVarAddr("mixed_var", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
+
+  VarTransRoad road;
+  TransNodeInfo node_info;
+  node_info.node_type = "TransData";
+  node_info.input = GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
+  node_info.output = GeTensorDesc(GeShape({4}), FORMAT_ND, DT_FLOAT);
+  road.push_back(node_info);
+  EXPECT_EQ(var_manager->SetTransRoad("mixed_var", road), SUCCESS);
+  EXPECT_EQ(var_manager->SetChangedGraphId("mixed_var", 42U), SUCCESS);
+  EXPECT_EQ(var_manager->SetAllocatedGraphId("mixed_var", 7U), SUCCESS);
+
+  GeTensorDesc const_desc(GeShape({2}), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(const_desc, 8L);
+  AddConstantOpNodeToGraph(compute_graph, "mixed_const", const_desc, std::vector<float>(2, 5.0f));
+  EXPECT_EQ(var_manager->SetVarAddr("mixed_const", const_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
+
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+static GeRootModelPtr PrepareNoVarTestOm2(const std::string &output_file) {
+  constexpr uint64_t kSessionId = 104U;
+  GetContext().SetSessionId(kSessionId);
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
+void Om2St::SetUpTestSuite() {
+  setenv("ASCEND_WORK_PATH", SuiteWorkDir().c_str(), 1);
+  const auto ascend_install_path = EnvPath().GetAscendInstallPath();
+  setenv("ASCEND_HOME_PATH", ascend_install_path.c_str(), 1);
+  setenv("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0", 1);
+  setenv("LSAN_OPTIONS", "exitcode=0", 1);
+  // Suite 级一次性预构建（约 24 次编译），构建期注入 -O0，构建完自动恢复（RAII）
+  const ScopedGraphOptions fast_build(kFastOm2BuildOptions);
+  PrepareSuiteOm2("aicore_node", "fake_test.om2", PrepareAicoreNodeOm2);
+  PrepareSuiteOm2("atomic_aicore", "fake_test_atomic.om2", PrepareAtomicAicoreOm2);
+  PrepareSuiteOm2("internal_const", "fake_test.om2", PrepareInternalConstOm2);
+  PrepareSuiteOm2("file_const", "fake_test.om2", PrepareFileConstOm2);
+  PrepareSuiteOm2("online_buffer_saved", "fake_test_saved.om2", PrepareOnlineBufferSavedOm2);
+  PrepareSuiteOm2("aicore_op2", "fake_test.om2", PrepareAicoreOp2Om2);
+  PrepareSuiteOm2("aicore_dynamic_io", "fake_test.om2", PrepareAicoreOpDynamicIoOm2);
+  PrepareSuiteOm2("aicpu", "fake_test.om2", PrepareAicpuOm2);
+  PrepareSuiteOm2("cust_aicpu", "fake_test.om2", PrepareCustAicpuOm2);
+  PrepareSuiteOm2("tf_aicpu", "fake_test.om2", PrepareTfAicpuOm2);
+  PrepareSuiteOm2("cmo_task", "fake_test.om2", PrepareCmoTaskOm2);
+  PrepareSuiteOm2("barrier_task", "fake_test.om2", PrepareBarrierTaskOm2);
+  PrepareSuiteOm2("mbatch_origin_dims", "test_origin_dims.om2", PrepareMbatchOriginDimsOm2);
+  PrepareSuiteOm2("dynamic_batch", "test_dynamic_batch.om2", PrepareDynamicBatchOm2);
+  PrepareSuiteOm2("dynamic_output_shape", "test_dynamic_output_shape.om2", PrepareDynamicOutputShapeOm2);
+  PrepareSuiteOm2("separately_clean", "fake_test.om2", PrepareSeparatelyCleanTaskOm2);
+  PrepareSuiteOm2("custom_op", "fake_test_custom_op.om2", PrepareCustomOpOm2);
+  PrepareSuiteOm2("static_aipp", "fake_test_aipp.om2", PrepareStaticAippOm2);
+  PrepareSuiteOm2("no_aipp", "no_aipp.om2", PrepareNoAippOm2);
+  PrepareSuiteOm2("var_test", "var_test.om2", PrepareVarTestOm2);
+  PrepareSuiteOm2("const_test", "const_test.om2", PrepareConstTestOm2);
+  PrepareSuiteOm2("placeholder_test", "placeholder_test.om2", PreparePlaceholderTestOm2);
+  PrepareSuiteOm2("mixed_var_test", "mixed_var_test.om2", PrepareMixedVarTestOm2);
+  PrepareSuiteOm2("no_var_test", "no_var_test.om2", PrepareNoVarTestOm2);
+  // 变量产物已序列化落盘，预构建期设置的 VarManager 会话状态不再需要，统一销毁
+  VarManagerPool::Instance().Destroy();
+  GELOGI("Om2St::SetUpTestSuite: %zu om2 artifacts pre-built in %s", SuiteOm2Files().size(), SuiteWorkDir().c_str());
+}
+
+void Om2St::TearDownTestSuite() {
+  SuiteOm2Files().clear();
+  SuiteOm2Models().clear();
+  EnvPath().RemoveRfCaseTmpPath("Om2StSuite");
+  unsetenv("ASCEND_WORK_PATH");
+  unsetenv("ASCEND_HOME_PATH");
+  unsetenv("ASAN_OPTIONS");
+  unsetenv("LSAN_OPTIONS");
+}
+TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
+  const auto &output_file = SuiteOm2File("aicore_node");
+  const auto &ge_root_model = SuiteOm2Model("aicore_node");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
       "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
@@ -1707,14 +2317,8 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_ConvertGeneratedOm2ToJson) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_json.om2"});
+  const auto &output_file = SuiteOm2File("aicore_node");
   const std::string json_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_json.json"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
 
   EXPECT_EQ(ConvertOm(output_file.c_str(), json_file.c_str(), true), SUCCESS);
   EXPECT_TRUE(IsFileNonEmpty(json_file));
@@ -1888,9 +2492,9 @@ TEST_F(Om2St, Om2PackageHelper_Ok_ExtractVisualJsonFromMinimalOm2) {
       "graph": [{"name": "main_graph", "op": [{"name": "data0", "type": "Data"}]}]
     }
   })";
-  ModelBufferData model;
+  gert::GertBuffer model;
   {
-    ZipArchiveWriter writer(output_file);
+    gert::ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
     const std::string manifest =
         R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
@@ -1921,9 +2525,9 @@ TEST_F(Om2St, Om2PackageHelper_Fail_ExtractVisualJsonFromInvalidZip) {
 
 TEST_F(Om2St, Om2PackageHelper_Fail_ExtractVisualJsonWithoutVisualJson) {
   const std::string output_file = PathUtils::Join({test_work_dir, "no_visual_json.om2"});
-  ModelBufferData model;
+  gert::GertBuffer model;
   {
-    ZipArchiveWriter writer(output_file);
+    gert::ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
     const std::string manifest =
         R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
@@ -1942,9 +2546,9 @@ TEST_F(Om2St, Om2PackageHelper_Fail_ExtractVisualJsonWithoutVisualJson) {
 TEST_F(Om2St, Om2PackageHelper_Fail_ExtractCorruptedVisualJson) {
   const std::string output_file = PathUtils::Join({test_work_dir, "corrupted_visual_json.om2"});
   const std::string visual_json = "{}";
-  ModelBufferData model;
+  gert::GertBuffer model;
   {
-    ZipArchiveWriter writer(output_file);
+    gert::ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
     ASSERT_TRUE(writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(),
                                   visual_json.size(), true));
@@ -1989,7 +2593,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_ConvertMinimalVisualOm2ToJson) {
     }
   })";
   {
-    ZipArchiveWriter writer(output_file);
+    gert::ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
     const std::string manifest =
         R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
@@ -2014,7 +2618,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_ConvertVisualOm2AddsGroupOpName) {
   const std::string json_file = PathUtils::Join({test_work_dir, "group_visual_json.json"});
   const std::string visual_json = BuildVisualJsonWithFusionScope();
   {
-    ZipArchiveWriter writer(output_file);
+    gert::ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
     const std::string manifest =
         R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
@@ -2046,7 +2650,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_ConvertLooseVisualOm2ToJson) {
     }
   })";
   {
-    ZipArchiveWriter writer(output_file);
+    gert::ZipArchiveWriter writer(output_file);
     ASSERT_TRUE(writer.IsMemFileOpened());
     const std::string manifest =
         R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
@@ -2091,17 +2695,11 @@ TEST_F(Om2St, ConvertOm2Model_Fail_ConvertJsonInvalidProtoTxt) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAtomicAicoreNode) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAtomicAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_atomic.om2"});
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("atomic_aicore");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
       "fake_test_atomic/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
@@ -2130,18 +2728,11 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAtomicAicoreNode) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithInternalConst) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithInternalConstOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("internal_const");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
       "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
@@ -2177,18 +2768,11 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithInternalConst) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithFileConstOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("file_const");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
       "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
@@ -2225,26 +2809,13 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
 }
 
 TEST_F(Om2St, SaveOm2Model_Ok_SaveOnlineBufferWithAclgrphSaveModel) {
-  Om2PackageHelper om2_packager;
-  om2_packager.SetSaveMode(false);
-  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-
-  ModelBufferData model_data;
-  const std::string package_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_buffer.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, package_file, model_data, false), SUCCESS);
-  ASSERT_NE(model_data.data, nullptr);
-  ASSERT_GT(model_data.length, 0U);
-
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_saved"});
-  EXPECT_EQ(aclgrphSaveModel(output_file, model_data), SUCCESS);
-  EXPECT_EQ(mmAccess2((output_file + ".om2").c_str(), M_F_OK), EOK);
-  EXPECT_NE(mmAccess2((output_file + ".om").c_str(), M_F_OK), EOK);
+  // Suite 预构建已完成 SetSaveMode(false) 打包 + aclgrphSaveModel 落盘，缓存最终 .om2 文件
+  const auto &saved_om2 = SuiteOm2File("online_buffer_saved");
+  EXPECT_EQ(mmAccess2(saved_om2.c_str(), M_F_OK), EOK);
 
   uint32_t model_buf_size = 0;
-  const auto model_buf = GetBinDataFromFile(output_file + ".om2", model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  const auto model_buf = GetBinDataFromFile(saved_om2, model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   EXPECT_NE(std::find(file_names.begin(), file_names.end(), "g1/manifest.json"), file_names.end());
@@ -2275,7 +2846,7 @@ JsonFile::json BuildRelocateExternalWeightConsts(const std::string &old_weight_p
 
 void BuildRelocateExternalWeightOm2(const std::string &work_dir, const std::string &old_weight_path,
                                     ModelBufferData &model) {
-  ZipArchiveWriter zip_writer(PathUtils::Join({work_dir, "build_model.om2"}));
+  gert::ZipArchiveWriter zip_writer(PathUtils::Join({work_dir, "build_model.om2"}));
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   JsonFile constants_config;
   constants_config.Set("internal_weight_size", 0U).Set("consts", BuildRelocateExternalWeightConsts(old_weight_path));
@@ -2293,13 +2864,16 @@ void BuildRelocateExternalWeightOm2(const std::string &work_dir, const std::stri
       zip_writer.WriteBytes("data/model_0/runtime/libfake.so", runtime_entry.data(), runtime_entry.size(), false));
   const std::string manifest = R"({"archive_version":"1.0","model_num":3})";
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
-  ASSERT_TRUE(zip_writer.SaveModelData(model, false));
+  gert::GertBuffer om2_buf;
+  ASSERT_TRUE(zip_writer.SaveModelData(om2_buf, false));
+  model.data = om2_buf.data;
+  model.length = om2_buf.length;
 }
 
 void ExpectRelocatedExternalWeightArchive(const std::string &output_file, const std::string &weight_file_name) {
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file + ".om2", model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_0/runtime/libfake.so"),
@@ -2339,18 +2913,11 @@ TEST_F(Om2St, SaveOm2Model_Ok_RelocateExternalWeightsWithAclgrphSaveModel) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOp2) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicoreOp2();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("aicore_op2");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
@@ -2372,18 +2939,11 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOp2) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOpOfDynamicIo) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicoreOpOfDynamicIo();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("aicore_dynamic_io");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
@@ -2405,18 +2965,11 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOpOfDynamicIo) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicpuOp) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicpuOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("aicpu");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
@@ -2437,18 +2990,11 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicpuOp) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithCustAicpuOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("cust_aicpu");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files_without_cust_kernel = {
@@ -2489,18 +3035,11 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithTfAicpuOp) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithTfAicpuOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("tf_aicpu");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::set<std::string> expect_files = {
@@ -2542,8 +3081,8 @@ void ExpectOm2SupportAndMemSize(const std::string &output_file, const ge::ModelD
 }
 
 void ExpectOm2ExecutorMetadata(const std::unique_ptr<gert::Om2ModelExecutor> &executor) {
-  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *input_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *output_desc = nullptr;
   EXPECT_EQ(executor->GetModelDescInfo(input_desc, output_desc), SUCCESS);
   ASSERT_NE(input_desc, nullptr);
   ASSERT_NE(output_desc, nullptr);
@@ -2629,8 +3168,8 @@ TEST_F(Om2St, LoadGeneratedOm2WithExternalResources_Ok) {
   ASSERT_EQ(error_code, SUCCESS);
   ASSERT_NE(executor, nullptr);
 
-  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *input_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *output_desc = nullptr;
   EXPECT_EQ(executor->GetModelDescInfo(input_desc, output_desc), SUCCESS);
   ASSERT_NE(input_desc, nullptr);
   ASSERT_NE(output_desc, nullptr);
@@ -2639,18 +3178,11 @@ TEST_F(Om2St, LoadGeneratedOm2WithExternalResources_Ok) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoTask) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithCmoTask(1U, 3U);
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("cmo_task");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
       "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
@@ -2672,18 +3204,11 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoTask) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithBarrierTask) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithBarrierTask(3);
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("barrier_task");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const std::set<std::string> expect_files = {
       "fake_test/data/model_0/runtime/csrc/g1_kernel_reg.cpp",
@@ -2705,46 +3230,11 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithBarrierTask) {
 }
 
 TEST_F(Om2St, SaveModelInfo_WithMbatchOriginInputDims_SerializesOriginDims) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto &compute_graph = ge_root_model->GetRootGraph();
+  const auto &output_file = SuiteOm2File("mbatch_origin_dims");
 
-  // Set ATTR_MBATCH_ORIGIN_INPUT_DIMS on data nodes with -1 for dynamic batch axis
-  for (const auto &node : compute_graph->GetDirectNode()) {
-    auto op_desc = node->GetOpDesc();
-    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
-      const auto &shape = op_desc->GetOutputDescPtr(0)->GetShape().GetDims();
-      std::vector<int64_t> origin_dims = shape;
-      if (!origin_dims.empty()) {
-        origin_dims[0] = -1;
-      }
-      AttrUtils::SetListInt(op_desc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_dims);
-    }
-  }
-
-  // Add a CASE node to populate dynamic_batch_info so that max_gear_shape is serialized
-  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
-  GeTensorDesc case_input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
-  (void)case_desc->AddInputDesc(case_input_desc);
-  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
-  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(DYNAMIC_BATCH));
-  std::vector<int64_t> batch_shape_0 = {1, 1, 224, 224};
-  std::vector<int64_t> batch_shape_1 = {2, 1, 224, 224};
-  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", batch_shape_0);
-  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", batch_shape_1);
-  std::vector<std::string> shape_order = {"data1", "data2"};
-  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, shape_order);
-  auto case_node = compute_graph->AddNode(case_desc);
-  ASSERT_NE(case_node, nullptr);
-
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "test_origin_dims.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
   size_t model_meta_size = 0;
@@ -2770,34 +3260,11 @@ TEST_F(Om2St, SaveModelInfo_WithMbatchOriginInputDims_SerializesOriginDims) {
 }
 
 TEST_F(Om2St, SaveModelInfo_WithDynamicBatchCase_WritesDynamicBatchInfo) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto &compute_graph = ge_root_model->GetRootGraph();
-
-  // Add a CASE node with dynamic batch attributes
-  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
-  GeTensorDesc case_input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
-  (void)case_desc->AddInputDesc(case_input_desc);
-  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
-  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(DYNAMIC_BATCH));
-  std::vector<int64_t> batch_shape_0 = {1, 1, 224, 224};
-  std::vector<int64_t> batch_shape_1 = {2, 1, 224, 224};
-  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", batch_shape_0);
-  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", batch_shape_1);
-  std::vector<std::string> shape_order = {"data1", "data2"};
-  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, shape_order);
-  auto case_node = compute_graph->AddNode(case_desc);
-  ASSERT_NE(case_node, nullptr);
-
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "test_dynamic_batch.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  const auto &output_file = SuiteOm2File("dynamic_batch");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
   size_t model_meta_size = 0;
@@ -2820,39 +3287,11 @@ TEST_F(Om2St, SaveModelInfo_WithDynamicBatchCase_WritesDynamicBatchInfo) {
 }
 
 TEST_F(Om2St, SaveModelInfo_WithDynamicOutputShape_WritesGearOutputs) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto &compute_graph = ge_root_model->GetRootGraph();
-
-  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
-  GeTensorDesc case_input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
-  (void)case_desc->AddInputDesc(case_input_desc);
-  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
-  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(DYNAMIC_BATCH));
-  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", {1, 1, 224, 224});
-  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", {2, 1, 224, 224});
-  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, {"data"});
-  auto case_node = compute_graph->AddNode(case_desc);
-  ASSERT_NE(case_node, nullptr);
-
-  for (const auto &node : compute_graph->GetDirectNode()) {
-    if (node->GetType() == NETOUTPUT) {
-      (void)AttrUtils::SetListStr(node->GetOpDesc(), ATTR_NAME_DYNAMIC_OUTPUT_DIMS, {"0,0,1,1000", "1,0,2,1000"});
-    } else if (node->GetType() == "Add") {
-      (void)AttrUtils::SetListStr(node->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES,
-                                  {"original_add_1", "original_add_2"});
-    }
-  }
-
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "test_dynamic_output_shape.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  const auto &output_file = SuiteOm2File("dynamic_output_shape");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
   size_t model_meta_size = 0;
@@ -2895,21 +3334,11 @@ TEST_F(Om2St, SaveModelInfo_WithDynamicOutputShape_WritesGearOutputs) {
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithSeparatelyCleanTask) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithSeparatelyCleanAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  // SaveToOmRootModel internally invokes codegen; the is_separately_clean_task_ path
-  // is exercised in BuildLaunchSemantic when resolving func_handle_key via
-  // ATOMIC_ATTR_TBE_KERNEL_NAME + "_atomic".
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  const auto &output_file = SuiteOm2File("separately_clean");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   // Compared with the plain AICore test, the atomic clean task registers an extra
   // kernel binary "te_Add_12345_atomic_AicoreKernel.o" via BuildKernelRegistryForAicore.
@@ -2933,20 +3362,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithSeparatelyCleanTask) {
   GELOGI("Om2St: separately-clean atomic task packaging succeeded.");
 }
 
-// build_config 校验 ST：通过 SetGraphOption 注入 ge.buildConfig，走 SaveToOmRootModel 触发校验
-class ScopedGraphOptions {
- public:
-  explicit ScopedGraphOptions(const std::map<std::string, std::string> &options)
-      : old_options_(GetThreadLocalContext().GetAllGraphOptions()) {
-    GetThreadLocalContext().SetGraphOption(options);
-  }
-  ~ScopedGraphOptions() {
-    GetThreadLocalContext().SetGraphOption(old_options_);
-  }
-
- private:
-  std::map<std::string, std::string> old_options_;
-};
+// ScopedGraphOptions 与 kFastOm2BuildOptions 已前移至文件公共区域（Om2St fixture 之前）
 
 std::string GetNativeMachine() {
   struct utsname uts;
@@ -3099,57 +3515,6 @@ TEST_F(Om2St, BuildConfig_UnbalancedQuote_Rejected) {
   EXPECT_NE(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
 }
 
-TEST_F(Om2St, BuildConfig_WhitelistedVariables_Accepted) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  SyncKernelNameForAllModels(ge_root_model);
-
-  // 白名单内变量：CXX 被显式指定为 c++（与 Makefile 默认一致），验证白名单放行
-  ScopedGraphOptions guard(std::map<std::string, std::string>{{"ge.buildConfig", "make -s -j8 CXX=c++"}});
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "bc_valid.om2"});
-  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-}
-
-TEST_F(Om2St, BuildConfig_EnvVariableIsolation_Ok) {
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  SyncKernelNameForAllModels(ge_root_model);
-
-  // 设置会破坏编译的环境变量，验证 env -u 隔离生效
-  const char *old_cxx = getenv("CXX");
-  const char *old_cxxflags = getenv("CXXFLAGS");
-  setenv("CXX", "/nonexistent/compiler", 1);
-  setenv("CXXFLAGS", "-invalid-flag-xyz", 1);
-  auto cleanup = [&old_cxx, &old_cxxflags]() {
-    if (old_cxx != nullptr) {
-      setenv("CXX", old_cxx, 1);
-    } else {
-      unsetenv("CXX");
-    }
-    if (old_cxxflags != nullptr) {
-      setenv("CXXFLAGS", old_cxxflags, 1);
-    } else {
-      unsetenv("CXXFLAGS");
-    }
-  };
-
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "bc_env_isolation.om2"});
-  Status ret = om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false);
-  cleanup();
-  // env -u 剥离了 CXX/CXXFLAGS，Makefile 默认值生效，编译应成功
-  EXPECT_EQ(ret, SUCCESS);
-}
-
-TEST_F(Om2St, BuildConfig_QuotedAbsoluteMakeAndCxxFlags_Accepted) {
-  const std::map<std::string, std::string> options = {
-      {"ge.buildConfig", "  /usr/bin/make -s CXX=c++ CXXFLAGS='-std=c++17 -fPIC' LDLIBS="}};
-  EXPECT_EQ(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "bc_quoted_make.om2"), SUCCESS);
-}
-
 TEST_F(Om2St, BuildConfig_MakeFailure_ReportsInternalError) {
   ScopedTempDir temp_dir(test_work_dir);
   ASSERT_TRUE(temp_dir.IsValid());
@@ -3273,109 +3638,15 @@ TEST_F(Om2St, CrossCompileDevlibMissing_Rejected) {
 // ============================================================================
 
 TEST_F(Om2St, ConvertOm2Model_WithStaticAipp_WritesAippMetaToJson) {
-  // 构造带静态 AIPP 属性的计算图
-  auto graph = gert::ShareGraph::AicoreStaticGraph();
-  graph->TopologicalSorting();
-
-  // 在第一个 DATA 节点上添加静态 AIPP 属性
-  for (const auto &node : graph->GetDirectNode()) {
-    auto op_desc = node->GetOpDesc();
-    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
-      ge::NamedAttrs aipp_attr;
-      aipp_attr.SetAttr("aipp_mode", ge::GeAttrValue::CreateFrom<int64_t>(domi::AippOpParams_AippMode_static_));
-      aipp_attr.SetAttr("input_format", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("src_image_size_w", ge::GeAttrValue::CreateFrom<int64_t>(640));
-      aipp_attr.SetAttr("src_image_size_h", ge::GeAttrValue::CreateFrom<int64_t>(480));
-      aipp_attr.SetAttr("crop", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("load_start_pos_w", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("load_start_pos_h", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("crop_size_w", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("crop_size_h", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("resize", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("resize_output_w", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("resize_output_h", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("padding", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("left_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("right_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("top_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("bottom_padding_size", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("csc_switch", ge::GeAttrValue::CreateFrom<int64_t>(1));
-      aipp_attr.SetAttr("rbuv_swap_switch", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("ax_swap_switch", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("single_line_mode", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("related_input_rank", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      aipp_attr.SetAttr("max_src_image_size", ge::GeAttrValue::CreateFrom<int64_t>(8192));
-      aipp_attr.SetAttr("support_rotation", ge::GeAttrValue::CreateFrom<int64_t>(0));
-      (void)ge::AttrUtils::SetNamedAttrs(op_desc, ge::ATTR_NAME_AIPP, aipp_attr);
-      (void)ge::AttrUtils::SetStr(op_desc, ge::ATTR_DATA_RELATED_AIPP_MODE, "static_aipp");
-      (void)ge::AttrUtils::SetInt(op_desc, ge::ATTR_NAME_INDEX, 0);
-
-      std::vector<std::string> aipp_inputs = {"NCHW:DT_FLOAT:data_0:100:4:1,3,640,480"};
-      (void)ge::AttrUtils::SetListStr(op_desc, ge::ATTR_NAME_AIPP_INPUTS, aipp_inputs);
-      std::vector<std::string> aipp_outputs = {"NCHW:DT_FLOAT:data_0_out:200:4:1,3,640,480"};
-      (void)ge::AttrUtils::SetListStr(op_desc, ge::ATTR_NAME_AIPP_OUTPUTS, aipp_outputs);
-      break;
-    }
-  }
-
-  // 构建 GeRootModel
-  gert::GeModelBuilder builder(graph);
-  auto ge_root_model =
-      builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
-          .FakeTbeBin({"Add"})
-          .BuildGeRootModel();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto &compute_graph = ge_root_model->GetRootGraph();
-  compute_graph->SetGraphUnknownFlag(false);
-
-  for (const auto &node : compute_graph->GetDirectNode()) {
-    auto op_desc = node->GetOpDesc();
-    ASSERT_NE(op_desc, nullptr);
-    if ((op_desc->GetType() == DATA)) {
-      op_desc->SetOutputOffset({1024});
-    } else if (op_desc->GetType() == NETOUTPUT) {
-      op_desc->SetInputOffset({3072});
-    } else {
-      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
-      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
-      if (op_desc->GetType() == "Add") {
-        op_desc->SetIsInputConst({true, true});
-        auto input_desc0 = op_desc->MutableInputDesc(0);
-        auto input_desc1 = op_desc->MutableInputDesc(1);
-        if ((input_desc0 == nullptr) || (input_desc1 == nullptr)) {
-          ASSERT_TRUE(false) << "MutableInputDesc returned nullptr";
-        }
-        TensorUtils::SetDataOffset(*input_desc0, 0);
-        TensorUtils::SetDataOffset(*input_desc1, 200704);
-      }
-    }
-  }
-
-  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
-  ASSERT_NE(ge_model, nullptr);
-  std::vector<uint8_t> weights_value(401408, 1U);
-  const size_t weight_size = weights_value.size();
-  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weight_size));
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
-
-  // 保存为 OM2 并验证 aipp 字段被正确写入 model_meta.json
-  Om2PackageHelper om2_packager;
-  ModelBufferData model_buffer;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_aipp.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_buffer, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  // Suite 预构建已完成带静态 AIPP 属性模型的打包，此处验证 aipp 字段被正确写入 model_meta.json
+  const auto &output_file = SuiteOm2File("static_aipp");
 
   uint32_t model_buf_size = 0U;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
   ASSERT_NE(model_buf, nullptr);
   ASSERT_GT(model_buf_size, 0U);
 
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
   size_t model_meta_size = 0U;
@@ -3392,51 +3663,13 @@ TEST_F(Om2St, ConvertOm2Model_WithStaticAipp_WritesAippMetaToJson) {
 
 TEST_F(Om2St, ConvertOm2Model_WithoutAipp_HasNoAippSection) {
   // 无 AIPP 属性的模型不应包含 aipp 字段
-  auto graph = gert::ShareGraph::AicoreStaticGraph();
-  graph->TopologicalSorting();
-  gert::GeModelBuilder builder(graph);
-  auto ge_root_model =
-      builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}"))
-          .FakeTbeBin({"Add"})
-          .BuildGeRootModel();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto &compute_graph = ge_root_model->GetRootGraph();
-  compute_graph->SetGraphUnknownFlag(false);
-
-  for (const auto &node : compute_graph->GetDirectNode()) {
-    auto op_desc = node->GetOpDesc();
-    ASSERT_NE(op_desc, nullptr);
-    if ((op_desc->GetType() == DATA)) {
-      op_desc->SetOutputOffset({1024});
-    } else if (op_desc->GetType() == NETOUTPUT) {
-      op_desc->SetInputOffset({3072});
-    } else {
-      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
-      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
-    }
-  }
-
-  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
-  ASSERT_NE(ge_model, nullptr);
-  std::vector<uint8_t> weights_value(512, 1U);
-  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weights_value.size()));
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weights_value.size());
-  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
-
-  Om2PackageHelper om2_packager;
-  ModelBufferData model_buffer;
-  const std::string output_file = PathUtils::Join({test_work_dir, "no_aipp.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_buffer, false), SUCCESS);
+  const auto &output_file = SuiteOm2File("no_aipp");
 
   uint32_t model_buf_size = 0U;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
   ASSERT_NE(model_buf, nullptr);
 
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
   size_t model_meta_size = 0U;
@@ -3466,54 +3699,6 @@ class Om2VarSt : public Om2St {
   }
 };
 
-static void AddVariableNodeToGraph(const ComputeGraphPtr &graph, const std::string &name,
-                                   const GeTensorDesc &tensor_desc, const std::vector<float> &init_values) {
-  auto op_desc = std::make_shared<OpDesc>(name, VARIABLE);
-  (void)op_desc->AddOutputDesc(tensor_desc);
-  op_desc->SetOutputOffset({1024});
-  if (!init_values.empty()) {
-    auto init_tensor = std::make_shared<GeTensor>();
-    init_tensor->SetData(reinterpret_cast<const uint8_t *>(init_values.data()), init_values.size() * sizeof(float));
-    init_tensor->MutableTensorDesc() = tensor_desc;
-    auto output_desc = op_desc->MutableOutputDesc(0U);
-    if (output_desc != nullptr) {
-      (void)AttrUtils::SetTensor(*output_desc, ATTR_NAME_INIT_VALUE, init_tensor);
-    }
-  }
-  auto node = graph->AddNode(op_desc);
-  ASSERT_NE(node, nullptr);
-}
-
-static void AddConstantOpNodeToGraph(const ComputeGraphPtr &graph, const std::string &name,
-                                     const GeTensorDesc &tensor_desc, const std::vector<float> &weight_values) {
-  auto op_desc = std::make_shared<OpDesc>(name, CONSTANTOP);
-  (void)op_desc->AddOutputDesc(tensor_desc);
-  op_desc->SetOutputOffset({2048});
-  if (!weight_values.empty()) {
-    auto weight_tensor = std::make_shared<GeTensor>();
-    weight_tensor->SetData(reinterpret_cast<const uint8_t *>(weight_values.data()),
-                           weight_values.size() * sizeof(float));
-    weight_tensor->MutableTensorDesc() = tensor_desc;
-    (void)AttrUtils::SetTensor(*op_desc, ATTR_NAME_WEIGHTS, weight_tensor);
-  }
-  auto node = graph->AddNode(op_desc);
-  ASSERT_NE(node, nullptr);
-}
-
-static void AddConstPlaceHolderNodeToGraph(const ComputeGraphPtr &graph, const std::string &name,
-                                           const GeTensorDesc &tensor_desc, int64_t device_addr) {
-  auto op_desc = std::make_shared<OpDesc>(name, CONSTPLACEHOLDER);
-  (void)op_desc->AddOutputDesc(tensor_desc);
-  op_desc->SetOutputOffset({3072});
-  (void)AttrUtils::SetListInt(op_desc, "storage_shape", tensor_desc.GetShape().GetDims());
-  (void)AttrUtils::SetDataType(op_desc, "dtype", tensor_desc.GetDataType());
-  (void)AttrUtils::SetInt(op_desc, "size", 16L);
-  (void)AttrUtils::SetInt(op_desc, "placement", static_cast<int64_t>(Placement::kPlacementDevice));
-  (void)AttrUtils::SetInt(op_desc, "addr", device_addr);
-  auto node = graph->AddNode(op_desc);
-  ASSERT_NE(node, nullptr);
-}
-
 /**
  * 用例描述：测试包含Variable节点的模型通过OM2编译流程，验证变量资源正确构建和序列化
  * 预置条件：
@@ -3525,72 +3710,38 @@ static void AddConstPlaceHolderNodeToGraph(const ComputeGraphPtr &graph, const s
  *   3. 解析输出OM2文件
  * 预期结果：
  *   1. OM2文件生成成功
- *   2. 包含data/variables/var_resource.json
- *   3. 包含data/variables/model_0_variables_config.json
- *   4. var_resource.json中包含Variable节点的条目
+ *   2. 包含data/model_0/variables_config.json
+ *   3. variables_config.json的entries中包含Variable节点的条目（合并自var_resource.json）
+ *   4.
  *   5. variables_config.json中包含var_metas信息
  */
 TEST_F(Om2VarSt, GenOm2WithVariableNodes_VarResourceSerialized) {
-  constexpr uint64_t kSessionId = 100U;
-  GetContext().SetSessionId(kSessionId);
-  auto var_manager = VarManager::Instance(kSessionId);
-  ASSERT_NE(var_manager, nullptr);
-  ASSERT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
-
-  auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto &compute_graph = ge_root_model->GetRootGraph();
-
-  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_ND, DT_FLOAT);
-  TensorUtils::SetSize(tensor_desc, 16L);
-
-  std::vector<float> init_values(4, 2.0f);
-  AddVariableNodeToGraph(compute_graph, "test_var", tensor_desc, init_values);
-  ASSERT_EQ(var_manager->SetVarAddr("test_var", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
-
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "var_test.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  // Suite 预构建已完成 VarManager 注册 + 打包，此处验证 variables_config.json 序列化内容
+  const auto &output_file = SuiteOm2File("var_test");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
   const auto file_names = archive.ListFiles();
-  bool found_var_resource = false;
   bool found_var_config = false;
   for (const auto &f : file_names) {
-    if (f.find("data/variables/var_resource.json") != std::string::npos) {
-      found_var_resource = true;
-    }
-    if (f.find("data/variables/model_0_variables_config.json") != std::string::npos) {
+    if (f.find("data/model_0/variables_config.json") != std::string::npos) {
       found_var_config = true;
     }
   }
-  EXPECT_TRUE(found_var_resource) << "var_resource.json not found in OM2 archive";
   EXPECT_TRUE(found_var_config) << "variables_config.json not found in OM2 archive";
-
-  if (found_var_resource) {
-    size_t var_resource_size = 0;
-    const auto var_resource_buf = archive.ExtractToMem("var_test/data/variables/var_resource.json", var_resource_size);
-    ASSERT_NE(var_resource_buf, nullptr);
-    JsonFile var_resource_json(reinterpret_cast<const uint8_t *>(var_resource_buf.get()), var_resource_size);
-    ASSERT_TRUE(var_resource_json.IsValid());
-    ASSERT_TRUE(var_resource_json.Raw().contains("entries"));
-    const auto &entries = var_resource_json.Raw().at("entries");
-    EXPECT_FALSE(entries.empty()) << "var_resource entries should not be empty";
-  }
 
   if (found_var_config) {
     size_t var_config_size = 0;
-    const auto var_config_buf =
-        archive.ExtractToMem("var_test/data/variables/model_0_variables_config.json", var_config_size);
+    const auto var_config_buf = archive.ExtractToMem("var_test/data/model_0/variables_config.json", var_config_size);
     ASSERT_NE(var_config_buf, nullptr);
     JsonFile var_config_json(reinterpret_cast<const uint8_t *>(var_config_buf.get()), var_config_size);
     ASSERT_TRUE(var_config_json.IsValid());
+    ASSERT_TRUE(var_config_json.Raw().contains("entries"));
+    const auto &entries = var_config_json.Raw().at("entries");
+    EXPECT_FALSE(entries.empty()) << "var_resource entries should not be empty";
     ASSERT_TRUE(var_config_json.Raw().contains("var_metas"));
     const auto &var_metas = var_config_json.Raw().at("var_metas");
     EXPECT_FALSE(var_metas.empty()) << "var_metas should not be empty";
@@ -3613,46 +3764,26 @@ TEST_F(Om2VarSt, GenOm2WithVariableNodes_VarResourceSerialized) {
  * 测试步骤：
  *   1. 构造带ConstantOp节点的GeRootModel
  *   2. 调用SaveToOmRootModel
- *   3. 解析输出OM2文件中的var_resource.json
+ *   3. 解析输出OM2文件中的variables_config.json
  * 预期结果：
  *   1. OM2文件生成成功
- *   2. var_resource.json中包含ConstantOp节点的条目
+ *   2. variables_config.json的entries中包含ConstantOp节点的条目
  *   3. 条目的init_data_size大于0（权重数据被序列化）
  */
 TEST_F(Om2VarSt, GenOm2WithConstantOpNodes_InitDataSerialized) {
-  constexpr uint64_t kSessionId = 101U;
-  GetContext().SetSessionId(kSessionId);
-  auto var_manager = VarManager::Instance(kSessionId);
-  ASSERT_NE(var_manager, nullptr);
-  ASSERT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
-
-  auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto &compute_graph = ge_root_model->GetRootGraph();
-
-  GeTensorDesc tensor_desc(GeShape({2}), FORMAT_ND, DT_FLOAT);
-  TensorUtils::SetSize(tensor_desc, 8L);
-
-  std::vector<float> weight_values(2, 3.0f);
-  AddConstantOpNodeToGraph(compute_graph, "test_const", tensor_desc, weight_values);
-  ASSERT_EQ(var_manager->SetVarAddr("test_const", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
-
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "const_test.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  const auto &output_file = SuiteOm2File("const_test");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
-  size_t var_resource_size = 0;
-  const auto var_resource_buf = archive.ExtractToMem("const_test/data/variables/var_resource.json", var_resource_size);
-  if (var_resource_buf != nullptr) {
-    JsonFile var_resource_json(reinterpret_cast<const uint8_t *>(var_resource_buf.get()), var_resource_size);
-    ASSERT_TRUE(var_resource_json.IsValid());
-    const auto &entries = var_resource_json.Raw().at("entries");
+  size_t var_config_size = 0;
+  const auto var_config_buf = archive.ExtractToMem("const_test/data/model_0/variables_config.json", var_config_size);
+  if (var_config_buf != nullptr) {
+    JsonFile var_config_json(reinterpret_cast<const uint8_t *>(var_config_buf.get()), var_config_size);
+    ASSERT_TRUE(var_config_json.IsValid());
+    const auto &entries = var_config_json.Raw().at("entries");
     bool found_const_entry = false;
     for (const auto &[key, entry] : entries.items()) {
       if (entry.contains("var_name") && entry.at("var_name") == "test_const") {
@@ -3661,7 +3792,7 @@ TEST_F(Om2VarSt, GenOm2WithConstantOpNodes_InitDataSerialized) {
         EXPECT_GT(entry.at("init_data_size").get<size_t>(), 0U) << "ConstantOp init_data should be serialized";
       }
     }
-    EXPECT_TRUE(found_const_entry) << "test_const entry not found in var_resource.json";
+    EXPECT_TRUE(found_const_entry) << "test_const entry not found in variables_config.json";
   }
 }
 
@@ -3673,47 +3804,27 @@ TEST_F(Om2VarSt, GenOm2WithConstantOpNodes_InitDataSerialized) {
  * 测试步骤：
  *   1. 构造带ConstPlaceHolder节点的GeRootModel
  *   2. 调用SaveToOmRootModel
- *   3. 解析输出OM2文件中的var_resource.json
+ *   3. 解析输出OM2文件中的variables_config.json
  * 预期结果：
  *   1. OM2文件生成成功
- *   2. var_resource.json中包含ConstPlaceHolder节点的条目
+ *   2. variables_config.json的entries中包含ConstPlaceHolder节点的条目
  *   3. 条目的op_type为ConstPlaceHolder
  */
 TEST_F(Om2VarSt, GenOm2WithConstPlaceHolderNodes_ExternalAddrSerialized) {
-  constexpr uint64_t kSessionId = 102U;
-  constexpr int64_t kDeviceAddr = 0x2000L;
-  GetContext().SetSessionId(kSessionId);
-  auto var_manager = VarManager::Instance(kSessionId);
-  ASSERT_NE(var_manager, nullptr);
-  ASSERT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
-
-  auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto &compute_graph = ge_root_model->GetRootGraph();
-
-  GeTensorDesc tensor_desc(GeShape({1}), FORMAT_ND, DT_UINT8);
-  TensorUtils::SetSize(tensor_desc, 1L);
-
-  AddConstPlaceHolderNodeToGraph(compute_graph, "test_placeholder", tensor_desc, kDeviceAddr);
-  ASSERT_EQ(var_manager->SetVarAddr("test_placeholder", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
-
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "placeholder_test.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  const auto &output_file = SuiteOm2File("placeholder_test");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
-  size_t var_resource_size = 0;
-  const auto var_resource_buf =
-      archive.ExtractToMem("placeholder_test/data/variables/var_resource.json", var_resource_size);
-  if (var_resource_buf != nullptr) {
-    JsonFile var_resource_json(reinterpret_cast<const uint8_t *>(var_resource_buf.get()), var_resource_size);
-    ASSERT_TRUE(var_resource_json.IsValid());
-    const auto &entries = var_resource_json.Raw().at("entries");
+  size_t var_config_size = 0;
+  const auto var_config_buf =
+      archive.ExtractToMem("placeholder_test/data/model_0/variables_config.json", var_config_size);
+  if (var_config_buf != nullptr) {
+    JsonFile var_config_json(reinterpret_cast<const uint8_t *>(var_config_buf.get()), var_config_size);
+    ASSERT_TRUE(var_config_json.IsValid());
+    const auto &entries = var_config_json.Raw().at("entries");
     bool found_placeholder = false;
     for (const auto &[key, entry] : entries.items()) {
       if (entry.contains("var_name") && entry.at("var_name") == "test_placeholder") {
@@ -3721,7 +3832,7 @@ TEST_F(Om2VarSt, GenOm2WithConstPlaceHolderNodes_ExternalAddrSerialized) {
         EXPECT_EQ(entry.at("op_type"), JsonFile::json("ConstPlaceHolder"));
       }
     }
-    EXPECT_TRUE(found_placeholder) << "test_placeholder entry not found in var_resource.json";
+    EXPECT_TRUE(found_placeholder) << "test_placeholder entry not found in variables_config.json";
   }
 }
 
@@ -3738,61 +3849,25 @@ TEST_F(Om2VarSt, GenOm2WithConstPlaceHolderNodes_ExternalAddrSerialized) {
  *   4. 解析输出OM2文件
  * 预期结果：
  *   1. OM2文件生成成功
- *   2. var_resource.json中包含所有变量节点的条目
+ *   2. variables_config.json的entries中包含所有变量节点的条目
  *   3. TransRoad信息被正确序列化
  *   4. var_weight_data文件存在（因为有init_data）
  */
 TEST_F(Om2VarSt, GenOm2WithMixedVarNodes_TransRoadAndCopyInfoSerialized) {
-  constexpr uint64_t kSessionId = 103U;
-  GetContext().SetSessionId(kSessionId);
-  auto var_manager = VarManager::Instance(kSessionId);
-  ASSERT_NE(var_manager, nullptr);
-  ASSERT_EQ(var_manager->Init(0U, kSessionId, 0U, 0U), SUCCESS);
-
-  auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  auto &compute_graph = ge_root_model->GetRootGraph();
-
-  GeTensorDesc tensor_desc(GeShape({4}), FORMAT_ND, DT_FLOAT);
-  TensorUtils::SetSize(tensor_desc, 16L);
-
-  std::vector<float> init_values(4, 1.0f);
-  AddVariableNodeToGraph(compute_graph, "mixed_var", tensor_desc, init_values);
-  ASSERT_EQ(var_manager->SetVarAddr("mixed_var", tensor_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
-
-  VarTransRoad road;
-  TransNodeInfo node_info;
-  node_info.node_type = "TransData";
-  node_info.input = GeTensorDesc(GeShape({4}), FORMAT_NCHW, DT_FLOAT);
-  node_info.output = GeTensorDesc(GeShape({4}), FORMAT_ND, DT_FLOAT);
-  road.push_back(node_info);
-  ASSERT_EQ(var_manager->SetTransRoad("mixed_var", road), SUCCESS);
-  ASSERT_EQ(var_manager->SetChangedGraphId("mixed_var", 42U), SUCCESS);
-  ASSERT_EQ(var_manager->SetAllocatedGraphId("mixed_var", 7U), SUCCESS);
-
-  GeTensorDesc const_desc(GeShape({2}), FORMAT_ND, DT_FLOAT);
-  TensorUtils::SetSize(const_desc, 8L);
-  std::vector<float> weight_values(2, 5.0f);
-  AddConstantOpNodeToGraph(compute_graph, "mixed_const", const_desc, weight_values);
-  ASSERT_EQ(var_manager->SetVarAddr("mixed_const", const_desc, nullptr, RT_MEMORY_HBM, nullptr), SUCCESS);
-
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "mixed_var_test.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  const auto &output_file = SuiteOm2File("mixed_var_test");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
-  size_t var_resource_size = 0;
-  const auto var_resource_buf =
-      archive.ExtractToMem("mixed_var_test/data/variables/var_resource.json", var_resource_size);
-  if (var_resource_buf != nullptr) {
-    JsonFile var_resource_json(reinterpret_cast<const uint8_t *>(var_resource_buf.get()), var_resource_size);
-    ASSERT_TRUE(var_resource_json.IsValid());
-    const auto &entries = var_resource_json.Raw().at("entries");
+  size_t var_config_size = 0;
+  const auto var_config_buf =
+      archive.ExtractToMem("mixed_var_test/data/model_0/variables_config.json", var_config_size);
+  if (var_config_buf != nullptr) {
+    JsonFile var_config_json(reinterpret_cast<const uint8_t *>(var_config_buf.get()), var_config_size);
+    ASSERT_TRUE(var_config_json.IsValid());
+    const auto &entries = var_config_json.Raw().at("entries");
     bool found_var = false;
     bool found_const = false;
     for (const auto &[key, entry] : entries.items()) {
@@ -3818,7 +3893,7 @@ TEST_F(Om2VarSt, GenOm2WithMixedVarNodes_TransRoadAndCopyInfoSerialized) {
 
   bool found_var_weight = false;
   for (const auto &f : archive.ListFiles()) {
-    if (f.find("data/variables/var_weight_data") != std::string::npos) {
+    if (f.find("data/model_0/var_weight_data") != std::string::npos) {
       found_var_weight = true;
     }
   }
@@ -3834,28 +3909,21 @@ TEST_F(Om2VarSt, GenOm2WithMixedVarNodes_TransRoadAndCopyInfoSerialized) {
  *   2. 解析输出OM2文件
  * 预期结果：
  *   1. OM2文件生成成功
- *   2. 不包含data/variables/var_resource.json
+ *   2. 不包含variables_config.json与var_weight_data文件
  */
 TEST_F(Om2VarSt, GenOm2WithoutVarNodes_NoVarResourceFiles) {
-  constexpr uint64_t kSessionId = 104U;
-  GetContext().SetSessionId(kSessionId);
-
-  auto ge_root_model = CreateGeRootModelWithAicoreOp();
-  ASSERT_NE(ge_root_model, nullptr);
-
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, "no_var_test.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(Om2PackageHelper().SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  const auto &output_file = SuiteOm2File("no_var_test");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
 
   for (const auto &f : archive.ListFiles()) {
-    EXPECT_EQ(f.find("data/variables/"), std::string::npos)
-        << "Unexpected variable file in model without variables: " << f;
+    EXPECT_EQ(f.find("variables_config.json"), std::string::npos)
+        << "Unexpected variables_config.json in model without variables: " << f;
+    EXPECT_EQ(f.find("var_weight_data"), std::string::npos)
+        << "Unexpected var_weight_data in model without variables: " << f;
   }
 }
 
@@ -3877,25 +3945,15 @@ TEST_F(Om2VarSt, GenOm2WithoutVarNodes_NoVarResourceFiles) {
  * 2. OM2 包中包含 custom_op 的序列化 kernel bin 文件
  */
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustomOp) {
-  const AscendString kOpType("TestPortableOp");
-  CustomOpFactory::RegisterCustomOpCreator(
-      kOpType, []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestPortableCustomOp>(); });
-
-  Om2PackageHelper om2_packager;
-  const auto ge_root_model = CreateGeRootModelWithCustomOp();
-  ASSERT_NE(ge_root_model, nullptr);
-  ModelBufferData model_data;
-  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_custom_op.om2"});
-  SyncKernelNameForAllModels(ge_root_model);
-  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
-  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+  // Suite 预构建时已注册 TestPortableOp 并完成打包（打包后立即注销），此处仅验证产物
+  const auto &output_file = SuiteOm2File("custom_op");
 
   uint32_t model_buf_size = 0;
   const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
   ASSERT_NE(model_buf, nullptr);
   ASSERT_GT(model_buf_size, 0U);
 
-  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
 
@@ -3907,8 +3965,6 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustomOp) {
     }
   }
   EXPECT_TRUE(has_custom_kernel_bin) << "OM2 archive should contain custom op kernel binary";
-
-  CustomOpFactory::RemoveCustomOps({kOpType});
 }
 
 TEST_F(Om2CallbackSt, KernelLaunchThroughExecutor) {

@@ -21,7 +21,7 @@
 #include "common/ge_common/ge_types.h"
 
 namespace gert {
-struct Om2ModelData;
+struct GertModelData;
 struct Om2ModelLoadArg;
 class Om2ModelExecutor;
 class Tensor;
@@ -32,7 +32,7 @@ class Om2ModelManager {
  public:
   static Om2ModelManager &GetInstance();
 
-  ge::Status LoadModel(uint32_t model_id, const gert::Om2ModelData &model_data, const gert::Om2ModelLoadArg &load_arg,
+  ge::Status LoadModel(uint32_t model_id, const gert::GertModelData &model_data, const gert::Om2ModelLoadArg &load_arg,
                        uint64_t session_id);
 
   ge::Status RunModel(const uint32_t model_id, void *const stream, std::vector<gert::Tensor *> &inputs,

@@ -9,6 +9,7 @@
  */
 
 #include "om2_code_printer.h"
+#include "framework/common/gert_model_data_utils.h"
 
 namespace ge {
 
@@ -30,13 +31,18 @@ void Om2CodePrinter::InitDefaultFileInfo(const std::string &model_name) {
   SetFileInfo(GeneratedFileIndex::kCMakeListsFile, "Makefile");
 }
 
-void Om2CodePrinter::GetOutputFiles(Om2CodegenArtifacts &artifacts) const {
+void Om2CodePrinter::GetOutputFiles(gert::GertModelDataProgramBodies &artifacts) const {
   artifacts.clear();
   for (const auto &generated_file_info : output_) {
     if (generated_file_info.file_name.empty()) {
       continue;
     }
-    artifacts.push_back({generated_file_info.file_name, generated_file_info.content.str()});
+    gert::GertModelDataProgramBody artifact;
+    artifact.file_name = gert::GertMakeStr(generated_file_info.file_name);
+    const auto content_str = generated_file_info.content.str();
+    artifact.data = gert::GertMakeStr(content_str);
+    artifact.data_len = content_str.size();
+    artifacts.push_back(std::move(artifact));
   }
 }
 }  // namespace ge

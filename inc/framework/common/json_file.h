@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef BASE_COMMON_HELPER_JSON_FILE_H
-#define BASE_COMMON_HELPER_JSON_FILE_H
+#ifndef INC_FRAMEWORK_COMMON_JSON_FILE_H_
+#define INC_FRAMEWORK_COMMON_JSON_FILE_H_
 
 #include "nlohmann/json.hpp"
 #include <cstdint>
@@ -129,4 +129,4 @@ class JsonFile {
   bool valid_;
 };
 }  // namespace ge
-#endif  // BASE_COMMON_HELPER_JSON_FILE_H
+#endif  // INC_FRAMEWORK_COMMON_JSON_FILE_H_

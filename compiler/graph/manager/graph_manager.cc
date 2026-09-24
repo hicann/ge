@@ -142,9 +142,7 @@
 #include "acl/acl_rt.h"
 #include "graph/preprocess/hccl_offline_option_builder.h"
 #include "runtime/custom_op/custom_op_loader.h"
-#include "common/om2/om2_model_data.h"
-#include "common/helper/om2/om2_zip_saver.h"
-#include "common/om2/rt_var_resource.h"
+#include "framework/common/gert_model_data_serialize.h"
 #include "framework/common/helper/om2_package_helper.h"
 #include "platform/platform_info.h"
 
@@ -484,11 +482,13 @@ ge::Status BuildOm2PackageIfNeeded(const GraphNodePtr &graph_node, const GeRootM
   }
   GeModelPtr ge_model = it->second;
 
-  auto model_data = std::make_shared<gert::Om2ModelData>();
+  auto model_data = std::make_shared<gert::GertModelData>();
   Om2PackageHelper package_helper;
   GE_ASSERT_SUCCESS(package_helper.BuildOm2ModelData(ge_model, *model_data, ge_root_model));
   GELOGI("[OM2] BuildOm2PackageIfNeeded entries=%zu",
-         (model_data->rt_var_resource != nullptr) ? model_data->rt_var_resource->GetAllEntries().size() : 0U);
+         ((!model_data->models.empty()) && (model_data->models[0]->variables_config != nullptr))
+             ? model_data->models[0]->variables_config->entries.size()
+             : 0U);
   ge_root_model->SetOm2ModelData(std::move(model_data));
 
   GELOGI("OM2 model data built successfully for graph %u", graph_node->GetGraphId());
@@ -2945,13 +2945,15 @@ Status GraphManager::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_
   const auto ge_root_model = graph_node->GetGeRootModel();
   GE_CHECK_NOTNULL(ge_root_model, "graph_id:%u", graph_id);
 
-  // OM2 mode: serialize Om2ModelData to ModelBufferData
+  // OM2 mode: serialize GertModelData to ModelBufferData
   if (IsOm2OnlineMode()) {
     const auto &om2_model_data = ge_root_model->GetOm2ModelData();
-    GE_ASSERT_NOTNULL(om2_model_data, "[OM2] Missing Om2ModelData in OM2 online mode.");
+    GE_ASSERT_NOTNULL(om2_model_data, "[OM2] Missing GertModelData in OM2 online mode.");
     GELOGI("[OM2] SaveModel online entries=%zu",
-           (om2_model_data->rt_var_resource != nullptr) ? om2_model_data->rt_var_resource->GetAllEntries().size() : 0U);
-    return ge::Om2ZipSaver::Save(*om2_model_data, model_buffer, false);
+           ((!om2_model_data->models.empty()) && (om2_model_data->models[0]->variables_config != nullptr))
+               ? om2_model_data->models[0]->variables_config->entries.size()
+               : 0U);
+    return gert::SerializeGertModelData(*om2_model_data, model_buffer, false);
   }
 
   return SaveRootModel(ge_root_model, model_buffer);

@@ -12,8 +12,10 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include "api/aclgrph/option_utils.h"
-#include "common/helper/om2/json_file.h"
-#include "common/helper/om2/zip_archive_writer.h"
+#include "framework/common/json_file.h"
+#include "framework/common/zip_archive_reader.h"
+#include "framework/common/zip_archive_writer.h"
+#include "framework/om2/model_data/gert_model_data.h"
 #include "graph/testcase/ge_graph/graph_builder_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
@@ -1826,9 +1828,9 @@ TEST(UtestIrBuild, aclgrphSaveModelOm2ExternalWeightRelocateTest) {
     weight_file << "external-weight";
   }
 
-  ModelBufferData model;
+  gert::GertBuffer om2_buf;
   {
-    ZipArchiveWriter zip_writer(work_dir + "/build_model.om2");
+    gert::ZipArchiveWriter zip_writer(work_dir + "/build_model.om2");
     ASSERT_TRUE(zip_writer.IsMemFileOpened());
     JsonFile::json consts = JsonFile::json::object();
     JsonFile file_const;
@@ -1846,9 +1848,12 @@ TEST(UtestIrBuild, aclgrphSaveModelOm2ExternalWeightRelocateTest) {
                                       constants_config_str.size(), false));
     const std::string manifest = R"({"archive_version":"1.0","model_num":1})";
     ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
-    ASSERT_TRUE(zip_writer.SaveModelData(model, false));
+    ASSERT_TRUE(zip_writer.SaveModelData(om2_buf, false));
   }
 
+  ModelBufferData model;
+  model.data = om2_buf.data;
+  model.length = om2_buf.length;
   EXPECT_EQ(ge::aclgrphSaveModel(output_file, model), SUCCESS);
   EXPECT_EQ(mmAccess2((output_file + ".om2").c_str(), M_F_OK), EN_OK);
   EXPECT_EQ(mmAccess2(new_weight_path.c_str(), M_F_OK), EN_OK);
@@ -1856,7 +1861,7 @@ TEST(UtestIrBuild, aclgrphSaveModelOm2ExternalWeightRelocateTest) {
 
   const auto saved_model = ReadFileToVector(output_file + ".om2");
   ASSERT_FALSE(saved_model.empty());
-  SimpleZipArchiveReader archive(saved_model.data(), saved_model.size());
+  gert::ZipArchiveReader archive(saved_model.data(), saved_model.size());
   ASSERT_TRUE(archive.IsGood());
   size_t config_size = 0U;
   const auto config_buf = archive.ExtractToMem("saved_model/data/model_0/model_0_constants_config.json", config_size);
