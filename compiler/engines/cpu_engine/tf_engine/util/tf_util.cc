@@ -385,7 +385,7 @@ ge::Status ParseNodeDefAndFuncDef(const ge::Node &node, ge::Buffer &node_def_byt
   AICPU_CHECK_NOTNULL(op_desc)
   // calculate node def size
   if (!ge::AttrUtils::GetBytes(op_desc, kTfNodeDef, node_def_bytes)) {
-    AICPUE_LOGI("Node def attr not exist in ge op[%s], op type[%s].", node_name.c_str(), node.GetType().c_str());
+    AICPUE_LOGI("Node def attr does not exist in ge op[%s], op type[%s].", node_name.c_str(), node.GetType().c_str());
     AICPU_CHECK_RES_WITH_LOG(CreateNodeDef(node), "Call TfKernelBuilder::CreateNodeDef function failed, op[%s].",
                              node.GetName().c_str())
     CHECK_RES_BOOL(ge::AttrUtils::GetBytes(op_desc, kTfNodeDef, node_def_bytes), ErrorCode::NODE_DEF_NOT_EXIST,

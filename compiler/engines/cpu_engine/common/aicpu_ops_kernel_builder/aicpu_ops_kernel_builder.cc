@@ -41,7 +41,7 @@ Status AicpuOpsKernelBuilder::Initialize(const map<string, string> &options) {
   string kernel_builder_str;
   string kernel_builder_config = Stringcat(engine_name_, "KernelBuilder");
   if (!ConfigFile::GetInstance().GetValue(kernel_builder_config, kernel_builder_str)) {
-    AICPU_REPORT_INNER_ERR_MSG("[%s] not exist.", kernel_builder_config.c_str());
+    AICPU_REPORT_INNER_ERR_MSG("[%s] does not exist.", kernel_builder_config.c_str());
     return LOAD_KERNEL_BUILDER_FAILED;
   }
 

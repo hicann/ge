@@ -50,7 +50,7 @@ Status AicpuOpsKernelInfoStore::Initialize(const map<string, string> &options) {
   string kernel_libs;
   string ops_kernel_config = Stringcat(engine_name_, "OpsKernel");
   if (!ConfigFile::GetInstance().GetValue(ops_kernel_config, kernel_libs)) {
-    AICPU_REPORT_INNER_ERR_MSG("[%s] not exist.", ops_kernel_config.c_str());
+    AICPU_REPORT_INNER_ERR_MSG("[%s] does not exist.", ops_kernel_config.c_str());
     return LOAD_PRIORITY_ITEM_FAILED;
   }
 

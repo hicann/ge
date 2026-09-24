@@ -65,7 +65,7 @@ ge::Status AicpuGraphOptimizer::Initialize(const map<string, string> &options,
   std::string optimizers_str;
   std::string optimizers_config = Stringcat(engine_name_, "GraphOptimizer");
   AICPU_IF_BOOL_EXEC(!ConfigFile::GetInstance().GetValue(optimizers_config, optimizers_str),
-                     AICPU_REPORT_INNER_ERR_MSG("[%s] not exist.", optimizers_config.c_str());
+                     AICPU_REPORT_INNER_ERR_MSG("[%s] does not exist.", optimizers_config.c_str());
                      return LOAD_OPTIMIZER_CONFIG_FAILED)
   vector<string> optimizers;
   ConfigFile::GetInstance().SplitValue(optimizers_str, optimizers);
@@ -487,7 +487,7 @@ void AicpuGraphOptimizer::SetAicpuAsyncOpTimeout(const ge::OpDescPtr &op_desc_pt
   auto op_iter = async_ops_timeout.find(op_type);
   if (op_iter != async_ops_timeout.end()) {
     (void)ge::AttrUtils::SetInt(op_desc_ptr, ATTR_NAME_BLOCKING_OP_TIMEOUT, op_iter->second);
-    AICPUE_LOGI("Set op:%s timeout:%ld", op_type.c_str(), op_iter->second);
+    AICPUE_LOGI("Set op:%s timeout:%ld(ms)", op_type.c_str(), op_iter->second);
   }
 }
 

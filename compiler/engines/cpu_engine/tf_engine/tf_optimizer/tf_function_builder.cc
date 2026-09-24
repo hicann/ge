@@ -431,7 +431,7 @@ ge::Status TfFunctionBuilder::ComputeArgRange(const NodeDef &node_def, const OpD
   if (!arg_def.number_attr().empty()) {
     domi::tensorflow::AttrValue attr_value;
     if (!TensorFlowUtil::FindAttrValue(&node_def, arg_def.number_attr(), attr_value)) {
-      AICPU_REPORT_INNER_ERR_MSG("Attr[%s] not exist in node def, op[%s].", arg_def.number_attr().c_str(),
+      AICPU_REPORT_INNER_ERR_MSG("Attr[%s] does not exist in node def, op[%s].", arg_def.number_attr().c_str(),
                                  node_def.name().c_str());
       return ErrorCode::GET_ATTR_FAILED;
     }
@@ -439,7 +439,7 @@ ge::Status TfFunctionBuilder::ComputeArgRange(const NodeDef &node_def, const OpD
   } else if (!arg_def.type_list_attr().empty()) {
     domi::tensorflow::AttrValue attr_value;
     if (!TensorFlowUtil::FindAttrValue(&node_def, arg_def.type_list_attr(), attr_value)) {
-      AICPU_REPORT_INNER_ERR_MSG("Attr[%s] not exist in node def, op[%s].", arg_def.type_list_attr().c_str(),
+      AICPU_REPORT_INNER_ERR_MSG("Attr[%s] does not exist in node def, op[%s].", arg_def.type_list_attr().c_str(),
                                  node_def.name().c_str());
       return ErrorCode::GET_ATTR_FAILED;
     }
@@ -447,7 +447,7 @@ ge::Status TfFunctionBuilder::ComputeArgRange(const NodeDef &node_def, const OpD
   } else if ((!arg_def.type_attr().empty()) || (arg_def.type() != TFDataType::DT_INVALID)) {
     *num = 1;
   } else {
-    AICPU_REPORT_INNER_ERR_MSG("Attr[%s] not exist in node def, op[%s].", arg_def.type_list_attr().c_str(),
+    AICPU_REPORT_INNER_ERR_MSG("Attr[%s] does not exist in node def, op[%s].", arg_def.type_list_attr().c_str(),
                                node_def.name().c_str());
     return ErrorCode::PARSE_NODE_DEF_FAILED;
   }
@@ -461,7 +461,7 @@ ge::Status TfFunctionBuilder::RemapFunctionDef(FunctionDef *func_def, const std:
   for (int index = 0; index < func_def->signature().input_arg_size(); ++index) {
     const std::string &input_name = func_def->signature().input_arg(index).name();
     if (input_name.empty()) {
-      AICPU_REPORT_INNER_ERR_MSG("%dth input name is empty in func_def[%s].", index,
+      AICPU_REPORT_INNER_ERR_MSG("The name of input with index[%d] is empty in func_def[%s].", index,
                                  func_def->signature().name().c_str());
       return ErrorCode::REMAP_FUNCTIONDEF_FAILED;
     }
