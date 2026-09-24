@@ -92,6 +92,7 @@ function check_slow_tests() {
     fi
 
     declare -A modified_tests
+    declare -A test_limits
     for file in "${!file_ranges[@]}"; do
         local ranges="${file_ranges[$file]}"
         local test_names
@@ -112,10 +113,17 @@ function check_slow_tests() {
                     test_case = arr[2]
                     test_start = NR
                     brace_count = 0
+                    limit_val = ""
                     in_test = 1
                 }
             }
             in_test {
+                if (limit_val == "" && ($0 ~ /\/\// || $0 ~ /\*/) &&
+                    match($0, /slow_test_limit[[:space:]]*=[[:space:]]*[0-9]+/, larr)) {
+                    lv = larr[0]
+                    gsub(/[^0-9]/, "", lv)
+                    limit_val = lv
+                }
                 for (i = 1; i <= length($0); i++) {
                     c = substr($0, i, 1)
                     if (c == "{") brace_count++
@@ -125,7 +133,7 @@ function check_slow_tests() {
                             test_end = NR
                             for (r = 1; r <= num_ranges; r++) {
                                 if (range_start[r] <= test_end && range_end[r] >= test_start) {
-                                    print test_suite "." test_case
+                                    print test_suite "." test_case " " limit_val
                                     break
                                 }
                             }
@@ -138,8 +146,11 @@ function check_slow_tests() {
         ' "$file" 2>/dev/null) || true
 
         if [ -n "$test_names" ]; then
-            while IFS= read -r name; do
-                [ -n "$name" ] && modified_tests["$name"]=1
+            while read -r name limit; do
+                if [ -n "$name" ]; then
+                    modified_tests["$name"]=1
+                    [ -n "$limit" ] && test_limits["$name"]="$limit"
+                fi
             done <<< "$test_names"
         fi
     done
@@ -150,22 +161,6 @@ function check_slow_tests() {
     fi
 
     echo "[check_slow_tests] Found ${#modified_tests[@]} modified TEST_F cases"
-
-    declare -A whitelist_limits
-    local whitelist_file="${repo_dir}/.gitcode/scripts/slow_test_whitelist.txt"
-    if [ -f "$whitelist_file" ]; then
-        while IFS= read -r line; do
-            line=$(echo "$line" | sed 's/#.*//' | xargs)
-            [ -z "$line" ] && continue
-            local wl_name wl_limit
-            wl_name=$(echo "$line" | awk '{print $1}')
-            wl_limit=$(echo "$line" | awk '{print $2}')
-            if [ -n "$wl_name" ] && [ -n "$wl_limit" ]; then
-                whitelist_limits["$wl_name"]="$wl_limit"
-            fi
-        done < "$whitelist_file"
-        echo "[check_slow_tests] Loaded whitelist: ${#whitelist_limits[@]} entries"
-    fi
 
     declare -A test_times
     while IFS= read -r line; do
@@ -196,18 +191,18 @@ function check_slow_tests() {
 
         if [ -n "$time_ms" ]; then
             local effective_limit="$threshold_ms"
-            local in_whitelist=0
-            if [ -n "${whitelist_limits[$test_name]}" ]; then
-                effective_limit="${whitelist_limits[$test_name]}"
-                in_whitelist=1
+            local relaxed=0
+            if [ -n "${test_limits[$test_name]}" ]; then
+                effective_limit="${test_limits[$test_name]}"
+                relaxed=1
             fi
 
             if [ "$time_ms" -gt "$effective_limit" ]; then
                 printf "%-60s %10s %12s\n" "$test_name" "$time_ms" "FAIL"
                 found_slow=1
             else
-                if [ "$in_whitelist" -eq 1 ]; then
-                    printf "%-60s %10s %12s\n" "$test_name" "$time_ms" "PASS(WL)"
+                if [ "$relaxed" -eq 1 ]; then
+                    printf "%-60s %10s %12s\n" "$test_name" "$time_ms" "PASS(RL)"
                 else
                     printf "%-60s %10s %12s\n" "$test_name" "$time_ms" "PASS"
                 fi
