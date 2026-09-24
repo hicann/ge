@@ -422,8 +422,7 @@ class PythonFusionPassPybindBridge {
   }
 
   static void SetPatternFusionCallbacks(PythonFusionPassCallbacks &callbacks) {
-    callbacks.get_matcher_config = [](const void *holder,
-                                      std::unique_ptr<PatternMatcherConfig> &matcher_config) -> Status {
+    callbacks.get_matcher_config = [](const void *holder, void **matcher_config) -> Status {
       return PythonFusionPassPybindBridge::GetInstance().GetPatternMatcherConfig(
           static_cast<const PythonBridgeHolder *>(holder), matcher_config);
     };
@@ -476,12 +475,11 @@ class PythonFusionPassPybindBridge {
     return callbacks;
   }
 
-  Status GetPatternMatcherConfig(const PythonBridgeHolder *holder,
-                                 std::unique_ptr<PatternMatcherConfig> &matcher_config) {
-    matcher_config.reset();
-    if (holder == nullptr) {
+  Status GetPatternMatcherConfig(const PythonBridgeHolder *holder, void **matcher_config) {
+    if ((matcher_config == nullptr) || (holder == nullptr)) {
       return FAILED;
     }
+    *matcher_config = nullptr;
     const auto prepare_ret = EnsureBridgeReady();
     if (prepare_ret != SUCCESS) {
       GELOGE(prepare_ret, "Prepare python bridge failed for GetPatternMatcherConfig.");
@@ -494,13 +492,12 @@ class PythonFusionPassPybindBridge {
         return SUCCESS;
       }
       const auto config_handle = result.cast<uintptr_t>();
-      auto *config_ptr = reinterpret_cast<PatternMatcherConfig *>(config_handle);
-      if (config_ptr == nullptr) {
+      if (config_handle == 0U) {
         GELOGE(FAILED, "Python pattern fusion pass returned empty matcher config handle, instance id[%s].",
                holder->instance_id.c_str());
         return FAILED;
       }
-      matcher_config.reset(config_ptr);
+      *matcher_config = reinterpret_cast<void *>(config_handle);
       return SUCCESS;
     } catch (const py::error_already_set &err) {
       GELOGE(FAILED, "Get python pass matcher config failed, instance id[%s]: %s", holder->instance_id.c_str(),
