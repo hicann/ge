@@ -159,7 +159,7 @@ TEST_F(AutofuserUT, Symbolic_AllConstDimValue_AllConstSymbol) {
   EXPECT_EQ(std::string(input_symbol_shape1.GetDim(2).Serialize().get()), "s5");
 }
 
-TEST_F(AutofuserUT, Symbolic_DynamicShapeTest_InputIsEmpty_Fail) {
+TEST_F(AutofuserUT, Symbolic_DynamicShapeTest_InputIsEmpty_Unsupported) {
   const auto graph = cg::BuildAddGraph({-1, -1, -1}, {1, -1, 3});
   ASSERT_NE(graph, nullptr);
 
@@ -169,7 +169,8 @@ TEST_F(AutofuserUT, Symbolic_DynamicShapeTest_InputIsEmpty_Fail) {
   td.SetOriginShape((GeShape()));
   inputs.emplace_back(td);
   inputs.emplace_back(td);
-  ASSERT_NE(SymbolicShapeSymbolizer::Symbolize(graph, inputs), SUCCESS);  // test input not match
+  // 输入形态与声明不一致(rank 不一致)属于"不支持符号化"：应降级跳过而非打挂整个符号化
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(graph, inputs), SUCCESS);
 }
 
 TEST_F(AutofuserUT, PreProcess_Success) {

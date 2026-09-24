@@ -104,49 +104,71 @@ graphStatus NormalizeInput(gert::InferSymbolComputeContext *context, const std::
       batch_dims, axis, context->GetNodeName(), context->GetNodeType());
   return GRAPH_SUCCESS;
 }
+// 计算dims半开区间[begin, end)的乘积，含0维(空tensor，合法图)或溢出时返回false由调用方降级
+bool MulDimsSafely(const std::vector<int64_t> &dims, const int64_t begin, const int64_t end, int64_t &product) {
+  product = 1L;
+  for (int64_t i = begin; i < end; i++) {
+    const int64_t dim = dims[static_cast<size_t>(i)];
+    if (dim == 0L || product > INT64_MAX / dim) {
+      return false;
+    }
+    product *= dim;
+  }
+  return true;
+}
+
+// 负索引按Gather语义从轴末尾计数（[-dim, dim)）归一化；INT64_MIN与dim相加会溢出，
+// 与越界索引同为非法输入，断言硬报错经调用方原样透传打挂推导
+graphStatus NormalizeGatherIndex(const int64_t raw_index, const int64_t axis_dim,
+                                 const gert::InferSymbolComputeContext *context, int64_t &normalized) {
+  GE_ASSERT_TRUE(raw_index != std::numeric_limits<int64_t>::min(),
+                 "SymbolicKernel compute failed, reason: indices index:%lld overflows, node %s[%s].", raw_index,
+                 context->GetNodeName(), context->GetNodeType());
+  normalized = raw_index < 0L ? raw_index + axis_dim : raw_index;
+  GE_ASSERT_TRUE(normalized >= 0L && normalized < axis_dim,
+                 "SymbolicKernel compute failed, reason: indices index:%lld should be in range [-%lld, %lld), "
+                 "node %s[%s].",
+                 raw_index, axis_dim, axis_dim, context->GetNodeName(), context->GetNodeType());
+  return GRAPH_SUCCESS;
+}
 
 graphStatus CalOutputSymbolValue(gert::InferSymbolComputeContext *context, const std::vector<int64_t> &param_dims,
                                  const std::vector<ge::Expression> &param_values,
                                  const std::vector<int64_t> &indice_values, const int64_t axis,
                                  const int64_t batch_dims, std::vector<ge::Expression> &output_values) {
-  int64_t outer_loop_num = 1L;
-  for (int64_t i = 0L; i < batch_dims; i++) {
-    outer_loop_num *= param_dims[static_cast<size_t>(i)];
+  // 空tensor(维为0，合法图)与溢出防护：除数来自输入dim，无防护会除零SIGFPE或迭代器越界。
+  // 整除性按 outer/block/axis 逐个判断，避免先构造 outer*block*axis 乘积(可溢出为0导致除零SIGFPE)
+  int64_t outer_loop_num = 0L;
+  int64_t block_size = 0L;
+  const int64_t axis_dim = param_dims[static_cast<size_t>(axis)];
+  if (!MulDimsSafely(param_dims, 0L, batch_dims, outer_loop_num) ||
+      !MulDimsSafely(param_dims, axis + 1L, static_cast<int64_t>(param_dims.size()), block_size) || axis_dim <= 0L) {
+    return UNSUPPORTED;
   }
-  int64_t block_size = 1L;
-  for (int64_t i = axis + 1L; i < static_cast<int64_t>(param_dims.size()); i++) {
-    block_size *= param_dims[static_cast<size_t>(i)];
+  const int64_t param_value_num = static_cast<int64_t>(param_values.size());
+  if (param_value_num % outer_loop_num != 0L || (param_value_num / outer_loop_num) % block_size != 0L ||
+      (param_value_num / outer_loop_num / block_size) % axis_dim != 0L ||
+      static_cast<int64_t>(indice_values.size()) % outer_loop_num != 0L) {
+    return UNSUPPORTED;
   }
   const int64_t indice_block_size = static_cast<int64_t>(indice_values.size()) / outer_loop_num;
-  const int64_t block_num =
-      static_cast<int64_t>(param_values.size()) / outer_loop_num / block_size / param_dims[static_cast<size_t>(axis)];
+  const int64_t block_num = static_cast<int64_t>(param_values.size()) / outer_loop_num / block_size / axis_dim;
   const int64_t outer_block_size = static_cast<int64_t>(param_values.size()) / outer_loop_num;
   GELOGD("param total size: %zu, indice total size:%zu, axis dim num: %lld, node %s[%s].", param_values.size(),
-         indice_values.size(), param_dims[static_cast<size_t>(axis)], context->GetNodeName(), context->GetNodeType());
+         indice_values.size(), axis_dim, context->GetNodeName(), context->GetNodeType());
   for (int64_t i = 0L; i < outer_loop_num; i++) {
     for (int64_t j = 0L; j < block_num; j++) {
       for (int64_t k = 0L; k < indice_block_size; k++) {
-        int64_t gather_index = indice_values[static_cast<size_t>(k + indice_block_size * i)];
-        const int64_t axis_dim = param_dims[static_cast<size_t>(axis)];
-        // 负索引按 Gather 语义从轴末尾计数（[-dim, dim)），归一化后再做边界检查，
-        // 避免迭代器负偏移越界解引用导致进程崩溃；INT64_MIN 与 dim 相加会溢出，直接拒绝
-        if (gather_index < 0L) {
-          GE_ASSERT_TRUE(gather_index != std::numeric_limits<int64_t>::min(),
-                         "SymbolicKernel compute failed, reason: indices index:%lld overflows, node %s[%s].",
-                         gather_index, context->GetNodeName(), context->GetNodeType());
-          gather_index += axis_dim;
+        int64_t gather_index = 0L;
+        const auto index_ret = NormalizeGatherIndex(indice_values[static_cast<size_t>(k + indice_block_size * i)],
+                                                    axis_dim, context, gather_index);
+        if (index_ret != GRAPH_SUCCESS) {
+          return index_ret;
         }
-        GE_ASSERT_TRUE((gather_index >= 0L) && (gather_index < axis_dim),
-                       "SymbolicKernel compute failed, reason: indices index:%lld should be in range [-%lld, %lld), "
-                       "node %s[%s].",
-                       indice_values[static_cast<size_t>(k + indice_block_size * i)], axis_dim, axis_dim,
-                       context->GetNodeName(), context->GetNodeType());
         const auto start_iter =
-            param_values.begin() +
-            (i * outer_block_size + (j * param_dims[static_cast<size_t>(axis)] + gather_index) * block_size);
+            param_values.begin() + (i * outer_block_size + (j * axis_dim + gather_index) * block_size);
         const auto end_iter =
-            param_values.begin() +
-            (i * outer_block_size + (j * param_dims[static_cast<size_t>(axis)] + gather_index + 1L) * block_size);
+            param_values.begin() + (i * outer_block_size + (j * axis_dim + gather_index + 1L) * block_size);
         output_values.insert(output_values.end(), start_iter, end_iter);
       }
     }
@@ -203,8 +225,13 @@ graphStatus GatherCompute(gert::InferSymbolComputeContext *context, int64_t axis
                                          symbolic_tensor->MutableOriginSymbolShape()));
   auto output_symbol_values = symbolic_tensor->MutableSymbolicValue();
   GE_ASSERT_NOTNULL(output_symbol_values);
-  GE_ASSERT_SUCCESS(
-      CalOutputSymbolValue(context, param_dims, param_values, indice_values, axis, batch_dims, *output_symbol_values));
+  // 原样透传：空tensor/溢出的UNSUPPORTED由外层降级到传统推导，indices越界等非法输入的
+  // ErrorResult(断言)传出后由驱动打挂推导，不可统一转UNSUPPORTED吞掉报错
+  const auto value_ret =
+      CalOutputSymbolValue(context, param_dims, param_values, indice_values, axis, batch_dims, *output_symbol_values);
+  if (value_ret != SUCCESS) {
+    return value_ret;
+  }
   GELOGD("%s[%s] kernel success, %s", context->GetNodeName(), context->GetNodeType(),
          SymbolicInferUtil::DumpSymbolTensor(*symbolic_tensor).c_str());
   return SUCCESS;

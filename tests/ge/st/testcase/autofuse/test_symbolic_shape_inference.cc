@@ -7779,6 +7779,33 @@ TEST_F(SymbolicShapeInferenceST, InferShapeForDynamicStitch) {
             gert::SymbolShape({sym::Max(Symbol(9), sym::Max(Symbol("s1"), Symbol("s2"))) + Symbol(1), Symbol(2)}));
 }
 
+TEST_F(SymbolicShapeInferenceST, InferShapeForDynamicStitchWithScalarInput) {
+  auto indices = builder_->CreateScalar(static_cast<int32_t>(5));
+  auto x = builder_->CreateInput(0, "data0");
+  x.SetOriginSymbolShape(std::vector<const char *>{});
+
+  auto output = es::DynamicStitch({indices}, {x}, 1);
+  ASSERT_EQ(es::EsGraphBuilder::SetOutput(output, 0), 0);
+  auto graph = builder_->BuildAndReset();
+  ASSERT_NE(graph, nullptr);
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  auto stitch_op = cg->FindFirstNodeMatchType("DynamicStitch")->GetOpDesc();
+  ASSERT_NE(stitch_op, nullptr);
+  stitch_op->AppendIrAttrName("N");
+  ASSERT_TRUE(AttrUtils::SetInt(stitch_op, "N", 1));
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  EXPECT_EQ(cg->FindFirstNodeMatchType("DynamicStitch")
+                ->GetOpDesc()
+                ->GetOutputDesc(0)
+                .GetAttrsGroup<SymbolicDescAttr>()
+                ->symbolic_tensor.GetOriginSymbolShape(),
+            gert::SymbolShape({Symbol(6)}));
+}
+
 REG_OP(MatMul)
     .INPUT(x1, TensorType({DT_FLOAT, DT_FLOAT16, DT_INT32, DT_BF16}))
     .INPUT(x2, TensorType({DT_FLOAT, DT_FLOAT16, DT_INT32, DT_BF16}))

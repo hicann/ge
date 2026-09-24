@@ -23,29 +23,35 @@ constexpr size_t kOutputIndex = 0UL;
 constexpr size_t kMaxSupportDim = 25UL;
 constexpr int64_t kMaxSupportOutputSize = 1024L;
 
-bool GetElementNum(const std::vector<ge::Expression> &dims_symbols, int64_t &element_num,
-                   const gert::InferSymbolComputeContext *context) {
+// 非法输入(dim负值)经断言返回ErrorResult由驱动打挂推导；合法不支持场景(非常量/溢出/超限)返回UNSUPPORTED
+// 由外层降级。返回graphStatus而非bool：bool语境下ErrorResult会经operator bool()静默转false吞掉报错
+graphStatus GetElementNum(const std::vector<ge::Expression> &dims_symbols, int64_t &element_num,
+                          const gert::InferSymbolComputeContext *context) {
   for (const auto &dim_sym : dims_symbols) {
     int64_t dim_value = 0L;
     if (!dim_sym.GetConstValue(dim_value)) {
       GELOGW("SymbolicKernel compute unsupported, reason: get dim sym const value failed, node %s[%s].",
              context->GetNodeName(), context->GetNodeType());
-      return false;
+      return UNSUPPORTED;
     }
     if (ge::MulOverflow(element_num, dim_value, element_num)) {
       GELOGW("SymbolicKernel compute unsupported, reason: output element num overflow, node %s[%s].",
              context->GetNodeName(), context->GetNodeType());
-      return false;
+      return UNSUPPORTED;
     }
+    // 负dim值是非法shape语义(Fill的dims值必须非负)，直接assert报错；
+    // 同时拦截负值穿透到element_num后转size_t构造vector抛length_error
+    GE_ASSERT_TRUE(dim_value >= 0L, "SymbolicKernel compute failed, reason: dim value %lld is negative, node %s[%s].",
+                   dim_value, context->GetNodeName(), context->GetNodeType());
   }
 
   if (element_num > kMaxSupportOutputSize) {
     GELOGW("SymbolicKernel compute unsupported, reason: output element num[%lld] is over limit [%lld], node %s[%s].",
            element_num, kMaxSupportOutputSize, context->GetNodeName(), context->GetNodeType());
-    return false;
+    return UNSUPPORTED;
   }
   GELOGD("Node: %s value element: %lld", context->GetNodeName(), element_num);
-  return true;
+  return GRAPH_SUCCESS;
 }
 }  // namespace
 
@@ -79,10 +85,11 @@ static graphStatus FillSymbolicKernelCompute(gert::InferSymbolComputeContext *co
   auto symbolic_tensor = context->GetOutputSymbolTensor(kOutputIndex);
   GE_ASSERT_NOTNULL(symbolic_tensor);
   symbolic_tensor->MutableOriginSymbolShape().MutableDims() = *dims_symbols;
-  // 获取value个数
+  // 获取value个数（原样透传：合法不支持的UNSUPPORTED降级，非法dim的ErrorResult由驱动打挂推导）
   int64_t element_num = 1L;
-  if (!GetElementNum(*dims_symbols, element_num, context)) {
-    return UNSUPPORTED;
+  const auto element_ret = GetElementNum(*dims_symbols, element_num, context);
+  if (element_ret != GRAPH_SUCCESS) {
+    return element_ret;
   }
 
   // 获取value的值

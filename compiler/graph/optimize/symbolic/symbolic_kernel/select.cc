@@ -31,7 +31,11 @@ bool GetShapeValue(const std::vector<Expression> &symbol_shape, std::vector<int6
   shape_value.reserve(symbol_shape.size());
   for (const auto &expr : symbol_shape) {
     int64_t value = 0;
-    GE_ASSERT_TRUE(expr.GetConstValue(value));
+    // 符号化维度(推导常态)GetConstValue失败走降级即可；
+    // bool语境不可用GE_ASSERT_TRUE（ErrorResult经operator bool()静默转false且误报E19999日志）
+    if (!expr.GetConstValue(value)) {
+      return false;
+    }
     shape_value.emplace_back(value);
   }
   return true;
@@ -45,9 +49,13 @@ bool GetShapeValue(const std::vector<Expression> &symbol_shape, std::vector<int6
 // GE_ASSERT_TRUE：ErrorResult 会经 operator bool() 静默转为 false，错误被吞）。
 bool GetConditionBranch(const Expression &condition, bool &take_then) {
   if (condition.IsBooleanExpr()) {
+    // IsConstExpr前置判断将范围收敛到BooleanAtom(GetConstValue<bool>必成功)，
+    // 避免对复合布尔(比较算子输出的ExpectLt等常态输入)调GetConstValue触发其内部断言的E19999
     if (condition.IsConstExpr()) {
       bool const_value = false;
-      GE_ASSERT_TRUE(condition.GetConstValue(const_value));
+      if (!condition.GetConstValue(const_value)) {
+        return false;
+      }
       take_then = const_value;
       return true;
     }

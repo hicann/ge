@@ -10,6 +10,7 @@
 
 #include "execution_order.h"
 #include "graph/utils/graph_utils.h"
+#include "graph/utils/op_type_utils.h"
 #include "common/checker.h"
 #include "api/session/jit_execution/utils/jit_infer_utils.h"
 #include "common/memory/tensor_trans_utils.h"
@@ -35,6 +36,16 @@ std::string EpOptionsToString(const std::map<std::string, std::string> &options)
     ss << option.first << ";";
   }
   return ss.str();
+}
+// 统计图中的工作节点个数(排除图输入类节点与 NetOutput)
+size_t CountWorkNodes(const ComputeGraphPtr &graph) {
+  size_t count = 0UL;
+  for (const auto &node : graph->GetDirectNode()) {
+    if (!OpTypeUtils::IsGraphInputNode(node->GetType()) && !OpTypeUtils::IsGraphOutputNode(node->GetType())) {
+      count++;
+    }
+  }
+  return count;
 }
 Status SetOutputSizeIfNeed(const ComputeGraphPtr &graph) {
   auto netout_node = graph->GetOrUpdateNetOutputNode();
@@ -121,6 +132,13 @@ Status ExecutionOrder::AddNewSlice(const ComputeGraphPtr &graph, const std::vect
       GE_ASSERT_SUCCESS(BinaryPartitioner::Partition(graph, infered_nodes, partition_result));
       GELOGI("graph[%s] partitioned, sliced_graph has %zu nodes.", partition_result.sliced_graph->GetName().c_str(),
              partition_result.sliced_graph->GetDirectNodesSize());
+      // 兜底：切图无进展(sliced_graph 里没有工作节点)时把当前整图作为最后一个 EP 收尾，防止无限切图
+      if (partition_result.remaining_graph != nullptr && CountWorkNodes(partition_result.sliced_graph) == 0UL) {
+        GELOGW("No progress in slicing graph[%s], fallback to whole-graph mode to avoid endless slicing.",
+               graph->GetName().c_str());
+        partition_result.sliced_graph = graph;
+        partition_result.remaining_graph = nullptr;
+      }
     } else {
       partition_result.sliced_graph = graph;
       GELOGI("graph[%s] all nodes inferred, no partition needed.", graph->GetName().c_str());

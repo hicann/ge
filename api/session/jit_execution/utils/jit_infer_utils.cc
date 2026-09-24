@@ -83,15 +83,50 @@ bool ParentNodeInferred(const NodePtr &node, std::vector<NodePtr> &inferred_node
 }
 
 void DeleteNodesWithoutParentNode(std::vector<NodePtr> &inferred_nodes) {
-  // delete nodes whose parents node not inferred
-  for (auto it = inferred_nodes.begin(); it != inferred_nodes.end();) {
-    if (!ParentNodeInferred(*it, inferred_nodes)) {
-      GELOGD("Infer node:%s. Parent node uninfered", (*it)->GetName().c_str());
-      it = inferred_nodes.erase(it);
-    } else {
-      ++it;
+  // 删除父链断裂的inferred节点。级联删除必须沿出边主动传播:
+  // inferred_nodes的顺序继承自图的GetDirectNode插入序, 无拓扑序保证, 单遍顺序遍历
+  // (子先于父被检查)会漏删悬空节点, 悬空集合流入BinaryPartitioner后CheckNodesContainsCycle
+  // 失败, Partition返回GRAPH_PARAM_INVALID, 整个JIT执行报错。
+  // 同时以hash集合替代线性扫描, 单节点/单边只访问一次, 整体O(N+E)
+  std::unordered_set<NodePtr> inferred_set(inferred_nodes.begin(), inferred_nodes.end());
+  const auto parent_inferred = [&inferred_set](const NodePtr &node) {
+    const auto in_set = [&inferred_set](const NodePtr &n) { return inferred_set.count(n) > 0U; };
+    const auto &data_nodes = node->GetInDataNodes();
+    const auto &ctrl_nodes = node->GetInControlNodes();
+    return std::all_of(data_nodes.begin(), data_nodes.end(), in_set) &&
+           std::all_of(ctrl_nodes.begin(), ctrl_nodes.end(), in_set);
+  };
+  std::vector<NodePtr> pending;
+  for (const auto &node : inferred_nodes) {
+    if (!parent_inferred(node)) {
+      pending.push_back(node);
     }
   }
+  while (!pending.empty()) {
+    const auto node = pending.back();
+    pending.pop_back();
+    if (inferred_set.erase(node) == 0U) {
+      continue;  // 已被其他断裂父节点的传播删除
+    }
+    GELOGD("Infer node:%s. Parent node uninferred", node->GetNamePtr());
+    // 父节点已删, 其inferred子节点的父链必然断裂, 无需重复检查, 直接传播删除
+    for (const auto &child : node->GetOutDataNodes()) {
+      if (inferred_set.count(child) > 0U) {
+        pending.push_back(child);
+      }
+    }
+    for (const auto &child : node->GetOutControlNodes()) {
+      if (inferred_set.count(child) > 0U) {
+        pending.push_back(child);
+      }
+    }
+  }
+  if (inferred_set.size() == inferred_nodes.size()) {
+    return;
+  }
+  inferred_nodes.erase(std::remove_if(inferred_nodes.begin(), inferred_nodes.end(),
+                                      [&inferred_set](const NodePtr &n) { return inferred_set.count(n) == 0U; }),
+                       inferred_nodes.end());
 }
 
 bool HasUnsuppliableInput(const NodePtr &node, const OpDescPtr &op_desc,
@@ -203,6 +238,8 @@ void ClearInferredNodesWithAllDataNodes(std::vector<NodePtr> &inferred_nodes) {
       return;
     }
   }
+  GELOGI("All inferred nodes are graph input nodes, clear them to avoid useless slicing, size:%zu.",
+         inferred_nodes.size());
   inferred_nodes.clear();
 }
 
@@ -312,10 +349,10 @@ Status JitInferUtils::InferGraphAndGetInferredNodes(const ComputeGraphPtr &graph
   PropagatePullable(uninferred_nodes, inferred_nodes, pullable_categories);
   // 3. netoutput节点单独处理
   AssignNetOutputNodes(net_output_nodes, inferred_nodes, uninferred_nodes);
-  // 4. data节点单独处理
-  ClearInferredNodesWithAllDataNodes(inferred_nodes);
-  // 5. 去除悬空节点
+  // 4. 去除悬空节点(必须先于第5步，否则悬空节点会挡住第5步的清空)
   DeleteNodesWithoutParentNode(inferred_nodes);
+  // 5. data节点单独处理：集合只剩图输入类节点时清空，避免切出纯 Data 残片
+  ClearInferredNodesWithAllDataNodes(inferred_nodes);
   GELOGD("Infer node size: %zu", inferred_nodes.size());
   return SUCCESS;
 }

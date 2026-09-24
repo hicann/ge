@@ -30,8 +30,10 @@ constexpr size_t kOutputIndex = 0UL;
 graphStatus GetAxisDims(const gert::InferSymbolComputeContext *context, std::vector<int64_t> &axis_dims) {
   std::vector<int64_t> axis_input_shape;
   context->GetConstInputDims(kAxisInputIndex, axis_input_shape);
-  if (axis_input_shape.size() != 1) {
-    GELOGW("SymbolicKernel compute unsupported, reason: axis_input_shape(%zu) not equal 1, node %s[%s].",
+  // 原型InferShape4Reduce按GetShapeSize遍历元素，scalar(rank-0)与1D的axis输入同样合法，
+  // 按shape维度数强校验!=1会误伤scalar输入，仅拒绝2D及以上
+  if (axis_input_shape.size() > 1UL) {
+    GELOGW("SymbolicKernel compute unsupported, reason: axis_input_shape(%zu) greater than 1, node %s[%s].",
            axis_input_shape.size(), context->GetNodeName(), context->GetNodeType());
     return UNSUPPORTED;
   }
@@ -81,9 +83,18 @@ Status ReduceProdOutputSymbolValue(const std::vector<Expression> &input_symbols,
   for (size_t axis_pos = 0UL; axis_pos < axis_dims.size(); axis_pos++) {
     output_symbols.clear();
     int64_t reduce_axis = axis_dims[axis_pos];
-    // 累乘得到blocksize
-    int64_t block_size =
-        std::accumulate(input_dims.begin() + reduce_axis + 1, input_dims.end(), 1, std::multiplies<int64_t>());
+    // 空tensor(维为0，合法图)与溢出防护：除数来自输入dim，无防护会除零SIGFPE或迭代器越界
+    int64_t block_size = 1;
+    for (size_t i = static_cast<size_t>(reduce_axis) + 1U; i < input_dims.size(); ++i) {
+      if (input_dims[i] != 0L && block_size > INT64_MAX / input_dims[i]) {
+        return UNSUPPORTED;
+      }
+      block_size *= input_dims[i];
+    }
+    if (input_dims[reduce_axis] <= 0L || block_size <= 0L ||
+        static_cast<int64_t>(last_output_symbols.size()) % block_size != 0L) {
+      return UNSUPPORTED;
+    }
     int64_t block_num = static_cast<int64_t>(last_output_symbols.size()) / block_size / input_dims[reduce_axis];
     GELOGI("block num: %lld, block size: %lld, index: %lld", block_num, block_size, reduce_axis);
     for (int64_t i = 0UL; i < block_num; i++) {
@@ -146,10 +157,13 @@ static graphStatus ReduceProdSymbolicKernelCompute(gert::InferSymbolComputeConte
   GE_ASSERT_NOTNULL(out_symbolic_tensor);
   out_symbolic_tensor->MutableOriginSymbolShape().MutableDims() = output_symbol_shape;
 
-  // 扩展x_symbols
+  // 扩展x_symbols（原样透传：空tensor/溢出的UNSUPPORTED由外层降级，ErrorResult由驱动打挂推导）
   auto output_symbols = out_symbolic_tensor->MutableSymbolicValue();
   GE_ASSERT_NOTNULL(output_symbols);
-  GE_ASSERT_SUCCESS(ReduceProdOutputSymbolValue(*input_x_symbols, input_x_dims, axis_dims, *output_symbols));
+  const auto prod_ret = ReduceProdOutputSymbolValue(*input_x_symbols, input_x_dims, axis_dims, *output_symbols);
+  if (prod_ret != SUCCESS) {
+    return prod_ret;
+  }
   GELOGD("%s[%s] kernel success, %s", context->GetNodeName(), context->GetNodeType(),
          SymbolicInferUtil::DumpSymbolTensor(*out_symbolic_tensor).c_str());
   return SUCCESS;
@@ -219,7 +233,12 @@ static graphStatus ReduceSymbolicKernelCompute(gert::InferSymbolComputeContext *
   GE_ASSERT_NOTNULL(keep_dims);
 
   std::vector<int64_t> axis_dims;
-  GE_ASSERT_SUCCESS(GetAxisDims(context, axis_dims));
+  // GetAxisDims的UNSUPPORTED出口(如非常量axis值)需优雅透传，由外层降级到传统推导；
+  // GE_ASSERT_SUCCESS会把降级信号误当错误打挂整个符号化推导
+  auto axis_ret = GetAxisDims(context, axis_dims);
+  if (axis_ret != SUCCESS) {
+    return axis_ret;
+  }
   GE_ASSERT_TRUE(axis_dims.size() <= input_dims.size());
   GE_ASSERT_SUCCESS(NormalizeAxisDims(static_cast<int64_t>(input_dims.size()), axis_dims));
   axis_dims.erase(std::unique(axis_dims.begin(), axis_dims.end()), axis_dims.end());
@@ -244,7 +263,11 @@ static graphStatus ReduceSymbolicKernelCompute(gert::InferSymbolComputeContext *
   if (axis_dims.empty()) {
     output_symbols = *input_symbols;
   } else {
-    GE_ASSERT_SUCCESS(ReduceOutputSymbolValue(*input_symbols, input_dims, axis_dims, compute, output_symbols));
+    // 原样透传：空tensor/溢出/不整除的UNSUPPORTED由外层降级，ErrorResult由驱动打挂推导
+    const auto value_ret = ReduceOutputSymbolValue(*input_symbols, input_dims, axis_dims, compute, output_symbols);
+    if (value_ret != SUCCESS) {
+      return value_ret;
+    }
   }
   output_tensor->SetSymbolicValue(ge::MakeUnique<std::vector<Expression>>(std::move(output_symbols)));
   return SUCCESS;

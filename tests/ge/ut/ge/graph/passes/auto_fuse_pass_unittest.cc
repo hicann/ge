@@ -14,6 +14,7 @@
 #include "common/compliant_share_graph.h"
 #include "compiler/graph/optimize/symbolic/infer_symbolic_shape/symbolic_shape_inference.h"
 #include "tests/framework/ge_runtime_stub/include/common/summary_checker.h"
+#include "attribute_group/attr_group_symbolic_desc.h"
 #include "faker/space_registry_faker.h"
 #include "common/env_path.h"
 
@@ -50,7 +51,7 @@ TEST_F(AutoFuseTestPass, test_auto_fuse_base) {
   AutoFusePass pass;
   EXPECT_EQ(pass.Run(graph), ge::SUCCESS);
 
-  // 动态shape，输入数据shape不匹配，结果fail
+  // 动态shape，输入数据shape与声明rank不一致：降级跳过该输入，不打挂整个符号化
   const auto graph2 = cg::BuildAddReluReluGraph({4, -1, 6}, {-1, 5, 6});
   std::vector<GeTensor> inputs2;
   GeTensorDesc td2;
@@ -58,6 +59,12 @@ TEST_F(AutoFuseTestPass, test_auto_fuse_base) {
   td2.SetOriginShape((GeShape()));
   inputs2.emplace_back(td2);
   inputs2.emplace_back(td2);
-  EXPECT_NE(SymbolicShapeSymbolizer::Symbolize(graph2, inputs2), SUCCESS);
+  EXPECT_EQ(SymbolicShapeSymbolizer::Symbolize(graph2, inputs2), SUCCESS);
+  // 被跳过的输入不得残留空的 SymbolicDescAttr（否则会被 IsUnInferredNode 误判为推导成功）
+  for (const auto &name : {"input_0", "input_1"}) {
+    const auto data_node = graph2->FindNode(name);
+    ASSERT_NE(data_node, nullptr);
+    EXPECT_EQ(data_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>(), nullptr);
+  }
 }
 }  // namespace ge

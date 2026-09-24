@@ -42,7 +42,7 @@ bool ExpectSymbolBool(const Expression &expr, const char_t *file, const int64_t 
                  expr.Serialize().get());
   if (expr.IsConstExpr()) {
     bool const_value = false;
-    GE_ASSERT_TRUE(expr.GetConstValue(const_value));
+    GE_ASSERT_TRUE(expr.GetConstValue(const_value), "Get const value from expr: %s failed", expr.Serialize().get());
     return const_value;
   }
   if (GetCurShapeEnvContext() == nullptr) {
@@ -50,7 +50,7 @@ bool ExpectSymbolBool(const Expression &expr, const char_t *file, const int64_t 
     return false;
   }
   bool hint_value = false;
-  GE_ASSERT_TRUE(expr.GetHint(hint_value));
+  GE_ASSERT_TRUE(expr.GetHint(hint_value), "Get hint from expr: %s failed", expr.Serialize().get());
   if (hint_value) {
     GE_ASSERT_SUCCESS(GetCurShapeEnvContext()->AppendSymbolCheckInfo(expr.Simplify(), file, line));
   } else {
@@ -74,7 +74,8 @@ bool AssertSymbolBool(const Expression &expr, const char_t *file, const int64_t 
                  expr.Serialize().get());
   if (expr.IsConstExpr()) {
     bool const_value = false;
-    GE_ASSERT_TRUE(expr.GetConstValue(const_value));
+    GE_ASSERT_TRUE(expr.GetConstValue(const_value), "[%s:%lld] Get const value from expr: %s failed", file, line,
+                   expr.Serialize().get());
     GE_ASSERT_TRUE(const_value, "[%s:%lld] Assert %s failed", file, line, expr.Serialize().get());
     return const_value;
   }
@@ -83,7 +84,8 @@ bool AssertSymbolBool(const Expression &expr, const char_t *file, const int64_t 
     return false;
   }
   bool hint_value = false;
-  GE_ASSERT_TRUE(expr.GetHint(hint_value));
+  GE_ASSERT_TRUE(expr.GetHint(hint_value), "[%s:%lld] Get hint from expr: %s failed", file, line,
+                 expr.Serialize().get());
   GE_ASSERT_TRUE(hint_value, "[%s:%lld] Assert %s failed", file, line, expr.Serialize().get());
   GE_ASSERT_SUCCESS(GetCurShapeEnvContext()->AppendSymbolAssertInfo(expr.Simplify(), file, line));
   return true;

@@ -59,7 +59,8 @@ void MakeAttrPattern1(ShapeEnvAttr &attr) {
 
 void MakeAttrPattern2(ShapeEnvAttr &attr) {
   auto symbol0 = attr.CreateSymbol(12, MakeShared<InputValueSumSource>(0, DT_INT32));
-  auto symbol1 = attr.CreateSymbol(15, MakeShared<InputValueSumSource>(1, DT_INT32));
+  // hint取完全平方数：开方约束Pow(symbol1, 1/2)代入后为精确整数，无理数求值偶发失败会导致guard内容漂移
+  auto symbol1 = attr.CreateSymbol(16, MakeShared<InputValueSumSource>(1, DT_INT32));
   auto symbol2 = attr.CreateSymbol(18, MakeShared<InputValueSumSource>(2, DT_INT32));
 
   auto symbol3 = attr.CreateSymbol(7, MakeShared<InputShapeSource>(3, 0));
@@ -93,6 +94,24 @@ void CheckGuardFunc(const ComputeGraphPtr &gt_graph, const ComputeGraphPtr &test
   /* get the GuardFunc binary byte string of ground-truth and test compute_graph */
   EXPECT_EQ(ge::AttrUtils::GetStr(gt_graph, kGuardCheckSoDataResult, gt_buffer), true);
   EXPECT_EQ(ge::AttrUtils::GetStr(test_graph, kGuardCheckSoDataResult, test_buffer), true);
+  if (test_buffer.compare(gt_buffer) != 0) {
+    printf("GuardFunc mismatch: gt size=%zu, test size=%zu\n", gt_buffer.size(), test_buffer.size());
+    const std::string gt_dump = "./build_cache_dir/gt_guard.bin";
+    const std::string test_dump = "./build_cache_dir/test_guard.bin";
+    FILE *gt_file = fopen(gt_dump.c_str(), "wb");
+    FILE *test_file = fopen(test_dump.c_str(), "wb");
+    if (gt_file != nullptr && test_file != nullptr) {
+      (void)fwrite(gt_buffer.data(), sizeof(char), gt_buffer.size(), gt_file);
+      (void)fwrite(test_buffer.data(), sizeof(char), test_buffer.size(), test_file);
+      printf("GuardFunc mismatch dumped: %s, %s\n", gt_dump.c_str(), test_dump.c_str());
+    }
+    if (gt_file != nullptr) {
+      fclose(gt_file);
+    }
+    if (test_file != nullptr) {
+      fclose(test_file);
+    }
+  }
   EXPECT_EQ(test_buffer.compare(gt_buffer), 0);
 }
 }  // namespace ge
@@ -100,6 +119,8 @@ void CheckGuardFunc(const ComputeGraphPtr &gt_graph, const ComputeGraphPtr &test
 std::vector<ComputeGraphPtr> SliceResultMocker::gt_graphs_with_pattern_;
 
 std::unordered_map<std::string, uint32_t> SliceResultMocker::gep_graph_key_to_pattern_map_;
+
+std::vector<std::unique_ptr<ExecutionPoint>> SliceResultMocker::keep_alive_eps_;
 
 int64_t SliceResultMocker::instance_id_ = 0;
 
@@ -156,7 +177,6 @@ GuardedExecutionPoint *SliceResultMocker::GenGEP(ExecutionPoint &ep, CompiledMod
   std::string gep_graph_key;
   EXPECT_EQ(cmc.GetGuardedExecutionPointGraphKey(gep, gep_graph_key), SUCCESS);
   gep_graph_key_to_pattern_map_.emplace(gep_graph_key, pattern);
-  ;
   GenOmFile(cache_dir, gep_graph_key, compiled_graph);
   return gep;
 }
@@ -220,6 +240,10 @@ void SliceResultMocker::GenSlicingResultFiles(const std::string &cache_dir, std:
   ExecutionOrder order({12345u, GenGraph("user_graph")});
   GenExecutionOrder(order, cmc, cache_dir, user_graph_key);  // user cmc saver to generate files
   EXPECT_EQ(cmc.SaveCache(order), SUCCESS);
+  // EP持有GEP，将其转移保活防止析构：GEP按指针注册在静态map中，析构后地址复用会错乱key归属
+  for (auto &ep : order.slice_graphs_) {
+    keep_alive_eps_.emplace_back(std::move(ep));
+  }
 }
 
 void SliceResultMocker::CheckFileGenResult(const ExecutionOrder &order, const std::string &user_graph_key,

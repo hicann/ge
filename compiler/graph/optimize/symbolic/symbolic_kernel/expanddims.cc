@@ -63,7 +63,16 @@ static graphStatus ExpandDimsSymbolicKernelCompute(gert::InferSymbolComputeConte
   auto axis_symbol_tensor = context->GetInputSymbolTensor(kAxisInputIndex);
   GE_UNSUPPORTED_IF_NULL(axis_symbol_tensor);
   auto axis_symbols = axis_symbol_tensor->GetSymbolicValue();
-  if (axis_symbols == nullptr || !axis_symbols->begin()->GetConstValue(axis_value)) {
+  if (axis_symbols == nullptr) {
+    GELOGW("SymbolicKernel compute unsupported, reason: get Axis input symbolic value failed, node %s[%s].",
+           context->GetNodeName(), context->GetNodeType());
+    return UNSUPPORTED;
+  }
+  // 0元素axis输入是非法语义(ExpandDims的axis必须为标量)，直接assert报错；
+  // 同时防止空值向量begin()解引用end迭代器的UB
+  GE_ASSERT_TRUE(!axis_symbols->empty(), "SymbolicKernel compute failed, reason: axis input is empty, node %s[%s].",
+                 context->GetNodeName(), context->GetNodeType());
+  if (!axis_symbols->begin()->GetConstValue(axis_value)) {
     GELOGW("SymbolicKernel compute unsupported, reason: get Axis input symbolic value failed, node %s[%s].",
            context->GetNodeName(), context->GetNodeType());
     return UNSUPPORTED;

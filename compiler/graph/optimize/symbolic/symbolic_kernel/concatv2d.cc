@@ -129,8 +129,8 @@ Status CalOutValue(const std::vector<std::vector<Expression>> &inputs_values,
     steps.push_back(step);
   }
   int64_t out_size = 0L;
-  for (auto input_values : inputs_values) {
-    out_size += inputs_values.size();
+  for (auto &input_values : inputs_values) {
+    out_size += input_values.size();
   }
   std::vector<Expression> out_dims;
   out_dims.reserve(out_size);
