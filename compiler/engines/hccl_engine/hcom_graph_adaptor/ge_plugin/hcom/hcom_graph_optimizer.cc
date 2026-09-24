@@ -66,7 +66,7 @@ HcclResult HcomGraphOptimizer::HcomGraphOptimizeInitialize(const map<std::string
     HCCL_INFO("Initialize: FUSION_TENSOR_SIZE[%llu]Byte is set.", fusionTensorSizeLimit_);
   } else {
     fusionTensorSizeLimit_ = 524288000;  // 默认融合tensor大小限制 524288000 = 500 * 1024 * 1024 = 500MB
-    HCCL_INFO("Initialize: FUSION_TENSOR_SIZE is unsetted, default[%llu]Byte.", fusionTensorSizeLimit_);
+    HCCL_INFO("Initialize: FUSION_TENSOR_SIZE is unset, default[%llu]Byte.", fusionTensorSizeLimit_);
   }
 
   auto iterMultiMode = options.find(ge::HCOM_MULTI_MODE);
@@ -83,7 +83,7 @@ HcclResult HcomGraphOptimizer::HcomGraphOptimizeInitialize(const map<std::string
     HCCL_INFO("Initialize: HCOM_MULTI_MODE is %d.", hcomMultiMode_);
   } else {
     hcomMultiMode_ = 0;
-    HCCL_INFO("Initialize: HCOM_MULTI_MODE is unsetted, default[%d].", hcomMultiMode_);
+    HCCL_INFO("Initialize: HCOM_MULTI_MODE is unset, default[%d].", hcomMultiMode_);
   }
 
   return HCCL_SUCCESS;
@@ -158,7 +158,7 @@ HcclResult HcomGraphOptimizer::HcomOptimizeOriginalGraph(ge::ComputeGraph &graph
   u64 fusionTensorSize = fusionTensorSizeLimit_;
   ret = UpdateFusionTensorSizeLimit(uknownShapeGraph, fusionTensorSize);
   CHK_PRT_RET(ret != HCCL_SUCCESS,
-              HCCL_ERROR("[Optimize][OriginalGraph]graph[%s]: UpdateFusionTensorSizeLimit graph"
+              HCCL_ERROR("[Optimize][OriginalGraph]graph[%s]: UpdateFusionTensorSizeLimit graph "
                          "failed. ret[%d]",
                          graph.GetName().c_str(), ret),
               HCCL_E_PARA);
@@ -466,7 +466,7 @@ HcclResult HcomGraphOptimizer::SetUnknownShapeAttr(ge::ComputeGraph &graph, bool
     HCCL_INFO("Initialize: OPTION_FEATURE_BASE_REFRESHABLE is %d.", optionFeatureBaseRefreshable_);
   } else {
     optionFeatureBaseRefreshable_ = 0;
-    HCCL_INFO("Initialize: OPTION_FEATURE_BASE_REFRESHABLE is unsetted, default[%d].", optionFeatureBaseRefreshable_);
+    HCCL_INFO("Initialize: OPTION_FEATURE_BASE_REFRESHABLE is unset, default[%d].", optionFeatureBaseRefreshable_);
   }
 
   if (!uknownShapeGraph && optionFeatureBaseRefreshable_ == 0) {
@@ -652,7 +652,7 @@ HcclResult HcomGraphOptimizer::HcomGetAccuracyCountFromOpDesc(const ge::OpDescPt
 
   // Receive 算子不支持获取count
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_RECEIVE) {
-    HCCL_WARNING("[%s][Get][Count] op[%s] get count failed. receive op not support get count.", __func__,
+    HCCL_WARNING("[%s][Get][Count] op[%s] get count failed. receive op does not support get count.", __func__,
                  sCollectiveType.c_str());
     return HCCL_SUCCESS;
   }
@@ -677,7 +677,7 @@ HcclResult HcomGraphOptimizer::MemOutputForOpDesc(const ge::OpDescPtr &op, const
   // 获取内存大小
   bool bErr = (ge::GRAPH_SUCCESS != ge::TensorUtils::CalcTensorMemSize(outputShape, format, dataType, memSize));
   CHK_PRT_RET(bErr,
-              HCCL_ERROR("[Set][OpOutputMemSize]In get output mem size, error outputSize because no"
+              HCCL_ERROR("[Set][OpOutputMemSize]In get output mem size, error outputSize because no "
                          "know shape, Format[%d], dataType[%d], outputSize[%lld], index[%u]",
                          format, dataType, memSize, i),
               HCCL_E_PARA);
@@ -789,13 +789,13 @@ HcclResult HcomGraphOptimizer::GetCountFromOpDesc(const ge::OpDescPtr &op, const
         const u32 alignSize = 512;  // 以512 Byte 对齐
         int64_t inputSize = 0;
         CHK_PRT_RET((ge::GRAPH_SUCCESS != ge::TensorUtils::GetSize(*op->GetInputDescPtr(i), inputSize)),
-                    HCCL_ERROR("[Get][Count]errNo[0x%016llx] get workspace bytes failed. get size from TensorDesc"
+                    HCCL_ERROR("[Get][Count]errNo[0x%016llx] get workspace bytes failed. get size from TensorDesc "
                                "failed, op : %s"
                                ", input index : %llu",
                                HCOM_ERROR_CODE(HCCL_E_PARA), sCollectiveType.c_str(), i),
                     HCCL_E_PARA);
         CHK_PRT_RET((static_cast<u64>(inputSize) > INVALID_U64 - alignSize),
-                    HCCL_ERROR("[Get][Count]op[%s] input"
+                    HCCL_ERROR("[Get][Count]op[%s] input "
                                "size[%llu] is overflow.",
                                sCollectiveType.c_str(), static_cast<u64>(inputSize)),
                     HCCL_E_PARA);
@@ -863,7 +863,7 @@ HcclResult HcomGraphOptimizer::SetOpMemAttr(ge::Node &node, const std::string &s
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_BROADCAST) {
     bRet = ge::AttrUtils::SetBool(node.GetOpDesc(), ge::ATTR_NAME_REFERENCE, true);
     CHK_PRT_RET(!bRet,
-                HCCL_ERROR("[Set][OpMemAttr]errNo[0x%016llx] op[%s]: set  reference attr[%d] to OpDesc"
+                HCCL_ERROR("[Set][OpMemAttr]errNo[0x%016llx] op[%s]: set  reference attr[%d] to OpDesc "
                            "failed.",
                            HCOM_ERROR_CODE(HCCL_E_PARA), sCollectiveType.c_str(), true),
                 HCCL_E_PARA);
@@ -1178,7 +1178,7 @@ HcclResult HcomGraphOptimizer::GetOriginalGraphShapeTypeFromDesc(const ge::OpDes
   if (ge::AttrUtils::HasAttr(op, ORIGINAL_GRAPH_SHAPE_TYPE)) {
     if (ge::AttrUtils::GetInt(op, ORIGINAL_GRAPH_SHAPE_TYPE, shapeType) == false) {
       HCCL_ERROR(
-          "[Get][OriginalGraphShapeType]errNo[0x%016llx]: get shapeType failed. get \"shapeType\" from"
+          "[Get][OriginalGraphShapeType]errNo[0x%016llx]: get shapeType failed. get \"shapeType\" from "
           "opDesc failed",
           HCOM_ERROR_CODE(HCCL_E_PARA));
       return HCCL_E_PARA;

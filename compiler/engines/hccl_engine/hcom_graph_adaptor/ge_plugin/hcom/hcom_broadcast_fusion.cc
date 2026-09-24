@@ -46,7 +46,7 @@ HcclResult HcomBroadcastFusion::Run(ge::ComputeGraph &graph, uint64_t fusionTens
               iterFusionInfos->first.c_str(), iterFusionInfos->second.size());
     ret = FuseOps(graph, iterFusionInfos->second);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[Run][BroadcastFusion]graph[%s] fusionlabel[%s]: fusion HcomBroadcast ops"
+                HCCL_ERROR("[Run][BroadcastFusion]graph[%s] fusionlabel[%s]: fusion HcomBroadcast ops "
                            "failed. ret[%d]",
                            graph.GetName().c_str(), iterFusionInfos->first.c_str(), ret),
                 ret);
@@ -122,7 +122,7 @@ HcclResult HcomBroadcastFusion::GetFusionOption(const ge::NodePtr &nodePtr, Fusi
       break;
     default:
       HCCL_ERROR(
-          "[Get][FusionOption]errNo[0x%016llx] node[%s] fusion[%lld] is incorrect, should"
+          "[Get][FusionOption]errNo[0x%016llx] node[%s] fusion[%lld] is incorrect, should "
           "be %lld or %lld",
           HCOM_ERROR_CODE(HCCL_E_PARA), nodeName.c_str(), fusionOption.fusionAttr, HCOM_ATTR_FUSION_NO_FUSION,
           HCOM_ATTR_FUSION_BY_FUSION_ID);

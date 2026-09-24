@@ -50,14 +50,14 @@ HcclResult HcomExecEnqueueOperation(struct HcomOperation opInfo, std::function<v
 
 HcclResult HcomExecEnqueueRemoteOperation([[maybe_unused]] struct HcomRemoteOperation opInfo,
                                           [[maybe_unused]] std::function<void(HcclResult status)> callback) {
-  HCCL_ERROR("[HcomExec][EnqueueRemoteOperation]HcomExecEnqueueRemoteOperation is not support.");
+  HCCL_ERROR("[HcomExec][EnqueueRemoteOperation]HcomExecEnqueueRemoteOperation is not supported.");
   return HCCL_E_NOT_SUPPORT;
 }
 
 HcclResult HcomExecEnqueueRemoteAccess([[maybe_unused]] const std::string &remoteAccessType,
                                        [[maybe_unused]] const std::vector<HcomRemoteAccessAddrInfo> &addrInfos,
                                        [[maybe_unused]] std::function<void(HcclResult status)> callback) {
-  HCCL_ERROR("HcomExecEnqueueRemoteAccess is not support");
+  HCCL_ERROR("HcomExecEnqueueRemoteAccess is not supported");
   return HCCL_E_NOT_SUPPORT;
 }
 
@@ -880,7 +880,7 @@ void HcomExecutor::CleanQueueResources() {
 }
 
 HcclResult HcomRegRemoteAccessMem([[maybe_unused]] const MemRegisterAddr *addrList, [[maybe_unused]] u32 count) {
-  HCCL_ERROR("[Reg][RemoteAccessMem] HcomRegRemoteAccessMem is not support.");
+  HCCL_ERROR("[Reg][RemoteAccessMem] HcomRegRemoteAccessMem is not supported.");
   return HCCL_E_NOT_SUPPORT;
 }
 }  // namespace hccl
