@@ -881,6 +881,8 @@ main() {
 
   # module fe
   if [ "X$ENABLE_ENGINES" = "Xon" ]; then
+    local build_metadef_backup="${BUILD_METADEF}"
+    BUILD_METADEF="on"
     # engines ut
     if [ "X$ENABLE_UT" == "Xon" ]; then
       if [ "X$ENABLE_FE" = "Xon" ]; then
@@ -937,6 +939,7 @@ main() {
         bash scripts/build.sh -w -n -j $THREAD_NUM $VERBOSE $COVERAGE
       fi
     fi
+    BUILD_METADEF="${build_metadef_backup}"
   fi
 
   # module executor_c

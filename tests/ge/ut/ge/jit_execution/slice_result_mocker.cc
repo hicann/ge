@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <gtest/gtest.h>
+#include <thread>
 #define private public
 #define protected public
 #include "slice_result_mocker.h"
@@ -134,10 +135,29 @@ SliceResultMocker::SliceResultMocker(const std::string &user_graph_key, uint32_t
 
 void SliceResultMocker::InitGtGraph() {
   /* generate the ground-truth compute graphs with guards */
+  if (gt_graphs_with_pattern_.size() == NUM_GUARD_PATTERNS) {
+    return;
+  }
+  const std::function<void(ShapeEnvAttr &)> pattern_funcs[NUM_GUARD_PATTERNS] = {MakeAttrPattern0, MakeAttrPattern1,
+                                                                                 MakeAttrPattern2};
+  std::vector<ComputeGraphPtr> graphs(NUM_GUARD_PATTERNS);
+  const auto ge_context = GetThreadLocalContext();
+  std::vector<std::thread> workers;
+  workers.reserve(NUM_GUARD_PATTERNS);
+  for (uint32_t i = 0; i < NUM_GUARD_PATTERNS; ++i) {
+    workers.emplace_back([i, &ge_context, &graphs, &pattern_funcs]() {
+      GetThreadLocalContext() = ge_context;
+      graphs[i] = GenGraphWithGuard("gt_graph_" + std::to_string(i), pattern_funcs[i]);
+    });
+  }
+  for (auto &worker : workers) {
+    worker.join();
+  }
   gt_graphs_with_pattern_.clear();
-  gt_graphs_with_pattern_.emplace_back(GenGraphWithGuard("gt_graph_0", MakeAttrPattern0));
-  gt_graphs_with_pattern_.emplace_back(GenGraphWithGuard("gt_graph_1", MakeAttrPattern1));
-  gt_graphs_with_pattern_.emplace_back(GenGraphWithGuard("gt_graph_2", MakeAttrPattern2));
+  for (const auto &graph : graphs) {
+    EXPECT_NE(graph, nullptr);
+    gt_graphs_with_pattern_.emplace_back(graph);
+  }
 }
 
 ComputeGraphPtr SliceResultMocker::GenGraphWithGuard(const string &graph_name,
@@ -178,7 +198,7 @@ GuardedExecutionPoint *SliceResultMocker::GenGEP(ExecutionPoint &ep, CompiledMod
   /* save the corresponding .om file */
   std::string gep_graph_key;
   EXPECT_EQ(cmc.GetGuardedExecutionPointGraphKey(gep, gep_graph_key), SUCCESS);
-  gep_graph_key_to_pattern_map_.emplace(gep_graph_key, pattern);
+  gep_graph_key_to_pattern_map_[gep_graph_key] = pattern;
   GenOmFile(cache_dir, gep_graph_key, compiled_graph);
   return gep;
 }

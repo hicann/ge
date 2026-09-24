@@ -103,8 +103,6 @@ add_executable(graph_engine_test
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_pack_notask_pass.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/ut/register/testcase/op_def_factory_unittest.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/depends/faker/plugin_manager_stub.cc"
-    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2.cc"
-    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2_online.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_adapter_integration_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_stream_allocator_pass_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_weighted_stream_merger_public_st_test.cc"
@@ -148,6 +146,80 @@ target_link_options(graph_engine_test PRIVATE
 )
 
 target_link_libraries(graph_engine_test
+    intf_llt_pub
+    ascendcl_stub
+    -Wl,-z,muldefs
+    ge_compiler
+    ge_runner
+    ge_runner_v2
+    om2_executor
+    ge_common_base
+    davinci_executor
+    custom_op_runtime
+    gert
+    cpu_compiler
+    aihacb_autofusion_stub
+    ge_local_opskernel_builder
+    symengine
+    minizip_static
+    -Wl,--whole-archive
+    rt2_registry_static
+    atc_static
+    ge_running_env
+    ge_runtime_stub
+    custom_op_registry_static
+    -Wl,--no-whole-archive
+    gert_op_impl
+    es_ge_test ge_graph_dsl st_stubs GTestShared::gtest GTestShared::gmock GTestShared::gmock_main
+    -ldl
+)
+
+################################################################################
+# build st_om2_test
+add_executable(st_om2_test
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2_online.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_main.cc"
+    "${AIR_CODE_DIR}/tests/graph_metadef/depends/checker/tensor_check_utils.cc"
+    "${AIR_CODE_DIR}/tests/graph_metadef/depends/faker/plugin_manager_stub.cc"
+)
+
+add_dependencies(st_om2_test
+    mdat fmk_parser engine optimizer_priority_pbtxt
+)
+
+target_compile_definitions(st_om2_test PRIVATE
+    google=ascend_private
+    CMAKE_BINARY_DIR=\"${CMAKE_BINARY_DIR}\"
+)
+
+target_compile_options(st_om2_test PRIVATE
+    -Wno-write-strings
+    -Wno-deprecated-declarations
+    -Wall -Wfloat-equal -Werror
+)
+
+target_include_directories(st_om2_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${AIR_CODE_DIR}
+    ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
+    ${AIR_CODE_DIR}/tests/framework/ge_running_env/include
+    ${AIR_CODE_DIR}/tests/framework/macro_utils
+    ${ASCGEN_DIR}/inc
+    ${AIR_CODE_DIR}/inc
+    ${CMAKE_BINARY_DIR}/proto/data_flow_protos
+    ${AIR_CODE_DIR}/inc/graph_metadef
+    ${ASCEND_INSTALL_PATH}/include/exe_graph
+    ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse
+)
+
+target_link_options(st_om2_test PRIVATE
+    -Wl,--disable-new-dtags
+    -rdynamic
+    -Wl,-Bsymbolic
+)
+
+target_link_libraries(st_om2_test
     intf_llt_pub
     ascendcl_stub
     -Wl,-z,muldefs

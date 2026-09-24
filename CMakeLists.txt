@@ -337,7 +337,8 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT OR ENGINE_DT)
             add_dependencies(select_targets hybrid_model_async_exec_test
                     graphtuner_executor
                     st_fast_runtime2_test
-                    st_dvpp_runtime2_test)
+                    st_dvpp_runtime2_test
+                    st_om2_test)
         endif ()
 
         if (ENABLE_RT3_ST)
