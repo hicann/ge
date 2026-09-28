@@ -166,7 +166,7 @@ files:
 To inspect compilation logs, add `--log=info` (or a higher log level) to the
 atc command above and set the screen-printing environment variable
 `export ASCEND_SLOG_PRINT_TO_STDOUT=1` before running. See the
-[atc --log parameter description (Chinese)](../../docs/zh/user_guides/atc_tools/CLI_options/--log.md)
+[atc --log parameter description](../../docs/zh/user_guides/atc_tools/CLI_options/--log.md)
 for details. When a plugin callback raises a Python exception or a plugin file
 fails to load, the default error output (E19999) already carries the
 Python-side information (exception type, failing statement, plugin file, and
@@ -299,7 +299,7 @@ The callback receives two operators:
   one object per attribute on the node; each object describes one attribute
   with `name` (the attribute name), `type` (the type code), and the key that
   holds the value - which key holds the value depends on the attribute type.
-  For example, if `alpha_f=1.5` was written at export time, `source` gives:
+  For example, if `alpha_f=1.0` was written at export time, `source` gives:
 
 ```json
 {
@@ -335,7 +335,7 @@ handle as well; it is used here to demonstrate how to read the JSON.
 
 For the complete description of every value field of `attribute` (including
 composite types such as tensor and subgraph), see the
-[parse_operator interface doc (Chinese)](../../docs/zh/api/graph_engine_api/python/ge/onnx_plugin/OnnxPlugin/parse_operator.md).
+[parse_operator interface doc](../../docs/zh/api/graph_engine_api/python/ge/onnx_plugin/OnnxPlugin/parse_operator.md).
 
 ### 4.3 decompose: Replace the Node with a Subgraph of Existing Operators
 
@@ -349,7 +349,7 @@ The subgraph is built with the GE ES graph-building API: `GraphBuilder` builds
 the graph (creating inputs, setting outputs, building), and existing operators
 (Threshold, Mul, SplitD, and so on) are directly callable functions. For the
 full operator list and parameter descriptions, see the
-[ES Python API document](../../docs/en/user_guides/es_graph/api/es_python.md).
+[ES Python API document](../../docs/zh/user_guides/es_graph/api/es_python.md).
 
 Notes when writing `decompose`:
 
