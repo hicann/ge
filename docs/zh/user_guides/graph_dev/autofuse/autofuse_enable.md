@@ -74,7 +74,7 @@ $\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用�
   ```python
   model = torch.compile(
      model,
-   options={"npu_backend": "ascendc"},
+     options={"npu_backend": "ascendc"},
   )
   ```
 
@@ -85,7 +85,7 @@ $\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用�
   ```python
   @torch.compile(options={"npu_backend": "ascendc"})
   def test_add_ge(x, y, z):
-    return torch.ge(torch.add(x, y), z)
+      return torch.ge(torch.add(x, y), z)
   ```
 
 - 通过设置环境变量`TORCHINDUCTOR_NPU_BACKEND`启用AutoFuse：

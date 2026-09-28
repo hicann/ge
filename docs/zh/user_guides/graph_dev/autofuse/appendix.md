@@ -13,30 +13,28 @@
 
 ### AUTOFUSE_FLAGS控制项
 
-`AUTOFUSE_FLAGS`用于控制AutoFuse功能。
-
-**仅开启基础AutoFuse融合功能（最简配置）：**
+该控制项用于控制AutoFuse功能，以下是**仅开启基础AutoFuse融合功能的最简配置：**
 
 ```bash
 export AUTOFUSE_FLAGS="--enable_autofuse=true"
 ```
 
-对于G路径，以上配置用于开启基础AutoFuse融合功能。
+- 对于GE路径，以上配置用于开启基础AutoFuse融合功能。
 
-对于Inductor路径，AutoFuse通过`torch.compile`配置`ascendc`后端来开启，`AUTOFUSE_FLAGS`主要用于配置扩展功能。
+- 对于Inductor路径，AutoFuse通过`torch.compile`配置`ascendc`后端来开启，`AUTOFUSE_FLAGS`主要用于配置扩展功能。
 
 下表列出所有可选控制项，可根据需要组合使用：
 
 | 控制项                                   | 适用场景               | 作用、取值与使用约束                                 |
 | :--------------------------------------- | :--------------------- | :--------------------------------------------------- |
-| `--enable_autofuse`                      | GE路径                 | 控制整体自动融合功能是否开启。                       |
-| `--autofuse_enable_pass`                 | GE路径                 | 控制指定的扩展融合能力是否开启。                     |
-| `--autofuse_disable_pass`                | GE路径                 | 控制指定的扩展融合能力是否关闭。                     |
-| `--autofuse_enable_pgo`                  | GE 路径、Inductor 路径 | 开启PGO调优，通过预先上板采样选择性能更优的 Tiling。 |
-| `--autofuse_enhance_precision_blacklist` | GE路径                 | 控制指定AscIR算子类型是否跳过精度提升。              |
-| `--experimental_enable_jit_executor_v2`  | GE路径                 | 开启切图编译。                                       |
-| `--max_fusion_size`                      | GE路径                 | 设置单个融合算子最多包含的节点数量。                 |
-| `--recomputation_threshold`              | GE路径                 | 设置自动融合重计算阈值。                             |
+| [--enable_autofuse](#--enable_autofuse)                     | GE路径                 | 控制整体自动融合功能是否开启。                       |
+| [--autofuse_enable_pass](#--autofuse_enable_pass)                 | GE路径                 | 控制指定的扩展融合能力是否开启。                     |
+| [--autofuse_disable_pass](#--autofuse_disable_pass)                | GE路径                 | 控制指定的扩展融合能力是否关闭。                     |
+| [--autofuse_enable_pgo](#--autofuse_enable_pgo)                  | GE路径、Inductor路径 | 开启PGO调优，通过预先上板采样选择性能更优的 Tiling。 |
+| [--autofuse_enhance_precision_blacklist](#--autofuse_enhance_precision_blacklist) | GE路径                 | 控制指定AscIR算子类型是否跳过精度提升。              |
+| [--experimental_enable_jit_executor_v2](#--experimental_enable_jit_executor_v2)  | GE路径                 | 开启切图编译。                                       |
+| [--max_fusion_size](#--max_fusion_size)                    | GE路径                 | 设置单个融合算子最多包含的节点数量。                 |
+| [--recomputation_threshold](#--recomputation_threshold)             | GE路径                 | 设置自动融合重计算阈值。                             |
 
 示例：
 
@@ -48,21 +46,21 @@ export AUTOFUSE_FLAGS="--enable_autofuse=true;--autofuse_enable_pass=reduce,conc
 
 `AUTOFUSE_DFX_FLAGS`用于AutoFuse编译、Auto Tiling和融合结果调测。
 
-| 控制项                               | 适用场景              | 作用、取值与使用约束                       |
+| 控制项 | 适用场景 | 作用、取值与使用约束 |
 | :----------------------------------- | :-------------------- | :----------------------------------------- |
-| `--autofuse_att_algorithm`           | GE路径、Inductor 路径 | 选择Auto Tiling求解算法。                  |
-| `--att_accuracy_level`               | GE路径、Inductor 路径 | 控制Auto Tiling算法的求解精度。            |
-| `--att_enable_multicore_ub_tradeoff` | GE路径、Inductor 路径 | 控制多核利用率与UB利用率权衡策略是否开启。 |
-| `--att_ub_threshold`                 | GE路径、Inductor 路径 | 设置Auto Tiling的UB利用率阈值。            |
-| `--att_corenum_threshold`            | GE路径、Inductor 路径 | 设置Auto Tiling的多核利用率阈值。          |
-| `--att_profiling`                    | GE路径、Inductor 路径 | 控制Auto Tiling Profiling是否开启。        |
-| `--autofuse_pgo_algo`                | GE路径                | 选择PGO调优算法。                          |
-| `--autofuse_pgo_step_max`            | GE路径                | 设置PGO剪枝算法步长。                      |
-| `--autofuse_pgo_topn`                | GE路径                | 设置参与PGO静态调优的候选解数量。          |
-| `--codegen_compile_debug`            | GE路径、Inductor 路径 | 控制是否保留融合算子生成过程中的中间文件。 |
-| `--debug_dir`                        | GE路径、Inductor路径  | 指定融合过程中AscGraph Dump图的保存路径。  |
-| `--disable_lifting`                  | GE路径                | 控制是否关闭Lifting。                      |
-| `--skip_node_names_cfg`              | GE路径                | 设置需要跳过融合的算子名称或算子类型。     |
+| [--autofuse_att_algorithm](#--autofuse_att_algorithm) | GE路径、Inductor路径 | 选择Auto Tiling求解算法。 |
+| [--att_accuracy_level](#--att_accuracy_level) | GE路径、Inductor路径 | 控制Auto Tiling算法的求解精度。 |
+| [--att_enable_multicore_ub_tradeoff](#--att_enable_multicore_ub_tradeoff) | GE路径、Inductor路径 | 控制多核利用率与UB利用率权衡策略是否开启。 |
+| [--att_ub_threshold](#--att_ub_threshold) | GE路径、Inductor路径 | 设置Auto Tiling的UB利用率阈值。 |
+| [--att_corenum_threshold](#--att_corenum_threshold) | GE路径、Inductor路径 | 设置Auto Tiling的多核利用率阈值。 |
+| [--att_profiling](#--att_profiling) | GE路径、Inductor路径 | 控制Auto Tiling Profiling是否开启。 |
+| [--autofuse_pgo_algo](#--autofuse_pgo_algo) | GE路径 | 选择PGO调优算法。 |
+| [--autofuse_pgo_step_max](#--autofuse_pgo_step_max) | GE路径 | 设置PGO剪枝算法步长。 |
+| [--autofuse_pgo_topn](#--autofuse_pgo_topn) | GE路径 | 设置参与PGO静态调优的候选解数量。 |
+| [--codegen_compile_debug](#--codegen_compile_debug) | GE路径、Inductor路径 | 控制是否保留融合算子生成过程中的中间文件。 |
+| [--debug_dir](#--debug_dir) | GE路径、Inductor路径 | 指定融合过程中AscGraph Dump图的保存路径。 |
+| [--disable_lifting](#--disable_lifting) | GE路径 | 控制是否关闭Lifting。 |
+| [--skip_node_names_cfg](#--skip_node_names_cfg) | GE路径 | 设置需要跳过融合的算子名称或算子类型。 |
 
 示例：
 
@@ -82,9 +80,10 @@ export AUTOFUSE_DFX_FLAGS="--codegen_compile_debug=true;--debug_dir=/path/to/dum
 | :----------------------------------- | :----------------------------------------------------------- | :-------------------------------------------- |
 | `TORCH_COMPILE_DEBUG`                | 开启PyTorch编译调试信息，并将编译中间产物保存到当前目录的`torch_compile_debug` 目录。以`autofused_`为前缀的目录通常表示 AscendC 后端生成的融合算子产物。 | `export TORCH_COMPILE_DEBUG=1`                |
 | `TORCHINDUCTOR_FORCE_DISABLE_CACHES` | 禁用Inductor缓存，强制每次执行都重新编译。该配置会增加编译和图启动耗时，仅用于调试。 | `export TORCHINDUCTOR_FORCE_DISABLE_CACHES=1` |
-| `TORCHINDUCTOR_ASCENDC_DEBUG`        | 该环境变量用来开启MatMul算子融合。                           | `export TORCHINDUCTOR_ASCENDC_DEBUG="matmu"`  |
 | `TORCHINDUCTOR_NPU_BACKEND`          | 该环境变量用于选择Ascend C后端。                             | `export TORCHINDUCTOR_NPU_BACKEND="ascendc"`  |
 | `ASCEND_LAUNCH_BLOCKING`             | 使Ascend Kernel同步执行，便于定位首个报错的Kernel。该配置会降低执行性能，仅建议在问题定位时使用。 | `export ASCEND_LAUNCH_BLOCKING=1`             |
+
+更多环境变量请参见[调测相关环境变量](https://gitcode.com/Ascend/torchair/blob/master/experimental/_inductor_npu_ext/docs/manuals.md#2-%E8%B0%83%E6%B5%8B%E7%9B%B8%E5%85%B3%E7%8E%AF%E5%A2%83%E5%8F%98%E9%87%8F)。
 
 ### GE路径专属
 

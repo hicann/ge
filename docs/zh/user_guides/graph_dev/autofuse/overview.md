@@ -34,7 +34,7 @@ AutoFuse是CANN生态中面向昇腾系列芯片的自动算子融合组件。�
 如上图所示，自动融合方案基于昇腾NPU底层统一的AscendLoopIR（面向Ascend C编程语言建模的IR）以及配套的Schedule和代码生成等能力，构建了两条融合实现路径：
 
 - **GE路径**：基于昇腾自研的GE框架，侧重昇腾NPU亲和性，由GE完成符号化、Lowering和融合范围判断，AutoFuse负责后端调度、切分和代码生成。
-- **Inductor路径**：对接PyTorch Inductor，侧重生态适配，复用Inductor的融合范围识别能力，后端处理仍由 AutoFuse完成。
+- **Inductor路径**：对接PyTorch Inductor，侧重生态适配，复用Inductor的融合范围识别能力，后端处理仍由AutoFuse完成。
 
 下面详细介绍各个组件的作用。
 
@@ -44,7 +44,7 @@ AutoFuse是CANN生态中面向昇腾系列芯片的自动算子融合组件。�
 
 - **GE路径**：在线场景通过TorchAir或TensorFlow Adapter将AtenIR、GraphDef等图表示转换为AscendIR，进入GE图编译流程；离线场景通过ATC内置Parser将TensorFlow、ONNX等格式的模型解析为AscendIR。
 
-- **Inductor路径**：将PyTorch的AtenIR转换为InductorIR，采用PyTorch Inductor路径。其中，TorchNPU模块的相关说明请参见[PyTorch项目](https://gitcode.com/Ascend/pytorch)；`inductor-npu-ext`模块的相关说明请参见[TorchAir项目](https://gitcode.com/Ascend/torchair/tree/master/experimental/_inductor_npu_ext)。
+- **Inductor路径**：将PyTorch的AtenIR转换为InductorIR，采用PyTorch Inductor路径。其中，TorchNPU模块的相关说明请参见[PyTorch项目](https://gitcode.com/Ascend/pytorch)。
 
 ### Graph Engine
 
