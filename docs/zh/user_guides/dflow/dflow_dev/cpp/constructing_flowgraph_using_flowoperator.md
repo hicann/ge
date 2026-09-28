@@ -103,6 +103,7 @@ FlowNode是FlowGraph的计算节点。FlowNode定义了计算节点的名称、�
     auto node0 = dflow::FlowNode("node0", 2, 1)         // 创建FlowNode的FlowOperator实例
       .SetInput(0, data0)                               // 设置FlowNode第一个输入为data0
       .SetInput(1, data1);                              // 设置FlowNode第二个输入为data1
+    ```
 
 ### FlowOperator连接边表达
 

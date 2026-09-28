@@ -1246,6 +1246,7 @@
     - [PassStage](python/ge/passes/PassStage.md)
     - [Placement](python/ge/Placement.md)
     - [异常类型](python/ge/exception_types.md)
+  - [模型管理和单算子调用接口<a name="sub_menu"></a>](https://gitcode.com/cann/runtime/blob/9.2.0/python/docs/zh/api_ref/ge/README.md)
 
 - [C语言接口](c/c_language_interface.md)
   - [图基础数据结构和接口](c/graph_base_structure/graph_basic_data_structure_and_interface.md)

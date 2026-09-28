@@ -15,7 +15,7 @@ Kernel的执行逻辑会在AscIR中表达，Auto Tiling会根据AscIR图的表�
 
     Auto Tiling求解需确保每一级LocalBuffer的占用在硬件允许的范围内，比如，Kernel申请的TQue/TBuf及临时Buf申请大小之和不能超过硬件的UB大小限制，AscIR会表达出每个Tensor的Location是在GM/UB上，Tensor间的复用关系，自动Tiling根据这些信息将各级LocalBuffer的约束进行符号化表达。
 
-    关于TQue/TBuf详细介绍请参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/9.2.0/docs/zh/guide/index.md)》。
+    关于TQue/TBuf详细介绍请参见《[Ascend C算子开发](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/index.md)》。
 
 2. 耗时公式建模
 
@@ -55,7 +55,7 @@ Kernel的执行逻辑会在AscIR中表达，Auto Tiling会根据AscIR图的表�
             **图 3**  核内Tiling示意图
             ![图3](../figures/intra_core_tiling_diagram.png "核内Tiling示意图")
 
-        - 多核Tiling：识别与多核相关的变量，按从大到小的顺序遍历这些变量，找到更大核数占用的记录，若超出物理核数（以Atlas A2系列产品为例，NPU核数为48）则返回。
+        - 多核Tiling：识别与多核相关的变量，按从大到小的顺序遍历这些变量，找到更大核数占用的记录，若超出物理核数（以Atlas A2 训练系列产品/Atlas A2 推理系列产品为例，NPU核数为48）则返回。
 
             如下图所示，bngs1T是多核切分轴，其切分流程如下。选择策略为：核数占用不同时，优先选择占用核数更大的记录，根据上述策略，最终选定的占用核数为47。
 
