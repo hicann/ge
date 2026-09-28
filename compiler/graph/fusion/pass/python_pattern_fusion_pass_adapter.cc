@@ -37,8 +37,10 @@ std::pair<std::unique_ptr<PythonPassHolder>, std::unique_ptr<PatternMatcherConfi
     return std::make_pair(std::move(holder), std::move(match_config));
   }
 
-  const auto ret = callbacks.get_matcher_config(holder->GetHolder(), match_config);
+  void *raw_config = nullptr;
+  const auto ret = callbacks.get_matcher_config(holder->GetHolder(), &raw_config);
   if (ret == SUCCESS) {
+    match_config.reset(static_cast<PatternMatcherConfig *>(raw_config));
     return std::make_pair(std::move(holder), std::move(match_config));
   }
 

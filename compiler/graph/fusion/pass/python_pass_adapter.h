@@ -27,8 +27,7 @@ using PythonFusionBasePassHolderCreateFn = void *(*)(const PythonPassDescriptor 
 using PythonFusionBasePassHolderDestroyFn = void (*)(void *holder);
 using PythonFusionBasePassRunFn = Status (*)(const void *holder, GraphPtr &graph, CustomPassContext &pass_context);
 
-using PythonFusionPassGetMatcherConfigFn = Status (*)(const void *holder,
-                                                      std::unique_ptr<PatternMatcherConfig> &matcher_config);
+using PythonFusionPassGetMatcherConfigFn = Status (*)(const void *holder, void **matcher_config);
 using PythonFusionPassPatternsFn = Status (*)(const void *holder, std::vector<PatternUniqPtr> &patterns);
 using PythonFusionPassMeetRequirementsFn = bool (*)(const void *holder,
                                                     const std::unique_ptr<MatchResult> &match_result,
