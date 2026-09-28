@@ -36,6 +36,6 @@ ge\_api\_error\_codes.h中的如下接口是内部关联接口，开发者不需
 
     用于错误码注册。
 
-  - std::string GetErrDesc\(uint32\_t err\)
+  - std::string GetErrDesc\(const uint32\_t err\)
 
     根据错误码值获取错误码描述。
