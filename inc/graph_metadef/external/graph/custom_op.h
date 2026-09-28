@@ -21,6 +21,7 @@
 #include "exe_graph/runtime/infer_datatype_context.h"
 #include "exe_graph/runtime/infer_shape_context.h"
 #include "exe_graph/runtime/op_compile_context.h"
+#include "exe_graph/runtime/resource_usage_context.h"
 #include "exe_graph/runtime/update_args_context.h"
 
 namespace ge {
@@ -125,6 +126,25 @@ class HostCpuExecuteOp : virtual public BaseCustomOp {
    * @return GRAPH_SUCCESS 表示执行成功，否则返回错误码。
    */
   virtual graphStatus Execute(gert::HostCpuOpExecutionContext *ctx) = 0;
+};
+
+/**
+ * 自定义算子的资源申报接口。
+ * 实现该接口的 Eager 自定义算子在编译期按节点被回调，申报运行期将请求的资源，
+ * 未实现该接口的算子不参与统计，其运行期资源不计入统计值。
+ * @since 9.3.0(2026-09)
+ */
+class ResourceUsageReporter : virtual public BaseCustomOp {
+ public:
+  ~ResourceUsageReporter() override = default;
+  /**
+   * 申报本节点的资源使用，编译期按节点调用。
+   * 同一算子实例会被逐节点串行回调，实现必须可重入、无跨节点副作用。
+   * @param ctx 资源申报上下文，可获取节点信息并上报资源使用量
+   * @return GRAPH_SUCCESS 表示申报成功，否则编译失败
+   * @since 9.3.0(2026-09)
+   */
+  virtual graphStatus DeclareResourceUsage(gert::ResourceUsageContext &ctx) = 0;
 };
 
 /**

@@ -159,6 +159,8 @@ CompiledGraphSummaryPtr CompiledGraphSummary::Builder::Build(const GeModelPtr &g
   // 支持动态图中静态子图获取对应的fix地址大小数据
   GE_ASSERT_SUCCESS(summary->data_->SetFixedFeatureMemorySize(ge_model, ge_root_model));
   GE_ASSERT_SUCCESS(summary->data_->SetStreamNum(ge_model));
+  // eager 自定义算子辅流统计对动态图同样有效，必须在动态图提前返回之前读取
+  GE_ASSERT_SUCCESS(summary->data_->SetEagerCustomOpStreamNum(ge_model));
   if (!summary->data_->is_static_) {
     GELOGI("Dynamic graph summary build success, graph_name:%s, model_name:%s", root_graph->GetName().c_str(),
            ge_model->GetName().c_str());
@@ -258,6 +260,12 @@ Status CompiledGraphSummary::SummaryData::SetFeatureMemoryBaseRefreshable(const 
 
 Status CompiledGraphSummary::SummaryData::SetStreamNum(const GeModelPtr &ge_model) {
   GE_ASSERT(AttrUtils::GetInt(ge_model, ATTR_MODEL_STREAM_NUM, stream_num_));
+  return SUCCESS;
+}
+
+Status CompiledGraphSummary::SummaryData::SetEagerCustomOpStreamNum(const GeModelPtr &ge_model) {
+  // 可选属性：旧 OM 或无上报算子的模型不带该属性，缺省按 0 处理
+  (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_custom_op_stream_num_);
   return SUCCESS;
 }
 

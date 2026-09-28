@@ -14,16 +14,20 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <limits>
 #include <set>
 #include <unordered_map>
 #include "mmpa/mmpa_api.h"
 #include "common/dump/dump_manager.h"
 #include "graph/build/input_h2d_overlap_planner.h"
+#include "common/ge_common/ge_types.h"
 #include "graph/build/stream/dynamic_stream_allocator.h"
 #include "graph/build/stream_graph_optimizer.h"
 #include "common/omg_util/omg_util.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
 #include "graph/ge_context.h"
+#include "graph/custom_op_factory.h"
+#include "graph/debug/ge_util.h"
 #include "graph/optimize/params.h"
 #include "graph/unfold/graph_unfolder.h"
 #include "graph/utils/graph_utils.h"
@@ -33,6 +37,9 @@
 #include "graph/utils/tensor_utils_ex.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/op_desc_utils_ex.h"
+#include "exe_graph/lowering/kernel_run_context_builder.h"
+#include "exe_graph/runtime/resource_usage_context.h"
+#include "graph_metadef/exe_graph/runtime/resource_usage_collector.h"
 #include "api/gelib/gelib.h"
 #include "framework/memory/memory_assigner.h"
 #include "framework/omg/version.h"
@@ -132,6 +139,109 @@ ge::Status SaveSoftSyncOpWeightByDependNames(const ge::NodePtr &node, const std:
     GE_ASSERT_TRUE(ge::AttrUtils::SetTensor(input_desc, ge::ATTR_NAME_VALUE, weight));
     GELOGD("Save weight to soft sync op[%s]'s input of name: %s.", op_desc->GetName().c_str(), depend_name.c_str());
   }
+  return ge::SUCCESS;
+}
+
+void GetResourceUsageStorageShape(const ge::GeTensorDesc &tensor_desc, gert::StorageShape &storage_shape) {
+  for (const auto &dim : tensor_desc.GetShape().GetDims()) {
+    (void)storage_shape.MutableStorageShape().AppendDim(dim);
+  }
+  for (const auto &dim : tensor_desc.GetOriginShape().GetDims()) {
+    (void)storage_shape.MutableOriginShape().AppendDim(dim);
+  }
+}
+
+ge::Status ConstructResourceUsageTensors(const ge::OpDescPtr &op_desc, const bool is_input,
+                                         std::vector<std::unique_ptr<gert::Tensor>> &tensors) {
+  const size_t desc_size = is_input ? op_desc->GetAllInputsSize() : op_desc->GetAllOutputsDescSize();
+  for (size_t i = 0UL; i < desc_size; ++i) {
+    const auto &tensor_desc =
+        is_input ? op_desc->GetInputDesc(static_cast<uint32_t>(i)) : op_desc->GetOutputDesc(static_cast<uint32_t>(i));
+    if (is_input && (tensor_desc.IsValid() != ge::GRAPH_SUCCESS)) {
+      // 无效的可选输入不构造 tensor：与 KernelRunContextBuilder::MakeNode 建边口径一致
+      // （invalid desc 跳过建边），保证 tensor 数 == ComputeNodeInfo::GetInputsNum()，
+      // 收集器槽位（additional input 起点）不会错位；调用侧另有数量与指针同一性校验兜底
+      continue;
+    }
+    gert::StorageShape storage_shape;
+    GetResourceUsageStorageShape(tensor_desc, storage_shape);
+    const gert::StorageFormat storage_format(tensor_desc.GetOriginFormat(), tensor_desc.GetFormat(),
+                                             gert::ExpandDimsType());
+    auto tensor_holder = ge::ComGraphMakeUnique<gert::Tensor>(storage_shape, storage_format, tensor_desc.GetDataType());
+    GE_ASSERT_NOTNULL(tensor_holder, "Create resource usage context tensor holder failed, op:%s.",
+                      op_desc->GetNamePtr());
+    (void)tensors.emplace_back(std::move(tensor_holder));
+  }
+  return ge::SUCCESS;
+}
+
+std::vector<void *> GetResourceUsageTensorPtrs(const std::vector<std::unique_ptr<gert::Tensor>> &tensors) {
+  std::vector<void *> tensor_ptrs;
+  tensor_ptrs.reserve(tensors.size());
+  for (const auto &tensor : tensors) {
+    (void)tensor_ptrs.emplace_back(tensor.get());
+  }
+  return tensor_ptrs;
+}
+
+// 声明式自定义算子的辅流已按唯一 key 数精确计入 stream_num，跳过以避免双计；
+// 未注册为 device 自定义算子或未实现 ResourceUsageReporter 的节点返回空指针，由调用方跳过。
+ge::Status GetResourceUsageReporter(const ge::OpDescPtr &op_desc, ge::ResourceUsageReporter *&reporter) {
+  reporter = nullptr;
+  const ge::AscendString op_type(op_desc->GetTypePtr());
+  if (ge::CustomOpFactory::GetArgsRefreshStrategy(op_type) == ge::ArgsRefreshStrategy::kAnnotatedArgs) {
+    return ge::SUCCESS;
+  }
+  auto *const base_custom_op = ge::CustomOpFactory::CreateOrGetCustomOp(op_type, ge::OpBackend::kDevice);
+  if (base_custom_op == nullptr) {
+    return ge::SUCCESS;
+  }
+  reporter = ge::CustomOpCast<ge::ResourceUsageReporter>(base_custom_op);
+  return ge::SUCCESS;
+}
+
+ge::Status DeclareNodeResourceUsage(const ge::NodePtr &node, ge::ResourceUsageReporter &reporter,
+                                    gert::ResourceUsageCollector &collector) {
+  const auto op_desc = node->GetOpDesc();
+  GE_CHECK_NOTNULL(op_desc);
+  std::vector<std::unique_ptr<gert::Tensor>> input_tensors;
+  std::vector<std::unique_ptr<gert::Tensor>> output_tensors;
+  GE_ASSERT_SUCCESS(ConstructResourceUsageTensors(op_desc, true, input_tensors));
+  GE_ASSERT_SUCCESS(ConstructResourceUsageTensors(op_desc, false, output_tensors));
+  auto inputs = GetResourceUsageTensorPtrs(input_tensors);
+  // 附加输入槽位布局由 gert::ResourceUsageInput 单一定义，按枚举下标写入，避免与消费侧的读取下标分叉
+  const size_t additional_input_start = inputs.size();
+  inputs.resize(additional_input_start + static_cast<size_t>(gert::ResourceUsageInput::kNum), nullptr);
+  inputs[additional_input_start + static_cast<size_t>(gert::ResourceUsageInput::kCollector)] = &collector;
+  auto outputs = GetResourceUsageTensorPtrs(output_tensors);
+  auto context_holder =
+      gert::KernelRunContextBuilder().Inputs(std::move(inputs)).Outputs(std::move(outputs)).Build(op_desc);
+  auto *const kernel_context = context_holder.GetKernelContext();
+  GE_ASSERT_NOTNULL(kernel_context, "Create resource usage context failed, op_name:%s, op_type:%s.",
+                    op_desc->GetNamePtr(), op_desc->GetTypePtr());
+  // ResourceUsageContext 为零成员 standard-layout 视图类（头文件 static_assert 保证），
+  // 基类为 protected 继承，与 getcdim.cc 同款使用 PtrToPtr 完成视图转换
+  auto *const resource_usage_context = ge::PtrToPtr<gert::KernelContext, gert::ResourceUsageContext>(kernel_context);
+  // 槽位校验与 DeclareLaunchArgsTaskPlan 同款：数量 + 指针同一性双重检查。
+  // tensor 构造与 MakeNode 建边共用"跳过 invalid desc"口径，正常恒对齐；此校验兜底
+  // 任一侧口径未来变化导致的错位，避免 tensor 槽被误当收集器使用（类型混淆）
+  const size_t compute_input_num = resource_usage_context->GetComputeNodeInputNum();
+  const size_t additional_input_num = static_cast<size_t>(gert::ResourceUsageInput::kNum);
+  GE_ASSERT_TRUE(kernel_context->GetInputNum() == (compute_input_num + additional_input_num),
+                 "Resource usage context input size %zu does not equal compute input size %zu plus additional "
+                 "input size %zu, op_name:%s, op_type:%s.",
+                 kernel_context->GetInputNum(), compute_input_num, additional_input_num, op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr());
+  auto *const slot_collector = kernel_context->GetInputValue<gert::ResourceUsageCollector *>(
+      compute_input_num + static_cast<size_t>(gert::ResourceUsageInput::kCollector));
+  GE_ASSERT_TRUE(slot_collector == &collector,
+                 "Resource usage context collector slot mismatch, op_name:%s, op_type:%s.", op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr());
+  const auto declare_ret = reporter.DeclareResourceUsage(*resource_usage_context);
+  // 收集器错误状态粘滞，即使算子吞掉 ReportAttachedStream 的错误码也在此拦截
+  GE_ASSERT_TRUE((declare_ret == ge::GRAPH_SUCCESS) && (!collector.HasError()),
+                 "Declare resource usage failed, op_name:%s, op_type:%s, status:%d.", op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr(), declare_ret);
   return ge::SUCCESS;
 }
 }  // namespace
@@ -1243,6 +1353,8 @@ Status ModelBuilder::BuildModelForGetTask(ge::Model &model) {
 }
 
 Status ModelBuilder::BuildModelDefForStream(ge::Model &model) {
+  GE_ASSERT_SUCCESS(CollectEagerCustomOpStreamNum(model), "[Collect][EagerCustomOpStreamNum] failed! graph:%s",
+                    compute_graph_->GetName().c_str());
   GE_ASSERT_TRUE(ge::AttrUtils::SetInt(&model, ATTR_MODEL_STREAM_NUM, stream_num_), "[Set][Attr] %s in model failed",
                  ATTR_MODEL_STREAM_NUM.c_str());
   GE_ASSERT_TRUE(ge::AttrUtils::SetInt(&model, ATTR_MODEL_NOTIFY_NUM, notify_num_), "[Set][Attr] %s in model failed",
@@ -1266,6 +1378,41 @@ Status ModelBuilder::BuildModelDefForStream(ge::Model &model) {
                                        StreamUtils::TransMapToStr(stream_allocator_.GetSplitStreamToLogicStream())));
   GELOGI("build model def about stream, stream num: %ld, event_num: %ld, notify_num: %ld", stream_num_, event_num_,
          notify_num_);
+  return SUCCESS;
+}
+
+Status ModelBuilder::CollectEagerCustomOpStreamNum(ge::Model &model) {
+  GE_CHECK_NOTNULL(compute_graph_);
+  gert::ResourceUsageCollector collector;
+  bool has_reporter = false;
+  for (const auto &node : compute_graph_->GetAllNodes()) {
+    GE_CHECK_NOTNULL(node);
+    const auto op_desc = node->GetOpDesc();
+    GE_CHECK_NOTNULL(op_desc);
+    if (op_desc->GetOpKernelLibName() != kCustomOpKernelLibName) {
+      continue;
+    }
+    ResourceUsageReporter *reporter = nullptr;
+    GE_ASSERT_SUCCESS(GetResourceUsageReporter(op_desc, reporter));
+    if (reporter == nullptr) {
+      continue;
+    }
+    has_reporter = true;
+    GE_ASSERT_SUCCESS(DeclareNodeResourceUsage(node, *reporter, collector));
+  }
+  if (!has_reporter) {
+    // 无上报算子时不写属性，属性缺省语义为"未统计"，与"统计为 0"区分，仅供内部与 DFX 使用
+    return SUCCESS;
+  }
+  const size_t attached_stream_key_num = collector.GetAttachedStreamKeys().size();
+  GE_ASSERT_TRUE(attached_stream_key_num <= static_cast<size_t>(std::numeric_limits<uint32_t>::max()),
+                 "Eager custom op attached stream key num %zu overflow, graph:%s.", attached_stream_key_num,
+                 compute_graph_->GetName().c_str());
+  GE_ASSERT_TRUE(ge::AttrUtils::SetInt(&model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM,
+                                       static_cast<int64_t>(attached_stream_key_num)),
+                 "[Set][Attr] %s in model failed", ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM.c_str());
+  GELOGI("Graph:%s eager custom op attached stream num:%zu.", compute_graph_->GetName().c_str(),
+         attached_stream_key_num);
   return SUCCESS;
 }
 

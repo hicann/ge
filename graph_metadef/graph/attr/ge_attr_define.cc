@@ -743,6 +743,8 @@ const std::string ATTR_MODEL_TARGET_TYPE = "target_type";
 
 const std::string ATTR_MODEL_STREAM_NUM = "stream_num";
 
+const std::string ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM = "eager_custom_op_stream_num";
+
 const std::string ATTR_MODEL_EVENT_NUM = "event_num";
 
 const std::string ATTR_MODEL_NOTIFY_NUM = "notify_num";

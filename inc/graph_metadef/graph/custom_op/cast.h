@@ -65,6 +65,11 @@ struct CustomOpCapabilityTrait<AnnotatedArgsOp> {
   static constexpr CustomOpCapability kCapability = CustomOpCapability::kAnnotatedArgs;
 };
 
+template <>
+struct CustomOpCapabilityTrait<ResourceUsageReporter> {
+  static constexpr CustomOpCapability kCapability = CustomOpCapability::kResourceReporting;
+};
+
 template <typename T>
 T *CustomOpCast(BaseCustomOp *op) {
   if (op == nullptr) {

@@ -11,6 +11,7 @@
 #include "exe_graph/runtime/eager_op_execution_context.h"
 #include "exe_graph/runtime/host_cpu_op_execution_context.h"
 #include "exe_graph/runtime/annotated_args_context.h"
+#include "exe_graph/runtime/resource_usage_context.h"
 #include "runtime/annotated_args_handler.h"
 
 #include <limits>
@@ -219,6 +220,11 @@ ge::graphStatus AnnotatedArgsContext::AddLaunch(const AnnotatedKernelLaunchInfo 
                                       std::move(arg_descs));
   }
   return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus ResourceUsageContext::ReportAttachedStream(const std::vector<ge::AscendString> &keys) {
+  (void)keys;
+  return ge::GRAPH_FAILED;
 }
 
 Tensor *HostCpuOpExecutionContext::MallocOutputTensor(size_t index, const StorageShape &shape,

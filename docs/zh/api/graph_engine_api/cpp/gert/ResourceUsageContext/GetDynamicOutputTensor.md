@@ -1,0 +1,35 @@
+# GetDynamicOutputTensor
+
+## 产品支持情况
+
+全量芯片支持。
+
+## 头文件/库文件
+
+- 头文件：\#include <exe\_graph/runtime/resource\_usage\_context.h\>
+- 库文件：liblowering.so
+
+## 功能说明
+
+基于算子IR原型定义，获取DYNAMIC\_OUTPUT（动态输出）类型的输出Tensor指针，需要IR原型索引和相对索引两个参数来定位动态输出端口实例化后的具体输出项，可读取编译期静态shape、format与dtype。
+
+## 函数原型
+
+```c++
+const Tensor *GetDynamicOutputTensor(size_t ir_index, size_t relative_index) const
+```
+
+## 参数说明
+
+| 参数名 | 输入/输出 | 描述 |
+| --- | --- | --- |
+| ir_index | 输入 | IR原型定义中的索引，标识是哪个动态输出端口。 |
+| relative_index | 输入 | 相对索引，标识该动态输出实例化后的具体第几个输出。例如某个DYNAMIC\_OUTPUT实例化了3个输出，那么relative\_index的有效范围是[0,2]。 |
+
+## 返回值说明
+
+Tensor指针，异常或越界时返回空指针。
+
+## 约束说明
+
+无

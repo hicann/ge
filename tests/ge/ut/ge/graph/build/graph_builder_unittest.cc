@@ -11,6 +11,9 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <set>
+#include <limits>
+#include "common/model/ge_model.h"
+#include "common/model/ge_root_model.h"
 #include "ge_graph_dsl/graph_dsl.h"
 
 #include "macro_utils/dt_public_scope.h"
@@ -1646,5 +1649,71 @@ TEST_F(GraphBuilderTest, Build_GraphWithWorkspaceUpdate) {
   GeRootModelPtr root_model;
   VarManager::Instance(0UL)->Init(0U, 0UL, 0UL, 0UL);
   auto ret = graph_builder.Build(root_graph, root_model);
+}
+
+TEST_F(GraphBuilderTest, RefreshInfoAggregatesEagerCustomOpStreamNum) {
+  auto root_graph = std::make_shared<ComputeGraph>("eager_agg_root");
+  auto ge_root_model = std::make_shared<GeRootModel>();
+  auto root_model = std::make_shared<GeModel>();
+  auto sub_model_with_keys = std::make_shared<GeModel>();
+  auto sub_model_without_keys = std::make_shared<GeModel>();
+  ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_STREAM_NUM, 2));
+  ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, 3));
+  ASSERT_TRUE(AttrUtils::SetInt(sub_model_with_keys, ATTR_MODEL_STREAM_NUM, 5));
+  ASSERT_TRUE(AttrUtils::SetInt(sub_model_with_keys, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, 4));
+  ASSERT_TRUE(AttrUtils::SetInt(sub_model_without_keys, ATTR_MODEL_STREAM_NUM, 1));
+  ge_root_model->SetSubgraphInstanceNameToModel("eager_agg_root", root_model);
+  ge_root_model->SetSubgraphInstanceNameToModel("eager_agg_sub_1", sub_model_with_keys);
+  ge_root_model->SetSubgraphInstanceNameToModel("eager_agg_sub_2", sub_model_without_keys);
+
+  GraphBuilder graph_builder;
+  ASSERT_EQ(graph_builder.RefreshInfoOfDynamicShapeGraph(root_graph, ge_root_model), SUCCESS);
+
+  // stream_num 聚合行为不变：2 + 5 + 1 = 8
+  int64_t stream_num = 0;
+  ASSERT_TRUE(AttrUtils::GetInt(root_model, ATTR_MODEL_STREAM_NUM, stream_num));
+  EXPECT_EQ(stream_num, 8);
+  // eager 辅流统计求和不去重（各子模型执行实例各自建流）：3 + 4 + 缺省 0 = 7
+  int64_t eager_custom_op_stream_num = 0;
+  ASSERT_TRUE(AttrUtils::GetInt(root_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_custom_op_stream_num));
+  EXPECT_EQ(eager_custom_op_stream_num, 7);
+}
+
+TEST_F(GraphBuilderTest, RefreshInfoOmitsEagerCustomOpStreamNumWhenAbsent) {
+  auto root_graph = std::make_shared<ComputeGraph>("eager_agg_absent_root");
+  auto ge_root_model = std::make_shared<GeRootModel>();
+  auto root_model = std::make_shared<GeModel>();
+  auto sub_model = std::make_shared<GeModel>();
+  ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_STREAM_NUM, 2));
+  ASSERT_TRUE(AttrUtils::SetInt(sub_model, ATTR_MODEL_STREAM_NUM, 5));
+  ge_root_model->SetSubgraphInstanceNameToModel("eager_agg_absent_root", root_model);
+  ge_root_model->SetSubgraphInstanceNameToModel("eager_agg_absent_sub", sub_model);
+
+  GraphBuilder graph_builder;
+  ASSERT_EQ(graph_builder.RefreshInfoOfDynamicShapeGraph(root_graph, ge_root_model), SUCCESS);
+
+  int64_t stream_num = 0;
+  ASSERT_TRUE(AttrUtils::GetInt(root_model, ATTR_MODEL_STREAM_NUM, stream_num));
+  EXPECT_EQ(stream_num, 7);
+  // 全部模型均未上报时不写根模型属性，产物零变化
+  int64_t eager_custom_op_stream_num = 0;
+  EXPECT_FALSE(AttrUtils::GetInt(root_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_custom_op_stream_num));
+}
+
+TEST_F(GraphBuilderTest, RefreshInfoEagerCustomOpStreamNumOverflowFails) {
+  auto root_graph = std::make_shared<ComputeGraph>("eager_agg_overflow_root");
+  auto ge_root_model = std::make_shared<GeRootModel>();
+  auto root_model = std::make_shared<GeModel>();
+  auto sub_model = std::make_shared<GeModel>();
+  ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_STREAM_NUM, 1));
+  ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM,
+                                static_cast<int64_t>(std::numeric_limits<uint32_t>::max())));
+  ASSERT_TRUE(AttrUtils::SetInt(sub_model, ATTR_MODEL_STREAM_NUM, 1));
+  ASSERT_TRUE(AttrUtils::SetInt(sub_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, 1));
+  ge_root_model->SetSubgraphInstanceNameToModel("eager_agg_overflow_root", root_model);
+  ge_root_model->SetSubgraphInstanceNameToModel("eager_agg_overflow_sub", sub_model);
+
+  GraphBuilder graph_builder;
+  EXPECT_NE(graph_builder.RefreshInfoOfDynamicShapeGraph(root_graph, ge_root_model), SUCCESS);
 }
 }  // namespace ge

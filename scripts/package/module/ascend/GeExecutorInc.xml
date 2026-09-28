@@ -21,6 +21,7 @@
         <file value="eager_op_execution_context.h"/>
         <file value="host_cpu_op_execution_context.h"/>
         <file value="op_compile_context.h"/>
+        <file value="resource_usage_context.h"/>
         <file value="update_args_context.h"/>
         <file value="kernel_args.h"/>
     </file_info>

@@ -30,6 +30,7 @@ set(LOWERING_SRCS
     runtime/host_cpu_op_execution_context.cc
     runtime/annotated_args_context.cc
     runtime/annotated_args_handler.cc
+    runtime/resource_usage_context.cc
     runtime/update_args_context.cc
     runtime/op_compile_context.cc
 )

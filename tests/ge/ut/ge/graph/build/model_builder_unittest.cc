@@ -63,6 +63,7 @@
 #include "api/gelib/gelib.h"
 #include "register/core_num_utils.h"
 #include "ge/ut/ge/test_tools_task_info.h"
+#include "graph/custom_op_factory.h"
 #include "macro_utils/dt_public_unscope.h"
 
 using namespace std;
@@ -2515,5 +2516,222 @@ TEST_F(UtestModelBuilderTest, ClearOriginalFormatKeepIrAttr) {
   EXPECT_TRUE(ge::AttrUtils::GetBool(ir_ignore_pred_format_desc, ATTR_NAME_IGNORE_PRED_FORMAT, bool_value));
   EXPECT_TRUE(bool_value);
   EXPECT_FALSE(normal_format_desc->HasAttr(ATTR_NAME_FORMAT));
+}
+
+namespace {
+// 上报算子：按静态 shape 分桶申报 key（use_shape_key），或申报固定 key 列表（fixed_keys）
+class ResourceUsageTestOp : public ResourceUsageReporter {
+ public:
+  static void Reset() {
+    call_count = 0U;
+    use_shape_key = false;
+    return_failure = false;
+    swallow_empty_key = false;
+    fixed_keys = {};
+  }
+  graphStatus DeclareResourceUsage(gert::ResourceUsageContext &ctx) override {
+    ++call_count;
+    if (return_failure) {
+      return GRAPH_FAILED;
+    }
+    std::vector<AscendString> keys;
+    if (use_shape_key) {
+      (void)keys.emplace_back(AscendString("key_s"));
+      const auto *tensor = ctx.GetInputTensor(0U);
+      if (tensor == nullptr) {
+        return GRAPH_FAILED;
+      }
+      const auto dim = tensor->GetShape().GetStorageShape().GetDim(0U);
+      (void)keys.emplace_back(AscendString(("key_v_" + std::to_string(dim)).c_str()));
+    } else {
+      for (const auto &key : fixed_keys) {
+        (void)keys.emplace_back(AscendString(key.c_str()));
+      }
+    }
+    if (swallow_empty_key) {
+      (void)keys.emplace_back(AscendString(""));
+      // 模拟算子吞掉 ReportAttachedStream 的错误码并返回成功，验证窗口经粘滞错误复核拦截
+      (void)ctx.ReportAttachedStream(keys);
+      return GRAPH_SUCCESS;
+    }
+    return ctx.ReportAttachedStream(keys);
+  }
+  static uint32_t call_count;
+  static bool use_shape_key;
+  static bool return_failure;
+  static bool swallow_empty_key;
+  static std::vector<std::string> fixed_keys;
+};
+uint32_t ResourceUsageTestOp::call_count = 0U;
+bool ResourceUsageTestOp::use_shape_key = false;
+bool ResourceUsageTestOp::return_failure = false;
+bool ResourceUsageTestOp::swallow_empty_key = false;
+std::vector<std::string> ResourceUsageTestOp::fixed_keys;
+
+// 声明式策略算子（实现 AnnotatedArgsOp → GetArgsRefreshStrategy 为 kAnnotatedArgs），同时实现上报接口验证防双计跳过
+class DeclarativeResourceUsageTestOp : public AnnotatedArgsOp, public ResourceUsageReporter {
+ public:
+  static void Reset() {
+    declare_called = false;
+  }
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  }
+  graphStatus DeclareResourceUsage(gert::ResourceUsageContext &ctx) override {
+    (void)ctx;
+    declare_called = true;
+    return GRAPH_SUCCESS;
+  }
+  static bool declare_called;
+};
+bool DeclarativeResourceUsageTestOp::declare_called = false;
+
+class PlainResourceUsageTestOp : public BaseCustomOp {};
+
+void RegisterResourceUsageTestOps() {
+  static bool registered = false;
+  if (registered) {
+    return;
+  }
+  registered = true;
+  (void)CustomOpFactory::RegisterCustomOpCreator(
+      AscendString("ResourceUsageTestOp"), OpBackend::kDevice,
+      []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<ResourceUsageTestOp>(); });
+  (void)CustomOpFactory::RegisterCustomOpCreator(
+      AscendString("DeclarativeResourceUsageTestOp"), OpBackend::kDevice,
+      []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<DeclarativeResourceUsageTestOp>(); });
+  (void)CustomOpFactory::RegisterCustomOpCreator(
+      AscendString("PlainResourceUsageTestOp"), OpBackend::kDevice,
+      []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<PlainResourceUsageTestOp>(); });
+}
+
+OpDescPtr MakeResourceUsageNodeDesc(const std::string &name, const std::string &type, const int64_t dim,
+                                    const std::string &kernel_lib_name) {
+  auto op_desc = std::make_shared<OpDesc>(name, type);
+  op_desc->SetOpKernelLibName(kernel_lib_name);
+  const GeTensorDesc tensor_desc(GeShape({dim}), FORMAT_ND, DT_FLOAT);
+  (void)op_desc->AddInputDesc("x", tensor_desc);
+  // invalid 可选输入：MakeNode 建边与 tensor 构造均按 IsValid 跳过，覆盖收集器槽位对齐口径
+  const GeTensorDesc invalid_optional_desc(GeShape(), FORMAT_RESERVED, DT_UNDEFINED);
+  (void)op_desc->AddInputDesc("optional_x", invalid_optional_desc);
+  (void)op_desc->AddOutputDesc("y", tensor_desc);
+  return op_desc;
+}
+}  // namespace
+
+TEST_F(UtestModelBuilderTest, CollectEagerCustomOpStreamNumPerNodeShapeBucketing) {
+  RegisterResourceUsageTestOps();
+  ResourceUsageTestOp::Reset();
+  ResourceUsageTestOp::use_shape_key = true;
+  auto graph = std::make_shared<ComputeGraph>("resource_usage_bucketing_graph");
+  ASSERT_NE(graph->AddNode(MakeResourceUsageNodeDesc("node_1024", "ResourceUsageTestOp", 1024, kCustomOpKernelLibName)),
+            nullptr);
+  ASSERT_NE(graph->AddNode(MakeResourceUsageNodeDesc("node_2048", "ResourceUsageTestOp", 2048, kCustomOpKernelLibName)),
+            nullptr);
+
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  ModelBuilder builder(0, graph, subgraphs, stream_max_parallel_num, false);
+  Model model;
+  ASSERT_EQ(builder.CollectEagerCustomOpStreamNum(model), SUCCESS);
+
+  // per-node 粒度：同 op_type 两节点各回调一次
+  EXPECT_EQ(ResourceUsageTestOp::call_count, 2U);
+  int64_t eager_custom_op_stream_num = 0;
+  ASSERT_TRUE(AttrUtils::GetInt(&model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_custom_op_stream_num));
+  // union = {key_s, key_v_1024, key_v_2048}
+  EXPECT_EQ(eager_custom_op_stream_num, 3);
+  // 隔离不变量：收集窗口不修改 stream_num（保持 ge::Model 构造缺省值 0）
+  int64_t stream_num = -1;
+  ASSERT_TRUE(AttrUtils::GetInt(&model, ATTR_MODEL_STREAM_NUM, stream_num));
+  EXPECT_EQ(stream_num, 0);
+}
+
+TEST_F(UtestModelBuilderTest, CollectEagerCustomOpStreamNumDedupAndSkip) {
+  RegisterResourceUsageTestOps();
+  ResourceUsageTestOp::Reset();
+  DeclarativeResourceUsageTestOp::Reset();
+  ResourceUsageTestOp::fixed_keys = {"key_a", "key_b"};
+  auto graph = std::make_shared<ComputeGraph>("resource_usage_dedup_graph");
+  ASSERT_NE(graph->AddNode(MakeResourceUsageNodeDesc("node_a1", "ResourceUsageTestOp", 8, kCustomOpKernelLibName)),
+            nullptr);
+  ASSERT_NE(graph->AddNode(MakeResourceUsageNodeDesc("node_a2", "ResourceUsageTestOp", 8, kCustomOpKernelLibName)),
+            nullptr);
+  ASSERT_NE(graph->AddNode(
+                MakeResourceUsageNodeDesc("node_decl", "DeclarativeResourceUsageTestOp", 8, kCustomOpKernelLibName)),
+            nullptr);
+  ASSERT_NE(
+      graph->AddNode(MakeResourceUsageNodeDesc("node_plain", "PlainResourceUsageTestOp", 8, kCustomOpKernelLibName)),
+      nullptr);
+  ASSERT_NE(graph->AddNode(MakeResourceUsageNodeDesc("node_relu", RELU, 8, "AIcoreEngine")), nullptr);
+
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  ModelBuilder builder(0, graph, subgraphs, stream_max_parallel_num, false);
+  Model model;
+  ASSERT_EQ(builder.CollectEagerCustomOpStreamNum(model), SUCCESS);
+
+  EXPECT_EQ(ResourceUsageTestOp::call_count, 2U);
+  // 声明式策略节点即使实现上报接口也跳过，防止与 stream_num 双计
+  EXPECT_FALSE(DeclarativeResourceUsageTestOp::declare_called);
+  int64_t eager_custom_op_stream_num = 0;
+  ASSERT_TRUE(AttrUtils::GetInt(&model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_custom_op_stream_num));
+  // 同 key 跨节点去重：{key_a, key_b}
+  EXPECT_EQ(eager_custom_op_stream_num, 2);
+}
+
+TEST_F(UtestModelBuilderTest, CollectEagerCustomOpStreamNumNoReportingOpSkipsAttr) {
+  RegisterResourceUsageTestOps();
+  ResourceUsageTestOp::Reset();
+  DeclarativeResourceUsageTestOp::Reset();
+  auto graph = std::make_shared<ComputeGraph>("resource_usage_no_reporting_graph");
+  ASSERT_NE(graph->AddNode(
+                MakeResourceUsageNodeDesc("node_decl", "DeclarativeResourceUsageTestOp", 8, kCustomOpKernelLibName)),
+            nullptr);
+  ASSERT_NE(
+      graph->AddNode(MakeResourceUsageNodeDesc("node_plain", "PlainResourceUsageTestOp", 8, kCustomOpKernelLibName)),
+      nullptr);
+  ASSERT_NE(graph->AddNode(MakeResourceUsageNodeDesc("node_relu", RELU, 8, "AIcoreEngine")), nullptr);
+
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+  ModelBuilder builder(0, graph, subgraphs, stream_max_parallel_num, false);
+  Model model;
+  ASSERT_EQ(builder.CollectEagerCustomOpStreamNum(model), SUCCESS);
+
+  EXPECT_FALSE(DeclarativeResourceUsageTestOp::declare_called);
+  // 无命中上报算子时不写属性（缺省 = 未统计）
+  int64_t eager_custom_op_stream_num = 0;
+  EXPECT_FALSE(AttrUtils::GetInt(&model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_custom_op_stream_num));
+}
+
+TEST_F(UtestModelBuilderTest, CollectEagerCustomOpStreamNumFailurePropagation) {
+  RegisterResourceUsageTestOps();
+  Graph2SubGraphInfoList subgraphs;
+  std::map<std::string, int> stream_max_parallel_num;
+
+  // 回调返回失败 → 编译失败
+  ResourceUsageTestOp::Reset();
+  ResourceUsageTestOp::return_failure = true;
+  auto failure_graph = std::make_shared<ComputeGraph>("resource_usage_failure_graph");
+  ASSERT_NE(
+      failure_graph->AddNode(MakeResourceUsageNodeDesc("node_f", "ResourceUsageTestOp", 8, kCustomOpKernelLibName)),
+      nullptr);
+  ModelBuilder failure_builder(0, failure_graph, subgraphs, stream_max_parallel_num, false);
+  Model failure_model;
+  EXPECT_NE(failure_builder.CollectEagerCustomOpStreamNum(failure_model), SUCCESS);
+
+  // 算子吞掉空 key 错误码并返回成功 → 粘滞错误经窗口复核仍编译失败
+  ResourceUsageTestOp::Reset();
+  ResourceUsageTestOp::swallow_empty_key = true;
+  auto swallow_graph = std::make_shared<ComputeGraph>("resource_usage_swallow_graph");
+  ASSERT_NE(
+      swallow_graph->AddNode(MakeResourceUsageNodeDesc("node_s", "ResourceUsageTestOp", 8, kCustomOpKernelLibName)),
+      nullptr);
+  ModelBuilder swallow_builder(0, swallow_graph, subgraphs, stream_max_parallel_num, false);
+  Model swallow_model;
+  EXPECT_NE(swallow_builder.CollectEagerCustomOpStreamNum(swallow_model), SUCCESS);
+  ResourceUsageTestOp::Reset();
 }
 }  // namespace ge

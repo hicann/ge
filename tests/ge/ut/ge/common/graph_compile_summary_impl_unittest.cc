@@ -10,6 +10,10 @@
 
 #include <gtest/gtest.h>
 #include "common/memory/external_weight_desc_impl.h"
+#include "common/model/ge_model.h"
+#include "graph/build/graph_compile_summary_impl.h"
+#include "graph/debug/ge_attr_define.h"
+#include "graph/utils/attr_utils.h"
 
 namespace ge {
 class UtestGraphCompileSummaryImpl : public testing::Test {
@@ -61,5 +65,32 @@ TEST(UtestGraphCompileSummaryImpl, DataIntegrity) {
   ASSERT_EQ(data.GetSize(), 1);
   ASSERT_EQ(data.GetOffset(), 0);
   ASSERT_EQ(data.GetId(), id);
+}
+
+TEST(UtestGraphCompileSummaryImpl, EagerCustomOpStreamNumMergedIntoGetStreamNum) {
+  CompiledGraphSummary::SummaryData data;
+  data.stream_num_ = 5UL;
+  // 无上报算子模型：eager 统计缺省 0，GetStreamNum 与既有行为逐一相等
+  EXPECT_EQ(data.GetStreamNum(), 5UL);
+  data.eager_custom_op_stream_num_ = 3UL;
+  // 唯一合并点：观测出口返回 框架流数 + eager 辅流统计
+  EXPECT_EQ(data.GetStreamNum(), 8UL);
+}
+
+TEST(UtestGraphCompileSummaryImpl, SetEagerCustomOpStreamNumDefaultsToZeroWhenAttrAbsent) {
+  auto ge_model = std::make_shared<GeModel>();
+  CompiledGraphSummary::SummaryData data;
+  data.stream_num_ = 2UL;
+  // 旧 OM / 未统计模型无该属性：缺省按 0，不影响 GetStreamNum
+  ASSERT_EQ(data.SetEagerCustomOpStreamNum(ge_model), SUCCESS);
+  EXPECT_EQ(data.eager_custom_op_stream_num_, 0UL);
+  EXPECT_EQ(data.GetStreamNum(), 2UL);
+  // 属性存在时读取（根模型聚合值）
+  ASSERT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, static_cast<int64_t>(7)));
+  ASSERT_EQ(data.SetEagerCustomOpStreamNum(ge_model), SUCCESS);
+  EXPECT_EQ(data.eager_custom_op_stream_num_, 7UL);
+  EXPECT_EQ(data.GetStreamNum(), 9UL);
+  // 隔离不变量：eager 统计读取不触碰 stream_num_
+  EXPECT_EQ(data.stream_num_, 2UL);
 }
 }  // namespace ge

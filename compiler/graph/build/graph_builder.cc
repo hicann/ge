@@ -746,10 +746,13 @@ Status GraphBuilder::RefreshInfoOfDynamicShapeGraph(ComputeGraphPtr &comp_graph,
   uint32_t stream_num = 0U;
   uint32_t event_num = 0U;
   uint32_t notify_num = 0U;
+  uint32_t eager_stream_num = 0U;
   std::vector<uint32_t> notify_types;
   (void)AttrUtils::GetInt(root_model, ATTR_MODEL_STREAM_NUM, stream_num);
   (void)AttrUtils::GetInt(root_model, ATTR_MODEL_EVENT_NUM, event_num);
   (void)AttrUtils::GetInt(root_model, ATTR_MODEL_NOTIFY_NUM, notify_num);
+  // eager 自定义算子辅流统计为可选属性：任一子模型带该属性时才在根模型聚合写回，避免无该特性的模型产物变化
+  bool has_eager_attr = AttrUtils::GetInt(root_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_stream_num);
   GELOGI("Root model: %s, stream num: %u, event num: %u, notify num: %u.", iter_root->first.c_str(), stream_num,
          event_num, notify_num);
 
@@ -760,23 +763,33 @@ Status GraphBuilder::RefreshInfoOfDynamicShapeGraph(ComputeGraphPtr &comp_graph,
     uint32_t tmp_stream = 0U;
     uint32_t tmp_event = 0U;
     uint32_t tmp_notify = 0U;
+    uint32_t tmp_eager_stream_num = 0U;
     (void)AttrUtils::GetInt(ge_model.second, ATTR_MODEL_STREAM_NUM, tmp_stream);
     (void)AttrUtils::GetInt(ge_model.second, ATTR_MODEL_EVENT_NUM, tmp_event);
     (void)AttrUtils::GetInt(ge_model.second, ATTR_MODEL_NOTIFY_NUM, tmp_notify);
-    GELOGI("Sub model: %s, stream num: %u, event num: %u, notify num: %u.", ge_model.first.c_str(), tmp_stream,
-           tmp_event, tmp_notify);
+    // |= 不短路，保证每个子模型的属性读取都执行；不能写作 ||，否则置位后会跳过 GetInt 漏读 tmp 值
+    has_eager_attr |= AttrUtils::GetInt(ge_model.second, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, tmp_eager_stream_num);
+    GELOGI("Sub model: %s, stream num: %u, event num: %u, notify num: %u, eager custom op stream num: %u.",
+           ge_model.first.c_str(), tmp_stream, tmp_event, tmp_notify, tmp_eager_stream_num);
 
     GE_ASSERT_SUCCESS(CheckUint32AddOverflow(stream_num, tmp_stream));
     GE_ASSERT_SUCCESS(CheckUint32AddOverflow(event_num, tmp_event));
+    // eager 辅流按模型执行实例各自建流，跨子模型同 key 不共享物理流，因此求和不去重
+    GE_ASSERT_SUCCESS(CheckUint32AddOverflow(eager_stream_num, tmp_eager_stream_num));
     stream_num += tmp_stream;
     event_num += tmp_event;
     notify_num += tmp_notify;
+    eager_stream_num += tmp_eager_stream_num;
   }
 
-  GELOGI("Total stream num: %u, event num: %u, notify num: %u.", stream_num, event_num, notify_num);
+  GELOGI("Total stream num: %u, event num: %u, notify num: %u, eager custom op stream num: %u.", stream_num, event_num,
+         notify_num, eager_stream_num);
   GE_ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_STREAM_NUM, stream_num));
   GE_ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_EVENT_NUM, event_num));
   GE_ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_NOTIFY_NUM, notify_num));
+  if (has_eager_attr) {
+    GE_ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_stream_num));
+  }
 
   return SUCCESS;
 }

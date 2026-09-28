@@ -53,7 +53,8 @@ class CompiledGraphSummary::SummaryData {
     return refreshable_feature_mem_size_;
   }
   size_t GetStreamNum() const {
-    return stream_num_;
+    // eager 自定义算子上报的辅流统计只在 summary 观测出口合并，不进入 ATTR_MODEL_STREAM_NUM 及运行时资源链路
+    return stream_num_ + eager_custom_op_stream_num_;
   }
   size_t GetEventNum() const {
     return event_num_;
@@ -83,6 +84,7 @@ class CompiledGraphSummary::SummaryData {
   Status SetRefreshablFeatureMemorySize(const GeModelPtr &ge_model);
   Status SetFeatureMemoryBaseRefreshable(const GeModelPtr &ge_model);
   Status SetStreamNum(const GeModelPtr &ge_model);
+  Status SetEagerCustomOpStreamNum(const GeModelPtr &ge_model);
   Status SetEventNum(const GeModelPtr &ge_model);
   Status SetOutputTensorInfo(const GeModelPtr &ge_model);
   Status ConstructIoOffsetToRoleToIndex(
@@ -103,6 +105,7 @@ class CompiledGraphSummary::SummaryData {
    */
   std::vector<FeatureMemoryPtr> feature_memory_;
   size_t stream_num_{0UL};
+  size_t eager_custom_op_stream_num_{0UL};
   size_t event_num_{0UL};
   std::vector<ge::Shape> netoutput_shapes_;
   std::vector<ge::DataType> netoutput_dtypes_;

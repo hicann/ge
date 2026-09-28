@@ -135,6 +135,8 @@ class ModelBuilder {
   void DelNodeRepeatSaveAttr();
   void ReuseWeightMem(const size_t output_size, GeTensorPtr &weight, bool &find_same_const, size_t &current_mem_offset);
 
+  Status CollectEagerCustomOpStreamNum(ge::Model &model);
+
   uint64_t session_id_;
 
   std::map<uint64_t, size_t> mem_type_to_mem_offset_;
