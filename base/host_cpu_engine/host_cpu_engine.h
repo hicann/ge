@@ -50,11 +50,13 @@ class HostCpuEngine {
 
   HostCpuEngine() = default;
 
-  void *DlopenLib(const std::string &lib_path) const;
+  void *DlopenLib(const std::string &lib_path, bool global = true) const;
 
   Status InvokeLibInitialize(void *handle, const std::string &lib_path) const;
 
   Status LoadLib(const std::string &lib_path, bool invoke_init = false);
+
+  Status LoadOpConstantFoldingLib(const std::string &lib_path, const std::string &host_cpu_dir);
 
   static Status GetEngineRealPath(std::string &path);
 

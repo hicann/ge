@@ -534,7 +534,7 @@ elseif (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         if (NOT MDC_COMPILE_RUNTIME)
             add_custom_target(ge-compiler)
             add_dependencies(ge-compiler parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler
-                    fmk_onnx_parser opskernel ge_runner slice aicpu_const_folding llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion
+                    fmk_onnx_parser opskernel ge_runner slice llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion
                     dflow_runner eager_style_graph_builder_base eager_style_graph_builder_base_static gen_esb
                     aihac_symbolizer ge_python llm_datadist_python_v1 dataflow_python ge_python_pass_bridge
                     ge_python_custom_op_bridge func2graph)

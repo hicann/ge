@@ -18,7 +18,6 @@ set(engine_common_stub_files
     ${CMAKE_CURRENT_SOURCE_DIR}/platform_info_stub.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/stub.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/util/util_stub.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/aicpu/aicpu_stub.cpp
     ${PROTO_HDRS}
 )
 
@@ -59,7 +58,6 @@ target_link_libraries(stub_for_aicpu PRIVATE
     runtime_aicpu_stub
     ascend_protobuf
     json
-    aicpu_headers
     cce_headers
 )
 
