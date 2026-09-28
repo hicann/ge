@@ -15,6 +15,8 @@
 #include "common/model/ge_model.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/load/model_manager/task_info/ge/custom_task_info.h"
+#include "graph/load/model_manager/task_info/rts/event_record_task_info.h"
+#include "graph/load/model_manager/task_info/rts/event_wait_task_info.h"
 #include "graph/load/model_manager/davinci_model.h"
 #include "graph/load/model_manager/reusable_stream_allocator.h"
 #include "graph/load/model_manager/model_args_manager.h"
@@ -61,6 +63,89 @@ class AclMockAnnotatedLaunch : public AclRuntimeStub {
 
 class UtestCustomTaskInfo : public testing::Test {
  protected:
+  std::vector<domi::TaskDef> MakeAnnotatedKernelRecordWaitTaskDefs() const {
+    std::vector<domi::TaskDef> task_defs;
+    domi::TaskDef kernel;
+    kernel.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+    kernel.set_stream_id(0U);
+    kernel.set_sqe_num(1U);
+    kernel.mutable_kernel()->mutable_context()->set_op_index(0U);
+    task_defs.emplace_back(kernel);
+
+    domi::TaskDef record;
+    record.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD));
+    record.set_stream_id(0U);
+    record.set_event_id(0U);
+    record.mutable_event_ex()->set_op_index(0U);
+    task_defs.emplace_back(record);
+
+    domi::TaskDef wait;
+    wait.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT));
+    wait.set_stream_id(0U);
+    wait.set_event_id(0U);
+    wait.set_sqe_num(2U);
+    wait.mutable_event_ex()->set_op_index(0U);
+    task_defs.emplace_back(wait);
+    return task_defs;
+  }
+
+  Status LoadTaskDefs(const std::vector<domi::TaskDef> &task_defs) const {
+    DavinciModel model(0, nullptr);
+    model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+    rtStream_t stream = nullptr;
+    if (model.reusable_stream_allocator_->GetOrCreateRtStream(stream, 0, 0, 0) != SUCCESS) {
+      return FAILED;
+    }
+    model.stream_list_ = {stream};
+    rtEvent_t event = nullptr;
+    if (aclrtCreateEvent(&event) != ACL_SUCCESS) {
+      return FAILED;
+    }
+    model.event_list_ = {event};
+    model.op_list_[0] = CreateOpDesc("annotated_custom", "CustomOp");
+    for (const auto &task_def : task_defs) {
+      if (task_def.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD)) {
+        EventRecordTaskInfo info;
+        if (info.Init(task_def, &model) != SUCCESS || info.Distribute() != SUCCESS) {
+          return FAILED;
+        }
+      } else if (task_def.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT)) {
+        EventWaitTaskInfo info;
+        if (info.Init(task_def, &model) != SUCCESS || info.Distribute() != SUCCESS) {
+          return FAILED;
+        }
+      }
+    }
+    return SUCCESS;
+  }
+
+  const domi::TaskDef &FindWaitTask(const std::vector<domi::TaskDef> &task_defs) const {
+    for (const auto &task_def : task_defs) {
+      if (task_def.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT)) {
+        return task_def;
+      }
+    }
+    return task_defs.front();
+  }
+
+  uint32_t GetTaskNumOfTaskDef(const domi::TaskDef &task_def) const {
+    return task_def.sqe_num();
+  }
+
+  size_t CountUnexpectedEventTaskTypes(const std::vector<domi::TaskDef> &task_defs) const {
+    size_t count = 0U;
+    for (const auto &task_def : task_defs) {
+      const auto type = task_def.type();
+      if (type == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD) ||
+          type == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT) ||
+          type == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL)) {
+        continue;
+      }
+      ++count;
+    }
+    return count;
+  }
+
   void SetUp() override {
     RTS_STUB_SETUP();
     auto acl_mock_memcpy = [](void *dst, size_t dest_max, const void *src, size_t count,
@@ -164,6 +249,13 @@ TEST_F(UtestCustomTaskInfo, Release_AclrtGetCurrentContextFailStillSuccess) {
   ASSERT_EQ(task_info.sink_only_allocator_, nullptr);
   mem_block_manager->Release();
   AclRuntimeStub::GetInstance()->SetErrorResultApiName("");
+}
+
+TEST_F(UtestCustomTaskInfo, AnnotatedEventWaitUsesExistingWaitAndResetSemantics) {
+  const auto task_defs = MakeAnnotatedKernelRecordWaitTaskDefs();
+  ASSERT_EQ(LoadTaskDefs(task_defs), SUCCESS);
+  EXPECT_EQ(CountUnexpectedEventTaskTypes(task_defs), 0U);
+  EXPECT_EQ(GetTaskNumOfTaskDef(FindWaitTask(task_defs)), 2U);
 }
 
 TEST_F(UtestCustomTaskInfo, InsertDumpOp_ReturnSuccessWhenOpNeedDumpIsFalse) {

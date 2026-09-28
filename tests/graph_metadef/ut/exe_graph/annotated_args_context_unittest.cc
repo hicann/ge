@@ -137,6 +137,46 @@ TEST(AnnotatedArgsContextUT, RejectsInvalidLaunchParameters) {
   EXPECT_EQ(args_handler.GetLaunchCount(), 0U);
 }
 
+TEST(AnnotatedArgsContextUT, AddLaunchWithTokenValidatesAndCopiesDependencies) {
+  AllocatorFaker allocator;
+  constexpr uint32_t kStreamId = 3U;
+  allocator.SetStreamId(kStreamId);
+  Tensor input_tensor;
+  Tensor output_tensor;
+  std::vector<GertMemBlock *> workspace_mems;
+  AnnotatedArgsHandler args_handler;
+  auto holder = KernelRunContextBuilder()
+                    .Inputs({&input_tensor, &allocator})
+                    .Outputs({&output_tensor, &workspace_mems, static_cast<ArgsHandler *>(&args_handler)})
+                    .Build(MakeOpDesc());
+  auto *context = reinterpret_cast<AnnotatedArgsContext *>(holder.GetKernelContext());
+  ASSERT_NE(context, nullptr);
+  const uint8_t bin[] = {0x11U};
+  auto make_args = []() { return AnnotatedKernelArgs(InputAddr{0U, reinterpret_cast<void *>(0x1000U)}); };
+
+  const auto token_a =
+      context->AddLaunch(AnnotatedKernelLaunchInfo{"a", bin, sizeof(bin), 1U, kStreamId}, make_args(), {});
+  ASSERT_NE(token_a, std::numeric_limits<AnnotatedLaunchToken>::max());
+  std::vector<AnnotatedLaunchToken> predecessors{token_a};
+  const auto token_b =
+      context->AddLaunch(AnnotatedKernelLaunchInfo{"b", bin, sizeof(bin), 1U, kStreamId}, make_args(), predecessors);
+  ASSERT_NE(token_b, std::numeric_limits<AnnotatedLaunchToken>::max());
+  predecessors[0] = std::numeric_limits<AnnotatedLaunchToken>::max();
+  ASSERT_EQ(args_handler.GetLaunchCount(), 2U);
+  EXPECT_EQ(args_handler.GetLaunch(1U)->GetToken(), token_b);
+  ASSERT_EQ(args_handler.GetLaunch(1U)->GetDependencyCount(), 1U);
+  EXPECT_EQ(args_handler.GetLaunch(1U)->GetDependencies()[0], token_a);
+
+  const AnnotatedKernelLaunchInfo invalid_info{"c", bin, sizeof(bin), 1U, kStreamId};
+  EXPECT_EQ(context->AddLaunch(invalid_info, make_args(), {2U}), std::numeric_limits<AnnotatedLaunchToken>::max());
+  EXPECT_EQ(context->AddLaunch(invalid_info, make_args(), {3U}), std::numeric_limits<AnnotatedLaunchToken>::max());
+  EXPECT_EQ(context->AddLaunch(invalid_info, make_args(), {token_a, token_a}),
+            std::numeric_limits<AnnotatedLaunchToken>::max());
+  const AnnotatedKernelLaunchInfo bad_name_info{nullptr, bin, sizeof(bin), 1U, kStreamId};
+  EXPECT_EQ(context->AddLaunch(bad_name_info, make_args(), {}), std::numeric_limits<AnnotatedLaunchToken>::max());
+  EXPECT_EQ(args_handler.GetLaunchCount(), 2U);
+}
+
 TEST(AnnotatedArgsContextUT, RecordsMultipleLaunchesInOrder) {
   AllocatorFaker allocator;
   constexpr uint32_t kStreamId = 3U;

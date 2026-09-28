@@ -108,6 +108,7 @@ add_executable(graph_engine_test
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_weighted_stream_merger_public_st_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/ir/named_io_node_builder_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_multi_stream_tuning_step_recorder.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_declarative_custom_op_attached_stream.cc"
 )
 
 add_dependencies(graph_engine_test

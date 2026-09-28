@@ -281,6 +281,7 @@
       - [MallocWorkSpace](cpp/gert/AnnotatedArgsContext/MallocWorkSpace.md)
       - [GetStreamId](cpp/gert/AnnotatedArgsContext/GetStreamId.md)
       - [AddLaunch](cpp/gert/AnnotatedArgsContext/AddLaunch.md)
+      - [RequestAttachedStream](cpp/gert/AnnotatedArgsContext/RequestAttachedStream.md)
       - [GetInputTensor](cpp/gert/AnnotatedArgsContext/GetInputTensor.md)
       - [GetOutputTensor](cpp/gert/AnnotatedArgsContext/GetOutputTensor.md)
       - [GetRequiredInputTensor](cpp/gert/AnnotatedArgsContext/GetRequiredInputTensor.md)

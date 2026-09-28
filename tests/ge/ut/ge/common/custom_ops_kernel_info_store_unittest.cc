@@ -39,6 +39,8 @@
 #include "graph/utils/args_format_desc_utils.h"
 #include "graph/args_format_desc.h"
 #include "graph/utils/attr_utils.h"
+#include "graph/build/stream/declarative_stream_registry.h"
+#include "graph/build/task_generator_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "runtime/custom_op/python_custom_op_adapter.h"
 #include "securec.h"
@@ -600,6 +602,42 @@ class MockAnnotatedArgsWithMismatchStreamCustomOp : public AnnotatedArgsOp, publ
     return ctx.AddLaunch(gert::AnnotatedKernelLaunchInfo{"custom_mismatch_stream_kernel", kBin, sizeof(kBin), 4U,
                                                          ctx.GetStreamId() + 1U},
                          std::move(args));
+  }
+};
+
+class MockAnnotatedArgsWithUnjoinedAttachedStreamCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
+ public:
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    static const uint8_t kBin[] = {0xA1U, 0xA2U};
+    const auto *input = ctx.GetInputTensor(0U);
+    GE_ASSERT_NOTNULL(input);
+    gert::AnnotatedKernelArgs main_args(gert::InputAddr{0U, input->GetAddr()});
+    GE_ASSERT_TRUE(ctx.AddLaunch(gert::AnnotatedKernelLaunchInfo{"unjoined_main_stream_kernel", kBin, sizeof(kBin), 1U,
+                                                                 ctx.GetStreamId()},
+                                 std::move(main_args), {}) != UINT32_MAX);
+
+    const auto attached_stream = ctx.RequestAttachedStream("unjoined");
+    GE_ASSERT_TRUE(attached_stream != UINT32_MAX);
+    gert::AnnotatedKernelLaunchInfo attached_info{"unjoined_attached_stream_kernel", kBin, sizeof(kBin), 1U,
+                                                  attached_stream};
+    gert::AnnotatedKernelArgs attached_args(gert::InputAddr{0U, input->GetAddr()});
+    const auto attached_token = ctx.AddLaunch(attached_info, std::move(attached_args), {});
+    return (attached_token == UINT32_MAX) ? GRAPH_FAILED : GRAPH_SUCCESS;
+  }
+};
+
+class MockAnnotatedArgsWithOnlyAttachedStreamCustomOp : public AnnotatedArgsOp, public MockPortableCustomOp {
+ public:
+  graphStatus DeclareLaunchArgs(gert::AnnotatedArgsContext &ctx) override {
+    static const uint8_t kBin[] = {0xB1U, 0xB2U};
+    const auto *input = ctx.GetInputTensor(0U);
+    GE_ASSERT_NOTNULL(input);
+    const auto attached_stream = ctx.RequestAttachedStream("only_attached");
+    GE_ASSERT_TRUE(attached_stream != UINT32_MAX);
+    gert::AnnotatedKernelLaunchInfo info{"only_attached_stream_kernel", kBin, sizeof(kBin), 1U, attached_stream};
+    gert::AnnotatedKernelArgs args(gert::InputAddr{0U, input->GetAddr()});
+    const auto token = ctx.AddLaunch(info, std::move(args), {});
+    return (token == UINT32_MAX) ? GRAPH_FAILED : GRAPH_SUCCESS;
   }
 };
 
@@ -1342,6 +1380,33 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskReusesImmutablePlanWithoutWork
   EXPECT_EQ(g_single_declare_no_workspace_count.load(), 1U);
 }
 
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskRestoresSerializedAnnotatedArgsPlanWithoutCallback) {
+  const std::string kTestOpType = "TestSerializedPlanRestore_BuilderTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockSingleDeclareNoWorkspaceCustomOp>();
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNode(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+  g_single_declare_no_workspace_count.store(0U);
+
+  std::vector<domi::TaskDef> first_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, first_tasks), SUCCESS);
+  ASSERT_EQ(first_tasks.size(), 1U);
+  EXPECT_EQ(g_single_declare_no_workspace_count.load(), 1U);
+
+  auto op_desc = node->GetOpDesc();
+  ge::Buffer encoded_plan;
+  ASSERT_TRUE(ge::AttrUtils::GetBytes(op_desc, "_custom_annotated_args_task_plan_bytes", encoded_plan));
+  std::vector<domi::TaskDef> restored_tasks;
+  ASSERT_EQ(GenerateTaskForNode(node, restored_tasks), SUCCESS);
+  ASSERT_EQ(restored_tasks.size(), 1U);
+  EXPECT_EQ(g_single_declare_no_workspace_count.load(), 1U);
+  EXPECT_EQ(restored_tasks[0].kernel().context().args_format(), first_tasks[0].kernel().context().args_format());
+}
+
 TEST_F(UtestCustomOpsKernelInfoStore, CalcOpRunningParamStartsNewAnnotatedArgsPlanLifecycle) {
   const std::string kTestOpType = "TestSingleDeclareNewLifecycle_BuilderTest";
   auto creator = []() -> std::unique_ptr<BaseCustomOp> {
@@ -1854,6 +1919,8 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskMultipleLaunchesWritesPrefixed
     ASSERT_NE(tbe_kernel, nullptr);
     EXPECT_EQ(tbe_kernel->GetName(), tasks[i].kernel().kernel_name());
   }
+  // 无依赖且无附着流的legacy计划物化时会刷新为节点当前主流，无需打标
+  EXPECT_FALSE(node->GetOpDesc()->HasAttr(kKeepGeneratedTasksAttr));
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskMultipleLaunchesProducesModelBuilderReadableKernelAttrs) {
@@ -1893,6 +1960,54 @@ TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskFailsWhenDeclareSetsMismatchSt
   ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
 
   ExpectGenerateTaskFailedWithStatus(kTestOpType, INTERNAL_ERROR);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskAllowsAttachedLaunchWithoutMainJoin) {
+  GetThreadLocalContext().SetGraphOption({{ge::SOC_VERSION, "Ascend910B"}});
+
+  const std::string kTestOpType = "TestUnjoinedAttachedStreamCustomOp_BuilderTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockAnnotatedArgsWithUnjoinedAttachedStreamCustomOp>();
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNode(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+  auto registry = std::make_shared<DeclarativeStreamRegistry>(4U);
+  ASSERT_NE(registry->RequestAttachedStream(AscendString("unjoined")), UINT32_MAX);
+  ASSERT_TRUE(node->GetOwnerComputeGraph()->SetExtAttr(kDeclarativeStreamRegistryAttr, registry));
+
+  std::vector<domi::TaskDef> tasks;
+  EXPECT_EQ(GenerateTaskForNode(node, tasks), SUCCESS);
+  ASSERT_EQ(tasks.size(), 2U);
+  EXPECT_EQ(tasks[0].type(), static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  EXPECT_EQ(tasks[0].stream_id(), 3U);
+  EXPECT_EQ(tasks[1].type(), static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  EXPECT_EQ(tasks[1].stream_id(), 4U);
+  // 带附着流的计划需打标，避免拆流后二次生成任务时丢失事件任务与真实流号
+  bool keep_generated_tasks = false;
+  EXPECT_TRUE(AttrUtils::GetBool(node->GetOpDesc(), kKeepGeneratedTasksAttr, keep_generated_tasks));
+  EXPECT_TRUE(keep_generated_tasks);
+}
+
+TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskFailsWhenAnnotatedPlanHasNoMainLaunch) {
+  const std::string kTestOpType = "TestOnlyAttachedStreamCustomOp_BuilderTest";
+  auto creator = []() -> std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MockAnnotatedArgsWithOnlyAttachedStreamCustomOp>();
+  };
+  ASSERT_EQ(CustomOpFactory::RegisterCustomOpCreator(AscendString(kTestOpType.c_str()), creator), GRAPH_SUCCESS);
+
+  ComputeGraphPtr graph;
+  auto node = BuildStaticCustomNode(kTestOpType, graph);
+  ASSERT_NE(node, nullptr);
+  auto registry = std::make_shared<DeclarativeStreamRegistry>(4U);
+  ASSERT_NE(registry->RequestAttachedStream(AscendString("only_attached")), UINT32_MAX);
+  ASSERT_TRUE(node->GetOwnerComputeGraph()->SetExtAttr(kDeclarativeStreamRegistryAttr, registry));
+
+  std::vector<domi::TaskDef> tasks;
+  EXPECT_EQ(GenerateTaskForNode(node, tasks), INTERNAL_ERROR);
+  EXPECT_TRUE(tasks.empty());
 }
 
 TEST_F(UtestCustomOpsKernelInfoStore, GenerateTaskFinalDeclareUsesPlannedWorkspaceOffset) {

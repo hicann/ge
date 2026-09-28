@@ -26,6 +26,7 @@
 #include "api/gelib/gelib.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
 #include "graph/build/task_generator.h"
+#include "graph/build/task_generator_utils.h"
 #include "graph/manager/mem_manager.h"
 #include "graph/manager/graph_var_manager.h"
 #include "ge/ut/ge/ffts_plus_proto_tools.h"
@@ -35,6 +36,7 @@ using namespace std;
 using namespace testing;
 using namespace ge;
 namespace {
+bool g_emit_attached_tasks = false;
 const char *const kIsInputVar = "INPUT_IS_VAR";
 const char *const kIsOutputVar = "OUTPUT_IS_VAR";
 const char *const kKernelInfoNameHccl = "ops_kernel_info_hccl";
@@ -62,6 +64,27 @@ class UtestTaskGeneratorTest : public testing::Test {
     };
     Status GenerateTask(const Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) override {
       domi::TaskDef task_def;
+      if (g_emit_attached_tasks) {
+        task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+        task_def.set_stream_id(node.GetOpDesc()->GetStreamId());
+        task_def.set_sqe_num(1U);
+        task_def.mutable_kernel()->mutable_context()->set_op_index(node.GetOpDesc()->GetId());
+        tasks.push_back(task_def);
+        task_def.Clear();
+        task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD));
+        task_def.set_stream_id(node.GetOpDesc()->GetStreamId());
+        task_def.set_event_id(0U);
+        task_def.mutable_event_ex()->set_op_index(node.GetOpDesc()->GetId());
+        tasks.push_back(task_def);
+        task_def.Clear();
+        task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT));
+        task_def.set_stream_id(node.GetOpDesc()->GetStreamId());
+        task_def.set_event_id(0U);
+        task_def.set_sqe_num(2U);
+        task_def.mutable_event_ex()->set_op_index(node.GetOpDesc()->GetId());
+        tasks.push_back(task_def);
+        return SUCCESS;
+      }
       tasks.push_back(task_def);
       return SUCCESS;
     };
@@ -598,6 +621,47 @@ TEST_F(UtestTaskGeneratorTest, ReGetTaskInfo_success) {
   EXPECT_EQ(ret, SUCCESS);
 }
 
+TEST_F(UtestTaskGeneratorTest, ReGetTaskInfo_keep_generated_tasks_of_marked_node) {
+  OpsKernelManager::GetInstance().ops_kernel_store_[kKernelInfoNameHccl] = MakeShared<FakeOpsKernelInfoStore>();
+  OpsKernelBuilderRegistry::GetInstance().kernel_builders_[kKernelInfoNameHccl] = MakeShared<FakeOpsKernelBuilder>();
+
+  auto graph = BuildHcclGraph();
+  RunContext run_context;
+  TaskGenerator task_generator(nullptr, 0, &run_context);
+  Model model;
+  // 首次生成kernel+事件任务，模拟声明式自定义算子带依赖/附着流的场景
+  g_emit_attached_tasks = true;
+  ASSERT_EQ(task_generator.GenerateTask(graph, model), SUCCESS);
+  g_emit_attached_tasks = false;
+
+  auto hccl_node = graph->FindNode("hccl_phony_node");
+  ASSERT_NE(hccl_node, nullptr);
+  const auto node_id = hccl_node->GetOpDesc()->GetId();
+  ASSERT_EQ(task_generator.node_id_2_node_tasks_[node_id].size(), 3U);
+  ASSERT_TRUE(AttrUtils::SetBool(hccl_node->GetOpDesc(), kKeepGeneratedTasksAttr, true));
+
+  // 新增节点触发二次生成，首尾节点标记会把hccl节点一并纳入重生成集合
+  auto add_op_desc = std::make_shared<OpDesc>("Add_new", ADD);
+  auto add = graph->AddNode(add_op_desc);
+  add->GetOpDesc()->SetOpKernelLibName(kKernelLibName);
+  add->GetOpDesc()->SetOpEngineName(kKernelLibName);
+  EXPECT_EQ(task_generator.ReGetTaskInfo(graph), SUCCESS);
+
+  // 打标节点保留首次生成的任务，事件任务不被清空
+  const auto &tasks = task_generator.node_id_2_node_tasks_[node_id];
+  ASSERT_EQ(tasks.size(), 3U);
+  size_t record_num = 0U;
+  size_t wait_num = 0U;
+  for (const auto &task : tasks) {
+    record_num += (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD));
+    wait_num += (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT));
+  }
+  EXPECT_EQ(record_num, 1U);
+  EXPECT_EQ(wait_num, 1U);
+  OpsKernelBuilderRegistry::GetInstance().kernel_builders_.erase(kKernelInfoNameHccl);
+  OpsKernelManager::GetInstance().ops_kernel_store_.erase(kKernelInfoNameHccl);
+}
+
 TEST_F(UtestTaskGeneratorTest, AutoFindFpOpIndex) {
   auto graph = BuildGraphFpProfiling();
   SetGraphNodeKernel(graph);
@@ -766,6 +830,40 @@ TEST_F(UtestTaskGeneratorTest, GenerateTask) {
       node->GetOpDesc()->TryGetExtAttr<OpsKernelInfoStore *>("OpsKernelInfoStorePtr", nullptr);
   EXPECT_EQ(ops_kernel_info_store, ops_kernel_info_store_ptr.get());
   OpsKernelBuilderRegistry::GetInstance().kernel_builders_.erase(kKernelInfoNameHccl);
+}
+
+TEST_F(UtestTaskGeneratorTest, GenerateTask_AnnotatedKernelRecordWait) {
+  map<string, string> options;
+  ASSERT_EQ(ge::GELib::Initialize(options), SUCCESS);
+  auto info_store = MakeShared<FakeOpsKernelInfoStore>();
+  OpsKernelManager::GetInstance().ops_kernel_store_[kKernelInfoNameHccl] = info_store;
+  auto builder = MakeShared<FakeOpsKernelBuilder>();
+  OpsKernelBuilderRegistry::GetInstance().kernel_builders_[kKernelInfoNameHccl] = builder;
+
+  g_emit_attached_tasks = true;
+  auto graph = BuildHcclGraph();
+  RunContext run_context;
+  TaskGenerator task_generator(nullptr, 0, &run_context);
+  Model model;
+  const auto generate_ret = task_generator.GenerateTask(graph, model);
+  g_emit_attached_tasks = false;
+  ASSERT_EQ(generate_ret, SUCCESS);
+
+  size_t task_num = 0U;
+  size_t wait_num = 0U;
+  size_t record_num = 0U;
+  for (const auto &entry : task_generator.node_id_2_node_tasks_) {
+    task_num += entry.second.size();
+    for (const auto &task : entry.second) {
+      wait_num += task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT);
+      record_num += task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD);
+    }
+  }
+  EXPECT_EQ(task_num, 3U);
+  EXPECT_EQ(record_num, 1U);
+  EXPECT_EQ(wait_num, 1U);
+  OpsKernelBuilderRegistry::GetInstance().kernel_builders_.erase(kKernelInfoNameHccl);
+  OpsKernelManager::GetInstance().ops_kernel_store_.erase(kKernelInfoNameHccl);
 }
 
 TEST_F(UtestTaskGeneratorTest, SetFpBpByOptions) {

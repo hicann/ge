@@ -10,6 +10,7 @@
 
 #include "engines/custom_engine/custom_ops_kernel_builder.h"
 #include <cinttypes>
+#include <algorithm>
 #include <limits>
 #include <map>
 #include <memory>
@@ -35,6 +36,9 @@
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "exe_graph/runtime/annotated_args_context.h"
 #include "graph_metadef/exe_graph/runtime/annotated_args_handler.h"
+#include "graph/build/stream/declarative_stream_registry.h"
+#include "graph/build/stream/annotated_args_task_plan.h"
+#include "graph/build/task_generator_utils.h"
 #include "exe_graph/runtime/storage_shape.h"
 #include "graph/buffer.h"
 #include "graph/custom_op.h"
@@ -56,15 +60,10 @@ constexpr uint32_t kMaxCustomOpSqeNum = 5;
 constexpr uint32_t kKernelArgSlotSize = sizeof(uint64_t);
 constexpr const char_t *kCustomOmcAppendWs = "_custom_omc_append_ws";
 constexpr const char_t *kAppendWs = "_append_ws";
-constexpr const char_t *kAnnotatedArgsTaskPlan = "_custom_annotated_args_task_plan";
+constexpr const char_t *kAnnotatedArgsTaskPlanBytes = "_custom_annotated_args_task_plan_bytes";
 constexpr const char_t *kCustomLaunchPrefix = "_custom_launch_";
 constexpr const char_t *kDefaultCustomKernelMagic = "RT_DEV_BINARY_MAGIC_ELF_AIVEC";
 constexpr size_t kWorkspaceAlignment = 512U;
-
-struct AnnotatedArgsTaskPlan {
-  std::vector<domi::TaskDef> task_templates;
-};
-using AnnotatedArgsTaskPlanPtr = std::shared_ptr<const AnnotatedArgsTaskPlan>;
 
 bool IsMobileSocVersion(const std::string &soc_version) {
   return (soc_version == "KirinX90") || (soc_version == "Kirin9030");
@@ -390,52 +389,66 @@ Status PrepareAnnotatedArgsTaskForMaterialization(const OpDescPtr &op_desc, cons
   return SUCCESS;
 }
 
+Status MaterializeAnnotatedTaskKernelArgs(const OpDescPtr &op_desc, const RunContext &context, domi::TaskDef &task,
+                                          const std::vector<ArgDesc> &arg_descs,
+                                          const std::vector<std::unique_ptr<gert::Tensor>> &input_tensor_holders,
+                                          const std::vector<std::unique_ptr<gert::Tensor>> &output_tensor_holders) {
+  auto *const kernel = task.mutable_kernel();
+  std::string args = kernel->args();
+  for (size_t i = 0U; i < arg_descs.size(); ++i) {
+    uint64_t addr = 0U;
+    switch (arg_descs[i].addr_type) {
+      case AddrType::INPUT_INSTANCE:
+        GE_ASSERT_SUCCESS(ResolveTensorPlanAddr(arg_descs[i].ir_idx, input_tensor_holders, addr));
+        break;
+      case AddrType::OUTPUT_INSTANCE:
+        GE_ASSERT_SUCCESS(ResolveTensorPlanAddr(arg_descs[i].ir_idx, output_tensor_holders, addr));
+        break;
+      case AddrType::INPUT:
+      case AddrType::OUTPUT:
+        GELOGE(INTERNAL_ERROR, "Custom op %s(%s) planned arg[%zu] uses unsupported legacy addr_type %d.",
+               op_desc->GetNamePtr(), op_desc->GetTypePtr(), i, static_cast<int32_t>(arg_descs[i].addr_type));
+        return INTERNAL_ERROR;
+      case AddrType::WORKSPACE:
+        GE_ASSERT_SUCCESS(ResolveWorkspacePlanAddr(op_desc, context, arg_descs[i].ir_idx, addr));
+        break;
+      case AddrType::CUSTOM_VALUE:
+        continue;
+      default:
+        GELOGE(INTERNAL_ERROR, "Custom op %s(%s) planned arg[%zu] type %d is not materializable.",
+               op_desc->GetNamePtr(), op_desc->GetTypePtr(), i, static_cast<int32_t>(arg_descs[i].addr_type));
+        return INTERNAL_ERROR;
+    }
+    GE_ASSERT_EOK(memcpy_s(&args[i * kKernelArgSlotSize], kKernelArgSlotSize, &addr, sizeof(addr)));
+  }
+  kernel->set_args(args);
+  return SUCCESS;
+}
+
 Status MaterializeAnnotatedArgsTaskPlan(const OpDescPtr &op_desc, const RunContext &context,
                                         const AnnotatedArgsTaskPlan &plan, std::vector<domi::TaskDef> &tasks) {
   std::vector<std::unique_ptr<gert::Tensor>> input_tensor_holders;
   std::vector<std::unique_ptr<gert::Tensor>> output_tensor_holders;
   GE_ASSERT_SUCCESS(ConstructInputTensors(op_desc, context, input_tensor_holders));
   GE_ASSERT_SUCCESS(ConstructOutputTensors(op_desc, context, output_tensor_holders));
-
   GE_ASSERT_TRUE((op_desc->GetStreamId() >= 0) &&
                      (op_desc->GetStreamId() <= static_cast<int64_t>(std::numeric_limits<uint32_t>::max())),
                  "Custom op stream id %ld is invalid, op_name:%s, op_type:%s", op_desc->GetStreamId(),
                  op_desc->GetNamePtr(), op_desc->GetTypePtr());
   const auto stream_id = static_cast<uint32_t>(op_desc->GetStreamId());
-  for (const auto &task_template : plan.task_templates) {
+  GE_ASSERT_TRUE(plan.launch_stream_ids.size() == plan.task_templates.size(),
+                 "Custom op %s(%s) launch stream count does not match task count.", op_desc->GetNamePtr(),
+                 op_desc->GetTypePtr());
+  // 无依赖且无附着流的legacy计划在物化时刷新为节点当前主流，支持缓存计划跨流刷新复用
+  const bool refresh_legacy_stream = plan.dependencies.empty() && plan.attached_stream_ids.empty();
+  for (size_t task_index = 0U; task_index < plan.task_templates.size(); ++task_index) {
     domi::TaskDef task;
     std::vector<ArgDesc> arg_descs;
-    GE_CHK_STATUS_RET_NOLOG(
-        PrepareAnnotatedArgsTaskForMaterialization(op_desc, stream_id, task_template, task, arg_descs));
-    auto *const kernel = task.mutable_kernel();
-    std::string args = kernel->args();
-    for (size_t i = 0U; i < arg_descs.size(); ++i) {
-      uint64_t addr = 0U;
-      switch (arg_descs[i].addr_type) {
-        case AddrType::INPUT_INSTANCE:
-          GE_ASSERT_SUCCESS(ResolveTensorPlanAddr(arg_descs[i].ir_idx, input_tensor_holders, addr));
-          break;
-        case AddrType::OUTPUT_INSTANCE:
-          GE_ASSERT_SUCCESS(ResolveTensorPlanAddr(arg_descs[i].ir_idx, output_tensor_holders, addr));
-          break;
-        case AddrType::INPUT:
-        case AddrType::OUTPUT:
-          GELOGE(INTERNAL_ERROR, "Custom op %s(%s) planned arg[%zu] uses unsupported legacy addr_type %d.",
-                 op_desc->GetNamePtr(), op_desc->GetTypePtr(), i, static_cast<int32_t>(arg_descs[i].addr_type));
-          return INTERNAL_ERROR;
-        case AddrType::WORKSPACE:
-          GE_ASSERT_SUCCESS(ResolveWorkspacePlanAddr(op_desc, context, arg_descs[i].ir_idx, addr));
-          break;
-        case AddrType::CUSTOM_VALUE:
-          continue;
-        default:
-          GELOGE(INTERNAL_ERROR, "Custom op %s(%s) planned arg[%zu] type %d is not materializable.",
-                 op_desc->GetNamePtr(), op_desc->GetTypePtr(), i, static_cast<int32_t>(arg_descs[i].addr_type));
-          return INTERNAL_ERROR;
-      }
-      GE_ASSERT_EOK(memcpy_s(&args[i * kKernelArgSlotSize], kKernelArgSlotSize, &addr, sizeof(addr)));
-    }
-    kernel->set_args(args);
+    GE_CHK_STATUS_RET_NOLOG(PrepareAnnotatedArgsTaskForMaterialization(
+        op_desc, refresh_legacy_stream ? stream_id : plan.launch_stream_ids[task_index],
+        plan.task_templates[task_index], task, arg_descs));
+    GE_ASSERT_SUCCESS(MaterializeAnnotatedTaskKernelArgs(op_desc, context, task, arg_descs, input_tensor_holders,
+                                                         output_tensor_holders));
     tasks.emplace_back(std::move(task));
   }
   return SUCCESS;
@@ -447,7 +460,7 @@ enum class OfflineLaunchGenMode {
 };
 
 Status CheckAnnotatedArgsTaskPlan(const OpDescPtr &op_desc, const gert::AnnotatedArgsHandler &args_handler,
-                                  const uint32_t stream_id) {
+                                  const uint32_t stream_id, const DeclarativeStreamRegistryPtr &registry) {
   GE_ASSERT_NOTNULL(op_desc);
   const size_t launch_count = args_handler.GetLaunchCount();
   if (launch_count == 0U) {
@@ -455,22 +468,36 @@ Status CheckAnnotatedArgsTaskPlan(const OpDescPtr &op_desc, const gert::Annotate
            op_desc->GetTypePtr());
     return INTERNAL_ERROR;
   }
+  bool has_main_stream_launch = false;
   for (size_t i = 0U; i < launch_count; ++i) {
     const auto *launch = args_handler.GetLaunch(i);
     GE_ASSERT_NOTNULL(launch);
-    if (launch->GetStreamId() != stream_id) {
+    has_main_stream_launch = has_main_stream_launch || (launch->GetStreamId() == stream_id);
+    if ((launch->GetStreamId() != stream_id) && ((registry == nullptr) || !registry->Contains(launch->GetStreamId()))) {
       GELOGE(INTERNAL_ERROR,
              "Custom op launch[%zu] stream id %u does not match node stream id %u, op_name:%s, op_type:%s", i,
              launch->GetStreamId(), stream_id, op_desc->GetNamePtr(), op_desc->GetTypePtr());
       return INTERNAL_ERROR;
     }
+    GE_ASSERT_TRUE((launch->GetDependencyCount() == 0U) || (launch->GetDependencies() != nullptr),
+                   "Custom op launch[%zu] dependencies are missing.", i);
+    for (size_t j = 0U; j < launch->GetDependencyCount(); ++j) {
+      const auto token = launch->GetDependencies()[j];
+      GE_ASSERT_TRUE(token < i, "Custom op launch[%zu] dependency token %u is invalid.", i, token);
+    }
+  }
+  if (!has_main_stream_launch) {
+    GELOGE(INTERNAL_ERROR, "Custom op annotated args plan has no main stream launch, op_name:%s, op_type:%s",
+           op_desc->GetNamePtr(), op_desc->GetTypePtr());
+    return INTERNAL_ERROR;
   }
   return SUCCESS;
 }
 
 Status CheckAnnotatedArgsTaskPlanForMode(const OpDescPtr &op_desc, const gert::AnnotatedArgsHandler &args_handler,
-                                         const uint32_t stream_id, const OfflineLaunchGenMode mode) {
-  const auto check_ret = CheckAnnotatedArgsTaskPlan(op_desc, args_handler, stream_id);
+                                         const uint32_t stream_id, const OfflineLaunchGenMode mode,
+                                         const DeclarativeStreamRegistryPtr &registry) {
+  const auto check_ret = CheckAnnotatedArgsTaskPlan(op_desc, args_handler, stream_id, registry);
   if (check_ret != SUCCESS) {
     return check_ret;
   }
@@ -478,6 +505,13 @@ Status CheckAnnotatedArgsTaskPlanForMode(const OpDescPtr &op_desc, const gert::A
     GELOGE(INTERNAL_ERROR,
            "Custom op AddLaunch count %zu is not supported in mobile OMC scenario, op_name:%s, op_type:%s",
            args_handler.GetLaunchCount(), op_desc->GetNamePtr(), op_desc->GetTypePtr());
+    return INTERNAL_ERROR;
+  }
+  if (mode == OfflineLaunchGenMode::kMobileLegacySingleTask &&
+      (args_handler.GetLaunch(0U)->GetDependencyCount() != 0U || !args_handler.GetAttachedStreamIds().empty())) {
+    GELOGE(INTERNAL_ERROR,
+           "Custom op mobile OMC does not support annotated dependencies or attached streams, op_name:%s",
+           op_desc->GetNamePtr());
     return INTERNAL_ERROR;
   }
   return SUCCESS;
@@ -623,7 +657,8 @@ Status ValidateKernelBinNames(const OpDescPtr &op_desc, const gert::AnnotatedArg
 
 Status DeclareLaunchArgsTaskPlan(const OpDescPtr &op_desc, AnnotatedArgsOp &annotated_args_op,
                                  WorkspaceAllocator &workspace_allocator, const uint32_t stream_id,
-                                 const OfflineLaunchGenMode mode, AnnotatedArgsCapture &capture) {
+                                 const OfflineLaunchGenMode mode, const DeclarativeStreamRegistryPtr &registry,
+                                 AnnotatedArgsCapture &capture) {
   std::vector<void *> inputs = GetHoldersRawPtr(capture.input_tensor_holders);
   inputs.push_back(&workspace_allocator);
 
@@ -657,7 +692,7 @@ Status DeclareLaunchArgsTaskPlan(const OpDescPtr &op_desc, AnnotatedArgsOp &anno
            op_desc->GetTypePtr());
     return GRAPH_FAILED;
   }
-  return CheckAnnotatedArgsTaskPlanForMode(op_desc, capture.args_handler, stream_id, mode);
+  return CheckAnnotatedArgsTaskPlanForMode(op_desc, capture.args_handler, stream_id, mode, registry);
 }
 
 Status UpdateAnnotatedArgsWorkspaceAttrs(const OpDescPtr &op_desc, const WorkspaceAllocator &workspace_allocator) {
@@ -673,16 +708,39 @@ Status UpdateAnnotatedArgsWorkspaceAttrs(const OpDescPtr &op_desc, const Workspa
 }
 
 Status CacheAnnotatedArgsTaskPlan(const OpDescPtr &op_desc, const std::vector<domi::TaskDef> &tasks,
-                                  const size_t task_start) {
+                                  const size_t task_start, const gert::AnnotatedArgsHandler &args_handler) {
   GE_ASSERT_TRUE(task_start < tasks.size(), "Custom op %s(%s) generated no task for annotated args plan.",
                  op_desc->GetNamePtr(), op_desc->GetTypePtr());
   auto mutable_plan = ge::ComGraphMakeShared<AnnotatedArgsTaskPlan>();
   GE_ASSERT_NOTNULL(mutable_plan);
   mutable_plan->task_templates.assign(tasks.cbegin() + static_cast<std::ptrdiff_t>(task_start), tasks.cend());
+  for (size_t i = 0U; i < args_handler.GetLaunchCount(); ++i) {
+    const auto *launch = args_handler.GetLaunch(i);
+    GE_ASSERT_NOTNULL(launch);
+    mutable_plan->launch_stream_ids.emplace_back(launch->GetStreamId());
+    for (size_t j = 0U; j < launch->GetDependencyCount(); ++j) {
+      mutable_plan->dependencies.push_back({launch->GetDependencies()[j], static_cast<uint32_t>(i),
+                                            static_cast<uint32_t>(mutable_plan->dependencies.size() + 1U)});
+    }
+  }
+  for (const auto id : args_handler.GetAttachedStreamIds()) {
+    if (std::find(mutable_plan->attached_stream_ids.cbegin(), mutable_plan->attached_stream_ids.cend(), id) ==
+        mutable_plan->attached_stream_ids.cend()) {
+      mutable_plan->attached_stream_ids.emplace_back(id);
+    }
+  }
   AnnotatedArgsTaskPlanPtr plan = std::move(mutable_plan);
-  GE_ASSERT_TRUE(op_desc->SetExtAttr(kAnnotatedArgsTaskPlan, plan),
-                 "Cache annotated args task plan failed for custom op %s(%s).", op_desc->GetNamePtr(),
+  Buffer encoded;
+  GE_ASSERT_SUCCESS(SerializeAnnotatedArgsTaskPlan(*plan, encoded));
+  GE_ASSERT_TRUE(AttrUtils::SetBytes(op_desc, kAnnotatedArgsTaskPlanBytes, encoded),
+                 "Cache serialized annotated args task plan failed for custom op %s(%s).", op_desc->GetNamePtr(),
                  op_desc->GetTypePtr());
+  // 带依赖或附着流的计划：拆流阶段会往本节点任务列表插入事件任务、并把流号改写为真实流号，
+  // 而二次生成只能按本缓存重物化（会丢事件任务、写回拆流前的逻辑流号），因此打标让 TaskGenerator 跳过重生成
+  if ((!plan->dependencies.empty()) || (!plan->attached_stream_ids.empty())) {
+    GE_ASSERT_TRUE(AttrUtils::SetBool(op_desc, kKeepGeneratedTasksAttr, true), "Set %s failed for custom op %s(%s).",
+                   kKeepGeneratedTasksAttr, op_desc->GetNamePtr(), op_desc->GetTypePtr());
+  }
   return SUCCESS;
 }
 
@@ -694,46 +752,67 @@ Status GenerateMobileAnnotatedArgsTask(const Node &node, const OpDescPtr &op_des
   GE_ASSERT_NOTNULL(launch);
   GE_ASSERT_SUCCESS(FillKernelTask(node, *launch, "", task_def));
   tasks.emplace_back(std::move(task_def));
-  GE_ASSERT_SUCCESS(CacheAnnotatedArgsTaskPlan(op_desc, tasks, task_start));
+  GE_ASSERT_SUCCESS(CacheAnnotatedArgsTaskPlan(op_desc, tasks, task_start, args_handler));
   return SUCCESS;
 }
 
-Status GenerateAnnotatedArgsTask(const Node &node, const OpDescPtr &op_desc, RunContext &context,
-                                 const OfflineLaunchGenMode mode, std::vector<domi::TaskDef> &tasks) {
-  GE_ASSERT_SUCCESS(CheckStaticGraph(node));
-  const auto plan = op_desc->TryGetExtAttr(kAnnotatedArgsTaskPlan, AnnotatedArgsTaskPlanPtr());
-  if (plan != nullptr) {
-    if ((mode == OfflineLaunchGenMode::kMobileLegacySingleTask) && (plan->task_templates.size() != 1U)) {
-      GELOGE(INTERNAL_ERROR,
-             "Custom op planned task count %zu is not supported in mobile OMC scenario, op_name:%s, op_type:%s",
-             plan->task_templates.size(), op_desc->GetNamePtr(), op_desc->GetTypePtr());
-      return INTERNAL_ERROR;
+Status ValidateAnnotatedArgsTaskPlanStreams(const AnnotatedArgsTaskPlan &cached_plan, const uint32_t main_stream_id,
+                                            const DeclarativeStreamRegistryPtr &plan_registry) {
+  // 无依赖且无附着流的legacy缓存计划：物化时统一改写为节点当前主流（与refresh_legacy_stream条件一致），
+  // 且ReGetTaskInfo等二次生成时节点流ID可能已被拆流改写，因此跳过缓存launch流ID与当前主流的一致性校验。
+  const bool is_legacy_plan = cached_plan.dependencies.empty() && cached_plan.attached_stream_ids.empty();
+  if (!is_legacy_plan) {
+    bool has_main_stream_launch = false;
+    for (const auto id : cached_plan.launch_stream_ids) {
+      has_main_stream_launch = has_main_stream_launch || (id == main_stream_id);
+      GE_ASSERT_TRUE((id == main_stream_id) || (plan_registry != nullptr && plan_registry->Contains(id)),
+                     "Custom op cached launch stream id %u is not declared.", id);
     }
-    return MaterializeAnnotatedArgsTaskPlan(op_desc, context, *plan, tasks);
+    GE_ASSERT_TRUE(has_main_stream_launch, "Custom op cached annotated args plan has no main stream launch.");
   }
-
-  AnnotatedArgsOp *annotated_args_op = nullptr;
-  GE_ASSERT_SUCCESS(GetAnnotatedArgsOp(op_desc, annotated_args_op));
-
-  const size_t task_start = tasks.size();
-  AnnotatedArgsCapture capture;
-  GE_ASSERT_SUCCESS(ConstructInputTensors(op_desc, context, capture.input_tensor_holders));
-  GE_ASSERT_SUCCESS(ConstructOutputTensors(op_desc, context, capture.output_tensor_holders));
-  WorkspaceAllocator workspace_allocator(op_desc, context);
-  uint32_t stream_id = 0U;
-  GE_ASSERT_SUCCESS(GetCustomOpStreamId(op_desc, stream_id));
-  const auto launch_task_plan_ret =
-      DeclareLaunchArgsTaskPlan(op_desc, *annotated_args_op, workspace_allocator, stream_id, mode, capture);
-  if (launch_task_plan_ret != SUCCESS) {
-    return launch_task_plan_ret;
+  if (!cached_plan.attached_stream_ids.empty()) {
+    GE_ASSERT_NOTNULL(plan_registry, "Custom op cached attached streams require a declarative stream registry.");
   }
-  GE_ASSERT_SUCCESS(UpdateAnnotatedArgsWorkspaceAttrs(op_desc, workspace_allocator));
-
-  GE_ASSERT_SUCCESS(ValidateKernelBinNames(op_desc, capture.args_handler));
-  if (mode == OfflineLaunchGenMode::kMobileLegacySingleTask) {
-    return GenerateMobileAnnotatedArgsTask(node, op_desc, capture.args_handler, task_start, tasks);
+  for (const auto id : cached_plan.attached_stream_ids) {
+    GE_ASSERT_TRUE(plan_registry->Contains(id), "Custom op cached attached stream id %u is not declared.", id);
   }
+  return SUCCESS;
+}
 
+DeclarativeStreamRegistryPtr FindDeclarativeStreamRegistry(const Node &node) {
+  for (auto graph = node.GetOwnerComputeGraph(); graph != nullptr; graph = graph->GetParentGraph()) {
+    const auto registry = graph->TryGetExtAttr(kDeclarativeStreamRegistryAttr, DeclarativeStreamRegistryPtr());
+    if (registry != nullptr) {
+      return registry;
+    }
+  }
+  return nullptr;
+}
+
+Status RestoreCachedAnnotatedArgsTaskPlan(const OpDescPtr &op_desc, const uint32_t main_stream_id,
+                                          const DeclarativeStreamRegistryPtr &plan_registry,
+                                          const OfflineLaunchGenMode mode, const RunContext &context,
+                                          std::vector<domi::TaskDef> &tasks, bool &restored) {
+  restored = false;
+  Buffer encoded_plan;
+  if (!AttrUtils::GetBytes(op_desc, kAnnotatedArgsTaskPlanBytes, encoded_plan)) {
+    return SUCCESS;
+  }
+  restored = true;
+  auto cached_plan = ge::ComGraphMakeShared<AnnotatedArgsTaskPlan>();
+  GE_ASSERT_NOTNULL(cached_plan);
+  GE_ASSERT_SUCCESS(DeserializeAnnotatedArgsTaskPlan(encoded_plan, *cached_plan));
+  GE_ASSERT_SUCCESS(ValidateAnnotatedArgsTaskPlanStreams(*cached_plan, main_stream_id, plan_registry));
+  if ((mode == OfflineLaunchGenMode::kMobileLegacySingleTask) &&
+      (cached_plan->task_templates.size() != 1U || !cached_plan->dependencies.empty() ||
+       !cached_plan->attached_stream_ids.empty())) {
+    return INTERNAL_ERROR;
+  }
+  return MaterializeAnnotatedArgsTaskPlan(op_desc, context, *cached_plan, tasks);
+}
+
+Status EmitAnnotatedArgsLaunchTasks(const Node &node, const OpDescPtr &op_desc, const AnnotatedArgsCapture &capture,
+                                    const size_t task_start, std::vector<domi::TaskDef> &tasks) {
   std::vector<std::string> prefixes;
   prefixes.reserve(capture.args_handler.GetLaunchCount());
   for (size_t i = 0U; i < capture.args_handler.GetLaunchCount(); ++i) {
@@ -748,8 +827,56 @@ Status GenerateAnnotatedArgsTask(const Node &node, const OpDescPtr &op_desc, Run
   GE_ASSERT_TRUE(AttrUtils::SetListStr(op_desc, ATTR_NAME_KERNEL_NAMES_PREFIX, prefixes),
                  "Set %s failed for custom op %s(%s).", ATTR_NAME_KERNEL_NAMES_PREFIX.c_str(), op_desc->GetNamePtr(),
                  op_desc->GetTypePtr());
-  GE_ASSERT_SUCCESS(CacheAnnotatedArgsTaskPlan(op_desc, tasks, task_start));
+  GE_ASSERT_SUCCESS(CacheAnnotatedArgsTaskPlan(op_desc, tasks, task_start, capture.args_handler));
   return SUCCESS;
+}
+
+Status GenerateAnnotatedArgsTask(const Node &node, const OpDescPtr &op_desc, RunContext &context,
+                                 const OfflineLaunchGenMode mode, std::vector<domi::TaskDef> &tasks) {
+  GE_ASSERT_SUCCESS(CheckStaticGraph(node));
+  uint32_t main_stream_id = 0U;
+  GE_ASSERT_SUCCESS(GetCustomOpStreamId(op_desc, main_stream_id));
+  const auto plan_registry = FindDeclarativeStreamRegistry(node);
+  bool plan_restored = false;
+  const auto restore_ret =
+      RestoreCachedAnnotatedArgsTaskPlan(op_desc, main_stream_id, plan_registry, mode, context, tasks, plan_restored);
+  if (restore_ret != SUCCESS) {
+    GELOGE(restore_ret, "Custom op %s(%s) failed to restore annotated args task plan from cache.",
+           op_desc->GetNamePtr(), op_desc->GetTypePtr());
+    return restore_ret;
+  }
+  if (plan_restored) {
+    GELOGI("Custom op %s(%s) annotated args task plan restored from cache.", op_desc->GetNamePtr(),
+           op_desc->GetTypePtr());
+    return SUCCESS;
+  }
+
+  AnnotatedArgsOp *annotated_args_op = nullptr;
+  GE_ASSERT_SUCCESS(GetAnnotatedArgsOp(op_desc, annotated_args_op));
+
+  const size_t task_start = tasks.size();
+  AnnotatedArgsCapture capture;
+  GE_ASSERT_SUCCESS(ConstructInputTensors(op_desc, context, capture.input_tensor_holders));
+  GE_ASSERT_SUCCESS(ConstructOutputTensors(op_desc, context, capture.output_tensor_holders));
+  WorkspaceAllocator workspace_allocator(op_desc, context);
+  const uint32_t stream_id = main_stream_id;
+  DeclarativeStreamRegistryPtr registry = plan_registry;
+  if (registry != nullptr) {
+    capture.args_handler.SetAttachedStreamRequestFunc(
+        [registry](const ge::AscendString &key) { return registry->RequestAttachedStream(key); });
+  }
+  const auto launch_task_plan_ret =
+      DeclareLaunchArgsTaskPlan(op_desc, *annotated_args_op, workspace_allocator, stream_id, mode, registry, capture);
+  if (launch_task_plan_ret != SUCCESS) {
+    return launch_task_plan_ret;
+  }
+  GE_ASSERT_SUCCESS(UpdateAnnotatedArgsWorkspaceAttrs(op_desc, workspace_allocator));
+
+  GE_ASSERT_SUCCESS(ValidateKernelBinNames(op_desc, capture.args_handler));
+  if (mode == OfflineLaunchGenMode::kMobileLegacySingleTask) {
+    return GenerateMobileAnnotatedArgsTask(node, op_desc, capture.args_handler, task_start, tasks);
+  }
+  return EmitAnnotatedArgsLaunchTasks(node, op_desc, capture, task_start, tasks);
 }
 
 Status FillBasicCustomKernelTask(const Node &node, domi::TaskDef &task_def) {
@@ -797,9 +924,10 @@ Status CustomOpsKernelBuilder::CalcOpRunningParam(Node &node) {
   GE_ASSERT_NOTNULL(op_desc);
   const auto args_refresh_strategy = CustomOpFactory::GetArgsRefreshStrategy(AscendString(op_desc->GetTypePtr()));
   if (args_refresh_strategy == ArgsRefreshStrategy::kAnnotatedArgs) {
-    (void)op_desc->DelExtAttr(kAnnotatedArgsTaskPlan);
+    (void)op_desc->DelAttr(kAnnotatedArgsTaskPlanBytes);
     (void)op_desc->DelAttr(kAppendWs);
     (void)op_desc->DelAttr(kCustomOmcAppendWs);
+    (void)op_desc->DelAttr(kKeepGeneratedTasksAttr);
   }
   for (size_t i = 0; i < op_desc->GetOutputsSize(); i++) {
     if (op_desc->GetOutputDesc(i).GetShape().IsUnknownShape()) {

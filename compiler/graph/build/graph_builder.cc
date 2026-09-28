@@ -380,6 +380,13 @@ Status GraphBuilder::BuildForKnownShapeGraph(ComputeGraphPtr &comp_graph, GeMode
                     "[Get][FirstTaskInfo] fail, Graph[%s].", comp_graph->GetName().c_str());
   GE_COMPILE_TRACE_TIMESTAMP_END(GetTaskInfo, "GraphBuilder::GetTaskInfo");
 
+  GE_ASSERT_NOTNULL(graph_2_task_generator_[comp_graph]);
+  GE_ASSERT_SUCCESS(builder.FinalizeDeclarativeAttachedStreams(), "FinalizeDeclarativeAttachedStreams fail, Graph[%s].",
+                    comp_graph->GetName().c_str());
+  GE_ASSERT_SUCCESS(
+      builder.MaterializeAnnotatedArgsTaskDependencies(graph_2_task_generator_[comp_graph]->MutableNodeId2TaskDefs()),
+      "MaterializeAnnotatedArgsTaskDependencies fail, Graph[%s].", comp_graph->GetName().c_str());
+
   GE_TRACE_START(RefreshRealStream);
   GE_ASSERT_NOTNULL(graph_2_task_generator_[comp_graph]);
   GE_ASSERT_SUCCESS(builder.RefreshRealStream(graph_2_task_generator_[comp_graph]->MutableNodeId2TaskDefs()),

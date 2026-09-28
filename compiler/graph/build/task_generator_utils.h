@@ -14,7 +14,12 @@
 #include "graph/op_desc.h"
 #include "proto/task.pb.h"
 namespace ge {
+// 标记节点的任务已生成完毕且不可再次生成：拆流阶段会往任务列表插入事件任务并把流号改写为真实流号，
+// 二次生成只能从算子侧的缓存计划重物化，会丢掉这些结果。目前仅声明式自定义算子（AnnotatedArgsOp）
+// 的带依赖/附着流计划会打标，见 custom_ops_kernel_builder.cc 的 CacheAnnotatedArgsTaskPlan。
+constexpr char kKeepGeneratedTasksAttr[] = "_keep_generated_tasks";
 bool NoNeedGenTask(const OpDescPtr &op_desc);
+bool NeedKeepGeneratedTasks(const OpDescPtr &op_desc);
 void RefreshTaskDefStreamId(bool has_attached_stream, int64_t logical_stream_id, int64_t real_stream_id,
                             std::vector<domi::TaskDef> &task_defs);
 }  // namespace ge

@@ -13,14 +13,17 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
+#include "exe_graph/runtime/annotated_args_context.h"
 #include "framework/runtime/args_handler.h"
 
 namespace ge {
 struct ArgDesc;
-}
+class AscendString;
+}  // namespace ge
 
 namespace gert {
 class AnnotatedArgsContext;
@@ -45,11 +48,15 @@ class AnnotatedArgsHandler : public ArgsHandler {
     size_t GetArgDescCount() const;
     uint32_t GetBlockDim() const;
     uint32_t GetStreamId() const;
+    AnnotatedLaunchToken GetToken() const;
+    size_t GetDependencyCount() const;
+    const AnnotatedLaunchToken *GetDependencies() const;
 
    private:
     LaunchRecord(const char *const kernel_name, const void *const kernel_bin, const size_t kernel_bin_size,
                  const uint32_t block_dim, const uint32_t stream_id, std::vector<uint8_t> &&args_data,
-                 std::vector<ge::ArgDesc> &&arg_descs);
+                 std::vector<ge::ArgDesc> &&arg_descs, AnnotatedLaunchToken token,
+                 std::vector<AnnotatedLaunchToken> &&dependencies);
 
     std::string kernel_name_;
     std::vector<uint8_t> kernel_bin_;
@@ -57,6 +64,8 @@ class AnnotatedArgsHandler : public ArgsHandler {
     std::vector<ge::ArgDesc> arg_descs_;
     uint32_t block_dim_;
     uint32_t stream_id_;
+    AnnotatedLaunchToken token_;
+    std::vector<AnnotatedLaunchToken> dependencies_;
     friend class AnnotatedArgsHandler;
   };
 
@@ -72,12 +81,24 @@ class AnnotatedArgsHandler : public ArgsHandler {
   // Returned pointer is invalidated when another launch is appended or this handler is destroyed.
   const LaunchRecord *GetLaunch(const size_t index) const;
 
+  using AttachedStreamRequestFunc = std::function<uint32_t(const ge::AscendString &)>;
+  void SetAttachedStreamRequestFunc(AttachedStreamRequestFunc func);
+  uint32_t RequestAttachedStream(const ge::AscendString &key);
+  const std::vector<uint32_t> &GetAttachedStreamIds() const;
+
  private:
   void AddLaunch(const char *const kernel_name, const void *const kernel_bin, const size_t kernel_bin_size,
                  const uint32_t block_dim, const uint32_t stream_id, std::vector<uint8_t> &&args_data,
                  std::vector<ge::ArgDesc> &&arg_descs);
+  ge::graphStatus AddLaunchWithDependencies(const char *kernel_name, const void *kernel_bin, size_t kernel_bin_size,
+                                            uint32_t block_dim, uint32_t stream_id, std::vector<uint8_t> &&args_data,
+                                            std::vector<ge::ArgDesc> &&arg_descs,
+                                            const std::vector<AnnotatedLaunchToken> &predecessors,
+                                            AnnotatedLaunchToken &token);
 
   std::vector<LaunchRecord> launch_records_;
+  AttachedStreamRequestFunc attached_stream_request_func_;
+  std::vector<uint32_t> attached_stream_ids_;
   friend class AnnotatedArgsContext;
 };
 

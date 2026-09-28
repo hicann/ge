@@ -20,7 +20,8 @@ Context及其返回的Tensor指针只在当前`DeclareLaunchArgs`回调期间有
 | --- | --- |
 | [`WorkspaceAddr MallocWorkSpace(size_t size)`](MallocWorkSpace.md) | 申请逻辑workspace。 |
 | [`uint32_t GetStreamId() const`](GetStreamId.md) | 获取节点的逻辑主stream ID。 |
-| [`ge::graphStatus AddLaunch(const AnnotatedKernelLaunchInfo &launch_info, AnnotatedKernelArgs &&args)`](AddLaunch.md) | 添加一个kernel launch。 |
+| [`ge::graphStatus AddLaunch(const AnnotatedKernelLaunchInfo &launch_info, AnnotatedKernelArgs &&args)`](AddLaunch.md) | 添加一个kernel launch；带`predecessors`参数的重载返回launch token并可声明前驱依赖。 |
+| [`uint32_t RequestAttachedStream(const ge::AscendString &key)`](RequestAttachedStream.md) | 按key申请当前子图内的声明式逻辑辅流。 |
 | [`const Tensor *GetInputTensor(size_t index) const`](GetInputTensor.md) | 按扁平实例索引获取输入Tensor。 |
 | [`const Tensor *GetOutputTensor(size_t index) const`](GetOutputTensor.md) | 按扁平实例索引获取输出Tensor。 |
 | [`const Tensor *GetRequiredInputTensor(size_t ir_index) const`](GetRequiredInputTensor.md) | 按IR原型索引获取必选输入Tensor。 |

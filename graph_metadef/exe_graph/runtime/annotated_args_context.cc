@@ -19,10 +19,12 @@
 #include "exe_graph/runtime/gert_mem_allocator.h"
 #include "exe_graph/runtime/gert_mem_block.h"
 #include "graph/utils/args_format_desc_utils.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace gert {
 namespace {
 constexpr uint32_t kInvalidStreamId = std::numeric_limits<uint32_t>::max();
+constexpr AnnotatedLaunchToken kInvalidToken = std::numeric_limits<AnnotatedLaunchToken>::max();
 }  // namespace
 
 WorkspaceAddr AnnotatedArgsContext::MallocWorkSpace(size_t size) {
@@ -71,6 +73,22 @@ uint32_t AnnotatedArgsContext::GetStreamId() const {
   return static_cast<uint32_t>(stream_id);
 }
 
+uint32_t AnnotatedArgsContext::RequestAttachedStream(const ge::AscendString &key) {
+  const auto additional_output_start = GetAdditionalOutputStartIndex();
+  if (additional_output_start < 0) {
+    return kInvalidStreamId;
+  }
+  const int64_t handler_index = additional_output_start + static_cast<int64_t>(AdditionalOutputIndex::kArgsHandler);
+  auto *handler_chain = GetOutput(handler_index);
+  if (handler_chain == nullptr) {
+    return kInvalidStreamId;
+  }
+  auto *args_handler = handler_chain->GetValue<ArgsHandler *>();
+  auto *annotated_args_handler =
+      (args_handler == nullptr) ? nullptr : dynamic_cast<AnnotatedArgsHandler *>(args_handler);
+  return (annotated_args_handler == nullptr) ? kInvalidStreamId : annotated_args_handler->RequestAttachedStream(key);
+}
+
 ge::graphStatus AnnotatedArgsContext::AddLaunch(const AnnotatedKernelLaunchInfo &launch_info,
                                                 AnnotatedKernelArgs &&args) {
   GE_ASSERT_TRUE((launch_info.kernel_name != nullptr) && (launch_info.kernel_name[0] != '\0'),
@@ -97,6 +115,52 @@ ge::graphStatus AnnotatedArgsContext::AddLaunch(const AnnotatedKernelLaunchInfo 
                                     launch_info.block_dim, launch_info.stream_id, std::move(args_data),
                                     std::move(arg_descs));
   return ge::GRAPH_SUCCESS;
+}
+
+AnnotatedLaunchToken AnnotatedArgsContext::AddLaunch(const AnnotatedKernelLaunchInfo &launch_info,
+                                                     AnnotatedKernelArgs &&args,
+                                                     const std::vector<AnnotatedLaunchToken> &predecessors) {
+  if ((launch_info.kernel_name == nullptr) || (launch_info.kernel_name[0] == '\0') ||
+      (launch_info.kernel_bin == nullptr) || (launch_info.kernel_bin_size == 0U) || (launch_info.block_dim == 0U) ||
+      (launch_info.stream_id == kInvalidStreamId)) {
+    GELOGE(ge::PARAM_INVALID,
+           "[AnnotatedArgsContext] invalid launch info, kernel=%p, bin=%p, bin_size=%zu, block_dim=%u, stream_id=%u.",
+           launch_info.kernel_name, launch_info.kernel_bin, launch_info.kernel_bin_size, launch_info.block_dim,
+           launch_info.stream_id);
+    return kInvalidToken;
+  }
+  std::vector<uint8_t> args_data;
+  std::vector<ge::ArgDesc> arg_descs;
+  if (args.ExtractArgsData(args_data, arg_descs) != ge::GRAPH_SUCCESS) {
+    GELOGE(ge::GRAPH_FAILED, "[AnnotatedArgsContext] failed to extract annotated launch arguments.");
+    return kInvalidToken;
+  }
+  const auto additional_output_start = GetAdditionalOutputStartIndex();
+  if (additional_output_start < 0) {
+    GELOGE(ge::INTERNAL_ERROR, "[AnnotatedArgsContext] args handler output index is unavailable.");
+    return kInvalidToken;
+  }
+  const int64_t handler_index = additional_output_start + static_cast<int64_t>(AdditionalOutputIndex::kArgsHandler);
+  auto *handler_chain = GetOutput(handler_index);
+  if (handler_chain == nullptr) {
+    GELOGE(ge::INTERNAL_ERROR, "[AnnotatedArgsContext] args handler output chain is null, index=%ld.", handler_index);
+    return kInvalidToken;
+  }
+  auto *args_handler = handler_chain->GetValue<ArgsHandler *>();
+  auto *annotated_args_handler =
+      (args_handler == nullptr) ? nullptr : dynamic_cast<AnnotatedArgsHandler *>(args_handler);
+  if (annotated_args_handler == nullptr) {
+    GELOGE(ge::INTERNAL_ERROR, "[AnnotatedArgsContext] output handler is not AnnotatedArgsHandler.");
+    return kInvalidToken;
+  }
+  AnnotatedLaunchToken token = kInvalidToken;
+  if (annotated_args_handler->AddLaunchWithDependencies(
+          launch_info.kernel_name, launch_info.kernel_bin, launch_info.kernel_bin_size, launch_info.block_dim,
+          launch_info.stream_id, std::move(args_data), std::move(arg_descs), predecessors,
+          token) != ge::GRAPH_SUCCESS) {
+    return kInvalidToken;
+  }
+  return token;
 }
 
 }  // namespace gert

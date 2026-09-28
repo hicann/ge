@@ -22,7 +22,9 @@
 #include "graph/build/input_h2d_overlap_planner.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/build/stream/dynamic_stream_allocator.h"
+#include "graph/build/stream/annotated_args_task_plan.h"
 #include "graph/build/stream_graph_optimizer.h"
+#include "graph/build/task_generator_utils.h"
 #include "common/omg_util/omg_util.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
 #include "graph/ge_context.h"
@@ -1225,6 +1227,11 @@ void ModelBuilder::DelNodeRepeatSaveAttr() {
     GE_IF_BOOL_EXEC(node_op_desc == nullptr, continue);
     (void)node_op_desc->DelAttr(ATTR_NAME_TBE_KERNEL_BUFFER);
     (void)node_op_desc->DelAttr(ATTR_NAME_TBE_KERNEL_NAME);
+    // 声明式自定义算子的任务计划缓存仅供编译期二次生成任务消费，OM加载后无读取方，
+    // 保存前删除，避免kernel args模板在OM中与任务列表双份存储
+    (void)node_op_desc->DelAttr("_custom_annotated_args_task_plan_bytes");
+    // 同上，禁止二次生成任务的标记也只在编译期有效
+    (void)node_op_desc->DelAttr(kKeepGeneratedTasksAttr);
     // Load need kernel_name attr as key, so just remove kernel_buffer, which is more larger
     std::vector<std::string> names_prefix;
     (void)AttrUtils::GetListStr(node_op_desc, ATTR_NAME_KERNEL_NAMES_PREFIX, names_prefix);
@@ -1283,6 +1290,58 @@ Status ModelBuilder::RefreshRealStream(std::unordered_map<int64_t, std::vector<d
   return SUCCESS;
 }
 
+Status ModelBuilder::FinalizeDeclarativeAttachedStreams() {
+  GE_CHECK_NOTNULL(compute_graph_);
+  auto registry = compute_graph_->TryGetExtAttr(kDeclarativeStreamRegistryAttr, DeclarativeStreamRegistryPtr());
+  uint32_t max_stream_id = 0U;
+  bool has_attached_stream = false;
+  if (registry != nullptr) {
+    for (const auto id : registry->GetAllocatedStreamIds()) {
+      max_stream_id = std::max(max_stream_id, id);
+      has_attached_stream = true;
+    }
+  }
+  for (const auto &node : compute_graph_->GetAllNodes()) {
+    GE_CHECK_NOTNULL(node);
+    const auto op_desc = node->GetOpDesc();
+    GE_CHECK_NOTNULL(op_desc);
+    Buffer encoded_plan;
+    if (AttrUtils::GetBytes(op_desc, "_custom_annotated_args_task_plan_bytes", encoded_plan)) {
+      AnnotatedArgsTaskPlan plan;
+      GE_ASSERT_SUCCESS(DeserializeAnnotatedArgsTaskPlan(encoded_plan, plan));
+      if (plan.attached_stream_ids.empty()) {
+        continue;
+      }
+      GE_ASSERT_NOTNULL(registry, "Declarative stream registry is missing for custom op %s(%s).", op_desc->GetNamePtr(),
+                        op_desc->GetTypePtr());
+      has_attached_stream = true;
+      std::vector<int64_t> attached_stream_ids;
+      attached_stream_ids.reserve(plan.attached_stream_ids.size());
+      for (const auto id : plan.attached_stream_ids) {
+        GE_ASSERT_TRUE(registry->Contains(id),
+                       "Declarative stream registry does not contain stream id %u for custom op %s(%s).", id,
+                       op_desc->GetNamePtr(), op_desc->GetTypePtr());
+        max_stream_id = std::max(max_stream_id, id);
+        attached_stream_ids.emplace_back(static_cast<int64_t>(id));
+      }
+      op_desc->SetAttachedStreamIds(attached_stream_ids);
+    }
+  }
+  if (has_attached_stream) {
+    GE_ASSERT_TRUE(max_stream_id < std::numeric_limits<uint32_t>::max(), "Max stream id %u exceeds uint32_t max value.",
+                   max_stream_id);
+    const int64_t required_stream_num = static_cast<int64_t>(max_stream_id) + 1L;
+    stream_num_ = std::max(stream_num_, required_stream_num);
+    stream_allocator_.ExtendLogicalStreamNum(required_stream_num);
+  }
+  return SUCCESS;
+}
+
+Status ModelBuilder::MaterializeAnnotatedArgsTaskDependencies(
+    std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks) {
+  return stream_allocator_.InsertAnnotatedArgsEventTasks(node_id_2_node_tasks, event_num_);
+}
+
 Status ModelBuilder::BuildModelForGetTask(ge::Model &model) {
   GE_CHK_STATUS_RET(AdjustInputTensorFlag(), "[Adjust][InputTensorFlag] failed! graph:%s",
                     compute_graph_->GetName().c_str());
@@ -1293,6 +1352,8 @@ Status ModelBuilder::BuildModelForGetTask(ge::Model &model) {
                     "[Assign][LogicalStreams] failed. graph:%s", compute_graph_->GetName().c_str());
   GE_COMPILE_TRACE_TIMESTAMP_END(AssignLogicalStreams, "GraphBuilder::AssignLogicalStreams");
   GE_DUMP(compute_graph_, "AfterAssignLogicalStreams");
+  GE_CHK_STATUS_RET(PrepareDeclarativeAttachedStreamRegistry(),
+                    "[Prepare][DeclarativeAttachedStreamRegistry] failed. graph:%s", compute_graph_->GetName().c_str());
 
   // Assign functional op labels.
   auto root_graph = GraphUtils::FindRootGraph(compute_graph_);
@@ -1349,6 +1410,21 @@ Status ModelBuilder::BuildModelForGetTask(ge::Model &model) {
 
   SetModelVersion(model);
 
+  return SUCCESS;
+}
+
+Status ModelBuilder::PrepareDeclarativeAttachedStreamRegistry() {
+  GE_CHECK_NOTNULL(compute_graph_);
+  // registry 必须挂在当前编译子图上，起始 ID 取本子图的逻辑流数：运行期物理流池按子模型独立
+  // （V1 每个 GeModel 对应一个 DavinciModel 的 stream_list_，V2 静态子模型各自成 rt model），
+  // 因此声明式辅流 ID 的作用域就是子图。若统一挂到根图，同一 key 在各子图拿到相同 ID 也不会共享物理流，
+  // 反而会让每个子模型按全局最大 ID 虚增流数，且根图在下沉切图路径下不经过 ModelBuilder 构建，无起始流数可用。
+  const auto logic_stream_num = stream_allocator_.GetStreamNum();
+  const auto first_stream_id = (logic_stream_num < 0) ? 0U : static_cast<uint32_t>(logic_stream_num);
+  auto registry = std::make_shared<DeclarativeStreamRegistry>(first_stream_id);
+  GE_CHECK_NOTNULL(registry);
+  GE_ASSERT_TRUE(compute_graph_->SetExtAttr(kDeclarativeStreamRegistryAttr, registry),
+                 "Set declarative stream registry failed, graph:%s", compute_graph_->GetName().c_str());
   return SUCCESS;
 }
 

@@ -17,6 +17,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
+#include "proto/task.pb.h"
 
 #include "framework/common/ge_inner_error_codes.h"
 #include "graph/compute_graph.h"
@@ -24,6 +26,7 @@
 #include "graph/utils/node_utils.h"
 
 namespace ge {
+struct AnnotatedArgsTaskPlan;
 enum class EventType : std::uint32_t {
   kEvent,
   kNotify,
@@ -104,6 +107,17 @@ class StreamAllocator {
 
   Status SplitStreamAndRefreshTaskDef(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
                                       int64_t &stream_num, int64_t &event_num, int64_t &notify_num);
+
+  Status InsertAnnotatedArgsEventTasks(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
+                                       int64_t &event_num);
+  Status ReconcileAnnotatedArgsEventTasks(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
+                                          int64_t &event_num);
+
+  void ExtendLogicalStreamNum(const int64_t stream_num) {
+    if (stream_num > stream_num_) {
+      stream_num_ = stream_num;
+    }
+  }
 
   const std::vector<int64_t> &GetHugeStreams() const {
     return huge_streams_;
@@ -299,6 +313,17 @@ class StreamAllocator {
   Node2AttachedStreamId2EventId attached_node_to_stream_id_to_recv_event_id_;
 
   std::vector<StandaloneWaitEvent> external_wait_events_;
+  Status ExpandAnnotatedArgsNodeEvents(const OpDescPtr &op_desc, const AnnotatedArgsTaskPlan &plan,
+                                       std::vector<domi::TaskDef> &tasks, int64_t &event_num);
+  Status CollectAnnotatedEventPairs(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
+                                    std::map<uint32_t, std::pair<domi::TaskDef *, domi::TaskDef *>> &pairs);
+
+  struct AnnotatedEventInfo {
+    int64_t node_id;
+    uint32_t predecessor_launch_index;
+    uint32_t successor_launch_index;
+  };
+  std::map<uint32_t, AnnotatedEventInfo> annotated_event_infos_;
 };
 }  // namespace ge
 #endif  // GE_GRAPH_BUILD_STREAM_GRAPH_STREAM_ALLOCATOR_H_

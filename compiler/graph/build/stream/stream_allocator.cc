@@ -26,6 +26,7 @@
 #include "api/gelib/gelib.h"
 #include "assign_attached_notify_pass.h"
 #include "assign_attached_event_pass.h"
+#include "annotated_args_task_plan.h"
 #include "common/util.h"
 #include "common/ge_rts_decl.h"
 
@@ -306,6 +307,102 @@ void CollectSubgraphStreams(const OpDescPtr &op_desc, std::set<int64_t> &subgrap
 bool IsBelongToSameGraph(const NodePtr &node1, const NodePtr &node2) {
   return node1->GetOwnerComputeGraphBarePtr() == node2->GetOwnerComputeGraphBarePtr();
 }
+bool IsAnnotatedEventTask(const domi::TaskDef &task) {
+  return task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD) ||
+         task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT);
+}
+domi::TaskDef MakeAnnotatedEventTask(const ModelTaskType type, const uint32_t stream_id, const uint32_t event_id,
+                                     const uint32_t op_index) {
+  domi::TaskDef task;
+  task.set_type(static_cast<uint32_t>(type));
+  task.set_stream_id(stream_id);
+  task.set_event_id(event_id);
+  task.set_sqe_num(1U);
+  auto *event_ex = task.mutable_event_ex();
+  event_ex->set_event_type(static_cast<uint32_t>(type));
+  event_ex->set_op_index(op_index);
+  return task;
+}
+void CollectAnnotatedKernelPositions(const std::vector<domi::TaskDef> &tasks, std::vector<size_t> &kernel_positions) {
+  for (size_t i = 0U; i < tasks.size(); ++i) {
+    if (tasks[i].type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL)) {
+      kernel_positions.emplace_back(i);
+    }
+  }
+}
+void MergeAnnotatedEventTasks(std::vector<domi::TaskDef> &tasks,
+                              const std::map<size_t, std::vector<domi::TaskDef>> &records,
+                              const std::map<size_t, std::vector<domi::TaskDef>> &waits,
+                              const size_t dependency_count) {
+  std::vector<domi::TaskDef> expanded;
+  expanded.reserve(tasks.size() + dependency_count * 2U);
+  for (size_t i = 0U; i < tasks.size(); ++i) {
+    const auto wait_iter = waits.find(i);
+    if (wait_iter != waits.end()) {
+      expanded.insert(expanded.end(), wait_iter->second.begin(), wait_iter->second.end());
+    }
+    expanded.emplace_back(std::move(tasks[i]));
+    const auto record_iter = records.find(i);
+    if (record_iter != records.end()) {
+      expanded.insert(expanded.end(), record_iter->second.begin(), record_iter->second.end());
+    }
+  }
+  tasks = std::move(expanded);
+}
+void LogAnnotatedEventInsertStats(const std::string &graph_name,
+                                  const std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
+                                  const int64_t event_num) {
+  size_t total_task_count = 0U;
+  size_t total_event_task_count = 0U;
+  for (const auto &entry : node_id_2_node_tasks) {
+    total_task_count += entry.second.size();
+    for (const auto &task : entry.second) {
+      total_event_task_count += IsAnnotatedEventTask(task);
+    }
+  }
+  GELOGD(
+      "[AnnotatedArgsEvents] inserted tasks, graph=%s, node_count=%zu, task_count=%zu, event_task_count=%zu, "
+      "event_num=%ld.",
+      graph_name.c_str(), node_id_2_node_tasks.size(), total_task_count, total_event_task_count, event_num);
+}
+Status BuildAnnotatedEventRemap(const std::map<uint32_t, std::pair<domi::TaskDef *, domi::TaskDef *>> &pairs,
+                                const int64_t event_num, std::map<uint32_t, uint32_t> &remap, uint32_t &next_id) {
+  next_id = static_cast<uint32_t>(event_num - static_cast<int64_t>(pairs.size()));
+  for (const auto &entry : pairs) {
+    GE_ASSERT_NOTNULL(entry.second.first);
+    GE_ASSERT_NOTNULL(entry.second.second);
+    if (entry.second.first->stream_id() == entry.second.second->stream_id()) {
+      remap.emplace(entry.first, std::numeric_limits<uint32_t>::max());
+    } else {
+      remap.emplace(entry.first, next_id++);
+    }
+  }
+  return SUCCESS;
+}
+void ApplyAnnotatedEventRemap(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
+                              const std::map<uint32_t, uint32_t> &remap) {
+  for (auto &entry : node_id_2_node_tasks) {
+    auto &tasks = entry.second;
+    tasks.erase(std::remove_if(tasks.begin(), tasks.end(),
+                               [&remap](const domi::TaskDef &task) {
+                                 if (!IsAnnotatedEventTask(task)) {
+                                   return false;
+                                 }
+                                 const auto iter = remap.find(task.event_id());
+                                 return iter != remap.end() && iter->second == std::numeric_limits<uint32_t>::max();
+                               }),
+                tasks.end());
+    for (auto &task : tasks) {
+      if (!IsAnnotatedEventTask(task)) {
+        continue;
+      }
+      const auto iter = remap.find(task.event_id());
+      if (iter != remap.end() && iter->second != std::numeric_limits<uint32_t>::max()) {
+        task.set_event_id(iter->second);
+      }
+    }
+  }
+}
 }  // namespace
 StreamAllocator::StreamAllocator(ComputeGraphPtr whole_graph, const Graph2SubGraphInfoList &subgraphs)
     : whole_graph_(std::move(whole_graph)), subgraphs_(subgraphs) {
@@ -337,6 +434,127 @@ Status StreamAllocator::AssignStandaloneWaitEvents() {
     wait_event.event_id = event_num_++;
     GELOGD("[InputH2DOverlap] assign external wait event:%u before node:%s stream:%ld.", wait_event.event_id,
            op_desc->GetNamePtr(), op_desc->GetStreamId());
+  }
+  return SUCCESS;
+}
+
+Status StreamAllocator::InsertAnnotatedArgsEventTasks(
+    std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks, int64_t &event_num) {
+  if ((event_num < 0) || (event_num > static_cast<int64_t>(std::numeric_limits<uint32_t>::max())) ||
+      (whole_graph_ == nullptr)) {
+    GELOGE(PARAM_INVALID, "[AnnotatedArgsEvents] invalid input, event_num=%ld, graph=%p.", event_num,
+           whole_graph_.get());
+    return FAILED;
+  }
+  event_num_ = static_cast<uint32_t>(event_num);
+  annotated_event_infos_.clear();
+  for (const auto &node : whole_graph_->GetAllNodes()) {
+    GE_CHECK_NOTNULL(node);
+    const auto op_desc = node->GetOpDesc();
+    GE_CHECK_NOTNULL(op_desc);
+    AnnotatedArgsTaskPlan restored_plan;
+    Buffer encoded_plan;
+    if (!AttrUtils::GetBytes(op_desc, "_custom_annotated_args_task_plan_bytes", encoded_plan)) {
+      continue;
+    }
+    GE_ASSERT_SUCCESS(DeserializeAnnotatedArgsTaskPlan(encoded_plan, restored_plan),
+                      "[AnnotatedArgsEvents] failed to deserialize task plan, node=%s(%s).", op_desc->GetNamePtr(),
+                      op_desc->GetTypePtr());
+    if (restored_plan.dependencies.empty()) {
+      continue;
+    }
+    auto task_iter = node_id_2_node_tasks.find(op_desc->GetId());
+    GE_ASSERT_TRUE(task_iter != node_id_2_node_tasks.end(),
+                   "[AnnotatedArgsEvents] task list missing for node=%s, node_id=%ld.", op_desc->GetNamePtr(),
+                   op_desc->GetId());
+    GE_ASSERT_SUCCESS(ExpandAnnotatedArgsNodeEvents(op_desc, restored_plan, task_iter->second, event_num));
+  }
+  event_num_ = static_cast<uint32_t>(event_num);
+  LogAnnotatedEventInsertStats(whole_graph_->GetName(), node_id_2_node_tasks, event_num);
+  return SUCCESS;
+}
+
+Status StreamAllocator::ExpandAnnotatedArgsNodeEvents(const OpDescPtr &op_desc, const AnnotatedArgsTaskPlan &plan,
+                                                      std::vector<domi::TaskDef> &tasks, int64_t &event_num) {
+  std::vector<size_t> kernel_positions;
+  CollectAnnotatedKernelPositions(tasks, kernel_positions);
+  if (kernel_positions.size() != plan.task_templates.size()) {
+    GELOGE(GRAPH_FAILED, "[AnnotatedArgsEvents] kernel task count mismatch, node=%s, actual=%zu, planned=%zu.",
+           op_desc->GetNamePtr(), kernel_positions.size(), plan.task_templates.size());
+    return FAILED;
+  }
+  std::map<size_t, std::vector<domi::TaskDef>> records;
+  std::map<size_t, std::vector<domi::TaskDef>> waits;
+  for (const auto &dep : plan.dependencies) {
+    GE_ASSERT_TRUE(dep.predecessor_launch_index < kernel_positions.size() &&
+                       dep.successor_launch_index < kernel_positions.size() &&
+                       dep.predecessor_launch_index < dep.successor_launch_index,
+                   "[AnnotatedArgsEvents] invalid dependency, node=%s, predecessor=%u, successor=%u, "
+                   "kernel_count=%zu; indices must be in range and predecessor must be before successor.",
+                   op_desc->GetNamePtr(), dep.predecessor_launch_index, dep.successor_launch_index,
+                   kernel_positions.size());
+    GE_ASSERT_TRUE(event_num < static_cast<int64_t>(std::numeric_limits<uint32_t>::max()),
+                   "[AnnotatedArgsEvents] event id overflow, node=%s, event_num=%ld.", op_desc->GetNamePtr(),
+                   event_num);
+    const auto event_id = static_cast<uint32_t>(event_num++);
+    const auto op_index = static_cast<uint32_t>(op_desc->GetId());
+    records[kernel_positions[dep.predecessor_launch_index]].emplace_back(
+        MakeAnnotatedEventTask(ModelTaskType::MODEL_TASK_EVENT_RECORD,
+                               tasks[kernel_positions[dep.predecessor_launch_index]].stream_id(), event_id, op_index));
+    waits[kernel_positions[dep.successor_launch_index]].emplace_back(
+        MakeAnnotatedEventTask(ModelTaskType::MODEL_TASK_EVENT_WAIT,
+                               tasks[kernel_positions[dep.successor_launch_index]].stream_id(), event_id, op_index));
+    annotated_event_infos_[event_id] = {op_desc->GetId(), dep.predecessor_launch_index, dep.successor_launch_index};
+  }
+  MergeAnnotatedEventTasks(tasks, records, waits, plan.dependencies.size());
+  return SUCCESS;
+}
+
+Status StreamAllocator::ReconcileAnnotatedArgsEventTasks(
+    std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks, int64_t &event_num) {
+  if (event_num < 0) {
+    return FAILED;
+  }
+  // 无声明式标注事件时直接返回：拆流阶段AddEventPair基于成员event_num_累加事件ID，
+  // 此处若继续执行会用陈旧的入参event_num回写event_num_，导致事件总数回退。
+  if (annotated_event_infos_.empty()) {
+    return SUCCESS;
+  }
+  std::map<uint32_t, std::pair<domi::TaskDef *, domi::TaskDef *>> pairs;
+  GE_ASSERT_SUCCESS(CollectAnnotatedEventPairs(node_id_2_node_tasks, pairs));
+  GE_ASSERT_EQ(pairs.size(), annotated_event_infos_.size());
+  GE_ASSERT_TRUE(event_num >= static_cast<int64_t>(pairs.size()));
+  std::map<uint32_t, uint32_t> remap;
+  uint32_t next_id = 0U;
+  GE_ASSERT_SUCCESS(BuildAnnotatedEventRemap(pairs, event_num, remap, next_id));
+  ApplyAnnotatedEventRemap(node_id_2_node_tasks, remap);
+  annotated_event_infos_.clear();
+  event_num_ = next_id;
+  event_num = static_cast<int64_t>(next_id);
+  return SUCCESS;
+}
+
+Status StreamAllocator::CollectAnnotatedEventPairs(
+    std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
+    std::map<uint32_t, std::pair<domi::TaskDef *, domi::TaskDef *>> &pairs) {
+  for (auto &entry : node_id_2_node_tasks) {
+    for (auto &task : entry.second) {
+      if (!IsAnnotatedEventTask(task)) {
+        continue;
+      }
+      const auto id = task.event_id();
+      if (annotated_event_infos_.find(id) == annotated_event_infos_.end()) {
+        continue;
+      }
+      auto &pair = pairs[id];
+      if (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD)) {
+        GE_ASSERT_TRUE(pair.first == nullptr);
+        pair.first = &task;
+      } else {
+        GE_ASSERT_TRUE(pair.second == nullptr);
+        pair.second = &task;
+      }
+    }
   }
   return SUCCESS;
 }
@@ -714,7 +932,12 @@ Status StreamAllocator::SplitStreamAndRefreshTaskDef(
                          static_cast<uint32_t>(rt_ret));
   if (value == RT_CAPABILITY_SUPPORT) {
     GELOGI("Move split stream from ge to rts");
+    GE_ASSERT_SUCCESS(ReconcileAnnotatedArgsEventTasks(node_id_2_node_tasks, event_num),
+                      "[Reconcile][AnnotatedArgsEvents] failed! graph:%s", whole_graph_->GetName().c_str());
     GE_ASSERT_SUCCESS(PostProcessOfSplitStreams());
+    stream_num = stream_num_;
+    event_num = static_cast<int64_t>(event_num_);
+    notify_num = static_cast<int64_t>(notify_num_);
     return SUCCESS;
   }
 
@@ -726,6 +949,9 @@ Status StreamAllocator::SplitStreamAndRefreshTaskDef(
   std::vector<std::set<int64_t>> split_streams(stream_num_);
   GE_ASSERT_SUCCESS(SplitStreams(node_id_2_node_tasks, split_streams), "[Split][Streams] failed! graph:%s",
                     whole_graph_->GetName().c_str());
+
+  GE_ASSERT_SUCCESS(ReconcileAnnotatedArgsEventTasks(node_id_2_node_tasks, event_num),
+                    "[Reconcile][AnnotatedArgsEvents] failed! graph:%s", whole_graph_->GetName().c_str());
 
   GE_ASSERT_SUCCESS(UpdateActiveStreams(split_streams), "[Update][ActiveStreams] failed! graph:%s",
                     whole_graph_->GetName().c_str());

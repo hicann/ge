@@ -27,6 +27,7 @@
 #include "graph/manager/graph_manager_utils.h"
 #include "graph/manager/graph_var_manager.h"
 #include "graph/build/stream/graph_stream_allocator.h"
+#include "graph/build/stream/declarative_stream_registry.h"
 #include "graph/model.h"
 #include "graph/node.h"
 #include "common/model/ge_model.h"
@@ -54,6 +55,9 @@ class ModelBuilder {
   Status BuildModelDefForStream(ge::Model &model);
   Status SaveInputH2DOverlapPlan(ge::Model &model);
   Status RefreshRealStream(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks);
+  Status FinalizeDeclarativeAttachedStreams();
+  Status MaterializeAnnotatedArgsTaskDependencies(
+      std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks);
   ge::Status BuildModelForGetDynShapeTask(ge::Model &model_def);
   Status AssignStreamForDynamicShapeGraph(ComputeGraphPtr &compute_graph);
 
@@ -104,6 +108,8 @@ class ModelBuilder {
   Status AdjustInputTensorFlag() const;
 
   Status BuildModelDef(ge::Model &model);
+
+  Status PrepareDeclarativeAttachedStreamRegistry();
 
   Status BuildModelDefForMem(ge::Model &model);
 

@@ -147,6 +147,8 @@ target_link_libraries(stub_lowering
     PRIVATE
         ge_intf_pub_Os
         c_sec_headers
+        runtime_headers
+        slog
     PUBLIC
         ge_metadef_headers
 )
