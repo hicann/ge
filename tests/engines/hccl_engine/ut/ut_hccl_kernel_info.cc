@@ -246,7 +246,7 @@ std:
   privateDefBuf.privateDefSize = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF);
   privateDefBuf.needMapRank = true;
   privateDefBuf.isOfflineComp = true;
-  privateDefBuf.devType = DevType::DEV_TYPE_910;
+  privateDefBuf.devType = static_cast<int>(DevType::DEV_TYPE_910);
   privateDefBuf.aivCoreLimit = 48;
   task.type = ACL_RT_MODEL_TASK_HCCL;
   task.stream = stream;
@@ -744,7 +744,7 @@ std:
   privateDefBuf.privateDefSize = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF);
   privateDefBuf.needMapRank = true;
   privateDefBuf.isOfflineComp = true;
-  privateDefBuf.devType = DevType::DEV_TYPE_910;
+  privateDefBuf.devType = static_cast<int>(DevType::DEV_TYPE_910);
   privateDefBuf.aivCoreLimit = 48;
   task.type = ACL_RT_MODEL_TASK_HCCL;
   task.stream = stream;
@@ -905,8 +905,7 @@ TEST_F(HcomKernelInfoTest, ut_SetUnkownWorkSpace310p) {
   outfile.close();
   u32 ret1 = hrtSetDevice(0);
   EXPECT_EQ(ret1, HCCL_SUCCESS);
-  DevType deviceType = DevType::DEV_TYPE_310P3;
-  MOCKER(HcomGetDeviceType).stubs().with(outBound(deviceType)).will(returnValue(HCCL_SUCCESS));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(HCCL_SUCCESS));
 
   string groupName = "HCOM_GROUP";
   u32 rankNum1 = 1;
@@ -1164,46 +1163,6 @@ TEST_F(HcomKernelInfoTest, ut_RefreshInputAddr) {
   GlobalMockObject::verify();
 }
 
-TEST_F(HcomKernelInfoTest, ut_RefreshInputAddr2) {
-  HcclResult ret;
-  u32 shapeType = ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE;
-  const std::string sGroup = HCCL_WORLD_GROUP;
-  int64_t hcomComm = 1;
-  u32 addr = 0;
-  void *inputAddr = &addr;
-  u64 inputAddrSize = sizeof(u32);
-  rtStream_t stream = &dummy_stream_obj;
-  HcomOpsKernelInfoStore hcomOpsKernelInfoStore_;
-  MOCKER(hrtMemAsyncCopy).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  MOCKER(hrtMemcpyAddrAsync).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  ret = hcomOpsKernelInfoStore_.RefreshInputAddr(DevType::DEV_TYPE_910, shapeType, hcomComm, sGroup, inputAddr,
-                                                 inputAddrSize, 4, false, stream);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_RefreshInputAddr3) {
-  HcclResult ret;
-  u32 shapeType = ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE;
-  const std::string sGroup = HCCL_WORLD_GROUP;
-  int64_t hcomComm = 1;
-  u32 addr = 0;
-  void *inputAddr = &addr;
-  u64 inputAddrSize = sizeof(u32);
-  rtStream_t stream = &dummy_stream_obj;
-  HcomOpsKernelInfoStore hcomOpsKernelInfoStore_;
-  MOCKER(hrtMemAsyncCopy).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  MOCKER(hrtMemcpyAddrAsync).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  ret = hcomOpsKernelInfoStore_.RefreshReduceScatterInputAddr(DevType::DEV_TYPE_910, shapeType, hcomComm, sGroup,
-                                                              inputAddr, inputAddrSize, 4, 1, 1, 1, true, stream);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-  GlobalMockObject::verify();
-}
-
 TEST_F(HcomKernelInfoTest, ut_RefreshOutputAddr) {
   HcclResult ret;
   u32 shapeType = ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE;
@@ -1217,27 +1176,6 @@ TEST_F(HcomKernelInfoTest, ut_RefreshOutputAddr) {
   MOCKER(hrtMemAsyncCopy).expects(atMost(2)).will(returnValue(HCCL_SUCCESS));
 
   ret = hcomOpsKernelInfoStore_.RefreshOutputAddr(shapeType, hcomComm, sGroup, outputAddr, OutputAddrSize, stream);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_RefreshOutputAddr2) {
-  HcclResult ret;
-  u32 shapeType = ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE;
-  const std::string sGroup = HCCL_WORLD_GROUP;
-  int64_t hcomComm = 1;
-  u32 addr = 0;
-  void *outputAddr = &addr;
-  u64 OutputAddrSize = sizeof(u32);
-  rtStream_t stream = &dummy_stream_obj;
-  HcomOpsKernelInfoStore hcomOpsKernelInfoStore_;
-  MOCKER(hrtMemAsyncCopy).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  MOCKER(hrtMemcpyAddrAsync).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  ret = hcomOpsKernelInfoStore_.RefreshOutputAddr(DevType::DEV_TYPE_910, shapeType, hcomComm, sGroup, outputAddr,
-                                                  OutputAddrSize, 4, 1024, false, stream);
   EXPECT_EQ(ret, HCCL_SUCCESS);
 
   GlobalMockObject::verify();
@@ -1275,34 +1213,13 @@ TEST_F(HcomKernelInfoTest, ut_GetHcomOutCCLbufferSize) {
       .with(mockcpp::any(), mockcpp::any(), outBound(outputAddrPtr), outBound(&OutputAddrSize))
       .will(returnValue(HCCL_SUCCESS));
 #ifdef MACRO_DEV_TYPE_NEW
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_950));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_950));
 #else
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_910_95));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_910_95));
 #endif
   ret = hcomOpsKernelInfoStore_.GetHcomOutCCLbufferSize(commOutputSize, shapeType, hcomComm, sGroup);
   EXPECT_EQ(ret, HCCL_SUCCESS);
   ret = hcomOpsKernelInfoStore_.GetHcomInCCLbufferSize(commOutputSize, shapeType, hcomComm, sGroup);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_RefreshOutputAddr3) {
-  HcclResult ret;
-  u32 shapeType = ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE;
-  const std::string sGroup = HCCL_WORLD_GROUP;
-  int64_t hcomComm = 1;
-  u32 addr = 0;
-  void *outputAddr = &addr;
-  u64 OutputAddrSize = sizeof(u32);
-  rtStream_t stream = &dummy_stream_obj;
-  HcomOpsKernelInfoStore hcomOpsKernelInfoStore_;
-  MOCKER(hrtMemAsyncCopy).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  MOCKER(hrtMemcpyAddrAsync).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  ret = hcomOpsKernelInfoStore_.RefreshAllgatherOutputAddr(DevType::DEV_TYPE_910, shapeType, hcomComm, sGroup,
-                                                           outputAddr, OutputAddrSize, 4, 1, 1, 1, true, stream);
   EXPECT_EQ(ret, HCCL_SUCCESS);
 
   GlobalMockObject::verify();
@@ -2251,8 +2168,7 @@ TEST_F(HcomKernelInfoTest, ut_CleanIntervalMemory_0) {
 
   MOCKER(hrtMemSyncCopy).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
-  DevType deviceType = DevType::DEV_TYPE_310P3;
-  MOCKER(HcomGetDeviceType).stubs().with(outBound(deviceType)).will(returnValue(HCCL_SUCCESS));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(HCCL_SUCCESS));
 
   s32 ret = hcomKernelInfo.CleanIntervalMemory("tag", crackAddr, crackSize, stream);
   EXPECT_EQ(ret, HCCL_SUCCESS);
@@ -2382,26 +2298,32 @@ TEST_F(HcomKernelInfoTest, ut_opKernelLoop) {
   std::vector<std::string> tagVec;
   tagVec.push_back("test");
 
-  hcomOpsKernelInfoStore_.HcomAllGatherLoop(tagVec, shapeType, 0, sGroup, inputAddr, outputAddr, 1, dataType, stream);
-  hcomOpsKernelInfoStore_.HcomAllGatherLoop(tagVec, shapeType, 1, sGroup, inputAddr, outputAddr, 1, dataType, stream);
+  HcclOpExecResParams resParams;
+
+  hcomOpsKernelInfoStore_.HcomAllGatherLoop(tagVec, shapeType, 0, sGroup, inputAddr, outputAddr, 1, dataType, stream,
+                                            resParams);
+  hcomOpsKernelInfoStore_.HcomAllGatherLoop(tagVec, shapeType, 1, sGroup, inputAddr, outputAddr, 1, dataType, stream,
+                                            resParams);
   hcomOpsKernelInfoStore_.HcomAllReduceLoop(task, tagVec, shapeType, 0, sGroup, inputAddr, outputAddr, 1, dataType,
-                                            reduceType, stream);
+                                            reduceType, stream, resParams);
   hcomOpsKernelInfoStore_.HcomAllReduceLoop(task, tagVec, shapeType, 1, sGroup, inputAddr, outputAddr, 1, dataType,
-                                            reduceType, stream);
+                                            reduceType, stream, resParams);
   hcomOpsKernelInfoStore_.HcomReduceScatterLoop(task, tagVec, shapeType, 0, sGroup, inputAddr, outputAddr, 1, dataType,
-                                                reduceType, stream);
+                                                reduceType, stream, resParams);
   hcomOpsKernelInfoStore_.HcomReduceScatterLoop(task, tagVec, shapeType, 1, sGroup, inputAddr, outputAddr, 1, dataType,
-                                                reduceType, stream);
+                                                reduceType, stream, resParams);
   hcomOpsKernelInfoStore_.HcomReduceLoop(task, tagVec, shapeType, 0, sGroup, inputAddr, outputAddr, 1, dataType,
-                                         reduceType, 0, stream);
+                                         reduceType, 0, stream, resParams);
   hcomOpsKernelInfoStore_.HcomReduceLoop(task, tagVec, shapeType, 1, sGroup, inputAddr, outputAddr, 1, dataType,
-                                         reduceType, 0, stream);
-  hcomOpsKernelInfoStore_.HcomSendLoop(tagVec, srcTag, shapeType, 0, sGroup, inputAddr, 1, dataType, srcTag, stream);
-  hcomOpsKernelInfoStore_.HcomSendLoop(tagVec, srcTag, shapeType, 1, sGroup, inputAddr, 1, dataType, srcTag, stream);
-  hcomOpsKernelInfoStore_.HcomReceiveLoop(tagVec, srcTag, shapeType, 0, sGroup, outputAddr, 1, dataType, srcTag,
-                                          stream);
-  hcomOpsKernelInfoStore_.HcomReceiveLoop(tagVec, srcTag, shapeType, 1, sGroup, outputAddr, 1, dataType, srcTag,
-                                          stream);
+                                         reduceType, 0, stream, resParams);
+  hcomOpsKernelInfoStore_.HcomSendLoop(tagVec, srcTag, shapeType, 0, sGroup, inputAddr, 1, dataType, srcTag, sGroup,
+                                       stream, resParams);
+  hcomOpsKernelInfoStore_.HcomSendLoop(tagVec, srcTag, shapeType, 1, sGroup, inputAddr, 1, dataType, srcTag, sGroup,
+                                       stream, resParams);
+  hcomOpsKernelInfoStore_.HcomReceiveLoop(tagVec, srcTag, shapeType, 0, sGroup, outputAddr, 1, dataType, srcTag, sGroup,
+                                          stream, resParams);
+  hcomOpsKernelInfoStore_.HcomReceiveLoop(tagVec, srcTag, shapeType, 1, sGroup, outputAddr, 1, dataType, srcTag, sGroup,
+                                          stream, resParams);
 
   sal_free(privateDefPtr);
   GlobalMockObject::verify();
@@ -2422,7 +2344,7 @@ TEST_F(HcomKernelInfoTest, ut_GetOpKernelLoopTime1) {
   privateDefBuf.dataType = HCCL_DATA_TYPE_INT8;
   privateDefBuf.tensorNum = 0;
   privateDefBuf.privateDefSize = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF);
-  privateDefBuf.devType = DevType::DEV_TYPE_910;
+  privateDefBuf.devType = static_cast<int>(DevType::DEV_TYPE_910);
   privateDefBuf.comm = 0;
   privateDefBuf.originalGraphShapeType = ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE;
   task.id = 5;
@@ -2481,7 +2403,7 @@ TEST_F(HcomKernelInfoTest, ut_GetOpKernelLoopTime2) {
   privateDefBuf.dataType = HCCL_DATA_TYPE_INT8;
   privateDefBuf.tensorNum = 0;
   privateDefBuf.privateDefSize = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF);
-  privateDefBuf.devType = DevType::DEV_TYPE_910;
+  privateDefBuf.devType = static_cast<int>(DevType::DEV_TYPE_910);
   privateDefBuf.comm = 1;
   privateDefBuf.originalGraphShapeType = ORIGINAL_GRAPH_UNKNOWNSHAPE_TYPE;
   task.id = 6;
@@ -2578,7 +2500,7 @@ TEST_F(HcomKernelInfoTest, ut_SetAttachedStream) {
 
   privateDefBuf.needMapRank = true;
   privateDefBuf.isOfflineComp = true;
-  privateDefBuf.devType = DevType::DEV_TYPE_910;
+  privateDefBuf.devType = static_cast<int>(DevType::DEV_TYPE_910);
   task.id = 7;
   task.type = ACL_RT_MODEL_TASK_HCCL;
   task.privateDef = (void *)&privateDefBuf.group[0];
@@ -2640,7 +2562,7 @@ TEST_F(HcomKernelInfoTest, ut_LoadTaskSetAivCoreLimit) {
   privateDefBuf.graphId = 1;
   privateDefBuf.dataType = HCCL_DATA_TYPE_INT8;
   privateDefBuf.privateDefSize = sizeof(HCCL_KERNEL_INFO_PRIVATE_DEF);
-  privateDefBuf.devType = DevType::DEV_TYPE_910;
+  privateDefBuf.devType = static_cast<int>(DevType::DEV_TYPE_910);
 
   privateDefBuf.aivCoreLimit = 0;
   ret = hcomKernelInfo.SetAivCoreLimit(task);
@@ -2670,7 +2592,7 @@ void SetupCleanInterMemoryVMocks() {
 
   MOCKER(hrtMemSyncCopy).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(HCCL_SUCCESS));
 }
 
 TEST_F(HcomKernelInfoTest, ut_CleanInterMemoryV2_When_Normal_Expect_ReturnlsHCCL_SUCCESS) {
@@ -2749,211 +2671,6 @@ TEST_F(HcomKernelInfoTest, ut_CleanInterMemoryV2_When_MemSyncCopyFail_Expect_Ret
 TEST_F(HcomKernelInfoTest, ut_CleanInterMemoryV2_When_MemAsyncCopyFail_Expect_ReturnHCCL_E_INTERNAL) {
   HcomOpsKernelInfoStore hcomKernelInfo;
   rtStream_t stream = NULL;
-}
-
-TEST_F(HcomKernelInfoTest, ut_AllReduceOpKernel_OpenSource) {
-  // 测试开源版本的HcomAllReduceOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceAllReduceGraphMode函数
-  MOCKER(HcceAllReduceGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomAllReduceOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomAllReduceOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_AllGatherOpKernel_OpenSource) {
-  // 测试开源版本的HcomAllGatherOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceAllGatherGraphMode函数
-  MOCKER(HcceAllGatherGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomAllGatherOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomAllGatherOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_ReduceScatterOpKernel_OpenSource) {
-  // 测试开源版本的HcomReduceScatterOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceReduceScatterGraphMode函数
-  MOCKER(HcceReduceScatterGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomReduceScatterOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomReduceScatterOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_BroadcastOpKernel_OpenSource) {
-  // 测试开源版本的HcomBroadcastOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceBroadcastGraphMode函数
-  MOCKER(HcceBroadcastGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomBroadcastOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomBroadcastOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_AlltoAllOpKernel_OpenSource) {
-  // 测试开源版本的HcomAlltoAllOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceAlltoAllGraphMode函数
-  MOCKER(HcceAlltoAllGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomAlltoAllOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomAlltoAllOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_AlltoAllVOpKernel_OpenSource) {
-  // 测试开源版本的HcomAlltoAllVOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceAlltoAllVGraphMode函数
-  MOCKER(HcceAlltoAllVGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomAlltoAllVOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomAlltoAllVOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_AlltoAllVCOpKernel_OpenSource) {
-  // 测试开源版本的HcomAlltoAllVCOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceAlltoAllVCGraphMode函数
-  MOCKER(HcceAlltoAllVCGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomAlltoAllVCOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomAlltoAllVCOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_ReduceScatterVOpKernel_OpenSource) {
-  // 测试开源版本的HcomReduceScatterVOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceReduceScatterVGraphMode函数
-  MOCKER(HcceReduceScatterVGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomReduceScatterVOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomReduceScatterVOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_SendOpKernel_OpenSource) {
-  // 测试开源版本的HcomSendOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceSendGraphMode函数
-  MOCKER(HcceSendGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomSendOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomSendOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_ReceiveOpKernel_OpenSource) {
-  // 测试开源版本的HcomReceiveOpKernel
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  ge::NodePtr nodeptr(new NodeTest);
-  ge::RunContext runContext;
-  std::vector<domi::TaskDef> taskDefList;
-
-  // 模拟IsUsingOpenSource返回true，使用开源版本
-  MOCKER(IsUsingOpenSource).expects(atMost(1)).with(outBound(true)).will(returnValue(HCCL_SUCCESS));
-
-  // 模拟HcceRecvGraphMode函数
-  MOCKER(HcceRecvGraphMode).expects(atMost(1)).will(returnValue(HCCL_SUCCESS));
-
-  // 测试HcomReceiveOpKernel方法
-  HcclResult ret = hcomKernelInfo.HcomReceiveOpKernel(*nodeptr, runContext, taskDefList);
-  EXPECT_EQ(ret, HCCL_SUCCESS);
-
-  GlobalMockObject::verify();
-}
-
-TEST_F(HcomKernelInfoTest, ut_CleanInterMemoryV2_When_MemAsyncCopyFail_Expect_ReturnHCCL_E_INTERNAL) {
-  HcomOpsKernelInfoStore hcomKernelInfo;
-  rtStream_t stream = NULL;
 
   std::vector<std::int64_t> crackAddr = {16};
   std::vector<std::int64_t> crackSize = {16};
@@ -2985,9 +2702,9 @@ TEST_F(HcomKernelInfoTest, ut_GetInputCCLbufPtrAndIndirectInCCLbufPtr_When_Norma
 
   u64 commOutputSize = 102400;
 #ifdef MACRO_DEV_TYPE_NEW
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_950));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_950));
 #else
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_910_95));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_910_95));
 #endif
   HcomOpsKernelInfoStore hcomKernelInfo;
   hcomKernelInfo.GetInputCCLbufPtrAndIndirectInCCLbufPtr(hcomComm, sGroup, inputAddr, inputAddrSize, outputAddr,

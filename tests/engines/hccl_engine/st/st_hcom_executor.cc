@@ -799,6 +799,10 @@ TEST_F(HcomExecutorTest, st_executor_equeue_broardcast) {
     sendbuf[j + 128] = 2;
   }
 
+  // HcceBroadcast 经 dlsym 调用真实 libhccl.so，stub 无法遮蔽；stub 假 comm 传入真实库必然失败，
+  // 异步线程 HCOM_EXECUTOR_ERR_BREAK 置 shutDown 后，循环内后续 enqueue 返回非 SUCCESS，此处 mock 隔离
+  MOCKER(HcceBroadcast).stubs().will(returnValue(HCCL_SUCCESS));
+
   HCCL_INFO("executor start");
   HcomOperation opInfo;
   opInfo.hcclType = HCCL_TYPE_BROADCAST;
@@ -848,6 +852,7 @@ TEST_F(HcomExecutorTest, st_executor_equeue_broardcast) {
   EXPECT_EQ(ret, HCCL_SUCCESS);
   setExecutorStatus(HCCL_E_RESERVED);
   remove(file_name_t);
+  GlobalMockObject::verify();
   EXPECT_EQ(rt_ret, RT_ERROR_NONE);
   EXPECT_EQ(errors, 0);
 }
@@ -1197,7 +1202,6 @@ TEST_F(HcomExecutorTest, st_executor_equeue_alltoallv) {
   EXPECT_EQ(ret, HCCL_SUCCESS);
   setExecutorStatus(HCCL_E_RESERVED);
   remove(file_name_t);
-  (void)aclrtResetDevice(0);
 }
 
 TEST_F(HcomExecutorTest, st_executor_equeue_alltoallvc) {
@@ -1276,7 +1280,6 @@ TEST_F(HcomExecutorTest, st_executor_equeue_alltoallvc) {
   EXPECT_EQ(ret, HCCL_SUCCESS);
   setExecutorStatus(HCCL_E_RESERVED);
   remove(file_name_t);
-  (void)aclrtResetDevice(0);
 }
 
 TEST_F(HcomExecutorTest, st_executor_equeue_gather_alltoallv) {
@@ -1396,7 +1399,6 @@ TEST_F(HcomExecutorTest, st_executor_equeue_gather_alltoallv) {
   EXPECT_EQ(ret, HCCL_SUCCESS);
   setExecutorStatus(HCCL_E_RESERVED);
   remove(file_name_t);
-  (void)aclrtResetDevice(0);
 }
 
 #if 1

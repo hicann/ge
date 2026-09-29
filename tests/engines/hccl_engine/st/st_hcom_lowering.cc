@@ -1183,9 +1183,9 @@ TEST_F(HcomLoweringTest, st_HcomAllToAllGetOpAttr_test) {
 TEST_F(HcomLoweringTest, st_hcomLaunchKernel_allGatherv2_When_Normal_Expect_ReturnlsHCCL_SUCCESS) {
   MOCKER(HcceAllGather).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 #ifdef MACRO_DEV_TYPE_NEW
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_950));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_950));
 #else
-  MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_910_95));
+  MOCKER(HcomGetDeviceType).stubs().will(returnValue(DevType::DEV_TYPE_910_95));
 #endif
   MOCKER(HcomAllGatherKernel).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
@@ -1208,19 +1208,24 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_allGatherv2_When_Normal_Expect_Retu
   KernelRunContext context;
   AsyncAnyValue any_value;
 
-  HcomOpLaunchArgs launchArgs0;
+  HcomOpInputStruct inputStruct0 = {};
   HcomOpAttr opAttr;
   opAttr.dataType = HCCL_DATA_TYPE_INT8;
   opAttr.opType = HcomOpType::HCOM_ALL_GATHER;
   strcpy(opAttr.group, "hccl_world_group");
-  launchArgs0.opAttr = opAttr;
-  any_value.data.pointer = &launchArgs0;
+  inputStruct0.launchArgs.opAttr = opAttr;
+  any_value.data.pointer = &inputStruct0;
 
   *context.values = &any_value;
   context.input_size = 1;
   *(allGatherContext->GetContext()) = context;
 
   MOCKER(HcomLaunchAllGatherKernelV2).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
+  // DeviceCapability在UT环境解析不到SOC版本时会走非V2路径, 其老路径会访问inputAddrs[0](空向量), 需mock外层入口规避
+  MOCKER(HcomLaunchAllGatherKernel)
+      .stubs()
+      .with(mockcpp::any(), mockcpp::any(), mockcpp::any())
+      .will(returnValue(HCCL_SUCCESS));
 
   LaunchHcomKernel(allGatherContext);
   delete allGatherContext;

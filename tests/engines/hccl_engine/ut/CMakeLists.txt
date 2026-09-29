@@ -21,6 +21,7 @@ set(hccl_engine_src_file
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/hcom_plugin.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/plugin_manager.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/hcom_op_utils.cc
+    ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/device_capability.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/op_fusion_base.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/ops_kernel_info_store_base.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/ops_kernel_builder_base.cc

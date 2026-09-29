@@ -471,45 +471,6 @@ void rtSetCommonPidMode(bool state);
 extern "C" {
 #endif
 
-typedef enum { RT_ENGINE_TYPE_AIC = 0, RT_ENGINE_TYPE_AIV } rtEngineType;
-
-typedef union {
-  uint8_t schemMode;
-  uint32_t localMemorySize;
-  rtEngineType engineType;
-  uint32_t blockDimOffset;
-  uint8_t isBlockTaskPrefetch;
-  uint8_t isDataDump;
-  uint16_t timeout;
-  uint32_t rsv[4];
-} rtLaunchKernelAttrVal_t;
-
-typedef enum {
-  RT_LAUNCH_KERNEL_ATTR_SCHEM_MODE = 1,
-  RT_LAUNCH_KERNEL_ATTR_DYN_UBUF_SIZE,
-  RT_LAUNCH_KERNEL_ATTR_ENGINE_TYPE,
-  RT_LAUNCH_KERNEL_ATTR_BLOCKDIM_OFFSET,
-  RT_LAUNCH_KERNEL_ATTR_BLOCK_TASK_PREFETCH,
-  RT_LAUNCH_KERNEL_ATTR_DATA_DUMP,
-  RT_LAUNCH_KERNEL_ATTR_TIMEOUT,
-  RT_LAUNCH_KERNEL_ATTR_MAX
-} rtLaunchKernelAttrId;
-
-typedef struct {
-  rtLaunchKernelAttrId id;
-  rtLaunchKernelAttrVal_t value;
-} rtLaunchKernelAttr_t;
-
-typedef struct {
-  rtLaunchKernelAttr_t *attrs;
-  size_t numAttrs;
-} rtKernelLaunchCfg_t;
-
-typedef struct {
-  uint32_t addrOffset;
-  uint32_t dataOffset;
-} rtPlaceHolderInfo_t;
-
 rtError_t rtStreamSynchronize(rtStream_t stream);
 
 #ifdef __cplusplus
