@@ -24,7 +24,7 @@ namespace ge {
 namespace {
 const std::string kConstantFoldingName = "libconstant_folding_ops.so";
 const std::string kOpsHostCpuName = "libops_host_cpu.so";
-const std::string kOpConstantFoldingName = "libopconstant_folding.so";
+const std::string kAicpuConstFoldingName = "libaicpu_const_folding.so";
 constexpr char kAicpuHostFindFunc[] = "AicpuHostFindFunc";
 
 Status GetDataNumber(const GeTensorDesc &out_desc, uint64_t &data_num) {
@@ -110,13 +110,28 @@ ge::Status HostCpuEngine::Initialize(const std::string &path_base) {
     (void)LoadLib(constant_folding_name);
   }
 
+  // libops_host_cpu.so 中除 AICPU 注册的常量折叠算子之外, 还包含其他
+  // 通过 REGISTER_HOST_CPU_OP_BUILDER 注册的常量折叠算子, 必须先 dlopen
+  // 让其 file-scope 静态注册先写入 op_type 路由, 但此时不调用其 Initialize,
+  // 给后续的 libaicpu_const_folding.so Initialize 留出"后写覆盖"的机会
   std::string ops_host_cpu_name = lib_dir + "/" + kOpsHostCpuName;
+  void *ops_host_cpu_handle = nullptr;
   if (GetEngineRealPath(ops_host_cpu_name) == SUCCESS) {
-    (void)LoadLib(ops_host_cpu_name, true);
+    ops_host_cpu_handle = DlopenLib(ops_host_cpu_name);
+    if (ops_host_cpu_handle != nullptr) {
+      GELOGI("Lib: %s has been opened (initialize deferred)", ops_host_cpu_name.c_str());
+      (void)lib_handles_.emplace_back(ops_host_cpu_handle);
+    }
   }
 
-  // Load the opbase ordinary constant-folding router after the fused HostCPU library is initialized.
-  (void)LoadOpConstantFoldingLib(kOpConstantFoldingName, lib_dir);
+  // 后加载 libaicpu_const_folding.so 并执行 Initialize: 成功则 V2 wrapper 工厂
+  // 通过 last-write-wins 语义覆盖 libops_host_cpu.so 中同名 op_type 的注册项
+  // AICPU 路径不可用时, 回退执行 libops_host_cpu.so 的 Initialize, 注册 V1 wrapper
+  // 兜底, 保证常量折叠链路可用
+  const bool aicpu_init_ok = (LoadLib(kAicpuConstFoldingName, true) == SUCCESS);
+  if (!aicpu_init_ok && ops_host_cpu_handle != nullptr) {
+    (void)InvokeLibInitialize(ops_host_cpu_handle, ops_host_cpu_name);
+  }
 
   initialized_ = true;
   return SUCCESS;
@@ -248,13 +263,9 @@ Status HostCpuEngine::Run(const NodePtr &node, HostCpuOp &kernel, const std::vec
   return SUCCESS;
 }
 
-void *HostCpuEngine::DlopenLib(const std::string &lib_path, bool global) const {
+void *HostCpuEngine::DlopenLib(const std::string &lib_path) const {
   GELOGI("To invoke dlopen on lib: %s", lib_path.c_str());
-  // RTLD_LOCAL is the default when RTLD_GLOBAL is absent.
-  uint32_t open_flag = static_cast<uint32_t>(MMPA_RTLD_NOW);
-  if (global) {
-    open_flag |= static_cast<uint32_t>(MMPA_RTLD_GLOBAL);
-  }
+  constexpr uint32_t open_flag = static_cast<uint32_t>(MMPA_RTLD_NOW) | static_cast<uint32_t>(MMPA_RTLD_GLOBAL);
   auto handle = mmDlopen(lib_path.c_str(), static_cast<int32_t>(open_flag));
   if (handle == nullptr) {
     const char_t *error = mmDlerror();
@@ -302,30 +313,6 @@ Status HostCpuEngine::LoadLib(const std::string &lib_path, bool invoke_init) {
       GELOGW("Gert HostKernel finder is unavailable in lib: %s, reason = %s", lib_path.c_str(), reason);
     }
   }
-  (void)lib_handles_.emplace_back(handle);
-  return SUCCESS;
-}
-
-Status HostCpuEngine::LoadOpConstantFoldingLib(const std::string &lib_path, const std::string &host_cpu_dir) {
-  void *handle = DlopenLib(lib_path, false);
-  if (handle == nullptr) {
-    return INTERNAL_ERROR;
-  }
-  using InitFunc = int32_t (*)(const char *);
-  const auto initialize = reinterpret_cast<InitFunc>(mmDlsym(handle, "ConstantFoldingInitialize"));
-  if (initialize == nullptr) {
-    const char_t *reason = mmDlerror();
-    reason = (reason == nullptr) ? "" : reason;
-    GELOGW("[Find][ConstantFoldingInitialize] symbol not found in lib: %s, reason = %s", lib_path.c_str(), reason);
-    (void)mmDlclose(handle);
-    return INTERNAL_ERROR;
-  }
-  if (initialize(host_cpu_dir.c_str()) != 0) {
-    GELOGW("[Invoke][ConstantFoldingInitialize] failed. path = %s", lib_path.c_str());
-    (void)mmDlclose(handle);
-    return INTERNAL_ERROR;
-  }
-  GELOGI("Lib: %s has been opened", lib_path.c_str());
   (void)lib_handles_.emplace_back(handle);
   return SUCCESS;
 }

@@ -12,6 +12,8 @@ set(proto_src_files
     ${METADEF_PROTO_DIR}/task.proto
 )
 
+add_subdirectory(constant_folding_stub)
+
 generate_cann_protobuf(aicpu PROTO_SRCS PROTO_HDRS ${proto_src_files})
 
 set(local_aicpu_src_files
@@ -37,6 +39,11 @@ set(local_hostcpu_builder_src_files
     ${PROTO_HDRS}
 )
 
+set(local_aicpu_const_folding_src_files
+    ${CMAKE_CURRENT_SOURCE_DIR}/aicpu_const_folding/folding.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/aicpu_const_folding/host_cpu_kernel_wrapper.cpp
+)
+
 set(local_lib_inc_path
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${AIR_CODE_DIR}/compiler/engines/cpu_engine
@@ -57,6 +64,10 @@ add_library(host_cpu_opskernel_builder SHARED
     ${local_hostcpu_builder_src_files}
 )
 
+add_library(aicpu_const_folding SHARED
+    ${local_aicpu_const_folding_src_files}
+)
+
 target_include_directories(aicpu_ascend_engine PRIVATE
     ${local_lib_inc_path}
 )
@@ -68,6 +79,28 @@ target_include_directories(host_cpu_engine PRIVATE
 target_include_directories(host_cpu_opskernel_builder PRIVATE
     ${local_lib_inc_path}
 )
+
+if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
+    target_include_directories(aicpu_const_folding PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${AIR_CODE_DIR}/compiler/engines/cpu_engine
+        ${AIR_CODE_DIR}/compiler/engines/cpu_engine/common
+        ${AIR_CODE_DIR}/compiler/engines/cpu_engine/aicpu_const_folding
+        ${CMAKE_BINARY_DIR}/proto/aicpu
+        ${CMAKE_BINARY_DIR}/proto/aicpu/proto
+    )
+else ()
+    target_include_directories(aicpu_const_folding PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${AIR_CODE_DIR}/compiler/engines/cpu_engine
+        ${AIR_CODE_DIR}/compiler/engines/cpu_engine/common
+        ${AIR_CODE_DIR}/compiler/engines/cpu_engine/aicpu_const_folding
+        ${CMAKE_BINARY_DIR}/proto/aicpu
+        ${CMAKE_BINARY_DIR}/proto/aicpu/proto
+        ${TOP_DIR}/inc/aicpu/cpu_kernels
+        ${TOP_DIR}/inc/external/aicpu
+    )
+endif ()
 
 target_compile_options(aicpu_ascend_engine PRIVATE
     -Wno-deprecated-declarations
@@ -90,6 +123,14 @@ target_compile_options(host_cpu_opskernel_builder PRIVATE
     -Werror
 )
 
+target_compile_options(aicpu_const_folding PRIVATE
+    -ftrapv
+    -fstack-protector-all
+    -fvisibility-inlines-hidden
+    -fvisibility=hidden
+    -Wno-deprecated-declarations
+)
+
 target_compile_definitions(aicpu_ascend_engine PRIVATE
     AICPU_PLUGIN
     google=ascend_private
@@ -103,6 +144,18 @@ target_compile_definitions(host_cpu_engine PRIVATE
 target_compile_definitions(host_cpu_opskernel_builder PRIVATE
     AICPU_PLUGIN
     google=ascend_private
+)
+
+target_compile_definitions(aicpu_const_folding PRIVATE
+    google=ascend_private
+    LOG_CPP
+    HOST_VISIBILITY
+)
+
+target_link_options(aicpu_const_folding PRIVATE
+    -Wl,-z,relro,-z,now
+    -Wl,-Bsymbolic -Wl,--exclude-libs,ALL
+    $<$<NOT:$<STREQUAL:${RESERVED_SYMBOL},true>>:-s>
 )
 
 target_link_libraries(aicpu_ascend_engine PRIVATE
@@ -175,6 +228,44 @@ target_link_libraries(host_cpu_opskernel_builder PRIVATE
     -ldl
 )
 
+if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
+    target_link_libraries(aicpu_const_folding PRIVATE
+        ge_intf_pub
+        $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
+        air_headers
+        mmpa_headers
+        metadef_headers
+        runtime_headers
+        c_sec_headers
+        -Wl,--no-as-needed
+        constant_folding_ops_stub
+        slog_headers
+        error_manager
+        ascend_protobuf
+        aicpu_engine_common
+        mmpa
+        json
+        acl_rt
+        -Wl,--as-needed
+    )
+else ()
+    target_link_libraries(aicpu_const_folding PRIVATE
+        ge_intf_pub
+        air_headers
+        mmpa_headers
+        -Wl,--no-as-needed
+        constant_folding_ops_stub
+        slog_headers
+        error_manager
+        ascend_protobuf
+        aicpu_engine_common
+        mmpa
+        json
+        acl_rt
+        -Wl,--as-needed
+    )
+endif ()
+
 #####改名称用的，因为一个cmake不能2个相同的名字的链接so 可执行程序 等
 
 install(TARGETS aicpu_ascend_engine ${INSTALL_OPTIONAL}
@@ -189,5 +280,10 @@ install(TARGETS host_cpu_engine ${INSTALL_OPTIONAL}
 
 install(TARGETS host_cpu_opskernel_builder ${INSTALL_OPTIONAL}
     EXPORT host_cpu_opskernel_builder-targets
+    LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR}
+)
+
+install(TARGETS aicpu_const_folding ${INSTALL_OPTIONAL}
+    EXPORT aicpu_const_folding-targets
     LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR}
 )

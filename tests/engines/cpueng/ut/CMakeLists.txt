@@ -129,6 +129,7 @@ set(cpu_engine_src_files
     ${engine_src_path}/cpu_engine/aicpu_engine/kernel_builder/aicpu_kernel_builder.cpp
     ${engine_src_path}/cpu_engine/common/kernel_builder/cpu_kernel_builder.cpp
     ${engine_src_path}/cpu_engine/common/optimizer/cpu_optimizer.cpp
+    ${engine_src_path}/cpu_engine/aicpu_const_folding/folding.cc
 )
 
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
@@ -154,6 +155,7 @@ else ()
         ${CMAKE_BINARY_DIR}/proto/aicpu
         ${CMAKE_BINARY_DIR}/proto/aicpu/proto
         ${METADEF_DIR}/inc
+        ${TOP_DIR}/inc/aicpu/cpu_kernels
         ${TOP_DIR}/inc/external/aicpu
     )
 endif ()
@@ -165,6 +167,7 @@ set(cpu_engine_src_test_files
     cpu_engine/aicpu_optimizer_ut.cpp
     cpu_engine/aicpu_kernel_builder_ut.cpp
     cpu_engine/aicpu_pass_ut.cpp
+    cpu_engine/folding_ut.cpp
 )
 
 set(host_engine_src_files
@@ -198,6 +201,7 @@ add_executable(cpu_engine_utest
     ${cpu_engine_src_files}
     ${cpu_engine_src_test_files}
     ${engine_common_stub_src_files}
+    ${engine_common_stub_src_path}/stub/aicpu/aicpu_stub.cpp
 )
 
 add_executable(host_engine_utest

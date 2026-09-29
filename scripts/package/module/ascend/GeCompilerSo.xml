@@ -41,6 +41,7 @@
         <file value="libeager_style_graph_builder_base_static.a" file_type="static"/>
         <file value="libllm_engine.so" file_type="shared"/>
         <file value="libslice.so" file_type="shared"/>
+        <file value="libaicpu_const_folding.so" file_type="shared"/>
         <file value="libengine.so" file_type="shared" dst_path="lib64/plugin/nnengine" install_path="$(TARGET_ENV)/lib64/plugin/nnengine"/>
         <file value="libhost_cpu_engine.so" file_type="shared" dst_path="lib64/plugin/opskernel" install_path="$(TARGET_ENV)/lib64/plugin/opskernel"/>
         <file value="libaicpu_tf_engine.so" file_type="shared" dst_path="lib64/plugin/opskernel" install_path="$(TARGET_ENV)/lib64/plugin/opskernel"/>

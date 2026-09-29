@@ -76,7 +76,7 @@ if("ge-compiler" IN_LIST BUILD_COMPONENT)
     install_public_packages(ge-compiler)
     if(NOT MDC_COMPILE_RUNTIME)
         install(TARGETS parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler fmk_onnx_parser opskernel ge_runner
-                        slice llm_engine jit_exe _caffe_parser func2graph flow_graph aihac_autofusion dflow_runner eager_style_graph_builder_base
+                        slice aicpu_const_folding llm_engine jit_exe _caffe_parser func2graph flow_graph aihac_autofusion dflow_runner eager_style_graph_builder_base
                         eager_style_graph_builder_base_static ge_runner_v2 aihac_symbolizer compress compressweight
                         hcom_gradient_split_tune hcom_graph_adaptor acl_op_compiler
                 LIBRARY DESTINATION ${ARCH_LINUX_PATH}/lib64 COMPONENT ge-compiler
