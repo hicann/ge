@@ -135,13 +135,19 @@ bool CheckFilePath(const std::string &filePath, const std::string &fileType) {
   return filePath.find(fileType) + fileType.length() == filePath.length();
 }
 
+namespace {
+void ReportRanktableFileError(const std::string &rankTablePath) {
+  REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"ranktable_path", "error_reason"}),
+                            std::vector<const char *>({rankTablePath.c_str(),
+                                                       "The rankTable file path does not exist, the permission is "
+                                                       "insufficient, or the JSON format is incorrect."}));
+}
+}  // namespace
+
 HcclResult HcomLoadRanktableFile(const std::string &rankTablePath, std::string &rankTableM) {
   HcclResult ret;
   if (rankTablePath.empty()) {
-    REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"ranktable_path", "error_reason"}),
-                              std::vector<const char *>({rankTablePath.c_str(),
-                                                         "The rankTable file path does not exist, the permission is "
-                                                         "insufficient, or the JSON format is incorrect."}));
+    ReportRanktableFileError(rankTablePath);
     HCCL_ERROR("[%s][%s][Load][File] json file length is zero", LOG_KEYWORDS_INIT_GROUP.c_str(),
                LOG_KEYWORDS_RANKTABLE_CONFIG.c_str());
     return HCCL_E_PARA;
@@ -150,10 +156,7 @@ HcclResult HcomLoadRanktableFile(const std::string &rankTablePath, std::string &
   /* 如果file_path是file_type类型的文件，则file_path是以file_type结尾的 */
   std::string fileType = ".json";
   if (!CheckFilePath(rankTablePath, fileType)) {
-    REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"ranktable_path", "error_reason"}),
-                              std::vector<const char *>({rankTablePath.c_str(),
-                                                         "The rankTable file path does not exist, the permission is "
-                                                         "insufficient, or the JSON format is incorrect."}));
+    ReportRanktableFileError(rankTablePath);
     HCCL_ERROR("[%s][%s][Load][File] path %s is not a valid %s file", LOG_KEYWORDS_INIT_GROUP.c_str(),
                LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), rankTablePath.c_str(), fileType.c_str());
     return HCCL_E_PARA;
