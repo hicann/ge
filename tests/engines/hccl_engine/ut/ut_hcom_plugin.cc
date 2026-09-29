@@ -56,8 +56,12 @@ TEST_F(HcomPluginTest, ut_hcom_plugin_exec_timeout_default) {
   // hccl 算法配置
   // options.insert(pair<string,string> ("HCCL_algorithm","ring"));
   // 实验室场景 hcom_init成功：成功
+  testing::internal::CaptureStdout();
   ret = HcomPlugin::Instance().Initialize(options);
+  const std::string logOutput = testing::internal::GetCapturedStdout();
   EXPECT_EQ(ret, ge::INTERNAL_ERROR);
+  EXPECT_NE(logOutput.find("[InitGroupStage][RanktableConfig][Load][File]"), std::string::npos);
+  EXPECT_NE(logOutput.find("[InitGroupStage][RanktableConfig][GetRanktable]"), std::string::npos);
 
   ret = HcomPlugin::Instance().Finalize();
   EXPECT_EQ(ret, ge::SUCCESS);
