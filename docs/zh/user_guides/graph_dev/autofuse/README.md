@@ -9,4 +9,3 @@
 - [Schedule](schedule.md)
 - [Codegen](codegen.md)
 - [Auto Tiling](auto_tiling.md)
-- [附录](appendix.md)

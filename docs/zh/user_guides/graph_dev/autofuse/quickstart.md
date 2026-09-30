@@ -94,7 +94,7 @@ np.random.seed(0)
 input_data = np.random.uniform(-1.0, 1.0, size=(128, 192)).astype(np.float16)
 
 # ---执行训练/推理循环---
-# 在开启profiling之前，先记录当前已有的profiling目录，用于后续对比找出新增数据
+# 在开启Profiling之前，先记录当前已有的profiling目录，用于后续对比找出新增数据
 profile_dirs_before = get_profile_dirs()
 # 配置 TensorFlow Session
 session_config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
@@ -121,7 +121,7 @@ profiling/
         └── op_summary_时间戳.csv
 ```
 
-打开本次运行对应的`op_summary_*.csv`，查看其中的算子列表。如果出现名称以`autofused_`开头的融合Kernel，则表示相关算子已完成融合。本示例中融合Kernel名称为`autofuse_pointwise_0_Abs_Relu_Exp`。具体Kernel名称可能随版本变化，应结合算子类型和执行记录进行判断。
+打开本次运行对应的`op_summary_*.csv`，查看其中的算子列表。如果出现名称以`autofuse_`开头的融合Kernel，则表示相关算子已完成融合。本示例中融合Kernel名称为`autofuse_pointwise_0_Abs_Relu_Exp`。具体Kernel名称可能随版本变化，应结合算子类型和执行记录进行判断。
 
 #### 融合前后性能对比
 
@@ -306,7 +306,7 @@ profiling/
 
     关于ATC工具详细使用方法请参见《[ATC离线模型编译工具](../../atc_tools/README.md)》。
 
-    关于acl接口推理详细说明请参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理”。
+    关于acl接口推理详细说明请参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/c/00_acl_cpp_dev.md)》中的“模型推理”。
 
 ## Inductor路径实现自动融合
 

@@ -6,7 +6,7 @@
 
 以下环境变量为AutoFuse核心功能控制项，同时适用于GE路径和Inductor路径。
 
-| 环境变量             | 适用场景             | 作用、取值与使用约束                                         |
+| 环境变量             | 适用场景             | 作用                                         |
 | :------------------- | :------------------- | :----------------------------------------------------------- |
 | `AUTOFUSE_FLAGS`     | GE路径、Inductor路径 | AutoFuse功能控制。多个控制项使用英文分号分隔。               |
 | `AUTOFUSE_DFX_FLAGS` | GE路径、Inductor路径 | AutoFuse调测控制，用于融合图Dump、代码生成调测和Auto Tiling调测；多个控制项使用英文分号分隔。 |
@@ -25,7 +25,7 @@ export AUTOFUSE_FLAGS="--enable_autofuse=true"
 
 下表列出所有可选控制项，可根据需要组合使用：
 
-| 控制项                                   | 适用场景               | 作用、取值与使用约束                                 |
+| 控制项                                   | 适用场景               | 作用                                 |
 | :--------------------------------------- | :--------------------- | :--------------------------------------------------- |
 | [--enable_autofuse](#--enable_autofuse)                     | GE路径                 | 控制整体自动融合功能是否开启。                       |
 | [--autofuse_enable_pass](#--autofuse_enable_pass)                 | GE路径                 | 控制指定的扩展融合能力是否开启。                     |
@@ -46,7 +46,7 @@ export AUTOFUSE_FLAGS="--enable_autofuse=true;--autofuse_enable_pass=reduce,conc
 
 `AUTOFUSE_DFX_FLAGS`用于AutoFuse编译、Auto Tiling和融合结果调测。
 
-| 控制项 | 适用场景 | 作用、取值与使用约束 |
+| 控制项 | 适用场景 | 作用 |
 | :----------------------------------- | :-------------------- | :----------------------------------------- |
 | [--autofuse_att_algorithm](#--autofuse_att_algorithm) | GE路径、Inductor路径 | 选择Auto Tiling求解算法。 |
 | [--att_accuracy_level](#--att_accuracy_level) | GE路径、Inductor路径 | 控制Auto Tiling算法的求解精度。 |
@@ -89,7 +89,7 @@ export AUTOFUSE_DFX_FLAGS="--codegen_compile_debug=true;--debug_dir=/path/to/dum
 
 当前没有GE路径专属环境变量，所有GE路径相关控制项均已包含在AutoFuse共享环境变量中。
 
-## 附录
+## 环境变量详情
 
 ### AUTOFUSE\_FLAGS环境变量控制点
 
@@ -221,11 +221,11 @@ PGO调优是通过预上板采样，选取表现相对更好的Tiling以提升�
 
 如下场景不支持切图：
 
-- 动态分档场景
-- 图上包含资源类算子（输入或者输入的类型是DT\_RESOURCE，如TensorArrayWrite）
-- 图上包含V1版本控制算子（如："Switch","StreamSwitch","Merge","StreamMerge","Enter","Exit","LoopCond","NextIteration"）
-- 开启数据预处理下沉
-- 开启AOE调优的场景
+- 动态分档场景。
+- 图上包含资源类算子（输入或者输入的类型是DT\_RESOURCE，如TensorArrayWrite）。
+- 图上包含V1版本控制算子（如："Switch","StreamSwitch","Merge","StreamMerge","Enter","Exit","LoopCond","NextIteration"）。
+- 开启数据预处理下沉场景。
+- 开启AOE调优的场景。
 
 #### --max\_fusion\_size
 
@@ -250,7 +250,8 @@ PGO调优是通过预上板采样，选取表现相对更好的Tiling以提升�
 
 该参数用于设置单输出算子的引用阈值，当单输出节点引用个数超过阈值时，首次融合会在当前节点进行融合截断。
 
-**取值：**0-255间的任意整数，默认为1。
+**取值：**
+0-255间的任意整数，默认为1。
 
 **配置示例：**
 
@@ -327,7 +328,8 @@ PGO调优是通过预上板采样，选取表现相对更好的Tiling以提升�
 
 控制Auto Tiling的Tiling策略，保证Tiling求解结果与算子实现结合，UB占用率不低于该控制点设置的取值（若UB占用率不满足指定阈值，则按可求解的最大UB占用率设置），该控制点可用于性能问题的定位。
 
-**取值：**0-100间的任意整数，默认值为20。
+**取值：**
+0-100间的任意整数，默认值为20。
 
 **配置示例：**
 
@@ -344,7 +346,8 @@ PGO调优是通过预上板采样，选取表现相对更好的Tiling以提升�
 
 控制Auto Tiling的Tiling策略，保证Tiling求解结果与算子实现结合，多核利用率不低于该控制点设置的取值（若多核利用率不满足指定阈值，则按可求解的最大多核占用率设置），该控制点可用于性能问题的定位。
 
-**取值：**0-100间的任意整数，默认值为40。
+**取值：**
+0-100间的任意整数，默认值为40。
 
 当[--att\_enable\_multicore\_ub\_tradeoff](#--att_enable_multicore_ub_tradeoff)开启时，默认值为40，否则不会设置该策略。
 
@@ -470,7 +473,8 @@ PGO调优是通过预上板采样，选取表现相对更好的Tiling以提升�
 --codegen_compile_debug=true;--debug_dir=/path/to/dump
 ```
 
-**使用约束：**需要先配置--codegen\_compile\_debug=true;打开自动融合debug开关。
+**使用约束：**
+需要先配置--codegen\_compile\_debug=true;打开自动融合debug开关。
 
 #### --disable\_lifting
 
@@ -497,7 +501,8 @@ PGO调优是通过预上板采样，选取表现相对更好的Tiling以提升�
 
 设置跳过融合的算子名字或算子类型。
 
-**取值：** 设置了算子名称或者算子类型的配置文件（.ini格式）路径以及文件名，每个算子单独一行，支持同时设置算子名称或者算子类型，算子类型必须为基于Ascend IR定义的算子的类型。
+**取值：**
+设置了算子名称或者算子类型的配置文件（.ini格式）路径以及文件名，每个算子单独一行，支持同时设置算子名称或者算子类型，算子类型必须为基于Ascend IR定义的算子的类型。
 
 **配置示例：**
 
@@ -515,7 +520,7 @@ op_type2
 参数使用示例：
 
 ```text
---skip_node_names_cfg=./skil_node.ini
+--skip_node_names_cfg=./skip_node.ini
 ```
 
 **使用约束：**
