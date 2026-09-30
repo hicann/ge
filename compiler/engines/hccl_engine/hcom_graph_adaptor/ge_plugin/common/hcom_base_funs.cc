@@ -135,32 +135,39 @@ bool CheckFilePath(const std::string &filePath, const std::string &fileType) {
   return filePath.find(fileType) + fileType.length() == filePath.length();
 }
 
+namespace {
+void ReportRanktableFileError(const std::string &rankTablePath) {
+  REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"ranktable_path", "error_reason"}),
+                            std::vector<const char *>({rankTablePath.c_str(),
+                                                       "The rankTable file path does not exist, the permission is "
+                                                       "insufficient, or the JSON format is incorrect."}));
+}
+}  // namespace
+
 HcclResult HcomLoadRanktableFile(const std::string &rankTablePath, std::string &rankTableM) {
   HcclResult ret;
   if (rankTablePath.empty()) {
-    REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"ranktable_path", "error_reason"}),
-                              std::vector<const char *>({rankTablePath.c_str(),
-                                                         "The rankTable file path does not exist, the permission is "
-                                                         "insufficient, or the JSON format is incorrect."}));
-    HCCL_ERROR("[Load][File] json file length is zero");
+    ReportRanktableFileError(rankTablePath);
+    HCCL_ERROR("[%s][%s][Load][File] json file length is zero", LOG_KEYWORDS_INIT_GROUP.c_str(),
+               LOG_KEYWORDS_RANKTABLE_CONFIG.c_str());
     return HCCL_E_PARA;
   }
 
   /* 如果file_path是file_type类型的文件，则file_path是以file_type结尾的 */
   std::string fileType = ".json";
   if (!CheckFilePath(rankTablePath, fileType)) {
-    REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"error_reason", "ranktable_path"}),
-                              std::vector<const char *>({rankTablePath.c_str(),
-                                                         "The rankTable file path does not exist, the permission is "
-                                                         "insufficient, or the JSON format is incorrect."}));
-    HCCL_ERROR("[Load][File] path %s is not a valid %s file", rankTablePath.c_str(), fileType.c_str());
+    ReportRanktableFileError(rankTablePath);
+    HCCL_ERROR("[%s][%s][Load][File] path %s is not a valid %s file", LOG_KEYWORDS_INIT_GROUP.c_str(),
+               LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), rankTablePath.c_str(), fileType.c_str());
     return HCCL_E_PARA;
   }
 
   // 打开该文件前，判断该文件路径是否有效 规范
   std::string realFilePath;
   ret = HcomGetRanktableRealPath(rankTablePath.c_str(), realFilePath);
-  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Load][File] get file[%s] real path error", rankTablePath.c_str()),
+  CHK_PRT_RET(ret != HCCL_SUCCESS,
+              HCCL_ERROR("[%s][%s][Load][File] get file[%s] real path error", LOG_KEYWORDS_INIT_GROUP.c_str(),
+                         LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), rankTablePath.c_str()),
               HCCL_E_PARA);
 
   const std::chrono::seconds TIMEOUT(HCCL_RANKTABLE_TIMEOUT_S);
@@ -171,12 +178,16 @@ HcclResult HcomLoadRanktableFile(const std::string &rankTablePath, std::string &
   // 实验室场景下总是completed，cloud场景初始填入initlizing，kube补充完整后成为completed状态
   do {
     if ((std::chrono::steady_clock::now() - startTime) >= TIMEOUT) {
-      HCCL_ERROR("[Load][File] Load ranktable file[%s] timeout[%lld]s", realFilePath.c_str(), TIMEOUT);
+      HCCL_ERROR("[%s][%s][Load][File] Load ranktable file[%s] timeout[%lld]s", LOG_KEYWORDS_INIT_GROUP.c_str(),
+                 LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), realFilePath.c_str(), TIMEOUT);
       return HCCL_E_TIMEOUT;
     }
     // 读取文件内容
     ret = ReadFile(realFilePath, fileContent);
-    CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Load][File]read file[%s] error", realFilePath.c_str()), HCCL_E_PARA);
+    CHK_PRT_RET(ret != HCCL_SUCCESS,
+                HCCL_ERROR("[%s][%s][Load][File]read file[%s] error", LOG_KEYWORDS_INIT_GROUP.c_str(),
+                           LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), realFilePath.c_str()),
+                HCCL_E_PARA);
 
     std::string status = "";
     CHK_RET(GetJsonProperty(fileContent, "status", status));
@@ -197,7 +208,12 @@ HcclResult ReadFile(const std::string &readFile, nlohmann::json &fileContent) {
   // 已只读方式打开该文件
   std::ifstream infile(readFile.c_str(), std::ifstream::in);
   if (!infile) {
-    HCCL_ERROR("[Read][File] open file %s failed", readFile.c_str());
+    REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"ranktable_path", "error_reason"}),
+                              std::vector<const char *>({readFile.c_str(),
+                                                         "The rankTable file path does not exist, the permission is "
+                                                         "insufficient, or the JSON format is incorrect."}));
+    HCCL_ERROR("[%s][%s][Read][File] open file %s failed", LOG_KEYWORDS_INIT_GROUP.c_str(),
+               LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), readFile.c_str());
     return HCCL_E_INTERNAL;
   } else {
     fileContent.clear();
@@ -208,7 +224,8 @@ HcclResult ReadFile(const std::string &readFile, nlohmann::json &fileContent) {
                                 std::vector<const char *>({readFile.c_str(),
                                                            "The rankTable file path does not exist, the permission is "
                                                            "insufficient, or the JSON format is incorrect."}));
-      HCCL_ERROR("[Read][File] load file[%s] to json fail. please check json file!", readFile.c_str());
+      HCCL_ERROR("[%s][%s][Read][File] load file[%s] to json fail. please check json file!",
+                 LOG_KEYWORDS_INIT_GROUP.c_str(), LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), readFile.c_str());
       infile.close();
       return HCCL_E_INTERNAL;
     }
@@ -226,8 +243,9 @@ HcclResult HcomGetRanktableRealPath(const char *rankTable, std::string &realFile
                               std::vector<const char *>({rankTable,
                                                          "The rankTable file path does not exist, the permission is "
                                                          "insufficient, or the JSON format is incorrect."}));
-    HCCL_ERROR("[Get][RanktableRealPath]errNo[0x%016llx] rankTable file name is invalid, len is %u",
-               HCOM_ERROR_CODE(HCCL_E_PARA), rankTablePathLen);
+    HCCL_ERROR("[%s][%s][Get][RanktableRealPath]errNo[0x%016llx] rankTable file name is invalid, len is %u",
+               LOG_KEYWORDS_INIT_GROUP.c_str(), LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), HCOM_ERROR_CODE(HCCL_E_PARA),
+               rankTablePathLen);
     return HCCL_E_PARA;
   }
   // 校验文件是否存在
@@ -237,8 +255,9 @@ HcclResult HcomGetRanktableRealPath(const char *rankTable, std::string &realFile
                               std::vector<const char *>({rankTable,
                                                          "The rankTable file path does not exist, the permission is "
                                                          "insufficient, or the JSON format is incorrect."}));
-    HCCL_ERROR("[Get][RanktableRealPath]errNo[0x%016llx] path %s is not a valid real path",
-               HCOM_ERROR_CODE(HCCL_E_PARA), rankTable);
+    HCCL_ERROR("[%s][%s][Get][RanktableRealPath]errNo[0x%016llx] path %s is not a valid real path",
+               LOG_KEYWORDS_INIT_GROUP.c_str(), LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), HCOM_ERROR_CODE(HCCL_E_PARA),
+               rankTable);
     return HCCL_E_PARA;
   }
   realFilePath = std::string(realFile);
