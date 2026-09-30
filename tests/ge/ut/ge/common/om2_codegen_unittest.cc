@@ -1259,6 +1259,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigUseStubLib_Rejected) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeOnly_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1268,6 +1270,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeOnly_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigAbsoluteMakeOnly_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1277,6 +1281,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigAbsoluteMakeOnly_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigQuotedMakePath_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1311,6 +1317,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakefileOptionRejected) 
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigCrossCompilerMissing_ReportsInternalError) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1326,6 +1334,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigCrossCompilerMissing_Rep
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigTargetDevlibMissing_ReportsInternalError) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1341,6 +1351,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigTargetDevlibMissing_Repo
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeFailure_ReportsInternalError) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1358,6 +1370,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeFailure_ReportsInter
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_DefaultMakeFailure_DoesNotReportInvalidArgument) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1377,6 +1391,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_DefaultMakeFailure_DoesNotReportInv
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeArmAlias_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   struct utsname uts;
   if ((uname(&uts) != 0) || (std::string(uts.machine) != "aarch64")) {
     GTEST_SKIP() << "native arm64 alias branch is only stable on aarch64 host";
@@ -1395,6 +1411,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeArmAlias_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeX86_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   if (GetNativeMachine() != "x86_64") {
     GTEST_SKIP() << "native x86_64 branch runs on x86_64 host";
   }
@@ -1407,6 +1425,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeX86_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNonArmTarget_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1420,6 +1440,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNonArmTarget_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileSystemCompiler_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   if (GetNativeMachine() != "x86_64") {
     GTEST_SKIP() << "cross-compiler injection coverage runs on x86_64 host";
   }
@@ -1440,6 +1462,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileSystemCompiler_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileCannCompiler_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   if (GetNativeMachine() != "x86_64") {
     GTEST_SKIP() << "cross-compiler injection coverage runs on x86_64 host";
   }

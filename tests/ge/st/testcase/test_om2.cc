@@ -3114,6 +3114,8 @@ void ExpectOm2ExecutorRun(const std::unique_ptr<gert::Om2ModelExecutor> &executo
 }
 
 TEST_F(Om2St, LoadGeneratedOm2_Ok_ExecutorMainFlow) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_load.om2"});
   CreateFakeOm2File(test_work_dir, output_file);
 
@@ -3137,6 +3139,8 @@ TEST_F(Om2St, LoadGeneratedOm2_Ok_ExecutorMainFlow) {
 }
 
 TEST_F(Om2St, LoadGeneratedOm2WithExternalResources_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_load_external.om2"});
   CreateFakeOm2File(test_work_dir, output_file);
 
@@ -3516,6 +3520,8 @@ TEST_F(Om2St, BuildConfig_UnbalancedQuote_Rejected) {
 }
 
 TEST_F(Om2St, BuildConfig_MakeFailure_ReportsInternalError) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedTempDir temp_dir(test_work_dir);
   ASSERT_TRUE(temp_dir.IsValid());
   ASSERT_TRUE(temp_dir.WriteText("make", "#!/bin/sh\nexit 1\n", S_IRWXU));
@@ -3537,12 +3543,16 @@ TEST_F(Om2St, HostEnvValidation_CoversOm2Directions) {
 }
 
 TEST_F(Om2St, HostEnvNonArmTarget_DoesNotInjectCrossCompiler) {
+  // slow_test_limit = 3000
+  // so 编译耗时较大
   const std::map<std::string, std::string> options = {{std::string(OPTION_HOST_ENV_OS), "linux"},
                                                       {std::string(OPTION_HOST_ENV_CPU), "riscv64"}};
   EXPECT_EQ(SaveAicoreOm2WithGraphOptions(test_work_dir, options, "host_env_riscv.om2"), SUCCESS);
 }
 
 TEST_F(Om2St, CrossCompileSystemCompiler_Ok) {
+  // slow_test_limit = 3000
+  // so 编译耗时较大
   if (GetNativeMachine() != "x86_64") {
     GTEST_SKIP() << "cross-compile injection coverage runs on x86 host only";
   }
@@ -3563,6 +3573,8 @@ TEST_F(Om2St, CrossCompileSystemCompiler_Ok) {
 }
 
 TEST_F(Om2St, CrossCompileCannCompiler_Ok) {
+  // slow_test_limit = 3000
+  // so 编译耗时较大
   if (GetNativeMachine() != "x86_64") {
     GTEST_SKIP() << "cross-compile injection coverage runs on x86 host only";
   }

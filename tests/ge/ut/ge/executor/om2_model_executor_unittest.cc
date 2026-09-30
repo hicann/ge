@@ -2123,6 +2123,8 @@ static std::string MakeMultipleOpAttrJson() {
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   // 创建包含op_attr.json的OM2文件
   const std::string om2_with_attr = PathUtils::Join({test_work_dir_, "om2_with_op_attr.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_attr"});
@@ -2201,6 +2203,8 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_EmptyOpAttrJson_ReturnsEmptyMap) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   // 创建包含空op_attr.json的OM2文件
   const std::string om2_empty_attr = PathUtils::Join({test_work_dir_, "om2_empty_op_attr.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_empty_attr"});
@@ -2289,6 +2293,8 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_MissingOpAttrJson_ReturnsEmptyMap) {
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_InvalidOpAttrJson_ReturnsEmptyMap) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   // 创建包含无效JSON的OM2文件
   const std::string om2_invalid_attr = PathUtils::Join({test_work_dir_, "om2_invalid_op_attr.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_invalid_attr"});
@@ -2360,6 +2366,8 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_InvalidOpAttrJson_ReturnsEmptyMap) {
 }
 
 TEST_F(Om2ModelExecutorUt, ParseOpAttrJsonToMapInternal_MultipleAttrs_ParsesAllAttrs) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   // 创建包含多个算子多个属性的OM2文件
   const std::string om2_multi_attr = PathUtils::Join({test_work_dir_, "om2_multi_op_attr.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_multi_attr"});
