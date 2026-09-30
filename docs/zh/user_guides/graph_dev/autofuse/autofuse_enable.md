@@ -42,7 +42,7 @@ export AUTOFUSE_FLAGS="--enable_autofuse=true"
 
 配置`--enable_autofuse=true`后，即可开启基础AutoFuse融合功能（最简配置），支持Elemwise算子与Broadcast算子之间的自动融合。
 
-更多配置请参见[环境变量参考](./appendix.md)。
+更多配置请参见[环境变量参考](../appendix/autofuse_env_vars.md)。
 
 ## Inductor路径启用AutoFuse
 
@@ -100,4 +100,4 @@ $\{INSTALL\_DIR\}请替换为CANN软件安装后文件存储路径。以root用�
   model = torch.compile(model)
   ```
 
-​ 更多环境变量请参见[环境变量参考](./appendix.md)。
+​ 更多环境变量请参见[环境变量参考](../appendix/autofuse_env_vars.md)。

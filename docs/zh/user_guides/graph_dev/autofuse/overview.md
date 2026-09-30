@@ -2,7 +2,7 @@
 
 ## 什么是AutoFuse
 
-AutoFuse是CANN生态中面向昇腾系列芯片的自动算子融合组件。它接收GE、Inductor等图编译组件经图转换、Lowering和融合范围判定后产出的融合子图及统一IR，在已确定的融合范围内完成调度优化、Tiling求解与代码生成，最终输出高性能的AscendC融合算子。通过将多个原本独立执行的算子融合为单一Kernel，AutoFuse可减少中间结果的GM读写、Kernel启动次数以及Host-Device调度开销，从而显著提升昇腾NPU上的模型执行性能。
+AutoFuse是CANN生态中面向昇腾系列芯片的自动算子融合组件。它接收GE、Inductor等图编译组件经图转换、Lowering和融合范围判定后产出的融合子图及统一IR，在已确定的融合范围内完成调度优化、Tiling求解与代码生成，最终输出高性能的Ascend C融合算子。通过将多个原本独立执行的算子融合为单一Kernel，AutoFuse可减少中间结果的GM读写、Kernel启动次数以及Host-Device调度开销，从而显著提升昇腾NPU上的模型执行性能。
 
 收益原理如下图所示，自动融合通过将多个算子合并为单个算子，理论上在MTE搬运和动态Shape调度开销方面均可获得一定收益；对于小Shape、MTE Bound的推荐网络，一般都能获得正收益。
 
@@ -99,7 +99,7 @@ AutoFuse当前主要支持VV和CV两类融合：
 
 ## 融合原理
 
-自动融合的实现包含两部分：自动确定融合范围，以及根据融合范围自动生成融合Kernel源码和Kernel二进制。前者称为自动融合前端，后者称为自动融合后端（对应[图2](#fig1)中的公共底层能力）：
+自动融合的实现包含两部分：自动确定融合范围，以及根据融合范围自动生成融合Kernel源码和Kernel二进制。前者称为自动融合前端，后者称为自动融合后端（对应[图2](#fig1)中AutoFuse及后面部分）：
 
 前端主要根据一定规则或配置判断哪些算子能够融合，并确定融合算子的融合范围。融合范围用FusedGraph表达，如下图[图3](#fig2)所示，FusedGraph内部包含\>=1个AscBackend节点。AscBackend可理解为一个类似于ge::op::partitionedcall的Ascend IR算子，携带一个子图对象；一个AscBackend节点携带一个AscGraph属性，一个AscGraph内包含多个AscIR节点。AscIR与AscGraph的详细介绍请参见[AscIR与AscGraph](../appendix/ascir_and_ascgraph.md)。
 
