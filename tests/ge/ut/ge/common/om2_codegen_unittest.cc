@@ -968,6 +968,8 @@ TEST_F(Om2CodegenUt, Arg_AutoPromoteInitList_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MakefileVariableContinuation_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   const std::string model_name = "continuation_test";
