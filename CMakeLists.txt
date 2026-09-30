@@ -337,7 +337,8 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT OR ENGINE_DT)
             add_dependencies(select_targets hybrid_model_async_exec_test
                     graphtuner_executor
                     st_fast_runtime2_test
-                    st_dvpp_runtime2_test)
+                    st_dvpp_runtime2_test
+                    st_om2_test)
         endif ()
 
         if (ENABLE_RT3_ST)
@@ -461,6 +462,8 @@ if (NOT BUILD_OPEN_PROJECT)
                 ge_runner_v2 dflow_runner data_flow_base custom_op_runtime
                 ge_compiler aicore_utils slice air_headers
                 om2_executor
+                gert_model_data_deserializer
+                gert_model_data_serializer
                 # 开发环境某些没有下载parser目录
                 # _caffe_parser fmk_onnx_parser fmk_parser parser_common
                 EXPORT air-targets

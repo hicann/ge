@@ -20,6 +20,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 
+#include "framework/common/gert_model_data_utils.h"
 #include "common/om2/codegen/om2_codegen_utils.h"
 #include "common/om2/codegen/om2_codegen_model_builder.h"
 #include "common/om2/codegen/emitter/cpp_emitter.h"
@@ -1009,7 +1010,7 @@ GeRootModelPtr CreateGeRootModelWithTwoNetOutputs() {
 
 Status BuildCodegenModel(const GeRootModelPtr &ge_root_model, Om2CodegenModel &doc,
                          std::vector<TaskCodeBuilderPtr> *task_generators_out = nullptr,
-                         Om2ConstMetas *const_metas_out = nullptr) {
+                         gert::GertModelDataConstMetas *const_metas_out = nullptr) {
   GE_ASSERT_NOTNULL(ge_root_model);
   SyncKernelNameForAllModels(ge_root_model);
   const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
@@ -1022,20 +1023,20 @@ Status BuildCodegenModel(const GeRootModelPtr &ge_root_model, Om2CodegenModel &d
       Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, GetOm2CodegenModelBuilderUtAst(), task_builders, doc));
 
   Om2CodegenModelBuilder builder;
-  Om2ConstMetas const_metas;
+  gert::GertModelDataConstMetas const_metas;
   GE_CHK_STATUS_RET(builder.Build(ge_model, task_builders, doc, const_metas));
   if (task_generators_out != nullptr) {
     *task_generators_out = task_builders;
   }
   if (const_metas_out != nullptr) {
-    *const_metas_out = const_metas;
+    *const_metas_out = std::move(const_metas);
   }
   return SUCCESS;
 }
 
 Status BuildCodegenModel(const GeModelPtr &ge_model, Om2CodegenModel &doc,
                          std::vector<TaskCodeBuilderPtr> *task_generators_out = nullptr,
-                         Om2ConstMetas *const_metas_out = nullptr) {
+                         gert::GertModelDataConstMetas *const_metas_out = nullptr) {
   GE_ASSERT_NOTNULL(ge_model);
   SyncKernelNameFromOpDesc(ge_model);
   std::vector<TaskCodeBuilderPtr> task_builders;
@@ -1043,13 +1044,13 @@ Status BuildCodegenModel(const GeModelPtr &ge_model, Om2CodegenModel &doc,
       Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, GetOm2CodegenModelBuilderUtAst(), task_builders, doc));
 
   Om2CodegenModelBuilder builder;
-  Om2ConstMetas const_metas;
+  gert::GertModelDataConstMetas const_metas;
   GE_CHK_STATUS_RET(builder.Build(ge_model, task_builders, doc, const_metas));
   if (task_generators_out != nullptr) {
     *task_generators_out = task_builders;
   }
   if (const_metas_out != nullptr) {
-    *const_metas_out = const_metas;
+    *const_metas_out = std::move(const_metas);
   }
   return SUCCESS;
 }
@@ -1063,7 +1064,7 @@ Status BuildCodegenModelWithTaskGenerators(const GeRootModelPtr &ge_root_model,
   const auto &ge_model = name_to_ge_model.begin()->second;
   GE_ASSERT_NOTNULL(ge_model);
   Om2CodegenModelBuilder builder;
-  Om2ConstMetas const_metas;
+  gert::GertModelDataConstMetas const_metas;
   return builder.Build(ge_model, task_builders, doc, const_metas);
 }
 
@@ -1237,7 +1238,7 @@ TEST_F(Om2CodegenModelBuilderUt, BuildConstInputs_FollowsTaskOrder_Ok) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithConstInputsInTaskOrder();
   ASSERT_NE(ge_root_model, nullptr);
   Om2CodegenModel doc;
-  Om2ConstMetas const_metas;
+  gert::GertModelDataConstMetas const_metas;
   ASSERT_EQ(BuildCodegenModel(ge_root_model, doc, nullptr, &const_metas), SUCCESS);
 
   ASSERT_EQ(doc.const_inputs.size(), 2U);
@@ -1246,7 +1247,7 @@ TEST_F(Om2CodegenModelBuilderUt, BuildConstInputs_FollowsTaskOrder_Ok) {
     EXPECT_EQ(doc.const_inputs[i].const_index, i);
     EXPECT_EQ(doc.const_inputs[i].var_name, "const_" + std::to_string(i));
     EXPECT_EQ(const_metas[i].index, i);
-    EXPECT_EQ(const_metas[i].type, "INTERNAL");
+    EXPECT_EQ(std::string(gert::GertGetStr(const_metas[i].type)), "INTERNAL");
   }
   EXPECT_EQ(const_metas[0].offset, 128);
   EXPECT_EQ(const_metas[1].offset, 256);
@@ -1283,7 +1284,7 @@ TEST_F(Om2CodegenModelBuilderUt, BuildKernelRegistryAndLaunch_AicoreAtomic_Ok) {
       Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, GetOm2CodegenModelBuilderUtAst(), task_builders, doc),
       SUCCESS);
   Om2CodegenModelBuilder builder;
-  Om2ConstMetas const_metas;
+  gert::GertModelDataConstMetas const_metas;
   ASSERT_EQ(builder.Build(ge_model, task_builders, doc, const_metas), SUCCESS);
 
   const std::string kernel_name = "te_Add_12345_AicoreKernel";
@@ -1730,9 +1731,9 @@ TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_ThreeVariableTypesKeepRootSizeAn
   ASSERT_EQ(doc.var_metas.size(), specs.size());
   for (size_t i = 0U; i < specs.size(); ++i) {
     EXPECT_EQ(doc.var_metas[i].index, i);
-    EXPECT_EQ(doc.var_metas[i].var_name, specs[i].name);
-    EXPECT_EQ(doc.var_metas[i].op_type, specs[i].type);
-    EXPECT_EQ(doc.var_metas[i].tensor_desc.GetSize(), static_cast<size_t>(specs[i].shape[0]));
+    EXPECT_EQ(std::string(gert::GertGetStr(doc.var_metas[i].var_name)), specs[i].name);
+    EXPECT_EQ(std::string(gert::GertGetStr(doc.var_metas[i].op_type)), specs[i].type);
+    EXPECT_EQ(doc.var_metas[i].tensor_desc.size, static_cast<size_t>(specs[i].shape[0]));
   }
 }
 
@@ -1745,7 +1746,7 @@ TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_MissingOutputOffsetKeepsSkipBeha
   ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
   ASSERT_EQ(doc.var_metas.size(), 1U);
   EXPECT_EQ(doc.var_metas[0].index, 0U);
-  EXPECT_EQ(doc.var_metas[0].var_name, "kept");
+  EXPECT_EQ(std::string(gert::GertGetStr(doc.var_metas[0].var_name)), "kept");
 }
 
 TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_AdjacentRangesSucceed) {
@@ -1778,9 +1779,9 @@ TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_SameRootSameSizeKeepsUniqueMetad
   ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
   ASSERT_EQ(doc.var_metas.size(), 2U);
   EXPECT_EQ(doc.var_metas[0].index, 0U);
-  EXPECT_EQ(doc.var_metas[0].var_name, "first");
+  EXPECT_EQ(std::string(gert::GertGetStr(doc.var_metas[0].var_name)), "first");
   EXPECT_EQ(doc.var_metas[1].index, 1U);
-  EXPECT_EQ(doc.var_metas[1].var_name, "last");
+  EXPECT_EQ(std::string(gert::GertGetStr(doc.var_metas[1].var_name)), "last");
 }
 
 TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_SameRootDifferentSizeFails) {
@@ -1841,7 +1842,7 @@ TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_HighSignedRootAndSizeFitUint64) 
   Om2CodegenModel doc;
   ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
   ASSERT_EQ(doc.var_metas.size(), 1U);
-  EXPECT_EQ(doc.var_metas[0].tensor_desc.GetSize(), 16U);
+  EXPECT_EQ(doc.var_metas[0].tensor_desc.size, 16U);
 }
 
 GeRootModelPtr CreateGeRootModelWithVariableOp() {
@@ -1924,12 +1925,12 @@ TEST_F(Om2CodegenModelBuilderUt, BuildVarInputs_WithVariableNode_Ok) {
   ASSERT_GE(doc.var_metas.size(), 1U);
   bool found_var = false;
   for (const auto &meta : doc.var_metas) {
-    if (meta.var_name == "var1") {
+    if (std::string(gert::GertGetStr(meta.var_name)) == "var1") {
       found_var = true;
-      EXPECT_EQ(meta.op_type, "Variable");
-      EXPECT_EQ(meta.op_name, "var1");
-      EXPECT_EQ(meta.tensor_desc.GetDataType(), DT_FLOAT);
-      EXPECT_EQ(meta.tensor_desc.GetFormat(), FORMAT_ND);
+      EXPECT_EQ(std::string(gert::GertGetStr(meta.op_type)), "Variable");
+      EXPECT_EQ(std::string(gert::GertGetStr(meta.op_name)), "var1");
+      EXPECT_EQ(meta.tensor_desc.data_type, DT_FLOAT);
+      EXPECT_EQ(meta.tensor_desc.format, FORMAT_ND);
     }
   }
   EXPECT_TRUE(found_var) << "Variable node 'var1' not found in var_metas";

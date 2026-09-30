@@ -21,7 +21,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "common/om2/rt_var_resource.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "rt_var_resource.h"
 
 constexpr uint64_t kMemoryVarLogicBase = 137438953472U;  // 128GB
 
@@ -37,7 +38,7 @@ class Om2RTVarManager {
   Om2RTVarManager() = default;
   ~Om2RTVarManager();
 
-  ge::Status Init(const RTVarResource &resource, void *const external_var_addr = nullptr,
+  ge::Status Init(const std::vector<RTVarEntry> &entries, void *const external_var_addr = nullptr,
                   const uint64_t external_var_size = 0);
   ge::Status GetVarDevAddr(const std::string &var_name, const uint32_t device_id, void *&dev_addr);
   ge::Status GetVarDevAddr(const RTVarEntry &entry, const uint32_t device_id, void *&dev_addr);
@@ -46,7 +47,7 @@ class Om2RTVarManager {
   ge::Status CopyVarData(const std::vector<std::string> &var_names, const uint32_t device_id);
   ge::Status GetOrCreateVarAddr(const std::string &key, const uint32_t device_id, const size_t size, void *&addr);
   bool TryGetVarAddr(const std::string &key, const uint32_t device_id, void *&addr) const;
-  const RTVarResource *GetVarResource() const;
+  const RTVarResource &GetVarResource() const;
   void Finalize() noexcept;
 
  private:

@@ -183,6 +183,7 @@ target_link_libraries(acl_mdl_impl_om2 PRIVATE
     profapi_share
     error_manager
     om2_executor
+    gert_model_data_deserializer
     -Wl,--as-needed
 
     $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>

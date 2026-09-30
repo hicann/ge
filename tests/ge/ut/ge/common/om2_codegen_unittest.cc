@@ -24,7 +24,8 @@
 #include "common/ge_common/ge_types.h"
 #include "common/util/error_manager/error_manager.h"
 #include "graph/ge_local_context.h"
-#include "common/om2/rt_var_resource.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "framework/om2/model_api/om2_model_api.h"
 #include "framework/common/taskdown_common.h"
 
@@ -967,24 +968,71 @@ TEST_F(Om2CodegenUt, Arg_AutoPromoteInitList_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MakefileVariableContinuation_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   const std::string model_name = "continuation_test";
   const std::string interface_name = model_name + "_internal.h";
   const std::string include_line = "#include \"" + interface_name + "\"\n";
-  Om2CodegenArtifacts artifacts = {
-      {"om2_model_api.h", "#pragma once\n"},
-      {interface_name, "#pragma once\n#include \"om2_model_api.h\"\n#define CONTINUATION_TEST_VALUE 7\n"},
-      {model_name + "_resources.cpp",
-       include_line + "extern \"C\" int ContinuationTestResources() { return CONTINUATION_TEST_VALUE; }\n"},
-      {model_name + "_kernel_reg.cpp",
-       include_line + "extern \"C\" int ContinuationTestKernelReg() { return CONTINUATION_TEST_VALUE; }\n"},
-      {model_name + "_load_and_run.cpp",
-       include_line + "extern \"C\" int ContinuationTestLoadAndRun() { return CONTINUATION_TEST_VALUE; }\n"},
-      {model_name + "_args_manager.cpp",
-       include_line + "extern \"C\" int ContinuationTestArgsManager() { return CONTINUATION_TEST_VALUE; }\n"},
-      {"Makefile", R"(CXX := g++
-TARGET := ../libcontinuation_test_om2.so
+  gert::GertModelDataProgramBodies artifacts;
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr("om2_model_api.h");
+    const std::string data_content = "#pragma once\n";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr(interface_name);
+    const std::string data_content = "#pragma once\n#include \"om2_model_api.h\"\n#define CONTINUATION_TEST_VALUE 7\n";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr(model_name + "_resources.cpp");
+    const std::string data_content =
+        include_line + "extern \"C\" int ContinuationTestResources() { return CONTINUATION_TEST_VALUE; }\n";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr(model_name + "_kernel_reg.cpp");
+    const std::string data_content =
+        include_line + "extern \"C\" int ContinuationTestKernelReg() { return CONTINUATION_TEST_VALUE; }\n";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr(model_name + "_load_and_run.cpp");
+    const std::string data_content =
+        include_line + "extern \"C\" int ContinuationTestLoadAndRun() { return CONTINUATION_TEST_VALUE; }\n";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr(model_name + "_args_manager.cpp");
+    const std::string data_content =
+        include_line + "extern \"C\" int ContinuationTestArgsManager() { return CONTINUATION_TEST_VALUE; }\n";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr("Makefile");
+    const std::string data_content = R"(CXX := g++
+TARGET := libcontinuation_test_om2.so
 SRC_FILES := continuation_test_resources.cpp \
   \
   continuation_test_kernel_reg.cpp \
@@ -998,28 +1046,55 @@ all: $(TARGET)
 
 $(TARGET): $(SRC_FILES)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
-)"},
-  };
+)";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
 
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   ScopedStdoutCapture stdout_capture;
   ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(artifacts, model_name, so_artifact, false), SUCCESS);
   const std::string compile_stdout = stdout_capture.Stop();
-  EXPECT_EQ(so_artifact.file_name, "lib" + model_name + "_om2.so");
-  EXPECT_FALSE(so_artifact.data.empty());
+  EXPECT_EQ(std::string(gert::GertGetStr(so_artifact.file_name)), "lib" + model_name + "_om2.so");
+  EXPECT_TRUE(so_artifact.data);
   EXPECT_EQ(compile_stdout.find("g++ -std=c++17 -fPIC"), std::string::npos);
 }
 
 // build_config 校验 UT：通过 SetGraphOption 注入 ge.buildConfig，走 CompileGeneratedCppToSo 触发校验
-static Om2CodegenArtifacts MakeBuildConfigTestArtifacts(const std::string &model_name) {
+static gert::GertModelDataProgramBodies MakeBuildConfigTestArtifacts(const std::string &model_name) {
   const std::string interface_name = model_name + "_internal.h";
   const std::string include_line = "#include \"" + interface_name + "\"\n";
-  return {
-      {"om2_model_api.h", "#pragma once\n"},
-      {interface_name, "#pragma once\n#include \"om2_model_api.h\"\n#define BC_TEST_VALUE 1\n"},
-      {model_name + "_load_and_run.cpp", include_line + "extern \"C\" int BcTest() { return BC_TEST_VALUE; }\n"},
-      {"Makefile", R"(CXX := c++
-TARGET := ../libbc_test_om2.so
+  gert::GertModelDataProgramBodies artifacts;
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr("om2_model_api.h");
+    const std::string data_content = "#pragma once\n";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr(interface_name);
+    const std::string data_content = "#pragma once\n#include \"om2_model_api.h\"\n#define BC_TEST_VALUE 1\n";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr(model_name + "_load_and_run.cpp");
+    const std::string data_content = include_line + "extern \"C\" int BcTest() { return BC_TEST_VALUE; }\n";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  {
+    gert::GertModelDataProgramBody a;
+    a.file_name = gert::GertMakeStr("Makefile");
+    const std::string data_content = R"(CXX := c++
+TARGET := libbc_test_om2.so
 SRC_FILES := bc_test_load_and_run.cpp
 
 CXXFLAGS := -std=c++17 -fPIC
@@ -1029,15 +1104,19 @@ all: $(TARGET)
 
 $(TARGET): $(SRC_FILES)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
-)"},
-  };
+)";
+    a.data = gert::GertMakeStr(data_content);
+    a.data_len = data_content.size();
+    artifacts.push_back(std::move(a));
+  }
+  return artifacts;
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MissingModelApiArtifact_Failed) {
   const std::string model_name = "missing_model_api";
   auto artifacts = MakeBuildConfigTestArtifacts(model_name);
   artifacts.erase(artifacts.begin());
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(artifacts, model_name, so_artifact, false), SUCCESS);
 }
 
@@ -1050,11 +1129,11 @@ std::string GetNativeMachine() {
 }
 
 Status CompileBuildConfigArtifacts(const std::string &model_name) {
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   const Status ret =
       Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false);
   if (ret == SUCCESS) {
-    EXPECT_FALSE(so_artifact.data.empty());
+    EXPECT_TRUE(so_artifact.data);
   }
   return ret;
 }
@@ -1123,7 +1202,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigInvalidChar_Rejected) {
   (void)ErrorManager::GetInstance().GetErrorMessage();
 
   const std::string model_name = "bc_invalid_char";
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
   const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
@@ -1138,7 +1217,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigNonWhitelisted_Rejected)
   GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s SHELL=/bin/bash"}});
 
   const std::string model_name = "bc_invalid_var";
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
 }
@@ -1150,7 +1229,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigUnbalancedQuote_Rejected
   GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s CXXFLAGS='-O2"}});
 
   const std::string model_name = "bc_invalid_quote";
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
 }
@@ -1162,7 +1241,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigNotMakeCommand_Rejected)
   GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "gcc -o out main.c"}});
 
   const std::string model_name = "bc_not_make";
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
 }
@@ -1174,12 +1253,14 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigUseStubLib_Rejected) {
   GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s USE_STUB_LIB=0"}});
 
   const std::string model_name = "bc_stub_lib";
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeOnly_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1189,6 +1270,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeOnly_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigAbsoluteMakeOnly_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1198,6 +1281,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigAbsoluteMakeOnly_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigQuotedMakePath_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1205,10 +1290,10 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigQuotedMakePath_Ok) {
       {{"ge.buildConfig", "  /usr/bin/make -s CXX=c++ CXXFLAGS='-std=c++17 -fPIC'"}});
 
   const std::string model_name = "bc_quoted_make_path";
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
-  EXPECT_FALSE(so_artifact.data.empty());
+  EXPECT_TRUE(so_artifact.data);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakefileOptionRejected) {
@@ -1223,7 +1308,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakefileOptionRejected) 
   for (size_t i = 0U; i < invalid_build_configs.size(); ++i) {
     GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", invalid_build_configs[i]}});
     const std::string model_name = "bc_makefile_option_" + std::to_string(i);
-    Om2CodegenArtifact so_artifact;
+    gert::GertModelDataProgramBody so_artifact;
     EXPECT_NE(
         Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
         SUCCESS)
@@ -1232,6 +1317,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakefileOptionRejected) 
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigCrossCompilerMissing_ReportsInternalError) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1247,6 +1334,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigCrossCompilerMissing_Rep
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigTargetDevlibMissing_ReportsInternalError) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1262,6 +1351,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigTargetDevlibMissing_Repo
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeFailure_ReportsInternalError) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1279,6 +1370,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakeFailure_ReportsInter
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_DefaultMakeFailure_DoesNotReportInvalidArgument) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
@@ -1298,6 +1391,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_DefaultMakeFailure_DoesNotReportInv
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeArmAlias_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   struct utsname uts;
   if ((uname(&uts) != 0) || (std::string(uts.machine) != "aarch64")) {
     GTEST_SKIP() << "native arm64 alias branch is only stable on aarch64 host";
@@ -1309,13 +1404,15 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeArmAlias_Ok) {
   GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "arm64"}});
 
   const std::string model_name = "host_env_arm64_alias";
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
-  EXPECT_FALSE(so_artifact.data.empty());
+  EXPECT_TRUE(so_artifact.data);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeX86_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   if (GetNativeMachine() != "x86_64") {
     GTEST_SKIP() << "native x86_64 branch runs on x86_64 host";
   }
@@ -1328,19 +1425,23 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeX86_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNonArmTarget_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   ScopedEnvVar asan_guard("ASAN_OPTIONS", "detect_leaks=0:halt_on_error=0");
   ScopedEnvVar lsan_guard("LSAN_OPTIONS", "exitcode=0");
   ScopedGraphOptions graph_guard;
   GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "riscv64"}});
 
   const std::string model_name = "host_env_non_arm";
-  Om2CodegenArtifact so_artifact;
+  gert::GertModelDataProgramBody so_artifact;
   ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
-  EXPECT_FALSE(so_artifact.data.empty());
+  EXPECT_TRUE(so_artifact.data);
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileSystemCompiler_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   if (GetNativeMachine() != "x86_64") {
     GTEST_SKIP() << "cross-compiler injection coverage runs on x86_64 host";
   }
@@ -1361,6 +1462,8 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileSystemCompiler_Ok) {
 }
 
 TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_CrossCompileCannCompiler_Ok) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   if (GetNativeMachine() != "x86_64") {
     GTEST_SKIP() << "cross-compiler injection coverage runs on x86_64 host";
   }
@@ -2473,57 +2576,60 @@ class RTVarResourceCoverageTest : public testing::Test {
  protected:
   gert::RTVarEntry MakeEntry(const std::string &var_name, int format, int dtype) {
     gert::RTVarEntry entry;
-    entry.var_name = var_name;
-    ge::Om2TensorDesc desc;
-    desc.SetFormat(static_cast<ge::Format>(format));
-    desc.SetDataType(static_cast<ge::DataType>(dtype));
-    entry.var_key = gert::RTVarResource::BuildVarKey(var_name, desc);
-    entry.tensor_desc = desc;
+    entry.var_name = gert::GertMakeStr(var_name);
+    gert::GertTensorDesc desc;
+    desc.format = static_cast<ge::Format>(format);
+    desc.data_type = static_cast<ge::DataType>(dtype);
+    entry.var_key = gert::GertMakeStr(gert::RTVarBuildKey(var_name, desc));
+    entry.tensor_desc = std::move(desc);
     return entry;
   }
 };
 
 TEST_F(RTVarResourceCoverageTest, GetEntryFound) {
-  gert::RTVarResource resource;
+  std::vector<gert::RTVarEntry> entries;
   auto entry = MakeEntry("weight1", 1, 0);
-  ASSERT_EQ(resource.AddEntry(std::move(entry)), ge::SUCCESS);
-  const auto *result = resource.GetEntry("weight11_0");
+  ASSERT_EQ(gert::RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
+  const auto *result = gert::RTVarFindEntry(entries, "weight11_0");
   ASSERT_NE(result, nullptr);
-  EXPECT_EQ(result->var_name, "weight1");
+  EXPECT_EQ(std::string(gert::GertGetStr(result->var_name)), "weight1");
 }
 
 TEST_F(RTVarResourceCoverageTest, GetEntryNotFound) {
-  gert::RTVarResource resource;
-  EXPECT_EQ(resource.GetEntry("nonexistent"), nullptr);
+  std::vector<gert::RTVarEntry> entries;
+  EXPECT_EQ(gert::RTVarFindEntry(entries, "nonexistent"), nullptr);
 }
 
 TEST_F(RTVarResourceCoverageTest, GetEntryByNameFound) {
-  gert::RTVarResource resource;
+  std::vector<gert::RTVarEntry> entries;
   auto entry = MakeEntry("weight1", 1, 0);
-  ASSERT_EQ(resource.AddEntry(std::move(entry)), ge::SUCCESS);
-  const auto *result = resource.GetEntryByName("weight1");
+  ASSERT_EQ(gert::RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
+  const auto *result = gert::RTVarFindEntryByName(entries, "weight1");
   ASSERT_NE(result, nullptr);
-  EXPECT_EQ(result->var_key, "weight11_0");
+  EXPECT_EQ(std::string(gert::GertGetStr(result->var_key)), "weight11_0");
 }
 
 TEST_F(RTVarResourceCoverageTest, GetEntryByNameNotFound) {
-  gert::RTVarResource resource;
-  EXPECT_EQ(resource.GetEntryByName("nonexistent"), nullptr);
+  std::vector<gert::RTVarEntry> entries;
+  EXPECT_EQ(gert::RTVarFindEntryByName(entries, "nonexistent"), nullptr);
 }
 
 TEST_F(RTVarResourceCoverageTest, GetAllVarKeys) {
-  gert::RTVarResource resource;
-  ASSERT_EQ(resource.AddEntry(MakeEntry("a", 1, 0)), ge::SUCCESS);
-  ASSERT_EQ(resource.AddEntry(MakeEntry("b", 1, 0)), ge::SUCCESS);
-  auto keys = resource.GetAllVarKeys();
+  std::vector<gert::RTVarEntry> entries;
+  ASSERT_EQ(gert::RTVarAddEntry(entries, MakeEntry("a", 1, 0)), ge::SUCCESS);
+  ASSERT_EQ(gert::RTVarAddEntry(entries, MakeEntry("b", 1, 0)), ge::SUCCESS);
+  std::vector<std::string> keys;
+  for (const auto &entry : entries) {
+    keys.push_back(gert::GertGetStr(entry.var_key));
+  }
   EXPECT_EQ(keys.size(), 2U);
 }
 
 TEST_F(RTVarResourceCoverageTest, AddEntryEmptyKeyFails) {
-  gert::RTVarResource resource;
+  std::vector<gert::RTVarEntry> entries;
   gert::RTVarEntry entry;
-  entry.var_key = "";
-  EXPECT_NE(resource.AddEntry(std::move(entry)), ge::SUCCESS);
+  entry.var_key = gert::GertMakeStr("");
+  EXPECT_NE(gert::RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
 }
 
 TEST_F(Om2CodegenUt, CppEmitter_InvalidEnumDefaults) {

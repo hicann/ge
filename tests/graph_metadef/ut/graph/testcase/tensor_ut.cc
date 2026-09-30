@@ -667,6 +667,13 @@ TEST_F(TensorUT, TensorDesc_SetDataType) {
                   tensor_desc1.SetDataType(DT_UINT16););
 }
 
+TEST_F(TensorUT, TensorDesc_SetOriginDataType) {
+  TensorDesc tensor_desc;
+  EXPECT_EQ(tensor_desc.GetOriginDataType(), DT_UNDEFINED);
+  tensor_desc.SetOriginDataType(DT_UINT16);
+  EXPECT_EQ(tensor_desc.GetOriginDataType(), DT_UINT16);
+}
+
 TEST_F(TensorUT, TensorDesc_GetSetName) {
   std::vector<int64_t> shape{3};
   TensorDesc tensor_desc1(Shape(shape), FORMAT_ND, DT_UINT8);

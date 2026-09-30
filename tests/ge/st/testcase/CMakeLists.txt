@@ -103,13 +103,12 @@ add_executable(graph_engine_test
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_pack_notask_pass.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/ut/register/testcase/op_def_factory_unittest.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/depends/faker/plugin_manager_stub.cc"
-    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2.cc"
-    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2_online.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_adapter_integration_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_stream_allocator_pass_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_weighted_stream_merger_public_st_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/ir/named_io_node_builder_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_multi_stream_tuning_step_recorder.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_declarative_custom_op_attached_stream.cc"
 )
 
 add_dependencies(graph_engine_test
@@ -148,6 +147,81 @@ target_link_options(graph_engine_test PRIVATE
 )
 
 target_link_libraries(graph_engine_test
+    intf_llt_pub
+    ascendcl_stub
+    -Wl,-z,muldefs
+    ge_compiler
+    ge_runner
+    ge_runner_v2
+    om2_executor
+    gert_model_data_deserializer
+    ge_common_base
+    davinci_executor
+    custom_op_runtime
+    gert
+    cpu_compiler
+    aihacb_autofusion_stub
+    ge_local_opskernel_builder
+    symengine
+    minizip_static
+    -Wl,--whole-archive
+    rt2_registry_static
+    atc_static
+    ge_running_env
+    ge_runtime_stub
+    custom_op_registry_static
+    -Wl,--no-whole-archive
+    gert_op_impl
+    es_ge_test ge_graph_dsl st_stubs GTestShared::gtest GTestShared::gmock GTestShared::gmock_main
+    -ldl
+)
+
+################################################################################
+# build st_om2_test
+add_executable(st_om2_test
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2_online.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_main.cc"
+    "${AIR_CODE_DIR}/tests/graph_metadef/depends/checker/tensor_check_utils.cc"
+    "${AIR_CODE_DIR}/tests/graph_metadef/depends/faker/plugin_manager_stub.cc"
+)
+
+add_dependencies(st_om2_test
+    mdat fmk_parser engine optimizer_priority_pbtxt
+)
+
+target_compile_definitions(st_om2_test PRIVATE
+    google=ascend_private
+    CMAKE_BINARY_DIR=\"${CMAKE_BINARY_DIR}\"
+)
+
+target_compile_options(st_om2_test PRIVATE
+    -Wno-write-strings
+    -Wno-deprecated-declarations
+    -Wall -Wfloat-equal -Werror
+)
+
+target_include_directories(st_om2_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${AIR_CODE_DIR}
+    ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
+    ${AIR_CODE_DIR}/tests/framework/ge_running_env/include
+    ${AIR_CODE_DIR}/tests/framework/macro_utils
+    ${ASCGEN_DIR}/inc
+    ${AIR_CODE_DIR}/inc
+    ${CMAKE_BINARY_DIR}/proto/data_flow_protos
+    ${AIR_CODE_DIR}/inc/graph_metadef
+    ${ASCEND_INSTALL_PATH}/include/exe_graph
+    ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse
+)
+
+target_link_options(st_om2_test PRIVATE
+    -Wl,--disable-new-dtags
+    -rdynamic
+    -Wl,-Bsymbolic
+)
+
+target_link_libraries(st_om2_test
     intf_llt_pub
     ascendcl_stub
     -Wl,-z,muldefs
@@ -253,6 +327,7 @@ target_link_libraries(ge_common_atc
     ge_runner
     ge_runner_v2
     om2_executor
+    gert_model_data_deserializer
     ge_common_base
     gert
     register
@@ -281,6 +356,7 @@ add_executable(graph_engine_compile_test
         "${AIR_CODE_DIR}/tests/ge/st/testcase/test_swap_pass.cc"
         "${AIR_CODE_DIR}/tests/ge/st/testcase/test_mem_layout_conflict.cc"
         "${AIR_CODE_DIR}/tests/ge/st/testcase/test_input_merge_copy.cc"
+        "${AIR_CODE_DIR}/tests/ge/st/testcase/test_input_h2d_overlap_compile.cc"
         "${AIR_CODE_DIR}/tests/ge/st/testcase/test_optimization_option.cc"
         "${AIR_CODE_DIR}/tests/ge/st/testcase/test_deterministic_fusion.cc"
         "${AIR_CODE_DIR}/tests/ge/st/testcase/dump/static_shape/static_shape_dump_test.cc"
@@ -451,6 +527,19 @@ target_link_libraries(graph_engine_compile_test
 add_subdirectory(fast_runtime_v2)
 add_subdirectory(fast_runtime_v2/dvpp/dvpp_rtkernel)
 add_subdirectory(autofuse)
+
+# ge_common 经 PUBLIC gert_model_data_serializer 传播构建目录静态库（连带其 PUBLIC 的
+# minizip/z），污染 ge_python_custom_op_bridge 的 link.txt；gen_fallback_resources 将其重写为
+# -l 后 CANN lib64 无此库，导致运行期 Python fallback codegen 链接失败。bridge 所需符号已
+# 内含于 libge_common.so，从接口中剔除该静态库（ge_common 自身链接不受影响，符号仍打入 .so）。
+if(TARGET ge_common)
+    get_target_property(_ge_common_iface ge_common INTERFACE_LINK_LIBRARIES)
+    if(_ge_common_iface)
+        list(REMOVE_ITEM _ge_common_iface gert_model_data_serializer)
+        set_target_properties(ge_common PROPERTIES INTERFACE_LINK_LIBRARIES "${_ge_common_iface}")
+    endif()
+    unset(_ge_common_iface)
+endif()
 
 include(CTest)
 enable_testing()

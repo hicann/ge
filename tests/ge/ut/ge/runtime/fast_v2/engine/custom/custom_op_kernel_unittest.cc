@@ -38,6 +38,7 @@
 #include "register/kernel_registry_impl.h"
 #include "exe_graph/runtime/extended_kernel_context.h"
 #include "exe_graph/runtime/eager_op_execution_context.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "exe_graph/runtime/host_cpu_op_execution_context.h"
 #include "exe_graph/runtime/storage_shape.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
@@ -78,6 +79,77 @@ class TestBaseCustomOp : public EagerExecuteOp {
     auto output_tensor = ctx->MallocOutputTensor(0, StorageShape({2048}, {2048}),
                                                  StorageFormat(FORMAT_ND, FORMAT_ND, ExpandDimsType()), DT_FLOAT);
     GE_ASSERT_NOTNULL(output_tensor);
+    return SUCCESS;
+  }
+};
+
+namespace {
+// 记录 Eager 算子在 Execute 中申请辅流的结果，用于验证 provider 注入链路是否打通
+constexpr size_t kAttachedStreamRoundNum = 2U;
+size_t g_attached_execute_count = 0U;
+rtStream g_attached_aux[kAttachedStreamRoundNum] = {};
+rtStream g_attached_reuse[kAttachedStreamRoundNum] = {};
+rtStream g_attached_other[kAttachedStreamRoundNum] = {};
+rtStream g_attached_empty_key[kAttachedStreamRoundNum] = {};
+
+void ResetAttachedStreamRecord() {
+  g_attached_execute_count = 0U;
+  for (size_t i = 0U; i < kAttachedStreamRoundNum; ++i) {
+    g_attached_aux[i] = nullptr;
+    g_attached_reuse[i] = nullptr;
+    g_attached_other[i] = nullptr;
+    g_attached_empty_key[i] = nullptr;
+  }
+}
+
+// 记录被销毁的流句柄（其余行为委托基类），用于验证执行器析构时辅流被释放
+class DestroyRecordingAclStub final : public ge::AclRuntimeStub {
+ public:
+  aclError aclrtDestroyStream(aclrtStream stream) override {
+    destroyed.push_back(stream);
+    return ge::AclRuntimeStub::aclrtDestroyStream(stream);
+  }
+
+  bool IsDestroyed(aclrtStream stream) const {
+    for (const auto item : destroyed) {
+      if (item == stream) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  std::vector<aclrtStream> destroyed;
+};
+
+// 保证即使用例中途 ASSERT 失败也会恢复默认 stub，避免污染后续用例
+class AclStubGuard {
+ public:
+  explicit AclStubGuard(const std::shared_ptr<ge::AclRuntimeStub> &stub) {
+    ge::AclRuntimeStub::SetInstance(stub);
+  }
+  ~AclStubGuard() {
+    ge::AclRuntimeStub::Reset();
+  }
+};
+}  // namespace
+
+class TestAttachedStreamCustomOp : public EagerExecuteOp {
+ public:
+  graphStatus Execute(gert::EagerOpExecutionContext *ctx) override {
+    auto workspaces = ctx->MallocWorkSpace(1024);
+    GE_ASSERT_NOTNULL(workspaces);
+    auto output_tensor = ctx->MallocOutputTensor(0, StorageShape({2048}, {2048}),
+                                                 StorageFormat(FORMAT_ND, FORMAT_ND, ExpandDimsType()), DT_FLOAT);
+    GE_ASSERT_NOTNULL(output_tensor);
+
+    const size_t idx =
+        (g_attached_execute_count < kAttachedStreamRoundNum) ? g_attached_execute_count : kAttachedStreamRoundNum - 1U;
+    ++g_attached_execute_count;
+    g_attached_aux[idx] = ctx->RequestAttachedStream("ut_aux");
+    g_attached_reuse[idx] = ctx->RequestAttachedStream("ut_aux");
+    g_attached_other[idx] = ctx->RequestAttachedStream("ut_other");
+    g_attached_empty_key[idx] = ctx->RequestAttachedStream("");
     return SUCCESS;
   }
 };
@@ -330,6 +402,123 @@ TEST_F(CustomNodeKernelUT, custom_op_kernel_execute_test) {
             GRAPH_SUCCESS);
   ge::diagnoseSwitch::DisableProfiling();
   aclrtDestroyStream(stream);
+}
+
+/**
+ * 用例描述：验证 RT2 链路下 Eager 自定义算子可申请框架托管辅流
+ * 预置条件：注册一个在 Execute 中调用 RequestAttachedStream 的 EagerExecuteOp
+ * 测试步骤：构建执行器并连续执行两轮
+ * 预期结果：provider 注入生效，同 key 复用、异 key 隔离、空 key 返回 nullptr，且句柄跨执行稳定
+ */
+TEST_F(CustomNodeKernelUT, custom_op_attached_stream_execute_test) {
+  ResetAttachedStreamRecord();
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  graph->TopologicalSorting();
+  auto custom_op_registry = BuildCustomOpRegistryForRt2(
+      []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestAttachedStreamCustomOp>(); });
+  GeModelBuilder builder(graph);
+  auto ge_root_model = builder.BuildGeRootModel();
+  ge_root_model->SetCustomOpRegistry(custom_op_registry);
+  bg::ValueHolder::PopGraphFrame();
+  auto exe_graph = ModelConverter().ConvertGeModelToExecuteGraph(ge_root_model, {});
+  ASSERT_NE(exe_graph, nullptr);
+  TaskProducerFactory::GetInstance().SetProducerType(TaskProducerType::KERNEL);
+  auto model_executor =
+      ModelV2Executor::Create(exe_graph, ExecutorOption(ExecutorType::kTopologicalPriority), ge_root_model);
+  ASSERT_NE(model_executor, nullptr);
+  ASSERT_EQ(model_executor->Load(), GRAPH_SUCCESS);
+
+  auto outputs = FakeTensors({2048}, 1);
+  auto inputs = FakeTensors({2048}, 3);
+  rtStream_t stream;
+  ASSERT_EQ(aclrtCreateStreamWithConfig(&stream, static_cast<uint32_t>(RT_STREAM_PRIORITY_DEFAULT), 0U), RT_ERROR_NONE);
+  auto i3 = FakeValue<uint64_t>(reinterpret_cast<uint64_t>(stream));
+
+  for (size_t round = 0U; round < kAttachedStreamRoundNum; ++round) {
+    ASSERT_EQ(model_executor->Execute({i3.value}, inputs.GetTensorList(), inputs.size(),
+                                      reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
+              GRAPH_SUCCESS);
+  }
+
+  ASSERT_EQ(g_attached_execute_count, kAttachedStreamRoundNum);
+  // provider 注入生效：RT2 下不再恒返回 nullptr
+  ASSERT_NE(g_attached_aux[0], nullptr);
+  EXPECT_EQ(g_attached_reuse[0], g_attached_aux[0]);  // 同 key 复用
+  ASSERT_NE(g_attached_other[0], nullptr);
+  EXPECT_NE(g_attached_other[0], g_attached_aux[0]);  // 异 key 隔离
+  EXPECT_EQ(g_attached_empty_key[0], nullptr);        // 空 key 降级
+  EXPECT_EQ(g_attached_aux[1], g_attached_aux[0]);    // 跨执行句柄稳定，未重复建流
+  EXPECT_EQ(g_attached_other[1], g_attached_other[0]);
+  aclrtDestroyStream(stream);
+  // 执行器析构时 Chain deleter 释放辅流容器，容器析构同步并销毁物理流
+  model_executor.reset();
+  ResetAttachedStreamRecord();
+}
+
+/**
+ * 用例描述：验证辅流按执行器隔离（决策 D2），且执行器析构时释放辅流（决策 D3）
+ * 预置条件：同一份 exe_graph 与 root_model 上创建两个 ModelV2Executor，
+ *           模拟 StreamExecutor 为每条 aclrtStream 各建一个执行器的场景
+ * 测试步骤：两个执行器各执行一轮，相同 key 申请辅流；再依次析构
+ * 预期结果：两个执行器拿到不同句柄（隔离）；析构 A 只销毁 A 的辅流，析构 B 后 B 的辅流也被销毁
+ */
+TEST_F(CustomNodeKernelUT, custom_op_attached_stream_isolated_per_executor_test) {
+  ResetAttachedStreamRecord();
+  auto acl_stub = std::make_shared<DestroyRecordingAclStub>();
+  AclStubGuard acl_stub_guard(acl_stub);
+
+  auto graph = ShareGraph::BuildCustomOpGraph();
+  graph->TopologicalSorting();
+  auto custom_op_registry = BuildCustomOpRegistryForRt2(
+      []() -> std::unique_ptr<BaseCustomOp> { return std::make_unique<TestAttachedStreamCustomOp>(); });
+  GeModelBuilder builder(graph);
+  auto ge_root_model = builder.BuildGeRootModel();
+  ge_root_model->SetCustomOpRegistry(custom_op_registry);
+  bg::ValueHolder::PopGraphFrame();
+  auto exe_graph = ModelConverter().ConvertGeModelToExecuteGraph(ge_root_model, {});
+  ASSERT_NE(exe_graph, nullptr);
+  TaskProducerFactory::GetInstance().SetProducerType(TaskProducerType::KERNEL);
+
+  auto outputs = FakeTensors({2048}, 1);
+  auto inputs = FakeTensors({2048}, 3);
+  rtStream_t stream;
+  ASSERT_EQ(aclrtCreateStreamWithConfig(&stream, static_cast<uint32_t>(RT_STREAM_PRIORITY_DEFAULT), 0U), RT_ERROR_NONE);
+  auto i3 = FakeValue<uint64_t>(reinterpret_cast<uint64_t>(stream));
+
+  auto executor_a =
+      ModelV2Executor::Create(exe_graph, ExecutorOption(ExecutorType::kTopologicalPriority), ge_root_model);
+  ASSERT_NE(executor_a, nullptr);
+  ASSERT_EQ(executor_a->Load(), GRAPH_SUCCESS);
+  ASSERT_EQ(executor_a->Execute({i3.value}, inputs.GetTensorList(), inputs.size(),
+                                reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
+            GRAPH_SUCCESS);
+  const auto aux_a = g_attached_aux[0];
+  const auto other_a = g_attached_other[0];
+  ASSERT_NE(aux_a, nullptr);
+
+  auto executor_b =
+      ModelV2Executor::Create(exe_graph, ExecutorOption(ExecutorType::kTopologicalPriority), ge_root_model);
+  ASSERT_NE(executor_b, nullptr);
+  ASSERT_EQ(executor_b->Load(), GRAPH_SUCCESS);
+  ASSERT_EQ(executor_b->Execute({i3.value}, inputs.GetTensorList(), inputs.size(),
+                                reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
+            GRAPH_SUCCESS);
+  const auto aux_b = g_attached_aux[1];
+  ASSERT_NE(aux_b, nullptr);
+
+  // D2：同一算子实例被两个执行器共享，但辅流按执行器隔离，相同 key 也不共享
+  EXPECT_NE(aux_a, aux_b);
+
+  // D3：执行器析构 → Chain deleter → 容器 Destroy()，只影响本执行器的辅流
+  executor_a.reset();
+  EXPECT_TRUE(acl_stub->IsDestroyed(aux_a));
+  EXPECT_TRUE(acl_stub->IsDestroyed(other_a));
+  EXPECT_FALSE(acl_stub->IsDestroyed(aux_b));
+  executor_b.reset();
+  EXPECT_TRUE(acl_stub->IsDestroyed(aux_b));
+
+  aclrtDestroyStream(stream);
+  ResetAttachedStreamRecord();
 }
 
 TEST_F(CustomNodeKernelUT, find_custom_op_uses_model_registry) {

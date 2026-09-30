@@ -28,7 +28,7 @@
 #include "graph/custom_op_registry.h"
 
 namespace gert {
-struct Om2ModelData;
+struct GertModelData;
 }  // namespace gert
 
 namespace ge {
@@ -193,10 +193,10 @@ class GeRootModel : public std::enable_shared_from_this<GeRootModel> {
     return custom_op_registry_;
   }
 
-  void SetOm2ModelData(std::shared_ptr<gert::Om2ModelData> data) {
+  void SetOm2ModelData(std::shared_ptr<gert::GertModelData> data) {
     om2_model_data_ = std::move(data);
   }
-  const std::shared_ptr<gert::Om2ModelData> &GetOm2ModelData() const {
+  const std::shared_ptr<gert::GertModelData> &GetOm2ModelData() const {
     return om2_model_data_;
   }
 
@@ -263,7 +263,7 @@ class GeRootModel : public std::enable_shared_from_this<GeRootModel> {
   std::unordered_set<std::string> autofuse_so_set_{};
   std::unordered_set<std::string> custom_op_so_set_{};
   CustomOpRegistryPtr custom_op_registry_ = nullptr;
-  std::shared_ptr<gert::Om2ModelData> om2_model_data_;
+  std::shared_ptr<gert::GertModelData> om2_model_data_;
 };
 using GeRootModelPtr = std::shared_ptr<ge::GeRootModel>;
 }  // namespace ge

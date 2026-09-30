@@ -38,6 +38,7 @@ TEST_F(EsTensorHolderLLT, SetDataType) {
   EXPECT_EQ(EsTensorToGeTensorDesc(tensor)->GetDataType(), ge::DT_INT64);
   tensor.SetDataType(ge::DT_INT32);
   EXPECT_EQ(EsTensorToGeTensorDesc(tensor)->GetDataType(), ge::DT_INT32);
+  EXPECT_EQ(EsTensorToGeTensorDesc(tensor)->GetOriginDataType(), ge::DT_INT32);
 }
 
 TEST_F(EsTensorHolderLLT, SetFormat) {

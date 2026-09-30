@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include "graph/build/memory/graph_mem_assigner.h"
+#include "graph/build/input_h2d_overlap_planner.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "framework/common/helper/model_helper.h"
 #include "common/ge_common/ge_types.h"
@@ -322,6 +323,15 @@ Status GraphBuilder::Build(ComputeGraphPtr &comp_graph, GeRootModelPtr &ge_root_
   // To be compatible with the old process, do not verify the return value temporarily.
   (void)AttrUtils::GetBool(comp_graph, ATTR_NAME_DYNAMIC_SHAPE_PARTITIONED, is_dynamic_shape);
   if (is_dynamic_shape || comp_graph->GetGraphUnknownFlag()) {
+    bool input_h2d_overlap_enabled = false;
+    GE_CHK_STATUS_RET(IsInputH2DOverlapEnabled(input_h2d_overlap_enabled),
+                      "[Check][InputH2DOverlap] option failed, graph:%s.", comp_graph->GetName().c_str());
+    if (input_h2d_overlap_enabled) {
+      GELOGE(UNSUPPORTED, "[Check][InputH2DOverlap] dynamic shape is not supported, graph:%s, dynamic:%d, unknown:%d.",
+             comp_graph->GetName().c_str(), static_cast<int32_t>(is_dynamic_shape),
+             static_cast<int32_t>(comp_graph->GetGraphUnknownFlag()));
+      return UNSUPPORTED;
+    }
     GE_CHK_STATUS_RET(BuildForDynamicShapeGraph(comp_graph, ge_root_model_ptr, ge_model_ptr, session_id, true),
                       "[Build][DynamicShapeGraph] failed, graph:%s, session id:%" PRIu64 ".",
                       comp_graph->GetName().c_str(), session_id);
@@ -370,6 +380,13 @@ Status GraphBuilder::BuildForKnownShapeGraph(ComputeGraphPtr &comp_graph, GeMode
                     "[Get][FirstTaskInfo] fail, Graph[%s].", comp_graph->GetName().c_str());
   GE_COMPILE_TRACE_TIMESTAMP_END(GetTaskInfo, "GraphBuilder::GetTaskInfo");
 
+  GE_ASSERT_NOTNULL(graph_2_task_generator_[comp_graph]);
+  GE_ASSERT_SUCCESS(builder.FinalizeDeclarativeAttachedStreams(), "FinalizeDeclarativeAttachedStreams fail, Graph[%s].",
+                    comp_graph->GetName().c_str());
+  GE_ASSERT_SUCCESS(
+      builder.MaterializeAnnotatedArgsTaskDependencies(graph_2_task_generator_[comp_graph]->MutableNodeId2TaskDefs()),
+      "MaterializeAnnotatedArgsTaskDependencies fail, Graph[%s].", comp_graph->GetName().c_str());
+
   GE_TRACE_START(RefreshRealStream);
   GE_ASSERT_NOTNULL(graph_2_task_generator_[comp_graph]);
   GE_ASSERT_SUCCESS(builder.RefreshRealStream(graph_2_task_generator_[comp_graph]->MutableNodeId2TaskDefs()),
@@ -384,6 +401,11 @@ Status GraphBuilder::BuildForKnownShapeGraph(ComputeGraphPtr &comp_graph, GeMode
   GE_ASSERT_SUCCESS(ReGetTaskInfo(comp_graph, session_id, *model_ptr), "ReGetTaskInfo fail, Graph[%s].",
                     comp_graph->GetName().c_str());
   GE_COMPILE_TRACE_TIMESTAMP_END(ReGetTaskInfo, "GraphBuilder::ReGetTaskInfo");
+
+  GE_TRACE_START(SaveInputH2DOverlapPlan);
+  GE_CHK_STATUS_RET(builder.SaveInputH2DOverlapPlan(*model_ptr), "[Save][InputH2DOverlapPlan] fail, Graph[%s].",
+                    comp_graph->GetName().c_str());
+  GE_COMPILE_TRACE_TIMESTAMP_END(SaveInputH2DOverlapPlan, "GraphBuilder::SaveInputH2DOverlapPlan");
 
   ge_model_ptr = MakeShared<ge::GeModel>();
   if (ge_model_ptr == nullptr) {
@@ -731,10 +753,13 @@ Status GraphBuilder::RefreshInfoOfDynamicShapeGraph(ComputeGraphPtr &comp_graph,
   uint32_t stream_num = 0U;
   uint32_t event_num = 0U;
   uint32_t notify_num = 0U;
+  uint32_t eager_stream_num = 0U;
   std::vector<uint32_t> notify_types;
   (void)AttrUtils::GetInt(root_model, ATTR_MODEL_STREAM_NUM, stream_num);
   (void)AttrUtils::GetInt(root_model, ATTR_MODEL_EVENT_NUM, event_num);
   (void)AttrUtils::GetInt(root_model, ATTR_MODEL_NOTIFY_NUM, notify_num);
+  // eager 自定义算子辅流统计为可选属性：任一子模型带该属性时才在根模型聚合写回，避免无该特性的模型产物变化
+  bool has_eager_attr = AttrUtils::GetInt(root_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_stream_num);
   GELOGI("Root model: %s, stream num: %u, event num: %u, notify num: %u.", iter_root->first.c_str(), stream_num,
          event_num, notify_num);
 
@@ -745,23 +770,33 @@ Status GraphBuilder::RefreshInfoOfDynamicShapeGraph(ComputeGraphPtr &comp_graph,
     uint32_t tmp_stream = 0U;
     uint32_t tmp_event = 0U;
     uint32_t tmp_notify = 0U;
+    uint32_t tmp_eager_stream_num = 0U;
     (void)AttrUtils::GetInt(ge_model.second, ATTR_MODEL_STREAM_NUM, tmp_stream);
     (void)AttrUtils::GetInt(ge_model.second, ATTR_MODEL_EVENT_NUM, tmp_event);
     (void)AttrUtils::GetInt(ge_model.second, ATTR_MODEL_NOTIFY_NUM, tmp_notify);
-    GELOGI("Sub model: %s, stream num: %u, event num: %u, notify num: %u.", ge_model.first.c_str(), tmp_stream,
-           tmp_event, tmp_notify);
+    // |= 不短路，保证每个子模型的属性读取都执行；不能写作 ||，否则置位后会跳过 GetInt 漏读 tmp 值
+    has_eager_attr |= AttrUtils::GetInt(ge_model.second, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, tmp_eager_stream_num);
+    GELOGI("Sub model: %s, stream num: %u, event num: %u, notify num: %u, eager custom op stream num: %u.",
+           ge_model.first.c_str(), tmp_stream, tmp_event, tmp_notify, tmp_eager_stream_num);
 
     GE_ASSERT_SUCCESS(CheckUint32AddOverflow(stream_num, tmp_stream));
     GE_ASSERT_SUCCESS(CheckUint32AddOverflow(event_num, tmp_event));
+    // eager 辅流按模型执行实例各自建流，跨子模型同 key 不共享物理流，因此求和不去重
+    GE_ASSERT_SUCCESS(CheckUint32AddOverflow(eager_stream_num, tmp_eager_stream_num));
     stream_num += tmp_stream;
     event_num += tmp_event;
     notify_num += tmp_notify;
+    eager_stream_num += tmp_eager_stream_num;
   }
 
-  GELOGI("Total stream num: %u, event num: %u, notify num: %u.", stream_num, event_num, notify_num);
+  GELOGI("Total stream num: %u, event num: %u, notify num: %u, eager custom op stream num: %u.", stream_num, event_num,
+         notify_num, eager_stream_num);
   GE_ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_STREAM_NUM, stream_num));
   GE_ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_EVENT_NUM, event_num));
   GE_ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_NOTIFY_NUM, notify_num));
+  if (has_eager_attr) {
+    GE_ASSERT_TRUE(AttrUtils::SetInt(root_model, ATTR_MODEL_EAGER_CUSTOM_OP_STREAM_NUM, eager_stream_num));
+  }
 
   return SUCCESS;
 }

@@ -12,19 +12,26 @@
 #define INC_FRAMEWORK_COMMON_HELPER_OM2_PACKAGE_HELPER_H
 
 #include "framework/common/helper/model_save_helper.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include <memory>
+#include <set>
 #include <string>
+#include <vector>
 
 namespace gert {
-struct Om2ModelData;
-struct Om2ProgramBody;
-struct Om2KernelBinary;
-struct Om2ModelMeta;
-struct Om2ConstantsData;
-struct Om2DebugInfo;
+struct GertModelDataConstMeta;
+struct GertModelDataVarMeta;
+using GertModelDataConstMetas = std::vector<GertModelDataConstMeta>;
+struct GertModelData;
+struct GertModelDataProgramBody;
+struct GertModelDataKernelBinary;
+struct GertModelDataModelMeta;
+struct GertModelDataConstantsData;
+struct GertModelDataDebug;
+struct GertModelDataManifest;
 }  // namespace gert
 
 namespace ge {
-class ZipArchiveWriter;
 
 class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
  public:
@@ -38,15 +45,16 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
   Status SaveToOmModel(const GeModelPtr &ge_model, const std::string &output_file, ModelBufferData &model,
                        const GeRootModelPtr &ge_root_model = nullptr) override;
 
-  Status BuildOm2ModelData(const GeModelPtr &ge_model, gert::Om2ModelData &model_data,
+  Status BuildOm2ModelData(const GeModelPtr &ge_model, gert::GertModelData &model_data,
                            const GeRootModelPtr &ge_root_model = nullptr);
 
   void SetSaveMode(const bool val) override;
 
   static Status RelocateExternalWeights(const std::string &output_file_name, const ModelBufferData &model,
                                         ModelBufferData &relocated_model, bool &relocated);
-  static Status ReadCustomOpSoToBuffer(const std::unordered_set<std::string> &ops_so_set,
-                                       std::vector<gert::Om2KernelBinary> &shared_lib_binaries);
+  static Status ReadCustomOpSoToBuffer(
+      const std::unordered_set<std::string> &ops_so_set,
+      std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &shared_lib_binaries);
 
   /// @brief 从 OM2 ZIP 模型内提取 visual JSON 内容。
   /// @param model_data  OM2 ZIP 数据内存地址。
@@ -55,17 +63,18 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
   static Status ExtractVisualJson(const void *model_data, size_t model_len, std::string &json_out);
 
  private:
-  static Status BuildProgramBody(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
-  static Status BuildKernelBinaries(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
-  static Status BuildModelMeta(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
-  static Status BuildConstantsData(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
-  static Status BuildDebugInfo(const GeModelPtr &ge_model, gert::Om2ModelData &model_data);
-  static Status BuildManifest(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data);
-
+  static Status BuildProgramBody(const GeModelPtr &ge_model, gert::GertModelData &model_data,
+                                 gert::GertModelDataModel &unit);
+  static Status BuildKernelBinaries(const GeModelPtr &ge_model, gert::GertModelData &model_data);
+  static Status BuildModelMeta(const GeModelPtr &ge_model, gert::GertModelDataModel &unit);
+  static Status BuildConstantsData(const GeModelPtr &ge_model, gert::GertModelDataModel &unit,
+                                   std::unique_ptr<gert::GertModelDataConstantsData> &weight_slot);
+  static Status BuildDebugInfo(const GeModelPtr &ge_model, gert::GertModelDataModel &unit);
+  static Status BuildManifest(gert::GertModelData &model_data);
   static Status CollectUsedCustomOpTypes(const GeRootModelPtr &ge_root_model,
                                          std::set<std::string> &used_custom_op_types);
-  static Status BuildCustomKernelBinaries(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data);
-  static Status BuildCustomSharedLibs(const GeRootModelPtr &ge_root_model, gert::Om2ModelData &model_data);
+  static Status BuildCustomKernelBinaries(const GeRootModelPtr &ge_root_model, gert::GertModelData &model_data);
+  static Status BuildCustomSharedLibs(const GeRootModelPtr &ge_root_model, gert::GertModelData &model_data);
 
   bool is_offline_{true};
 };

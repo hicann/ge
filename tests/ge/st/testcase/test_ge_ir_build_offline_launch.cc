@@ -68,6 +68,8 @@ constexpr const char *kAscendCustomOppPathEnv = "ASCEND_CUSTOM_OPP_PATH";
 constexpr const char *kAnnotatedArgsMobileOppPath = "st_offline_launch_mobile_opp";
 constexpr const char *kAnnotatedArgsMobileCustomSoName = "libst_offline_launch_mobile_should_not_pack.so";
 constexpr const char *kAnnotatedArgsMobileCustomSoPayloadMarker = "ST_OFFLINE_LAUNCH_MOBILE_CUSTOM_SO_PAYLOAD_MARKER";
+constexpr const char *kAnnotatedArgsSharedCustomOppPath = "st_offline_launch_mobile_shared_custom_opp";
+constexpr const char *kAnnotatedArgsSharedCustomSoName = "libst_offline_launch_mobile_shared_custom_op.so";
 constexpr size_t kMobileModelFileHeaderSize = 256U;
 constexpr size_t kMobilePartitionTableHeaderSize = sizeof(uint32_t);
 constexpr size_t kMobilePartitionMemInfoSize = sizeof(uint32_t) * 3U;
@@ -574,6 +576,27 @@ bool IsExpectedMobilePartitionTypeForSt(const uint32_t type) {
          (type == kMobileWeightInfoPartition);
 }
 
+class ScopedAnnotatedArgsCustomOppForSt {
+ public:
+  ScopedAnnotatedArgsCustomOppForSt()
+      : dir_guard_(kAnnotatedArgsSharedCustomOppPath), env_guard_(kAscendCustomOppPathEnv) {
+    const std::string target_so_dir = std::string(kAnnotatedArgsSharedCustomOppPath) + "/op_graph/lib/" +
+                                      kAnnotatedArgsMobileTargetOs + "/" + kAnnotatedArgsMobileTargetCpu;
+    ready_ = (CreateDirectory(target_so_dir) == 0) &&
+             WriteFakeCustomOpSoForSt(target_so_dir + "/" + kAnnotatedArgsSharedCustomSoName) &&
+             (mmSetEnv(kAscendCustomOppPathEnv, kAnnotatedArgsSharedCustomOppPath, 1) == EN_OK);
+  }
+
+  bool IsReady() const {
+    return ready_;
+  }
+
+ private:
+  ScopedDirForMobileSt dir_guard_;
+  ScopedEnvVarForMobileSt env_guard_;
+  bool ready_ = false;
+};
+
 graphStatus InitializeAnnotatedArgsMobileBuildForSt() {
   auto init_options = MakeAnnotatedArgsMobileInitOptionsForSt();
   GeRunningEnvFaker env;
@@ -681,6 +704,8 @@ TEST_F(GeIrBuildAnnotatedArgsTest, AnnotatedArgsMobileBuildSupportsWorkspaceProb
   ScopedGeOptionsForMobileSt ge_options_guard;
   ScopedAnnotatedArgsOppForSt opp_guard;
   ASSERT_TRUE(opp_guard.IsReady());
+  ScopedAnnotatedArgsCustomOppForSt custom_opp_guard;
+  ASSERT_TRUE(custom_opp_guard.IsReady());
   const std::string output_file = "online";
   const std::string omc_file = output_file + "c";
   ScopedFileForMobileSt output_file_guard({output_file, omc_file, output_file + ".om"});
@@ -746,6 +771,8 @@ TEST_F(GeIrBuildAnnotatedArgsTest, AnnotatedArgsMobileBuildExercisesAnnotatedArg
   ScopedGeOptionsForMobileSt ge_options_guard;
   ScopedAnnotatedArgsOppForSt opp_guard;
   ASSERT_TRUE(opp_guard.IsReady());
+  ScopedAnnotatedArgsCustomOppForSt custom_opp_guard;
+  ASSERT_TRUE(custom_opp_guard.IsReady());
   RegisterAnnotatedArgsOpForSt(kAnnotatedArgsCopyMoveOpType, []() -> std::unique_ptr<BaseCustomOp> {
     return std::make_unique<StAnnotatedArgsCopyMoveOp>();
   });
@@ -789,6 +816,8 @@ TEST_F(GeIrBuildAnnotatedArgsTest, AnnotatedArgsStandardOmPersistsInstanceArgsFo
   ScopedGeOptionsForMobileSt ge_options_guard;
   ScopedAnnotatedArgsOppForSt opp_guard;
   ASSERT_TRUE(opp_guard.IsReady());
+  ScopedAnnotatedArgsCustomOppForSt custom_opp_guard;
+  ASSERT_TRUE(custom_opp_guard.IsReady());
   RegisterAnnotatedArgsOpForSt(kAnnotatedArgsMobileOpType, []() -> std::unique_ptr<BaseCustomOp> {
     return std::make_unique<StAnnotatedArgsMobileOp>();
   });

@@ -33,7 +33,7 @@ graphStatus AddEdgeAndUpdatePeerDesc(Graph &graph, GNode &src_node, int32_t src_
 
 | 参数名 | 类型 | 说明 |
 | --- | --- | --- |
-| - | graphStatus | GRAPH_SUCCESS(0): 成功<br>其他值: 失败 |
+| - | graphStatus | GRAPH_SUCCESS(0)：成功<br>其他值: 失败 |
 
 ## 约束说明
 

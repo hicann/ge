@@ -51,7 +51,14 @@ class TaskGenerator {
    */
   Status FindProfilingNodeIndex(const ComputeGraphPtr &graph, ProfilingPoint &profiling_point);
   Status GenModelTaskDef(const ComputeGraphPtr &graph, uint64_t session_id, Model &model);
-  Status GenerateTaskForNodes(const std::vector<Node *> nodes);
+  /**
+   * 对指定节点重新生成task
+   * @param nodes 待生成task的节点
+   * @param keep_marked_tasks 拆流后的二次生成需置true：打了kKeepGeneratedTasksAttr标记的节点保留已有task，
+   *        不清空也不重新生成（其task已包含拆流阶段插入的事件任务与真实流号）
+   * @return
+   */
+  Status GenerateTaskForNodes(const std::vector<Node *> nodes, const bool keep_marked_tasks = false);
   Status ReGetTaskInfo(const ComputeGraphPtr &comp_graph);
   std::unordered_map<int64_t, std::vector<domi::TaskDef>> &MutableNodeId2TaskDefs();
 
@@ -65,9 +72,10 @@ class TaskGenerator {
   Status GenerateTask(const ComputeGraphPtr &graph, Model &model);
   Status UpdateTaskDef();
   Status SaveFusionNodes(std::map<int64_t, std::vector<NodePtr>> &fusion_nodes, const std::vector<Node *> nodes) const;
-  Status GenTaskForFusionNodes(const std::map<int64_t, std::vector<NodePtr>> &fusion_nodes);
+  Status GenTaskForFusionNodes(const std::map<int64_t, std::vector<NodePtr>> &fusion_nodes,
+                               const bool keep_marked_tasks);
   Status GenerateTaskForFusionNode(Node *const node, const std::map<int64_t, std::vector<NodePtr>> &fusion_nodes,
-                                   std::unordered_set<Node *> &fusion_nodes_seen);
+                                   std::unordered_set<Node *> &fusion_nodes_seen, const bool keep_marked_tasks);
   Status PrepareForGenerateTask(const ComputeGraphPtr &graph);
   Status GenerateTaskForFftsNode(Node *ffts_node, const std::string &tag,
                                  std::vector<domi::TaskDef> &task_def_list_per_node,

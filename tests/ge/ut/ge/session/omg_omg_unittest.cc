@@ -16,8 +16,9 @@
 #include "proto/ge_ir.pb.h"
 #include "framework/omg/omg.h"
 #include "common/helper/visual_json_converter.h"
-#include "common/helper/om2/zip_archive_writer.h"
-#include "common/helper/om2/om2_package_contants.h"
+#include "framework/common/zip_archive_writer.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "framework/om2/model_data/om2_package_contants.h"
 #include <google/protobuf/text_format.h>
 #include "nlohmann/json.hpp"
 #include "ge/ge_api_error_codes.h"
@@ -831,7 +832,7 @@ TEST_F(UtestOmg, CheckInputShapeNodeINVALID) {
 // ============================================================================
 namespace {
 std::string CreateMinimalOm2File(const std::string &path, const std::string &visual_json) {
-  ZipArchiveWriter writer(path);
+  gert::ZipArchiveWriter writer(path);
   if (!writer.IsMemFileOpened()) {
     return "";
   }
@@ -839,7 +840,7 @@ std::string CreateMinimalOm2File(const std::string &path, const std::string &vis
       R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
   writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false);
   writer.WriteBytes("data/model_0/debug/ge_visual_00000000_graph_0.json", visual_json.data(), visual_json.size(), true);
-  ModelBufferData buf;
+  gert::GertBuffer buf;
   writer.SaveModelData(buf, true);
   return path;
 }
@@ -1009,12 +1010,12 @@ TEST_F(UtestOmg, ConvertOm_Fail_Om2NoVisualJson) {
   const std::string om2_path = "./ut_om2_no_visual_json.om2";
   const std::string json_path = "./ut_om2_no_visual_json.json";
   {
-    ZipArchiveWriter writer(om2_path);
+    gert::ZipArchiveWriter writer(om2_path);
     ASSERT_TRUE(writer.IsMemFileOpened());
     const std::string manifest =
         R"({"compatibility":{"compiler_version":"1.0","required_executor_version":"","used_features":{}},"model_num":1})";
     writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false);
-    ModelBufferData buf;
+    gert::GertBuffer buf;
     writer.SaveModelData(buf, true);
   }
 

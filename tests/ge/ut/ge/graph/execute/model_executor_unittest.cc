@@ -32,7 +32,8 @@
 #include "executor/ge_executor.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "graph/custom_op_factory.h"
-#include "common/om2/om2_model_data.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "common/helper/om2/om2_utils.h"
 #include "common/memory/tensor_trans_utils.h"
 #include "common/env_path.h"
@@ -167,54 +168,83 @@ std::vector<uint8_t> ReadFileBytes(const std::string &path) {
   return data;
 }
 
-gert::Om2ModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
-  gert::Om2ModelData model_data;
-  model_data.model_meta.model_name = "test_model";
-  model_data.model_meta.work_size = 1024U;
+gert::GertModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
+  gert::GertModelData model_data;
+  gert::InitGertModelData(model_data);
+  auto &model = *model_data.models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  model.model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  model.constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
+  model.runtime = std::make_unique<gert::GertModelDataRuntime>();
+  model_data.constants = std::make_unique<gert::GertModelDataConstants>();
+  model_data.constants->constants_data.emplace_back(std::make_unique<gert::GertModelDataConstantsData>());
+  model.debug = std::make_unique<gert::GertModelDataDebug>();
+  model_data.manifest = std::make_unique<gert::GertModelDataManifest>();
+  model.model_meta->model_name = gert::GertMakeStr("test_model");
+  model.model_meta->work_size = 1024U;
 
-  ge::Om2TensorDesc input_desc;
-  input_desc.SetName("input");
-  input_desc.SetDataType(ge::DT_FLOAT);
-  input_desc.SetShape({1, 4});
-  input_desc.SetSize(16U);
-  model_data.model_meta.input_desc.push_back(input_desc);
-  model_data.model_meta.input_desc_v2.push_back(input_desc);
+  gert::GertTensorDesc input_desc;
+  input_desc.name = gert::GertMakeStr("input");
+  input_desc.data_type = ge::DT_FLOAT;
+  input_desc.shape = {1, 4};
+  input_desc.size = 16U;
+  model.model_meta->input_desc.push_back(std::move(input_desc));
+  gert::GertTensorDesc input_desc_v2;
+  input_desc_v2.name = gert::GertMakeStr("input");
+  input_desc_v2.data_type = ge::DT_FLOAT;
+  input_desc_v2.shape = {1, 4};
+  input_desc_v2.size = 16U;
+  model.model_meta->input_desc_v2.push_back(std::move(input_desc_v2));
 
-  ge::Om2TensorDesc output_desc;
-  output_desc.SetName("output");
-  output_desc.SetDataType(ge::DT_FLOAT);
-  output_desc.SetShape({1, 4});
-  output_desc.SetSize(16U);
-  model_data.model_meta.output_desc.push_back(output_desc);
-  model_data.model_meta.output_desc_v2.push_back(output_desc);
+  gert::GertTensorDesc output_desc;
+  output_desc.name = gert::GertMakeStr("output");
+  output_desc.data_type = ge::DT_FLOAT;
+  output_desc.shape = {1, 4};
+  output_desc.size = 16U;
+  model.model_meta->output_desc.push_back(std::move(output_desc));
+  gert::GertTensorDesc output_desc_v2;
+  output_desc_v2.name = gert::GertMakeStr("output");
+  output_desc_v2.data_type = ge::DT_FLOAT;
+  output_desc_v2.shape = {1, 4};
+  output_desc_v2.size = 16U;
+  model.model_meta->output_desc_v2.push_back(std::move(output_desc_v2));
 
   auto so_bytes = ReadFileBytes(so_path);
-  model_data.program_body.so_artifact.file_name = "libtest_model_om2.so";
-  model_data.program_body.so_artifact.data = std::string(so_bytes.begin(), so_bytes.end());
+  model.runtime->so_artifact.file_name = gert::GertMakeStr("libtest_model_om2.so");
+  model.runtime->so_artifact.data = gert::GertMakeBytes(so_bytes.data(), so_bytes.size());
+  model.runtime->so_artifact.data_len = so_bytes.size();
 
   return model_data;
 }
 
-gert::Om2ModelData MakeMinimalOm2ModelData(size_t work_size = 1024U, size_t tensor_size = 16U) {
-  gert::Om2ModelData model_data;
-  model_data.model_meta.model_name = "om2_ut_model";
-  model_data.model_meta.work_size = work_size;
+gert::GertModelData MakeMinimalOm2ModelData(size_t work_size = 1024U, size_t tensor_size = 16U) {
+  gert::GertModelData model_data;
+  gert::InitGertModelData(model_data);
+  auto &model = *model_data.models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  model.model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  model.constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
+  model.runtime = std::make_unique<gert::GertModelDataRuntime>();
+  model_data.constants = std::make_unique<gert::GertModelDataConstants>();
+  model_data.constants->constants_data.emplace_back(std::make_unique<gert::GertModelDataConstantsData>());
+  model.debug = std::make_unique<gert::GertModelDataDebug>();
+  model_data.manifest = std::make_unique<gert::GertModelDataManifest>();
+  model.model_meta->model_name = gert::GertMakeStr("om2_ut_model");
+  model.model_meta->work_size = work_size;
 
-  ge::Om2TensorDesc input_desc;
-  input_desc.SetName("input0");
-  input_desc.SetDataType(DT_FLOAT);
-  input_desc.SetFormat(FORMAT_ND);
-  input_desc.SetShape({1, 4});
-  input_desc.SetSize(tensor_size);
-  model_data.model_meta.input_desc.emplace_back(input_desc);
+  gert::GertTensorDesc input_desc;
+  input_desc.name = gert::GertMakeStr("input0");
+  input_desc.data_type = DT_FLOAT;
+  input_desc.format = FORMAT_ND;
+  input_desc.shape = {1, 4};
+  input_desc.size = tensor_size;
+  model.model_meta->input_desc.push_back(std::move(input_desc));
 
-  ge::Om2TensorDesc output_desc;
-  output_desc.SetName("output0");
-  output_desc.SetDataType(DT_FLOAT);
-  output_desc.SetFormat(FORMAT_ND);
-  output_desc.SetShape({1, 4});
-  output_desc.SetSize(tensor_size);
-  model_data.model_meta.output_desc.emplace_back(output_desc);
+  gert::GertTensorDesc output_desc;
+  output_desc.name = gert::GertMakeStr("output0");
+  output_desc.data_type = DT_FLOAT;
+  output_desc.format = FORMAT_ND;
+  output_desc.shape = {1, 4};
+  output_desc.size = tensor_size;
+  model.model_meta->output_desc.push_back(std::move(output_desc));
   return model_data;
 }
 
@@ -1937,7 +1967,7 @@ TEST_F(UtestModelExecutorOm2Test, RunGraph_HostInput_Success) {
   GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
@@ -1976,7 +2006,7 @@ TEST_F(UtestModelExecutorOm2Test, RunGraph_NotLoaded_ReturnsGraphNotExist) {
   ge_model->SetGraph(compute_graph);
   ge_root_model->SetSubgraphInstanceNameToModel(compute_graph->GetName(), ge_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   GraphId graph_id = 3001;
@@ -2026,7 +2056,7 @@ TEST_F(UtestModelExecutorOm2Test, RunGraph_EmptyOutputs_PrepareOm2Outputs) {
   GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
@@ -2065,7 +2095,7 @@ TEST_F(UtestModelExecutorOm2Test, LoadAndUnload_Success) {
   GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
@@ -2098,7 +2128,7 @@ TEST_F(UtestModelExecutorOm2Test, LoadGraph_ExternalConstAndFeatureMemory_Succes
   graph_node->SetConstMemoryBase(const_mem.data(), const_mem.size());
   graph_node->SetFeatureMemoryBase(feature_mem.data(), feature_mem.size());
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
 
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
@@ -2131,7 +2161,7 @@ TEST_F(UtestModelExecutorOm2Test, RunGraphWithStream_Om2Mode_Success) {
   GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
@@ -2237,7 +2267,7 @@ TEST_F(UtestModelExecutorOm2Test, ExecuteGraphWithStream_Om2Mode_Success) {
   GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
 
-  auto model_data = std::make_shared<gert::Om2ModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
+  auto model_data = std::make_shared<gert::GertModelData>(MakeOm2ModelDataWithFakeSo(fake_so_path_));
   ge_root_model->SetOm2ModelData(model_data);
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 

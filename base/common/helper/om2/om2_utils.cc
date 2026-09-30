@@ -28,6 +28,7 @@
 #include "framework/common/scope_guard.h"
 #include "graph/ge_context.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "framework/common/gert_model_data_utils.h"
 
 namespace ge {
 namespace {
@@ -105,11 +106,11 @@ bool IsCppFile(const std::string &file_name) {
          (file_name.compare(file_name.size() - kCppSuffixSize, kCppSuffixSize, kCppSuffix) == 0);
 }
 
-Status FindArtifact(const Om2CodegenArtifacts &artifacts, const std::string &file_name,
-                    const Om2CodegenArtifact *&artifact) {
+Status FindArtifact(const gert::GertModelDataProgramBodies &artifacts, const std::string &file_name,
+                    const gert::GertModelDataProgramBody *&artifact) {
   artifact = nullptr;
   for (const auto &item : artifacts) {
-    if (item.file_name == file_name) {
+    if (std::string(gert::GertGetStr(item.file_name)) == file_name) {
       artifact = &item;
       return SUCCESS;
     }
@@ -458,14 +459,14 @@ Status ReplaceMakefileVariable(std::string &makefile_data, const std::string &va
   return FAILED;
 }
 
-Status BuildCompileMakefileData(const Om2CodegenArtifact &makefile_artifact, const std::string &so_path,
+Status BuildCompileMakefileData(const gert::GertModelDataProgramBody &makefile_artifact, const std::string &so_path,
                                 const std::vector<MemFdFile> &cpp_files, std::string &compile_makefile_data) {
   GE_ASSERT_SUCCESS(CheckSafePath(so_path));
   for (const auto &cpp_file : cpp_files) {
     GE_ASSERT_SUCCESS(CheckSafePath(cpp_file.fd_path));
   }
 
-  compile_makefile_data = makefile_artifact.data;
+  compile_makefile_data = gert::GertGetStr(makefile_artifact.data);
   GE_ASSERT_SUCCESS(ReplaceMakefileVariable(compile_makefile_data, "TARGET", so_path));
   GE_ASSERT_SUCCESS(ReplaceMakefileVariable(compile_makefile_data, "SRC_FILES", JoinFdPaths(cpp_files)));
   // 仅用于内存编译：fd 路径没有 .cpp 后缀，需要 -x c++ 显式指定语言。
@@ -501,26 +502,27 @@ Status ReplaceInclude(std::string &data, const std::string &include_name, const 
   return SUCCESS;
 }
 
-Status CreateCompileCppFiles(const Om2CodegenArtifacts &artifacts, const std::string &interface_name,
+Status CreateCompileCppFiles(const gert::GertModelDataProgramBodies &artifacts, const std::string &interface_name,
                              const std::string &header_fd_path, std::vector<MemFdFile> &cpp_files) {
   for (const auto &artifact : artifacts) {
-    if (!IsCppFile(artifact.file_name)) {
+    if (!IsCppFile(gert::GertGetStr(artifact.file_name))) {
       continue;
     }
-    std::string compile_data = artifact.data;
+    std::string compile_data = gert::GertGetStr(artifact.data);
     GE_ASSERT_SUCCESS(ReplaceInclude(compile_data, interface_name, header_fd_path));
 
     MemFdFile cpp_file;
-    GE_ASSERT_SUCCESS(CreateMemFdFile(artifact.file_name, compile_data, cpp_file));
+    GE_ASSERT_SUCCESS(CreateMemFdFile(gert::GertGetStr(artifact.file_name), compile_data, cpp_file));
     cpp_files.push_back(std::move(cpp_file));
   }
   return SUCCESS;
 }
 
-Status CompileWithMemFdMakefile(const Om2CodegenArtifact &makefile_artifact, const std::vector<MemFdFile> &cpp_files,
-                                const bool is_release, Om2CodegenArtifact &so_artifact, std::string &so_path,
+Status CompileWithMemFdMakefile(const gert::GertModelDataProgramBody &makefile_artifact,
+                                const std::vector<MemFdFile> &cpp_files, const bool is_release,
+                                gert::GertModelDataProgramBody &so_artifact, std::string &so_path,
                                 MemFdFile &makefile_file) {
-  GE_ASSERT_SUCCESS(CreateTempFile(so_artifact.file_name, so_path));
+  GE_ASSERT_SUCCESS(CreateTempFile(gert::GertGetStr(so_artifact.file_name), so_path));
 
   std::string compile_makefile_data;
   GE_ASSERT_SUCCESS(BuildCompileMakefileData(makefile_artifact, so_path, cpp_files, compile_makefile_data));
@@ -536,11 +538,15 @@ Status CompileWithMemFdMakefile(const Om2CodegenArtifact &makefile_artifact, con
       REPORT_INNER_ERR_MSG("E19999", "[OM2] Failed to execute make command specified by build_config: %s.",
                            build_config.c_str());
     }
-    GELOGE(FAILED, "[OM2] Failed to compile so artifact: %s.", so_artifact.file_name.c_str());
+    GELOGE(FAILED, "[OM2] Failed to compile so artifact: %s.", gert::GertGetStr(so_artifact.file_name));
     return FAILED;
   }
-  GE_ASSERT_SUCCESS(ReadFileToString(so_path, so_artifact.data));
-  GE_ASSERT_TRUE(!so_artifact.data.empty(), "[OM2] Compiled so artifact is empty: %s", so_artifact.file_name.c_str());
+  std::string so_data;
+  GE_ASSERT_SUCCESS(ReadFileToString(so_path, so_data));
+  so_artifact.data = gert::GertMakeBytes(so_data.data(), so_data.size());
+  so_artifact.data_len = so_data.size();
+  GE_ASSERT_TRUE(so_artifact.data_len != 0U, "[OM2] Compiled so artifact is empty: %s",
+                 gert::GertGetStr(so_artifact.file_name));
   return SUCCESS;
 }
 
@@ -553,15 +559,16 @@ std::string Om2Utils::NormalizeCpuArch(const std::string &cpu) {
   return cpu;
 }
 
-Status Om2Utils::CompileGeneratedCppToSo(const Om2CodegenArtifacts &artifacts, const std::string &model_name,
-                                         Om2CodegenArtifact &so_artifact, const bool is_release) {
+Status Om2Utils::CompileGeneratedCppToSo(const gert::GertModelDataProgramBodies &artifacts,
+                                         const std::string &model_name, gert::GertModelDataProgramBody &so_artifact,
+                                         const bool is_release) {
   constexpr char kModelApiName[] = "om2_model_api.h";
   const std::string interface_name = model_name + "_internal.h";
-  const Om2CodegenArtifact *interface_artifact = nullptr;
+  const gert::GertModelDataProgramBody *interface_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, interface_name, interface_artifact));
-  const Om2CodegenArtifact *model_api_artifact = nullptr;
+  const gert::GertModelDataProgramBody *model_api_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, kModelApiName, model_api_artifact));
-  const Om2CodegenArtifact *makefile_artifact = nullptr;
+  const gert::GertModelDataProgramBody *makefile_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, "Makefile", makefile_artifact));
 
   MemFdFile model_api_file;
@@ -577,15 +584,15 @@ Status Om2Utils::CompileGeneratedCppToSo(const Om2CodegenArtifacts &artifacts, c
     CloseMemFdFile(makefile_file);
   };
   GE_MAKE_GUARD(memfd_cleanup, memfd_cleanup_callback);
-  GE_ASSERT_SUCCESS(CreateMemFdFile(kModelApiName, model_api_artifact->data, model_api_file));
-  std::string interface_data = interface_artifact->data;
+  GE_ASSERT_SUCCESS(CreateMemFdFile(kModelApiName, gert::GertGetStr(model_api_artifact->data), model_api_file));
+  std::string interface_data = gert::GertGetStr(interface_artifact->data);
   GE_ASSERT_SUCCESS(ReplaceInclude(interface_data, kModelApiName, model_api_file.fd_path));
   GE_ASSERT_SUCCESS(CreateMemFdFile(interface_name, interface_data, header_file));
   GE_ASSERT_SUCCESS(CreateCompileCppFiles(artifacts, interface_name, header_file.fd_path, cpp_files));
   GE_CHK_BOOL_RET_STATUS(!cpp_files.empty(), FAILED, "[OM2] No generated cpp artifacts found for model %s",
                          model_name.c_str());
 
-  so_artifact.file_name = "lib" + model_name + "_om2.so";
+  so_artifact.file_name = gert::GertMakeStr("lib" + model_name + "_om2.so");
   const uint64_t compile_start_us = ge::GetCurrentTimestamp();
   GE_ASSERT_SUCCESS(
       CompileWithMemFdMakefile(*makefile_artifact, cpp_files, is_release, so_artifact, so_path, makefile_file));

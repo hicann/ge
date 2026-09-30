@@ -24,7 +24,7 @@ graphStatus RemoveEdge(GNode &src_node, const int32_t src_port_index, GNode &dst
 | 参数名 | 输入/输出 | 说明 |
 | --- | --- | --- |
 | src_node | 输入 | 连接边的源节点。 |
-| src_port_index | 输入 | 源节点的输出端口号(-1表示控制边)。 |
+| src_port_index | 输入 | 源节点的输出端口号（-1表示控制边）。 |
 | dst_node | 输入 | 连接边的目的节点。 |
 | dst_port_index | 输入 | 目的节点的输入端口号（-1表示控制边）。 |
 

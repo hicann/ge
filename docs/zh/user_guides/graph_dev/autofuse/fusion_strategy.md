@@ -19,7 +19,7 @@
 **图 1**  CanFuse与Backend交互流程图
 ![图1](../figures/canfuse_backend_interaction_flow.png "CanFuse与Backend交互流程图")
 
-由[Lowering](Lowering.md)模块做的融合为一次融合，由CanFuse框架做的融合为二次融合，二次融合简要流程如下：
+由[Lowering](lowering.md)模块做的融合为一次融合，由CanFuse框架做的融合为二次融合，二次融合简要流程如下：
 
 1. 首先进行一轮融合，默认做10轮。
 2. 获取可能融合的所有节点对。
@@ -90,7 +90,7 @@
   - **ygroup：**Elementwise、Broadcast类型的算子循环轴。
   - **rgroup：**Reduce轴的集合。
 
-    每个AscGraph都会有一个基于循环轴的\(xgroup, ygroup, rgroup\)，根据算子融合规则推导，可以判断两个AscGraph是否能融合成一个新的group；然后CanFuse依据此规则，判断后端Schedule是否支持融合。详细group merge规则请参见[生成TilingCase](Schedule.md#生成tilingcase)。
+    每个AscGraph都会有一个基于循环轴的\(xgroup, ygroup, rgroup\)，根据算子融合规则推导，可以判断两个AscGraph是否能融合成一个新的group；然后CanFuse依据此规则，判断后端Schedule是否支持融合。详细group merge规则请参见[生成TilingCase](schedule.md#生成tilingcase)。
 
 ## 融合策略求解
 

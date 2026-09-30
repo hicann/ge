@@ -20,6 +20,7 @@
 #include "common/om2/codegen/om2_codegen_model_builder.h"
 #include "common/om2/codegen/om2_code_printer.h"
 #include "common/om2/codegen/program_generator.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "framework/common/taskdown_common.h"
 #include "ge_runtime_stub/include/common/share_graph.h"
 #include "ge_runtime_stub/include/faker/ge_model_builder.h"
@@ -188,14 +189,14 @@ const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
     {GeneratedFileIndex::kCMakeListsFile, "Makefile"},
 };
 
-Status ReadGeneratedArtifact(const Om2CodegenArtifacts &artifacts, const GeneratedFileIndex file_index,
+Status ReadGeneratedArtifact(const gert::GertModelDataProgramBodies &artifacts, const GeneratedFileIndex file_index,
                              std::string &output) {
   const auto iter = kGeneratedFileNames.find(file_index);
   GE_ASSERT_TRUE(iter != kGeneratedFileNames.end(), "[OM2] unknown generated file index: %zu",
                  static_cast<size_t>(file_index));
   for (const auto &artifact : artifacts) {
-    if (artifact.file_name == iter->second) {
-      output = artifact.data;
+    if (std::string(gert::GertGetStr(artifact.file_name)) == iter->second) {
+      output = gert::GertGetStr(artifact.data);
       return SUCCESS;
     }
   }
@@ -300,7 +301,7 @@ Status BuildControlCodegenModel(const GeModelPtr &ge_model) {
   Om2CodegenModel codegen_model;
   GE_ASSERT_SUCCESS(Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model));
 
-  Om2ConstMetas const_metas;
+  gert::GertModelDataConstMetas const_metas;
   Om2CodegenModelBuilder builder;
   return builder.Build(ge_model, task_code_builders, codegen_model, const_metas);
 }
@@ -314,14 +315,14 @@ TEST_F(ControlTaskCodeGeneratorUt, GenerateControlTaskFiles_Ok) {
   Om2CodegenModel codegen_model;
   ASSERT_EQ(Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model), SUCCESS);
 
-  Om2ConstMetas const_metas;
+  gert::GertModelDataConstMetas const_metas;
   Om2CodegenModelBuilder builder;
   ASSERT_EQ(builder.Build(ge_model, task_code_builders, codegen_model, const_metas), SUCCESS);
 
-  ProgramGenerator generator(ast, task_code_builders, codegen_model);
+  ProgramGenerator generator(ast, task_code_builders, std::move(codegen_model));
   Om2CodePrinter code_printer("g1");
   ASSERT_EQ(generator.GenerateProgram(code_printer), SUCCESS);
-  Om2CodegenArtifacts artifacts;
+  gert::GertModelDataProgramBodies artifacts;
   code_printer.GetOutputFiles(artifacts);
 
   std::string header_file;

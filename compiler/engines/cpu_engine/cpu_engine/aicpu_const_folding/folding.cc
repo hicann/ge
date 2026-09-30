@@ -295,6 +295,30 @@ int32_t AddListDataTypeAttrToNodeDef(const ge::Operator &op, const char *name,
   return 0;
 }
 
+int32_t ConvertTensorAttrToAicpuTensor(const ge::Tensor &ge_tensor, aicpuops::Tensor *aicpu_tensor) {
+  if (aicpu_tensor == nullptr) {
+    return -1;
+  }
+  const ge::TensorDesc ge_tensor_desc = ge_tensor.GetTensorDesc();
+  aicpu_tensor->set_tensor_type(ge_tensor_desc.GetDataType());
+  aicpu_tensor->set_data_ptr(static_cast<uint64_t>(reinterpret_cast<intptr_t>(ge_tensor.GetData())));
+  aicpu_tensor->set_data_size(static_cast<uint64_t>(ge_tensor.GetSize()));
+  auto shape = aicpu_tensor->mutable_tensor_shape();
+  if (shape == nullptr) {
+    return -1;
+  }
+  shape->clear_dim();
+  const std::vector<int64_t> dims = ge_tensor_desc.GetShape().GetDims();
+  for (const int64_t dim : dims) {
+    auto *aicpu_dim = shape->add_dim();
+    if (aicpu_dim == nullptr) {
+      return -1;
+    }
+    aicpu_dim->set_size(dim);
+  }
+  return 0;
+}
+
 int32_t AddTensorAttrToNodeDef(const ge::Operator &op, const char *name, [[maybe_unused]] aicpuops::NodeDef node_def,
                                aicpuops::AttrValue &attr_value) {
   ge::Tensor ge_tensor;
@@ -303,28 +327,8 @@ int32_t AddTensorAttrToNodeDef(const ge::Operator &op, const char *name, [[maybe
     return -1;
   }
 
-  auto aicpu_tensor = attr_value.mutable_tensor();
-  if (aicpu_tensor == nullptr) {
+  if (ConvertTensorAttrToAicpuTensor(ge_tensor, attr_value.mutable_tensor()) != 0) {
     return -1;
-  }
-
-  ge::TensorDesc ge_tensor_desc = ge_tensor.GetTensorDesc();
-  aicpu_tensor->set_tensor_type(ge_tensor_desc.GetDataType());
-  aicpu_tensor->set_data_ptr(static_cast<uint64_t>(reinterpret_cast<intptr_t>(ge_tensor.GetData())));
-  aicpu_tensor->set_data_size(static_cast<uint64_t>(ge_tensor.GetSize()));
-  auto shape = aicpu_tensor->mutable_tensor_shape();
-  if (shape == nullptr) {
-    return -1;
-  }
-
-  shape->clear_dim();
-  std::vector<int64_t> dims = ge_tensor_desc.GetShape().GetDims();
-  for (size_t i = 0; i < dims.size(); i++) {
-    aicpuops::TensorShape_Dim *aicpu_dims = shape->add_dim();
-    if (aicpu_dims == nullptr) {
-      return -1;
-    }
-    aicpu_dims->set_size(dims[i]);
   }
 
   AICPUE_LOGD("Finish add tensor attr to node def, name[%s].", name);
@@ -345,28 +349,8 @@ int32_t AddListTensorAttrToNodeDef(const ge::Operator &op, const char *name,
   }
 
   for (const ge::Tensor &ge_tensor : ge_list_tensor) {
-    auto aicpu_tensor = array->add_tensor();
-    if (aicpu_tensor == nullptr) {
+    if (ConvertTensorAttrToAicpuTensor(ge_tensor, array->add_tensor()) != 0) {
       return -1;
-    }
-
-    ge::TensorDesc ge_tensor_desc = ge_tensor.GetTensorDesc();
-    aicpu_tensor->set_tensor_type(ge_tensor_desc.GetDataType());
-    aicpu_tensor->set_data_ptr(static_cast<uint64_t>(reinterpret_cast<intptr_t>(ge_tensor.GetData())));
-    aicpu_tensor->set_data_size(static_cast<uint64_t>(ge_tensor.GetSize()));
-    auto shape = aicpu_tensor->mutable_tensor_shape();
-    if (shape == nullptr) {
-      return -1;
-    }
-
-    shape->clear_dim();
-    std::vector<int64_t> dims = ge_tensor_desc.GetShape().GetDims();
-    for (size_t i = 0; i < dims.size(); i++) {
-      aicpuops::TensorShape_Dim *aicpu_dims = shape->add_dim();
-      if (aicpu_dims == nullptr) {
-        return -1;
-      }
-      aicpu_dims->set_size(dims[i]);
     }
   }
 

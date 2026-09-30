@@ -14,7 +14,7 @@
 #include <thread>
 
 #include "common/model/executor.h"
-#include "framework/common/om2_tensor_desc.h"
+#include "framework/om2/model_data/gert_model_data.h"
 #include "graph/execute/graph_executor.h"
 
 namespace gert {
@@ -145,8 +145,8 @@ class ModelExecutor : public Executor {
   ge::Status RunOm2Graph(const GraphNodePtr &graph_node, uint32_t graph_id, const aclrtStream stream,
                          const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs) const;
   ge::Status UnloadOm2Graph(const GeRootModelPtr &ge_root_model, uint32_t graph_id) const;
-  ge::Status GetOm2ModelTensorDesc(const GraphNodePtr &graph_node, const std::vector<ge::Om2TensorDesc> *&input_desc,
-                                   const std::vector<ge::Om2TensorDesc> *&output_desc) const;
+  ge::Status GetOm2ModelTensorDesc(const GraphNodePtr &graph_node, const std::vector<gert::GertTensorDesc> *&input_desc,
+                                   const std::vector<gert::GertTensorDesc> *&output_desc) const;
   ge::Status PrepareOm2Outputs(const GraphNodePtr &graph_node, std::vector<gert::Tensor> &outputs) const;
 
   bool init_flag_{false};

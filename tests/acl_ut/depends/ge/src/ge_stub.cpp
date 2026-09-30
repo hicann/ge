@@ -366,18 +366,18 @@ Status aclStub::GetOm2WorkspaceSize(const void *model_data, size_t model_size, b
   return SUCCESS;
 }
 
-Status aclStub::GetOm2ModelMetadata(const std::string &model_path, std::vector<ge::Om2TensorDesc> &input_desc,
-                                    std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                                    std::vector<ge::Om2TensorDesc> &output_desc,
-                                    std::vector<ge::Om2TensorDesc> &output_desc_v2) {
+Status aclStub::GetOm2ModelMetadata(const std::string &model_path, std::vector<gert::GertTensorDesc> &input_desc,
+                                    std::vector<gert::GertTensorDesc> &input_desc_v2,
+                                    std::vector<gert::GertTensorDesc> &output_desc,
+                                    std::vector<gert::GertTensorDesc> &output_desc_v2) {
   return SUCCESS;
 }
 
 Status aclStub::GetOm2ModelMetadata(const void *model_data, size_t model_size,
-                                    std::vector<ge::Om2TensorDesc> &input_desc,
-                                    std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                                    std::vector<ge::Om2TensorDesc> &output_desc,
-                                    std::vector<ge::Om2TensorDesc> &output_desc_v2) {
+                                    std::vector<gert::GertTensorDesc> &input_desc,
+                                    std::vector<gert::GertTensorDesc> &input_desc_v2,
+                                    std::vector<gert::GertTensorDesc> &output_desc,
+                                    std::vector<gert::GertTensorDesc> &output_desc_v2) {
   return SUCCESS;
 }
 
@@ -2095,8 +2095,8 @@ ge::graphStatus Om2ModelExecutor::RunAsync(void *stream, std::vector<gert::Tenso
   (void)outputs;
   return ge::GRAPH_SUCCESS;
 }
-ge::Status Om2ModelExecutor::GetModelDescInfo(const std::vector<ge::Om2TensorDesc> *&input_desc,
-                                              const std::vector<ge::Om2TensorDesc> *&output_desc,
+ge::Status Om2ModelExecutor::GetModelDescInfo(const std::vector<gert::GertTensorDesc> *&input_desc,
+                                              const std::vector<gert::GertTensorDesc> *&output_desc,
                                               bool new_model_desc) const {
   return MockFunctionTest::aclStubInstance().GetModelDescInfo(input_desc, output_desc, new_model_desc);
 }
@@ -2220,17 +2220,17 @@ ge::Status GetOm2WorkspaceSize(const void *model_data, size_t model_size, bool q
   return MockFunctionTest::aclStubInstance().GetOm2WorkspaceSize(model_data, model_size, query_zero_copy_size,
                                                                  work_size, zero_copy_size);
 }
-ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<ge::Om2TensorDesc> &input_desc,
-                               std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                               std::vector<ge::Om2TensorDesc> &output_desc,
-                               std::vector<ge::Om2TensorDesc> &output_desc_v2) {
+ge::Status GetOm2ModelMetadata(const std::string &model_path, std::vector<gert::GertTensorDesc> &input_desc,
+                               std::vector<gert::GertTensorDesc> &input_desc_v2,
+                               std::vector<gert::GertTensorDesc> &output_desc,
+                               std::vector<gert::GertTensorDesc> &output_desc_v2) {
   return MockFunctionTest::aclStubInstance().GetOm2ModelMetadata(model_path, input_desc, input_desc_v2, output_desc,
                                                                  output_desc_v2);
 }
-ge::Status GetOm2ModelMetadata(const void *model_data, size_t model_size, std::vector<ge::Om2TensorDesc> &input_desc,
-                               std::vector<ge::Om2TensorDesc> &input_desc_v2,
-                               std::vector<ge::Om2TensorDesc> &output_desc,
-                               std::vector<ge::Om2TensorDesc> &output_desc_v2) {
+ge::Status GetOm2ModelMetadata(const void *model_data, size_t model_size, std::vector<gert::GertTensorDesc> &input_desc,
+                               std::vector<gert::GertTensorDesc> &input_desc_v2,
+                               std::vector<gert::GertTensorDesc> &output_desc,
+                               std::vector<gert::GertTensorDesc> &output_desc_v2) {
   return MockFunctionTest::aclStubInstance().GetOm2ModelMetadata(model_data, model_size, input_desc, input_desc_v2,
                                                                  output_desc, output_desc_v2);
 }

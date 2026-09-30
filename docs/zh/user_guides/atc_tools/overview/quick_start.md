@@ -13,7 +13,7 @@
 > - 若开发环境架构为Arm（aarch64），模型转换耗时较长，则可以参考[开发环境架构为Arm（aarch64）时模型转换耗时较长](../FAQ/arm_aarch64_conversion_slow.md)解决。
 >   <!-- end id1 -->
 > - 如果模型转换时，用户使用了设置网络模型精度参数[--precision\_mode](../CLI_options/--precision_mode.md)或[--precision\_mode\_v2](../CLI_options/--precision_mode_v2.md)：
->   - 上述两个参数默认都为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/00_acl_cpp_dev.md)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
+>   - 上述两个参数默认都为性能优先，后续推理时可能会导致精度溢出问题。如果推理时出现精度问题，可以参见《[应用开发](https://gitcode.com/cann/docs/blob/master/docs/zh/app-dev/c/00_acl_cpp_dev.md)》中的“模型推理 \> 精度/性能优化 \> 模型推理精度提升建议”进行定位。
 >   - 如果用户聚焦精度问题，可以修改为其他取值，比如--precision\_mode设置为must\_keep\_origin\_dtype或--precision\_mode\_v2设置为origin。
 
 ## 开源框架的TensorFlow网络模型转换成离线模型

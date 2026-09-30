@@ -281,6 +281,7 @@
       - [MallocWorkSpace](cpp/gert/AnnotatedArgsContext/MallocWorkSpace.md)
       - [GetStreamId](cpp/gert/AnnotatedArgsContext/GetStreamId.md)
       - [AddLaunch](cpp/gert/AnnotatedArgsContext/AddLaunch.md)
+      - [RequestAttachedStream](cpp/gert/AnnotatedArgsContext/RequestAttachedStream.md)
       - [GetInputTensor](cpp/gert/AnnotatedArgsContext/GetInputTensor.md)
       - [GetOutputTensor](cpp/gert/AnnotatedArgsContext/GetOutputTensor.md)
       - [GetRequiredInputTensor](cpp/gert/AnnotatedArgsContext/GetRequiredInputTensor.md)
@@ -402,6 +403,7 @@
       - [MallocWorkSpace](cpp/gert/EagerOpExecutionContext/MallocWorkSpace.md)
       - [GetOutputTensor](cpp/gert/EagerOpExecutionContext/GetOutputTensor.md)
       - [MallocReadOnlyDevArgs](cpp/gert/EagerOpExecutionContext/MallocReadOnlyDevArgs.md)
+      - [RequestAttachedStream](cpp/gert/EagerOpExecutionContext/RequestAttachedStream.md)
 
     - [HostCpuExecuteOp](cpp/ge/HostCpuExecuteOp/HostCpuExecuteOp.md)
       - [简介](cpp/ge/HostCpuExecuteOp/overview.md)
@@ -750,6 +752,21 @@
       - [简介](cpp/ge/PortableOp/overview.md)
       - [Serialize](cpp/ge/PortableOp/Serialize.md)
       - [Deserialize](cpp/ge/PortableOp/Deserialize.md)
+
+    - [ResourceUsageReporter](cpp/ge/ResourceUsageReporter/ResourceUsageReporter.md)
+      - [简介](cpp/ge/ResourceUsageReporter/overview.md)
+      - [DeclareResourceUsage](cpp/ge/ResourceUsageReporter/DeclareResourceUsage.md)
+
+    - [ResourceUsageContext](cpp/gert/ResourceUsageContext/ResourceUsageContext.md)
+      - [简介](cpp/gert/ResourceUsageContext/overview.md)
+      - [ReportAttachedStream](cpp/gert/ResourceUsageContext/ReportAttachedStream.md)
+      - [GetInputTensor](cpp/gert/ResourceUsageContext/GetInputTensor.md)
+      - [GetOutputTensor](cpp/gert/ResourceUsageContext/GetOutputTensor.md)
+      - [GetRequiredInputTensor](cpp/gert/ResourceUsageContext/GetRequiredInputTensor.md)
+      - [GetOptionalInputTensor](cpp/gert/ResourceUsageContext/GetOptionalInputTensor.md)
+      - [GetDynamicInputTensor](cpp/gert/ResourceUsageContext/GetDynamicInputTensor.md)
+      - [GetRequiredOutputTensor](cpp/gert/ResourceUsageContext/GetRequiredOutputTensor.md)
+      - [GetDynamicOutputTensor](cpp/gert/ResourceUsageContext/GetDynamicOutputTensor.md)
 
     - [ShapeAndType](cpp/ge/ShapeAndType/ShapeAndType.md)
       - [简介](cpp/ge/ShapeAndType/overview.md)

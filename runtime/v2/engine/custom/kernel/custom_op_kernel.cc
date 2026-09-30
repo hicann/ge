@@ -24,12 +24,17 @@
 #include "rt_external_kernel.h"
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "runtime/v2/engine/custom/kernel/eager_args_handler.h"
+#include "runtime/v2/engine/custom/kernel/rt2_attached_stream_collection.h"
 
 namespace gert {
 namespace kernel {
 namespace {
 // 自定义算子特有的输入，从 AdditionalInputIndex::kNum 开始
-enum class CustomOpInput { kFunc = static_cast<uint32_t>(EagerOpExecutionContext::AdditionalInputIndex::kNum), kEnd };
+enum class CustomOpInput {
+  kFunc = static_cast<uint32_t>(EagerOpExecutionContext::AdditionalInputIndex::kNum),
+  kAttachedStreamProvider,
+  kEnd
+};
 enum class HostCustomOpInput {
   kFunc = static_cast<uint32_t>(HostCpuOpExecutionContext::AdditionalInputIndex::kNum),
   kEnd
@@ -201,7 +206,12 @@ static ge::graphStatus ExecuteCustomOpImpl(KernelContext *context) {
     GE_ASSERT_NOTNULL(allocator);
     auto stream_id = allocator->GetStreamId();
     args_handler->Initialize(allocator, stream_id);
-    GELOGD("EagerArgsHandler initialized in RunFunc with allocator %p", allocator);
+    // 辅流容器由 Init 图创建；取不到时为 nullptr，此时 RequestAttachedStream 按既有语义降级返回 nullptr
+    auto *attached_streams = context->GetInputValue<Rt2AttachedStreamCollection *>(
+        node_input_num + static_cast<size_t>(CustomOpInput::kAttachedStreamProvider));
+    args_handler->SetAttachedStreamProvider(attached_streams);
+    GELOGD("EagerArgsHandler initialized in RunFunc with allocator %p, attached stream provider %p", allocator,
+           attached_streams);
   }
 
   auto custom_op_ptr =

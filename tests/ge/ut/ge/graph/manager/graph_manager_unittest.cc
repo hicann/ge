@@ -24,7 +24,8 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "graph/manager/graph_manager.h"
-#include "common/om2/om2_model_data.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "api/gelib/gelib.h"
 #include "engines/manager/engine/dnn_engine_manager.h"
 #include "graph/preprocess/hccl_offline_option_builder.h"
@@ -5702,9 +5703,17 @@ TEST_F(UtestGraphManagerTest, GetCompiledModel_SerializesOm2ModelDataInOm2Mode) 
   graph_node->SetBuildFlag(true);
   graph_node->SetCompiledFlag(true);
 
-  const auto om2_data = MakeShared<gert::Om2ModelData>();
-  om2_data->model_meta.model_name = "om2_ut_model";
-  om2_data->debug_info.visual_json = R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})";
+  const auto om2_data = MakeShared<gert::GertModelData>();
+  gert::InitGertModelData(*om2_data);
+  om2_data->models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  om2_data->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  om2_data->models[0]->debug = std::make_unique<gert::GertModelDataDebug>();
+  om2_data->models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
+  om2_data->constants->constants_data.emplace_back(std::make_unique<gert::GertModelDataConstantsData>());
+  om2_data->manifest = std::make_unique<gert::GertModelDataManifest>();
+  om2_data->models[0]->model_meta->model_name = gert::GertMakeStr("om2_ut_model");
+  om2_data->models[0]->debug->visual_json =
+      gert::GertMakeStr(R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})");
   graph_node->GetGeRootModel()->SetOm2ModelData(om2_data);
 
   ModelBufferData model_buffer;

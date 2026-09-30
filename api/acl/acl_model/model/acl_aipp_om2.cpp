@@ -24,6 +24,7 @@
 #include "error_codes_inner.h"
 #include "securec.h"
 #include "aipp_param_check.h"
+#include "framework/common/gert_model_data_utils.h"
 
 namespace acl {
 struct Fp16Type {
@@ -105,8 +106,8 @@ struct Fp16Type {
 
 namespace {
 aclError VerifyIndexOm2(const std::shared_ptr<gert::Om2ModelExecutor> &executor, size_t index) {
-  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *input_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *output_desc = nullptr;
   const auto ret = executor->GetModelDescInfo(input_desc, output_desc);
   if (ret != ge::SUCCESS || input_desc == nullptr) {
     ACL_LOG_INNER_ERROR("[Get][ModelDesc]GetModelDescInfo failed, ret[%u]", ret);
@@ -134,8 +135,8 @@ static aclError CheckAippDataIndexOm2(const std::shared_ptr<gert::Om2ModelExecut
     return ACL_SUCCESS;
   } else if (type == ge::DATA_WITHOUT_AIPP) {
     // maybe this is old om when getaipptype interface is unsupported, ensure compatibility
-    const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
-    const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
+    const std::vector<gert::GertTensorDesc> *input_desc = nullptr;
+    const std::vector<gert::GertTensorDesc> *output_desc = nullptr;
     const auto desc_ret = executor->GetModelDescInfo(input_desc, output_desc);
     if (desc_ret != ge::SUCCESS || input_desc == nullptr) {
       ACL_LOG_INNER_ERROR("[Get][ModelDesc]GetModelDescInfo failed, ret[%u]", desc_ret);
@@ -144,7 +145,7 @@ static aclError CheckAippDataIndexOm2(const std::shared_ptr<gert::Om2ModelExecut
     size_t index_in_model = 0U;
     bool found = false;
     for (size_t i = 0U; i < input_desc->size(); ++i) {
-      if ((*input_desc)[i].GetName() == "ascend_dynamic_aipp_data") {
+      if (std::string(gert::GertGetStr((*input_desc)[i].name)) == "ascend_dynamic_aipp_data") {
         index_in_model = i;
         found = true;
         break;
@@ -233,8 +234,8 @@ static aclError GetAndCheckAippOutputShapeOm2(const std::shared_ptr<gert::Om2Mod
                                               const aclmdlAIPP *const aipp_parms_set) {
   const int64_t batch_size = static_cast<int64_t>(aipp_parms_set->batchSize);
 
-  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *input_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *output_desc = nullptr;
   const auto desc_ret = executor->GetModelDescInfo(input_desc, output_desc);
   if (desc_ret != ge::SUCCESS || input_desc == nullptr) {
     ACL_LOG_INNER_ERROR("[Get][ModelDesc]GetModelDescInfo failed, ret[%u]", desc_ret);
@@ -245,7 +246,7 @@ static aclError GetAndCheckAippOutputShapeOm2(const std::shared_ptr<gert::Om2Mod
                         input_desc->size());
     return ACL_ERROR_INVALID_PARAM;
   }
-  const auto &shape_ranges = (*input_desc)[idx].GetShapeRange();
+  const auto &shape_ranges = (*input_desc)[idx].shape_range;
   if (!shape_ranges.empty()) {
     ACL_LOG_INFO("check aipp parameters of dynamic shape model[%u]", model_id);
     return ACL_SUCCESS;

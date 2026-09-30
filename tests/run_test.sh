@@ -642,6 +642,11 @@ check_changed_files() {
       continue
     fi
 
+    # check if file is in .gitcode/ directory
+    if echo "$file" | grep -q "^\.gitcode/"; then
+      continue
+    fi
+
     # check if file is in .claude/ directory
     if echo "$file" | grep -q "^\.claude/"; then
       continue
@@ -663,7 +668,7 @@ check_changed_files() {
   done
 
   if [ "$skip_build" = true ]; then
-    echo "[INFO] Changed files only contain docs/, examples/, .claude/, .opencode/, README.md, CONTRIBUTING.md or AGENTS.md, skipping test."
+    echo "[INFO] Changed files only contain docs/, examples/, .gitcode/, .claude/, .opencode/, README.md, CONTRIBUTING.md or AGENTS.md, skipping test."
     echo "[INFO] Changed files: $changed_files"
     return 0
   fi
@@ -882,6 +887,8 @@ main() {
 
   # module fe
   if [ "X$ENABLE_ENGINES" = "Xon" ]; then
+    local build_metadef_backup="${BUILD_METADEF}"
+    BUILD_METADEF="on"
     # engines ut
     if [ "X$ENABLE_UT" == "Xon" ]; then
       if [ "X$ENABLE_FE" = "Xon" ]; then
@@ -944,6 +951,7 @@ main() {
         bash scripts/build.sh -w -n -j $THREAD_NUM $VERBOSE $COVERAGE
       fi
     fi
+    BUILD_METADEF="${build_metadef_backup}"
   fi
 
   # module executor_c

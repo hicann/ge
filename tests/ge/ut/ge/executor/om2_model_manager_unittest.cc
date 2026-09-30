@@ -18,13 +18,15 @@
 #include <vector>
 
 #include "om2/om2_model_manager.h"
-#include "common/om2/om2_model_data.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "framework/runtime/om2_model_executor.h"
 #include "common/env_path.h"
 #include "common/path_utils.h"
 #include "graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "ge/ge_error_codes.h"
+#include "common/ge_common/ge_inner_error_codes.h"
 
 namespace ge {
 namespace {
@@ -143,31 +145,33 @@ gert::Om2ModelLoadArg MakeLoadArg(uint32_t model_id) {
   return load_arg;
 }
 
-// Build a minimal Om2ModelData with a valid fake .so for testing.
-gert::Om2ModelData MakeOm2ModelDataWithFakeSo(const std::string &so_bytes_path) {
-  gert::Om2ModelData model_data;
-  model_data.model_meta.model_name = "test_model";
-  model_data.model_meta.work_size = 1024U;
+// Build a minimal GertModelData with a valid fake .so for testing.
+gert::GertModelData MakeOm2ModelDataWithFakeSo(const std::string &so_bytes_path) {
+  gert::GertModelData model_data;
+  gert::InitGertModelData(model_data);
+  model_data.models.emplace_back(std::make_unique<gert::GertModelDataModel>());
+  model_data.constants->constants_data.emplace_back();
+  model_data.models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
+  model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
+  model_data.models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
+  model_data.models[0]->debug = std::make_unique<gert::GertModelDataDebug>();
+  model_data.models[0]->model_meta->model_name = gert::GertMakeStr("test_model");
+  model_data.models[0]->model_meta->work_size = 1024U;
 
-  // Add a minimal input/output descriptor so model desc is valid
-  ge::Om2TensorDesc input_desc;
-  input_desc.SetName("input");
-  input_desc.SetDataType(ge::DT_FLOAT);
-  input_desc.SetShape({1, 2, 3, 4});
-  model_data.model_meta.input_desc.push_back(input_desc);
-  model_data.model_meta.input_desc_v2.push_back(input_desc);
+  model_data.models[0]->model_meta->input_desc.push_back(
+      gert::MakeGertTensorDesc("input", ge::DT_FLOAT, ge::FORMAT_ND, {1, 2, 3, 4}));
+  model_data.models[0]->model_meta->input_desc_v2.push_back(
+      gert::MakeGertTensorDesc("input", ge::DT_FLOAT, ge::FORMAT_ND, {1, 2, 3, 4}));
+  model_data.models[0]->model_meta->output_desc.push_back(
+      gert::MakeGertTensorDesc("output", ge::DT_FLOAT, ge::FORMAT_ND, {1, 2, 3, 4}));
+  model_data.models[0]->model_meta->output_desc_v2.push_back(
+      gert::MakeGertTensorDesc("output", ge::DT_FLOAT, ge::FORMAT_ND, {1, 2, 3, 4}));
 
-  ge::Om2TensorDesc output_desc;
-  output_desc.SetName("output");
-  output_desc.SetDataType(ge::DT_FLOAT);
-  output_desc.SetShape({1, 2, 3, 4});
-  model_data.model_meta.output_desc.push_back(output_desc);
-  model_data.model_meta.output_desc_v2.push_back(output_desc);
-
-  // Load fake .so bytes
   auto so_bytes = ReadFileBytes(so_bytes_path);
-  model_data.program_body.so_artifact.file_name = "libtest_model_om2.so";
-  model_data.program_body.so_artifact.data = std::string(so_bytes.begin(), so_bytes.end());
+  model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest_model_om2.so");
+  const std::string so_data(so_bytes.begin(), so_bytes.end());
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(so_data);
+  model_data.models[0]->runtime->so_artifact.data_len = so_data.size();
 
   return model_data;
 }
@@ -223,14 +227,16 @@ TEST_F(Om2ModelManagerTest, UnloadModel_NotFound_ReturnsSuccess) {
 }
 
 TEST_F(Om2ModelManagerTest, LoadModel_EmptySoData_Fails) {
-  gert::Om2ModelData model_data;
+  gert::GertModelData model_data;
+  gert::InitGertModelData(model_data);
   // so_artifact is empty by default → LoadSoFromBuffer fails
   auto load_arg = MakeLoadArg(kModelId1);
   EXPECT_NE(Om2ModelManager::GetInstance().LoadModel(kModelId1, model_data, load_arg, kSessionId), SUCCESS);
 }
 
 TEST_F(Om2ModelManagerTest, LoadModel_EmptySoData_NotStoredInMap) {
-  gert::Om2ModelData model_data;
+  gert::GertModelData model_data;
+  gert::InitGertModelData(model_data);
   auto load_arg = MakeLoadArg(kModelId1);
   // Load fails
   EXPECT_NE(Om2ModelManager::GetInstance().LoadModel(kModelId1, model_data, load_arg, kSessionId), SUCCESS);

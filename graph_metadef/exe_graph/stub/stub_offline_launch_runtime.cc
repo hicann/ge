@@ -11,6 +11,7 @@
 #include "exe_graph/runtime/eager_op_execution_context.h"
 #include "exe_graph/runtime/host_cpu_op_execution_context.h"
 #include "exe_graph/runtime/annotated_args_context.h"
+#include "exe_graph/runtime/resource_usage_context.h"
 #include "runtime/annotated_args_handler.h"
 
 #include <limits>
@@ -190,6 +191,11 @@ uint32_t AnnotatedArgsContext::GetStreamId() const {
   return 0U;
 }
 
+uint32_t AnnotatedArgsContext::RequestAttachedStream(const ge::AscendString &key) {
+  (void)key;
+  return 0U;
+}
+
 ge::graphStatus AnnotatedArgsContext::AddLaunch(const AnnotatedKernelLaunchInfo &launch_info,
                                                 AnnotatedKernelArgs &&args) {
   std::vector<uint8_t> args_data;
@@ -219,6 +225,20 @@ ge::graphStatus AnnotatedArgsContext::AddLaunch(const AnnotatedKernelLaunchInfo 
                                       std::move(arg_descs));
   }
   return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus ResourceUsageContext::ReportAttachedStream(const std::vector<ge::AscendString> &keys) {
+  (void)keys;
+  return ge::GRAPH_FAILED;
+}
+
+AnnotatedLaunchToken AnnotatedArgsContext::AddLaunch(const AnnotatedKernelLaunchInfo &launch_info,
+                                                     AnnotatedKernelArgs &&args,
+                                                     const std::vector<AnnotatedLaunchToken> &predecessors) {
+  (void)launch_info;
+  (void)args;
+  (void)predecessors;
+  return 0U;
 }
 
 Tensor *HostCpuOpExecutionContext::MallocOutputTensor(size_t index, const StorageShape &shape,

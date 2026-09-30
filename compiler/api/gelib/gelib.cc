@@ -281,8 +281,14 @@ Status GELib::SystemInitialize(const std::map<std::string, std::string> &options
   device_id_ = is_train_mode_ ? kDefaultDeviceIdForTrain : kDefaultDeviceIdForInfer;
   iter = options.find(OPTION_EXEC_DEVICE_ID);
   if (iter != options.end()) {
-    GE_ASSERT_SUCCESS(ge::ConvertToInt32(iter->second.c_str(), device_id_), "convert [%s] to int failed.",
-                      iter->second.c_str());
+    if (ge::ConvertToInt32(iter->second.c_str(), device_id_) != SUCCESS) {
+      REPORT_PREDEFINED_ERR_MSG(
+          "E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+          std::vector<const char *>({iter->second.c_str(), OPTION_EXEC_DEVICE_ID, "the value must be an integer."}));
+      GELOGE(FAILED, "Failed to convert option %s value [%s] to an integer.", OPTION_EXEC_DEVICE_ID,
+             iter->second.c_str());
+      return FAILED;
+    }
   }
 
   // In train and infer, profiling is always needed.

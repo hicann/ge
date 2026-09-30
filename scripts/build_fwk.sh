@@ -677,9 +677,25 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_GE_COMMON_ST" = "Xon" ]] || [[
       fi
       unset LD_PRELOAD
       unset ASAN_OPTIONS
+      #execute om2 st testcase with memory leak detection by default
+      cp -rf ${BUILD_PATH}/tests/ge/st/testcase/st_run_data ${BUILD_PATH}/
+      cp -rf ${BUILD_PATH}/tests/depends/graph_tuner/libgraphtuner_executor.so ${BUILD_PATH}/tests/ge/st/testcase/
+      mk_dir ${BUILD_PATH}/compiler/plugin/nnengine
+      mk_dir ${BUILD_PATH}/compiler/plugin/opskernel/
+      find ${BUILD_PATH}/compiler/engines -type f -name "*engine*.so" -print0 2>/dev/null | xargs -0 -r -I {} cp -rf {} ${BUILD_PATH}/compiler/plugin/nnengine
+      find ${BUILD_PATH}/compiler/plugin/nnengine -type f -name "*engine*.so" -print0 2>/dev/null | xargs -0 -r -I {} cp -rf {} ${BUILD_PATH}/compiler/plugin/opskernel/
+      echo "Run OM2 tests with leaks check"
+      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/st_om2_test --gtest_output=xml:${report_dir}/st/st_om2_test.xml" && ${RUN_TEST_CASE}
+      if [[ "$?" -ne 0 ]]; then
+          echo "!!! OM2 ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
+          echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
+          exit 1;
+      fi
       COV_DIRS+=("${BUILD_PATH}/graph_metadef")
       COV_DIRS+=("${BUILD_PATH}/runtime/v1")
       COV_DIRS+=("${BUILD_PATH}/runtime/v2")
+      COV_DIRS+=("${BUILD_PATH}/runtime/om2")
+      COV_DIRS+=("${BUILD_PATH}/compiler")
     fi
 
     if [[ "X$ENABLE_PYTHON_ST" = "Xon" ]]; then

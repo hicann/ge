@@ -15,19 +15,10 @@
 #include "graph/ascend_string.h"
 
 namespace ge {
-namespace {
-constexpr const char *kReservedPrefix = "CANN-FMK-";
-}
-
 bool AttachedStreamCollection::IsValidKey(const AscendString &key) const {
   const char_t *const key_str = key.GetString();
-  if (key_str == nullptr) {
-    GELOGE(PARAM_INVALID, "Invalid eager attached stream key: key string is null.");
-    return false;
-  }
-  const std::string value(key_str);
-  if (value.empty() || value.rfind(kReservedPrefix, 0U) == 0U) {
-    GELOGE(PARAM_INVALID, "Invalid eager attached stream key: empty or reserved prefix, key=%s.", value.c_str());
+  if ((key_str == nullptr) || (key_str[0] == '\0')) {
+    GELOGE(PARAM_INVALID, "Invalid eager attached stream key: key is null or empty.");
     return false;
   }
   return true;
@@ -57,6 +48,7 @@ gert::rtStream AttachedStreamCollection::RequestAttachedStream(const AscendStrin
   const auto bind_ret = aclmdlRIBindStream(model_, stream, ACL_MODEL_STREAM_FLAG_HEAD);
   if (bind_ret != ACL_SUCCESS) {
     GELOGE(FAILED, "Failed to bind eager attached stream, key=%s, ret=%d.", value.c_str(), bind_ret);
+    // 刚建好的流上没有任何任务，无需先同步即可销毁
     (void)aclrtDestroyStream(stream);
     return nullptr;
   }
@@ -66,6 +58,12 @@ gert::rtStream AttachedStreamCollection::RequestAttachedStream(const AscendStrin
 
 void AttachedStreamCollection::UnbindAndDestroy() {
   for (const auto &item : streams_) {
+    // 销毁前必须同步：aclrtDestroyStream 的前置约束要求流上任务已执行完，且解绑也会改动 rtModel 的流表。
+    // 同步不设超时：超时后仍会继续解绑销毁、并由 DestroyResources 释放模型内存，等于把阻塞换成设备侧写已释放内存。
+    // 时序与 Rt2AttachedStreamCollection::Destroy 一致（RT2 无 rtModel，故少一步解绑）。
+    GELOGI("Synchronizing eager attached stream before destroy, key=%s.", item.first.c_str());
+    GE_LOGW_IF(aclrtSynchronizeStream(item.second) != ACL_SUCCESS,
+               "Failed to synchronize eager attached stream, key=%s.", item.first.c_str());
     if (model_ != nullptr) {
       GE_LOGW_IF(aclmdlRIUnbindStream(model_, item.second) != ACL_SUCCESS,
                  "Failed to unbind eager attached stream, key=%s.", item.first.c_str());

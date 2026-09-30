@@ -19,3 +19,4 @@ if is_supported:
     print("节点在 AICore 上支持")
 else:
     print(f"节点在 AICore 上不支持，原因：{reason}")
+```

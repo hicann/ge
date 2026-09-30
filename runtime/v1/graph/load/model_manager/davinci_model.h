@@ -163,6 +163,10 @@ class DavinciModel {
   ///         being destroyed
   void UnbindTaskSinkStream();
 
+  /// @ingroup ge
+  /// @brief 解绑并销毁 Eager 自定义算子申请的辅流，必须在 DestroyStream 之前调用；重复调用无副作用
+  void UnbindAndDestroyAttachedStreams();
+
   void DestroyStream();
 
   void DestroyResources();

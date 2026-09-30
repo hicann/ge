@@ -261,9 +261,9 @@ ge::Status HcomPlugin::InitializeHcom(const std::map<string, string> &options, H
     std::string rankTableM;
     ret = HcomLoadRanktableFile(rankTable, rankTableM);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
-                HCCL_ERROR("[GetRanktable] rankTablePath[%s]"
+                HCCL_ERROR("[%s][%s][GetRanktable] rankTablePath[%s]"
                            "load rankTable error.",
-                           rankTable.c_str()),
+                           LOG_KEYWORDS_INIT_GROUP.c_str(), LOG_KEYWORDS_RANKTABLE_CONFIG.c_str(), rankTable.c_str()),
                 ge::INTERNAL_ERROR);
     ret = HcomInitByString(rankTableM.c_str(), identify.c_str(), WorkMode::HCCL_MODE_NORMAL, comConfig);
     CHK_PRT_RET(

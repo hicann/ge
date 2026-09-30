@@ -73,6 +73,8 @@ def parse_group_norm(source: Operator, target: Operator) -> None:
 - `t`（TENSOR类型）、`g`（GRAPH类型）：嵌套对象，结构与ONNX `TensorProto`/`GraphProto`的字段对应。tensor属性指属性值本身是一个张量（如Constant算子的`value`属性），子图属性指属性值本身是一个子图（如控制流算子If的`then_branch`/`else_branch`属性、Loop的`body`属性）。
 - `floats`、`ints`（列表类型）：数字数组；`strings`：字符串数组；`tensors`、`graphs`：对象数组。注意`floats`的元素为原生数值，与标量`f`的字符串形态不同；`strings`的元素不经转义处理，与标量`s`不同。
 
+当条目的`type`为FLOAT、INT或STRING时，对应的`f`、`i`、`s`字段始终存在于JSON条目中：proto3协议下显式设置的默认值（如`i=0`、`f=0.0`、`s=""`）与未设置在序列化上不可区分，解析器按`type`判别式强制输出对应标量字段，未设置时输出默认值。因此判断属性是否存在应依据`type`与`name`字段，而不是值字段的存在性；按名读取标量值时使用`item.get("i", default)`形式并保证默认值与业务语义一致即可。复合类型（`t`、`g`及其列表）和列表类型（`floats`、`ints`等）不适用此规则，仍按实际存在性读取。
+
 复合类型属性（`t`、`g`及其列表）以嵌套对象形式提供，可读取和检查；如需将其转换为`Tensor`等GE对象写入目标算子，需要按上述字段结构自行解码后构造，`set_attr`不支持直接传入`dict`。
 
 节点无属性时，source算子上不存在名为`attribute`的属性，`get_attr("attribute")`会抛出`RuntimeError`。

@@ -34,6 +34,7 @@
 #include "aicpu_task_struct.h"
 #include "engine/aicpu/kernel/aicpu_ext_info_handle.h"
 #include "common/om2/codegen/om2_aicpu_ext_info_handler.h"
+#include "framework/common/gert_model_data_utils.h"
 
 namespace ge {
 namespace {
@@ -1419,12 +1420,12 @@ ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model, bool has_
     return ProgramGenerator(ast, {}, Om2CodegenModel(), has_custom_kernel);
   }
   Om2CodegenModelBuilder builder;
-  Om2ConstMetas const_metas;
+  gert::GertModelDataConstMetas const_metas;
   if (builder.Build(ge_model, task_code_builders, codegen_model, const_metas) != SUCCESS) {
     ADD_FAILURE() << "[OM2] Failed to build om2 codegen model";
     return ProgramGenerator(ast, {}, Om2CodegenModel(), has_custom_kernel);
   }
-  return ProgramGenerator(ast, task_code_builders, codegen_model, has_custom_kernel);
+  return ProgramGenerator(ast, task_code_builders, std::move(codegen_model), has_custom_kernel);
 }
 
 const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
@@ -1437,14 +1438,14 @@ const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
     {GeneratedFileIndex::kCMakeListsFile, "Makefile"},
 };
 
-Status ReadGeneratedArtifact(const Om2CodegenArtifacts &artifacts, const GeneratedFileIndex file_index,
+Status ReadGeneratedArtifact(const gert::GertModelDataProgramBodies &artifacts, const GeneratedFileIndex file_index,
                              std::string &output) {
   const auto iter = kGeneratedFileNames.find(file_index);
   GE_ASSERT_TRUE(iter != kGeneratedFileNames.end(), "[OM2] unknown generated file index: %zu",
                  static_cast<size_t>(file_index));
   for (const auto &artifact : artifacts) {
-    if (artifact.file_name == iter->second) {
-      output = artifact.data;
+    if (std::string(gert::GertGetStr(artifact.file_name)) == iter->second) {
+      output = gert::GertGetStr(artifact.data);
       return SUCCESS;
     }
   }
@@ -1455,7 +1456,7 @@ Status ReadGeneratedArtifact(const Om2CodegenArtifacts &artifacts, const Generat
 Status GenerateProgramFiles(ProgramGenerator &generator, std::map<GeneratedFileIndex, std::string> &outputs) {
   Om2CodePrinter code_printer("g1");
   GE_ASSERT_SUCCESS(generator.GenerateProgram(code_printer));
-  Om2CodegenArtifacts artifacts;
+  gert::GertModelDataProgramBodies artifacts;
   code_printer.GetOutputFiles(artifacts);
   outputs.clear();
   for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
@@ -5860,7 +5861,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoBarrierTask_LogicIdNumM
   Om2CodegenModel codegen_model;
   ASSERT_EQ(Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model), SUCCESS);
   Om2CodegenModelBuilder builder;
-  Om2ConstMetas const_metas;
+  gert::GertModelDataConstMetas const_metas;
   EXPECT_NE(builder.Build(ge_model, task_code_builders, codegen_model, const_metas), SUCCESS);
 }
 

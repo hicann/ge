@@ -27,7 +27,7 @@
 #include "graph/op_desc.h"
 #include "proto/task.pb.h"
 #include "common/math/ge_math_util.h"
-#include "framework/common/om2_tensor_desc.h"
+#include "framework/om2/model_data/gert_model_data.h"
 #include "task_args_manager/om2_codegen_arg_types.h"
 
 namespace ge {
@@ -108,33 +108,6 @@ struct ConstInputEntry {
   std::string var_name;
   Om2TensorInfo tensor_info;
 };
-
-struct Om2ConstMeta {
-  size_t index = 0U;
-  std::string type;
-  std::string file_name;
-  std::string file_path;
-  int64_t offset = 0;
-  int64_t size = 0;
-  std::string op_name;
-};
-
-using Om2ConstMetas = std::vector<Om2ConstMeta>;
-
-struct Om2VarMeta {
-  size_t index = 0U;
-  std::string var_name;
-  std::string op_type;
-  Om2TensorDesc tensor_desc;
-  std::string op_name;
-};
-
-struct Om2CodegenArtifact {
-  std::string file_name;
-  std::string data;
-};
-
-using Om2CodegenArtifacts = std::vector<Om2CodegenArtifact>;
 
 enum class KernelBinaryKind : int32_t {
   kAicore,
@@ -331,7 +304,7 @@ struct Om2CodegenModel {
   KernelRegistrySemantic kernel_registry;
   ArgsTableSemantic args_table;
   std::vector<ConstInputEntry> const_inputs;
-  std::vector<Om2VarMeta> var_metas;
+  std::vector<gert::GertModelDataVarMeta> var_metas;
   uint32_t aicpu_task_count{0U};
   bool is_need_va2pa{false};
 };

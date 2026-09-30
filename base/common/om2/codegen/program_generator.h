@@ -28,10 +28,10 @@ namespace ge {
 class ProgramGenerator {
  public:
   ProgramGenerator(AstBuildContext &ast, const std::vector<TaskCodeBuilderPtr> &task_code_builders,
-                   const Om2CodegenModel &codegen_model, bool has_custom_kernel = false)
+                   Om2CodegenModel codegen_model, bool has_custom_kernel = false)
       : ast_(ast),
         task_code_builder_list_(task_code_builders),
-        codegen_model_(codegen_model),
+        codegen_model_(std::move(codegen_model)),
         has_custom_kernel_(has_custom_kernel) {}
   Status GenerateProgram(Om2CodePrinter &code_printer);
 

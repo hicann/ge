@@ -349,7 +349,7 @@ The subgraph is built with the GE ES graph-building API: `GraphBuilder` builds
 the graph (creating inputs, setting outputs, building), and existing operators
 (Threshold, Mul, SplitD, and so on) are directly callable functions. For the
 full operator list and parameter descriptions, see the
-[ES Python API document](../../docs/en/user_guides/es_graph/api/es_python.md).
+[ES Python API document](../../docs/zh/user_guides/es_graph/api/es_python.md).
 
 Notes when writing `decompose`:
 

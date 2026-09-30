@@ -58,6 +58,13 @@ target_include_directories(om2_executor PRIVATE
         ${METADEF_DIR}/inc/external
 )
 
+target_link_options(om2_executor PRIVATE
+        # 治理静态链入的 gert_model_data_deserializer（C API/zip 类仅宿主内部消费）与 minizip/zlib 泄漏
+        -Wl,--exclude-libs,libgert_model_data_deserializer.a
+        -Wl,--exclude-libs,libminizip.a
+        -Wl,--exclude-libs,libz.a
+)
+
 target_link_libraries(om2_executor PRIVATE
         ${AIR_COMMON_LINK_OPTION}
         ge_intf_pub
@@ -66,6 +73,7 @@ target_link_libraries(om2_executor PRIVATE
         ge_metadef_headers
         adump_headers
         mmpa_headers
+        gert_model_data_deserializer
         runtime_headers
         error_manager
         c_sec

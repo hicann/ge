@@ -9,13 +9,14 @@
  */
 
 #include "file_utils.h"
-#include "common/helper/om2/zip_archive_writer.h"
+#include "framework/common/zip_archive_reader.h"
+#include "framework/common/zip_archive_writer.h"
 #include "ge/ge_ir_build.h"
-#include "runtime/om2/zip_archive_reader.h"
 #include <gtest/gtest.h>
 #include <fstream>
 #include <unordered_set>
 #include "common/env_path.h"
+#include "minizip/zip.h"
 #include "mmpa/mmpa_api.h"
 
 namespace ge {
@@ -87,6 +88,12 @@ class ZipArchiveUt : public ::testing::Test {
     return buffer;
   }
 
+  static bool WriteFileToZip(gert::ZipArchiveWriter &writer, const std::string &entry, const std::string &path,
+                             bool compress = true) {
+    auto data = ReadFileToVector(path);
+    return writer.WriteBytes(entry, data.data(), data.size(), compress);
+  }
+
   std::string CreateTempFile(const std::string &file_name, const size_t file_size = 100) {
     const std::string full_path = PathUtils::Join({test_work_dir, file_name});
     std::ofstream ofs(full_path, std::ios::out | std::ios::binary);
@@ -109,14 +116,14 @@ class ZipArchiveUt : public ::testing::Test {
   void CheckExtractedFiles(const std::string &zipfile_path,
                            const std::unordered_set<std::string> &expected_entries) const {
     const auto file_buf = ReadFileToVector(zipfile_path);
-    RAIIZipArchive unzip_file(file_buf.data(), file_buf.size());
+    gert::ZipArchiveReader unzip_file(file_buf.data(), file_buf.size());
     ASSERT_TRUE(unzip_file.IsGood());
     const auto file_names = unzip_file.ListFiles();
     ASSERT_EQ(expected_entries.size(), file_names.size());
     for (const auto &entry : expected_entries) {
-      const auto extract_file_name = PathUtils::Join({test_work_dir, kZipFileBaseName, entry});
-      ASSERT_TRUE(unzip_file.ExtractToFile(PathUtils::Join({kZipFileBaseName, entry}), test_work_dir));
-      ASSERT_EQ(mmAccess2(extract_file_name.c_str(), M_F_OK), EN_OK);
+      size_t buff_size = 0UL;
+      const auto buff_data = unzip_file.ExtractToMem(PathUtils::Join({kZipFileBaseName, entry}), buff_size);
+      ASSERT_NE(buff_data, nullptr);
     }
   }
 
@@ -126,25 +133,12 @@ class ZipArchiveUt : public ::testing::Test {
   const std::string kZipFileBaseName = "fake_test";
 };
 
-TEST_F(ZipArchiveUt, TestRaiiZipArchive_Fail_InvalidFileOrData) {
-  RAIIZipArchive unzip_file_invalid_data(nullptr, 0);
+TEST_F(ZipArchiveUt, TestZipArchiveReader_Fail_InvalidFileOrData) {
+  gert::ZipArchiveReader unzip_file_invalid_data(nullptr, 0);
   EXPECT_EQ(unzip_file_invalid_data.IsGood(), false);
 }
 
-TEST_F(ZipArchiveUt, TestSimpleZipArchiveReader_Fail_InvalidData) {
-  SimpleZipArchiveReader null_reader(nullptr, 0);
-  EXPECT_FALSE(null_reader.IsGood());
-
-  const uint8_t empty_data[] = {0x50U, 0x4BU, 0x03U, 0x04U};
-  SimpleZipArchiveReader empty_reader(empty_data, 0);
-  EXPECT_FALSE(empty_reader.IsGood());
-
-  const uint8_t invalid_zip_data[] = {'n', 'o', 't', 'z', 'i', 'p'};
-  SimpleZipArchiveReader invalid_zip_reader(invalid_zip_data, sizeof(invalid_zip_data));
-  EXPECT_FALSE(invalid_zip_reader.IsGood());
-}
-
-TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_DecompressArchive) {
+TEST_F(ZipArchiveUt, TestZipArchiveReader_Ok_DecompressArchive) {
   const std::string archive_path = PathUtils::Join({test_work_dir, "__test.zip"});
   const std::vector<std::pair<std::string, std::string>> entries = {
       {"example/demo1.txt", "Hello from demo1!\nThis is example."},
@@ -154,20 +148,19 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_DecompressArchive) {
   // 测试从内存读取与解压功能
   {
     const auto zip_file_buf = ReadFileToVector(archive_path);
-    RAIIZipArchive archive(zip_file_buf.data(), zip_file_buf.size());
+    gert::ZipArchiveReader archive(zip_file_buf.data(), zip_file_buf.size());
     EXPECT_EQ(archive.IsGood(), true);
     const auto file_names = archive.ListFiles();
-    const std::string extract_path = PathUtils::Join({test_work_dir, "temp_extract"});
-    ASSERT_EQ(CreateDir(extract_path), 0);
     ASSERT_EQ(file_names.size(), 2);
     for (const auto &file_name : file_names) {
-      ASSERT_TRUE(archive.ExtractToFile(file_name, extract_path));
-      ASSERT_EQ(mmAccess2(PathUtils::Join({extract_path, file_name}).c_str(), M_F_OK), EN_OK);
+      size_t buff_size = 0UL;
+      const auto buff_data = archive.ExtractToMem(file_name, buff_size);
+      ASSERT_NE(buff_data, nullptr);
     }
   }
 }
 
-TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMem) {
+TEST_F(ZipArchiveUt, TestZipArchiveReader_Ok_ExtractToMem) {
   const std::string archive_path = PathUtils::Join({test_work_dir, "__test.zip"});
   std::string data_str1 = "1234test_zip_archive";
   const std::vector<std::pair<std::string, std::string>> entries = {
@@ -177,7 +170,7 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMem) {
   // 测试从内存读取与解压功能
   {
     const auto file_buf = ReadFileToVector(archive_path);
-    RAIIZipArchive archive(file_buf.data(), file_buf.size());
+    gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
     EXPECT_EQ(archive.IsGood(), true);
     const auto file_names = archive.ListFiles();
     ASSERT_EQ(file_names.size(), 1);
@@ -191,7 +184,7 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMem) {
   }
 }
 
-TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemNoCompression) {
+TEST_F(ZipArchiveUt, TestZipArchiveReader_Ok_ExtractToMemNoCompression) {
   const std::string archive_path = PathUtils::Join({test_work_dir, "__test.zip"});
   std::string data_str1(123456, 'c');
   const std::vector<std::pair<std::string, std::string>> entries = {
@@ -202,7 +195,7 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemNoCompression) {
   // 测试从内存读取与解压功能
   {
     const auto file_buf = ReadFileToVector(archive_path);
-    RAIIZipArchive archive(file_buf.data(), file_buf.size());
+    gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
     EXPECT_EQ(archive.IsGood(), true);
     const auto file_names = archive.ListFiles();
     ASSERT_EQ(file_names.size(), 2);
@@ -218,7 +211,7 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemNoCompression) {
   }
 }
 
-TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemEmptyNoCompressionAfterListFiles) {
+TEST_F(ZipArchiveUt, TestZipArchiveReader_Ok_ExtractToMemEmptyNoCompressionAfterListFiles) {
   const std::string archive_path = PathUtils::Join({test_work_dir, "__test.zip"});
   const std::vector<std::pair<std::string, std::string>> entries = {
       {"empty.bin", ""},
@@ -226,7 +219,7 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemEmptyNoCompressionAfterLi
   CreateTestZipArchive(archive_path, entries, false);
 
   const auto file_buf = ReadFileToVector(archive_path);
-  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), 1);
@@ -237,7 +230,7 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemEmptyNoCompressionAfterLi
   EXPECT_EQ(buff_size, 0U);
 }
 
-TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractManyNoCompressionEntriesAfterListFiles) {
+TEST_F(ZipArchiveUt, TestZipArchiveReader_Ok_ExtractManyNoCompressionEntriesAfterListFiles) {
   const std::string archive_path = PathUtils::Join({test_work_dir, "__test.zip"});
   constexpr size_t kEntryCount = 1500U;
   std::vector<std::pair<std::string, std::string>> entries;
@@ -248,7 +241,7 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractManyNoCompressionEntriesAfterL
   CreateTestZipArchive(archive_path, entries, false);
 
   const auto file_buf = ReadFileToVector(archive_path);
-  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), entries.size());
@@ -263,7 +256,7 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractManyNoCompressionEntriesAfterL
   }
 }
 
-TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemNoCompressionWithoutListFiles) {
+TEST_F(ZipArchiveUt, TestZipArchiveReader_Ok_ExtractToMemNoCompressionWithoutListFiles) {
   const std::string archive_path = PathUtils::Join({test_work_dir, "__test.zip"});
   const std::vector<std::pair<std::string, std::string>> entries = {
       {"kernels/kernel_0.o", "kernel_bin_payload_0"},
@@ -272,7 +265,7 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemNoCompressionWithoutListF
   CreateTestZipArchive(archive_path, entries, false);
 
   const auto file_buf = ReadFileToVector(archive_path);
-  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
   ASSERT_TRUE(archive.IsGood());
 
   size_t buff_size = 0UL;
@@ -282,47 +275,17 @@ TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemNoCompressionWithoutListF
   ASSERT_EQ(std::memcmp(buff_data.get(), entries[1].second.data(), buff_size), 0);
 }
 
-TEST_F(ZipArchiveUt, TestRaiiZipArchive_Ok_ExtractToMemNoCompressionLargeFile) {
-  const std::string archive_path = PathUtils::Join({test_work_dir, "__test.zip"});
-  constexpr size_t file_size = static_cast<size_t>(std::numeric_limits<uint32_t>::max()) + 1;
-  {
-    ZipArchiveWriter zip_writer(archive_path);
-    const std::string file_path = CreateTempFile("fake_test.txt", file_size);
-    ASSERT_TRUE(zip_writer.IsMemFileOpened());
-    EXPECT_TRUE(zip_writer.WriteFile("fake_test.txt", file_path, false));
-    ASSERT_TRUE(zip_writer.SaveModelDataToFile());
-    ASSERT_FALSE(zip_writer.IsMemFileOpened());
-  }
-  // 测试从内存读取与解压功能
-  {
-    const auto file_buf = ReadFileToVector(archive_path);
-    RAIIZipArchive archive(file_buf.data(), file_buf.size());
-    EXPECT_EQ(archive.IsGood(), true);
-    const auto file_names = archive.ListFiles();
-    ASSERT_EQ(file_names.size(), 1);
-    for (const auto &file_name : file_names) {
-      size_t buff_size = 0UL;
-      const auto buff_data = archive.ExtractToMem(file_name, buff_size);
-      ASSERT_NE(buff_data, nullptr);
-      EXPECT_EQ(buff_size, file_size);
-    }
-  }
-}
-
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Fail_InvalidArchiveName) {
-  ZipArchiveWriter zip_writer("");
+  gert::ZipArchiveWriter zip_writer("");
   EXPECT_FALSE(zip_writer.IsMemFileOpened());
-  ZipArchiveWriter zip_writer2(".");
+  gert::ZipArchiveWriter zip_writer2(".");
   EXPECT_FALSE(zip_writer.IsMemFileOpened());
 }
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Fail_InvaidFileOrDataBuffIsNull) {
   const auto zipfile_path = PathUtils::Join({test_work_dir, "invalid_case.zip"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
-  ASSERT_FALSE(zip_writer.WriteFile("data/fake_config.json", "fake_config.json"));
-  ASSERT_FALSE(zip_writer.WriteFile("data/fake_config.json", ""));
-  ASSERT_FALSE(zip_writer.WriteFile("", ""));
   ASSERT_FALSE(zip_writer.WriteBytes("data/fake_data.bin", nullptr, 123));
   ASSERT_FALSE(zip_writer.WriteBytes("data/fake_data.bin", zipfile_path.data(), 0));
   ASSERT_FALSE(zip_writer.WriteBytes("", zipfile_path.data(), 123));
@@ -330,11 +293,12 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Fail_InvaidFileOrDataBuffIsNull) {
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Fail_StateAfterFinalization) {
   const auto zipfile_path = PathUtils::Join({test_work_dir, "invalid_case.zip"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   EXPECT_TRUE(zip_writer.IsMemFileOpened());
   EXPECT_TRUE(zip_writer.SaveModelDataToFile());
   EXPECT_FALSE(zip_writer.IsMemFileOpened());
-  EXPECT_FALSE(zip_writer.WriteFile("test.txt", CreateTempFile("fake_test.txt")));
+  auto file_data = ReadFileToVector(CreateTempFile("fake_test.txt"));
+  EXPECT_FALSE(zip_writer.WriteBytes("test.txt", file_data.data(), file_data.size()));
 }
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_WriteBytesAndFileSucc) {
@@ -345,10 +309,10 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_WriteBytesAndFileSucc) {
   const std::string file_path = CreateTempFile("fake_test.txt");
   const std::string arc_name2 = "ok/ok/file2.txt";
 
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   EXPECT_TRUE(zip_writer.WriteBytes(arc_name, buffer.data(), buffer.size()));
-  EXPECT_TRUE(zip_writer.WriteFile(arc_name2, file_path));
+  EXPECT_TRUE(WriteFileToZip(zip_writer, arc_name2, file_path));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
   ASSERT_FALSE(zip_writer.IsMemFileOpened());
 
@@ -363,20 +327,20 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_SaveModelDataToBuffer) {
   const std::string arc_name = "ok/file1.txt";
   const std::string file_path = CreateTempFile("fake_test.txt");
   const std::string arc_name2 = "ok/ok/file2.txt";
-  ModelBufferData model;
+  gert::GertBuffer model;
 
   {
-    ZipArchiveWriter zip_writer(zipfile_path);
+    gert::ZipArchiveWriter zip_writer(zipfile_path);
     ASSERT_TRUE(zip_writer.IsMemFileOpened());
     EXPECT_TRUE(zip_writer.WriteBytes(arc_name, buffer.data(), buffer.size()));
-    EXPECT_TRUE(zip_writer.WriteFile(arc_name2, file_path));
+    EXPECT_TRUE(WriteFileToZip(zip_writer, arc_name2, file_path));
     ASSERT_TRUE(zip_writer.SaveModelData(model, false));
     ASSERT_FALSE(zip_writer.IsMemFileOpened());
   }
 
   ASSERT_NE(model.data, nullptr);
   ASSERT_GT(model.length, 0U);
-  RAIIZipArchive archive(model.data.get(), model.length);
+  gert::ZipArchiveReader archive(model.data.get(), model.length);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   const std::unordered_set<std::string> expect_files = {
@@ -400,9 +364,9 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_SaveModelDataToFileThroughUnifiedAp
   const auto zipfile_path = PathUtils::Join({test_work_dir, zipfile_name});
   const std::string buffer = "123-abc-TestZipArchiveWriter_Ok_SaveModelDataToFileThroughUnifiedApi";
   const std::string arc_name = "ok/file1.txt";
-  ModelBufferData model;
+  gert::GertBuffer model;
 
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   EXPECT_TRUE(zip_writer.WriteBytes(arc_name, buffer.data(), buffer.size()));
   ASSERT_TRUE(zip_writer.SaveModelData(model, true));
@@ -411,7 +375,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_SaveModelDataToFileThroughUnifiedAp
   EXPECT_EQ(mmAccess2(zipfile_path.c_str(), M_F_OK), EN_OK);
 
   const auto file_buf = ReadFileToVector(zipfile_path);
-  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), 1U);
@@ -427,12 +391,12 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_RepeatedAddSameFile) {
   const std::string arc_name2 = "ok/ok/file2.txt";
 
   // 重复添加相同文件
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   EXPECT_TRUE(zip_writer.WriteBytes(arc_name, buffer.data(), buffer.size()));
   EXPECT_TRUE(zip_writer.WriteBytes(arc_name, buffer.data(), buffer.size()));
-  EXPECT_TRUE(zip_writer.WriteFile(arc_name2, file_path));
-  EXPECT_TRUE(zip_writer.WriteFile(arc_name2, file_path));
+  EXPECT_TRUE(WriteFileToZip(zip_writer, arc_name2, file_path));
+  EXPECT_TRUE(WriteFileToZip(zip_writer, arc_name2, file_path));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
   ASSERT_FALSE(zip_writer.IsMemFileOpened());
 
@@ -443,7 +407,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_RepeatedAddSameFile) {
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_LargeDataWriteTriggersMemGrow) {
   const std::string zipfile_name = kZipFileBaseName + "_grow.zip";
   const auto zipfile_path = PathUtils::Join({test_work_dir, zipfile_name});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
 
   constexpr size_t kLargeDataSize = 128UL * 1024UL;
@@ -452,7 +416,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_LargeDataWriteTriggersMemGrow) {
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   const auto file_buf = ReadFileToVector(zipfile_path);
-  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), 1U);
@@ -461,7 +425,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_LargeDataWriteTriggersMemGrow) {
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_CompressedWriteTriggersMemGrow) {
   const std::string zipfile_name = kZipFileBaseName + "_compressed_grow.zip";
   const auto zipfile_path = PathUtils::Join({test_work_dir, zipfile_name});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
 
   std::string compressible_data(200000, 'X');
@@ -469,45 +433,9 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_CompressedWriteTriggersMemGrow) {
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 }
 
-TEST_F(ZipArchiveUt, TestSimpleZipArchiveReader_Ok_ReadFromArchive) {
-  const std::string archive_path = PathUtils::Join({test_work_dir, "__reader_test.zip"});
-  const std::vector<std::pair<std::string, std::string>> entries = {
-      {"dir/file1.txt", "content1"},
-      {"dir/file2.txt", "content2_content2"},
-  };
-  CreateTestZipArchive(archive_path, entries);
-
-  const auto file_buf = ReadFileToVector(archive_path);
-  SimpleZipArchiveReader reader(file_buf.data(), file_buf.size());
-  ASSERT_TRUE(reader.IsGood());
-
-  const auto file_names = reader.ListFiles();
-  ASSERT_EQ(file_names.size(), 2U);
-
-  size_t extracted_size = 0U;
-  const auto extracted = reader.ExtractToMem("dir/file2.txt", extracted_size);
-  ASSERT_NE(extracted, nullptr);
-  EXPECT_EQ(extracted_size, entries[1].second.size());
-  EXPECT_EQ(std::memcmp(extracted.get(), entries[1].second.data(), extracted_size), 0);
-}
-
-TEST_F(ZipArchiveUt, TestSimpleZipArchiveReader_Fail_ExtractNonExistentEntry) {
-  const std::string archive_path = PathUtils::Join({test_work_dir, "__non_existent.zip"});
-  const std::vector<std::pair<std::string, std::string>> entries = {{"file.txt", "data"}};
-  CreateTestZipArchive(archive_path, entries);
-
-  const auto file_buf = ReadFileToVector(archive_path);
-  SimpleZipArchiveReader reader(file_buf.data(), file_buf.size());
-  ASSERT_TRUE(reader.IsGood());
-
-  size_t extracted_size = 0U;
-  const auto extracted = reader.ExtractToMem("non_existent.txt", extracted_size);
-  EXPECT_EQ(extracted, nullptr);
-}
-
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_MultipleFilesWithDifferentCompression) {
   const std::string zipfile_path = PathUtils::Join({test_work_dir, "mixed_compression.zip"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
 
   const std::string uncompressed_data = "uncompressed_data_12345";
@@ -519,7 +447,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_MultipleFilesWithDifferentCompressi
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   const auto file_buf = ReadFileToVector(zipfile_path);
-  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), 2U);
@@ -527,7 +455,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_MultipleFilesWithDifferentCompressi
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Fail_WriteFileAfterClose) {
   const std::string zipfile_path = PathUtils::Join({test_work_dir, "closed_writer.zip"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
   ASSERT_FALSE(zip_writer.IsMemFileOpened());
@@ -538,10 +466,10 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Fail_WriteFileAfterClose) {
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_SaveModelDataToBufferWithLargeData) {
   const std::string zipfile_path = PathUtils::Join({test_work_dir, "buffer_large.zip"});
-  ModelBufferData model;
+  gert::GertBuffer model;
 
   {
-    ZipArchiveWriter zip_writer(zipfile_path);
+    gert::ZipArchiveWriter zip_writer(zipfile_path);
     ASSERT_TRUE(zip_writer.IsMemFileOpened());
 
     constexpr size_t kDataSize = 256UL * 1024UL;
@@ -553,20 +481,20 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_SaveModelDataToBufferWithLargeData)
   ASSERT_NE(model.data, nullptr);
   ASSERT_GT(model.length, 0U);
 
-  RAIIZipArchive archive(model.data.get(), model.length);
+  gert::ZipArchiveReader archive(model.data.get(), model.length);
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), 1U);
 }
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Fail_ArchivePathEndsWithSlash) {
-  ZipArchiveWriter zip_writer(test_work_dir + "/");
+  gert::ZipArchiveWriter zip_writer(test_work_dir + "/");
   EXPECT_FALSE(zip_writer.IsMemFileOpened());
 }
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_ArchivePathNoExtension) {
   const std::string zipfile_path = PathUtils::Join({test_work_dir, "no_ext_archive"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const std::string buffer = "test_data_no_ext";
   EXPECT_TRUE(zip_writer.WriteBytes("data.txt", buffer.data(), buffer.size()));
@@ -576,7 +504,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_ArchivePathNoExtension) {
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_ArchivePathNoSlash) {
   const std::string zipfile_name = "no_slash.zip";
-  ZipArchiveWriter zip_writer(zipfile_name);
+  gert::ZipArchiveWriter zip_writer(zipfile_name);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const std::string buffer = "test_data_no_slash";
   EXPECT_TRUE(zip_writer.WriteBytes("data.txt", buffer.data(), buffer.size()));
@@ -587,7 +515,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_ArchivePathNoSlash) {
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_ArchivePathDotOnly) {
   const std::string zipfile_path = PathUtils::Join({test_work_dir, ".zip"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const std::string buffer = "test_data_dot";
   EXPECT_TRUE(zip_writer.WriteBytes("data.txt", buffer.data(), buffer.size()));
@@ -595,14 +523,9 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_ArchivePathDotOnly) {
   ASSERT_FALSE(zip_writer.IsMemFileOpened());
 }
 
-TEST_F(ZipArchiveUt, TestSimpleZipArchiveReader_Fail_NullStream) {
-  SimpleZipArchiveReader reader(nullptr, 0);
-  EXPECT_FALSE(reader.IsGood());
-}
-
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_WriteBytesNoCompressionLargeData) {
   const std::string zipfile_path = PathUtils::Join({test_work_dir, "large_nocompress.zip"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
 
   constexpr size_t kDataSize = 200UL * 1024UL;
@@ -611,7 +534,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_WriteBytesNoCompressionLargeData) {
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   const auto file_buf = ReadFileToVector(zipfile_path);
-  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), 1U);
@@ -619,7 +542,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_WriteBytesNoCompressionLargeData) {
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_MultipleEntriesWithGrowth) {
   const std::string zipfile_path = PathUtils::Join({test_work_dir, "multi_growth.zip"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
 
   for (int i = 0; i < 10; ++i) {
@@ -629,7 +552,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_MultipleEntriesWithGrowth) {
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   const auto file_buf = ReadFileToVector(zipfile_path);
-  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), 10U);
@@ -637,7 +560,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_MultipleEntriesWithGrowth) {
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_WriteEndOfFileTwice) {
   const std::string zipfile_path = PathUtils::Join({test_work_dir, "double_close.zip"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const std::string buffer = "test_double_close";
   EXPECT_TRUE(zip_writer.WriteBytes("data.txt", buffer.data(), buffer.size()));
@@ -647,7 +570,7 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_WriteEndOfFileTwice) {
 
 TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_SaveModelDataToFileWithCompressedData) {
   const std::string zipfile_path = PathUtils::Join({test_work_dir, "compressed_save.zip"});
-  ZipArchiveWriter zip_writer(zipfile_path);
+  gert::ZipArchiveWriter zip_writer(zipfile_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
 
   std::string data(50000, 'A');
@@ -655,25 +578,10 @@ TEST_F(ZipArchiveUt, TestZipArchiveWriter_Ok_SaveModelDataToFileWithCompressedDa
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   const auto file_buf = ReadFileToVector(zipfile_path);
-  RAIIZipArchive archive(file_buf.data(), file_buf.size());
+  gert::ZipArchiveReader archive(file_buf.data(), file_buf.size());
   ASSERT_TRUE(archive.IsGood());
   const auto file_names = archive.ListFiles();
   ASSERT_EQ(file_names.size(), 1U);
 }
 
-TEST_F(ZipArchiveUt, TestSimpleZipArchiveReader_Ok_ListFilesFromCompressedArchive) {
-  const std::string archive_path = PathUtils::Join({test_work_dir, "__compressed_reader.zip"});
-  const std::vector<std::pair<std::string, std::string>> entries = {
-      {"file1.txt", std::string(10000, 'X')},
-      {"file2.txt", std::string(5000, 'Y')},
-  };
-  CreateTestZipArchive(archive_path, entries, true);
-
-  const auto file_buf = ReadFileToVector(archive_path);
-  SimpleZipArchiveReader reader(file_buf.data(), file_buf.size());
-  ASSERT_TRUE(reader.IsGood());
-
-  const auto file_names = reader.ListFiles();
-  ASSERT_EQ(file_names.size(), 2U);
-}
 }  // namespace ge

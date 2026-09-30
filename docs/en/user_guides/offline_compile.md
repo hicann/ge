@@ -11,7 +11,7 @@ In a networked environment, enter [this project homepage](https://gitcode.com/ca
 GE depends on the following third-party open source software during compilation:
 
 | Open Source Software | Version | Download Address |
-|---|---|---|
+| --- | --- | --- |
 | protobuf | 25.1 | [protobuf-25.1.tar.gz](https://gitcode.com/cann-src-third-party/protobuf/releases/download/v25.1/protobuf-25.1.tar.gz) |
 | boost | 1.87.0 | [boost_1_87_0.tar.gz](https://gitcode.com/cann-src-third-party/boost/releases/download/v1.87.0/boost_1_87_0.tar.gz) |
 | abseil-cpp | 20230802.1 | [abseil-cpp-20230802.1.tar.gz](https://gitcode.com/cann-src-third-party/abseil-cpp/releases/download/20230802.1/abseil-cpp-20230802.1.tar.gz) |
@@ -30,15 +30,16 @@ GE depends on the following third-party open source software during compilation:
 | cann-cmake | master | [cmake-master.tar.gz](https://raw.gitcode.com/cann/cmake/archive/refs/heads/master.tar.gz) |
 
 - Method 1 (Recommended): Use the [one-click third-party software download packaging script](./../../../scripts/download_third_party_source.sh) provided by GE repository, usage as follows:
+
   ```bash
   # Execute in GE repository root directory in a networked environment
   cd ge
   bash scripts/download_third_party_source.sh
   ```
+
   After successful execution, `opensource.tar.gz` will be generated in the GE repository root directory
 
 - Method 2: Download third-party open source software packages one by one through the third-party open source software list links
-
 
 ## 2. After completing [networked environment preparation](#1-complete-the-following-preparation-work-in-a-networked-environment), log in to the test environment (offline) to continue compilation preparation
 
@@ -47,6 +48,7 @@ GE depends on the following third-party open source software during compilation:
 Connect to the test environment (offline), upload the [repository](#step-1-repository-download) and [third-party software dependencies](#step-2-download-open-source-third-party-software-dependencies) source code obtained from the networked environment to your specified directory. The downloaded files are compressed packages and need to be extracted.
 
 After extraction, the project structure is as follows:
+
 ```bash
 ├── ge                               # GE repository source code extracted directory
 │  ├── api
@@ -59,6 +61,7 @@ After extraction, the project structure is as follows:
 ```
 
 Enter the repository root directory, you can adjust the directory through the following commands:
+
   ```bash
   # Move files under opensource directory to GE repository
   cd ge
@@ -68,6 +71,7 @@ Enter the repository root directory, you can adjust the directory through the fo
   ```
 
 After adjustment, the project structure is as follows:
+
 ```bash
 ├── ge                               # GE repository source code extracted directory
 │  ├── api
@@ -87,6 +91,7 @@ After completion, return to [Build Verification - Compilation](../build.md#43-co
 1. Connect to the test environment (offline), upload the [repository](#step-1-repository-download) and [third-party software dependencies](#step-2-download-open-source-third-party-software-dependencies) source code obtained from the networked environment to your specified directory, where the repository is a compressed package and needs to be extracted.
 
 2. Enter the repository root directory, create `output/third_party` and place the third-party software packages in this directory.
+
   ```bash
   # Create output/third_party directory
   cd ge
@@ -94,6 +99,7 @@ After completion, return to [Build Verification - Compilation](../build.md#43-co
   ```
 
 After adjustment, the project structure is as follows:
+
 ```bash
 ├── ge                               # GE repository source code extracted directory
 │  ├── api

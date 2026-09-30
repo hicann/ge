@@ -9,11 +9,16 @@
  */
 
 #include <string>
+#include <limits>
+#include <set>
 #include <vector>
 #include <gtest/gtest.h>
 
 #include "macro_utils/dt_public_scope.h"
 #include "graph/build/stream/graph_stream_allocator.h"
+#include "graph/build/stream/declarative_stream_registry.h"
+#include "graph/build/stream/annotated_args_task_plan.h"
+#include "graph/build/model_builder.h"
 #include "graph/build/stream/stream_utils.h"
 #include "graph/normal_graph/compute_graph_impl.h"
 #include "macro_utils/dt_public_unscope.h"
@@ -29,11 +34,207 @@
 #include "framework/ge_runtime_stub/include/stub/gert_runtime_stub.h"
 #include "ge_running_env/op_reg.h"
 #include "graph/build/stream/stream_info.h"
+#include "framework/omg/omg_inner_types.h"
 
 extern std::string g_runtime_stub_mock;
 
 namespace ge {
 namespace {
+TEST(DeclarativeStreamRegistryTest, DeduplicatesKeysAndRejectsEmptyKey) {
+  DeclarativeStreamRegistry registry(3U);
+  const auto first = registry.RequestAttachedStream(AscendString("compute"));
+  EXPECT_EQ(first, 3U);
+  EXPECT_EQ(registry.RequestAttachedStream(AscendString("compute")), 3U);
+  EXPECT_EQ(registry.RequestAttachedStream(AscendString("copy")), 4U);
+  EXPECT_EQ(registry.RequestAttachedStream(AscendString("")), std::numeric_limits<uint32_t>::max());
+  EXPECT_EQ(registry.RequestAttachedStream(AscendString("CANN-FMK-internal")), 5U);
+  EXPECT_EQ(registry.GetAllocatedStreamIds(), (std::vector<uint32_t>{3U, 4U, 5U}));
+}
+
+TEST(DeclarativeStreamRegistryTest, RejectsOverflow) {
+  DeclarativeStreamRegistry registry(std::numeric_limits<uint32_t>::max());
+  EXPECT_EQ(registry.RequestAttachedStream(AscendString("compute")), std::numeric_limits<uint32_t>::max());
+  EXPECT_TRUE(registry.GetAllocatedStreamIds().empty());
+}
+
+TEST(AnnotatedArgsTaskPlanTest, RoundTripsLaunchDependenciesAndStreams) {
+  AnnotatedArgsTaskPlan source;
+  for (uint32_t i = 0U; i < 4U; ++i) {
+    domi::TaskDef task;
+    task.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+    source.task_templates.emplace_back(std::move(task));
+  }
+  source.launch_stream_ids = {0U, 3U, 4U, 0U};
+  source.dependencies = {{0U, 2U, 1U}, {1U, 2U, 2U}, {2U, 3U, 3U}};
+  source.attached_stream_ids = {3U, 4U};
+
+  Buffer encoded;
+  ASSERT_EQ(SerializeAnnotatedArgsTaskPlan(source, encoded), SUCCESS);
+  AnnotatedArgsTaskPlan restored;
+  ASSERT_EQ(DeserializeAnnotatedArgsTaskPlan(encoded, restored), SUCCESS);
+  EXPECT_EQ(restored.launch_stream_ids, source.launch_stream_ids);
+  EXPECT_EQ(restored.dependencies.size(), 3U);
+  EXPECT_EQ(restored.attached_stream_ids, source.attached_stream_ids);
+  EXPECT_EQ(restored.task_templates.size(), 4U);
+}
+
+TEST(AnnotatedArgsTaskPlanTest, RejectsMissingLaunchStreamIds) {
+  AnnotatedArgsTaskPlan plan;
+  domi::TaskDef task;
+  task.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  plan.task_templates.emplace_back(std::move(task));
+
+  Buffer encoded;
+  EXPECT_NE(SerializeAnnotatedArgsTaskPlan(plan, encoded), SUCCESS);
+}
+
+TEST(ModelBuilderTest, FinalizeDeclarativeAttachedStreamsRequiresRegistry) {
+  auto graph = std::make_shared<ComputeGraph>("attached_stream_without_registry");
+  auto op_desc = std::make_shared<OpDesc>("annotated", "AnnotatedArgs");
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+
+  AnnotatedArgsTaskPlan plan;
+  domi::TaskDef task;
+  task.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  plan.task_templates.emplace_back(std::move(task));
+  plan.launch_stream_ids = {0U};
+  plan.attached_stream_ids = {1U};
+  Buffer encoded_plan;
+  ASSERT_EQ(SerializeAnnotatedArgsTaskPlan(plan, encoded_plan), SUCCESS);
+  ASSERT_TRUE(AttrUtils::SetBytes(op_desc, "_custom_annotated_args_task_plan_bytes", encoded_plan));
+
+  ModelBuilder builder(0U, graph, Graph2SubGraphInfoList(), {}, false);
+  EXPECT_NE(builder.FinalizeDeclarativeAttachedStreams(), SUCCESS);
+}
+
+TEST(ModelBuilderTest, FinalizeDeclarativeAttachedStreamsRestoresAttachedStream) {
+  auto graph = std::make_shared<ComputeGraph>("attached_stream_with_registry");
+  auto op_desc = std::make_shared<OpDesc>("annotated", "AnnotatedArgs");
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+
+  auto registry = std::make_shared<DeclarativeStreamRegistry>(1U);
+  ASSERT_EQ(registry->RequestAttachedStream(AscendString("attached")), 1U);
+  ASSERT_TRUE(graph->SetExtAttr(kDeclarativeStreamRegistryAttr, registry));
+
+  AnnotatedArgsTaskPlan plan;
+  domi::TaskDef task;
+  task.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+  plan.task_templates.emplace_back(std::move(task));
+  plan.launch_stream_ids = {0U};
+  plan.attached_stream_ids = {1U};
+  Buffer encoded_plan;
+  ASSERT_EQ(SerializeAnnotatedArgsTaskPlan(plan, encoded_plan), SUCCESS);
+  ASSERT_TRUE(AttrUtils::SetBytes(op_desc, "_custom_annotated_args_task_plan_bytes", encoded_plan));
+
+  ModelBuilder builder(0U, graph, Graph2SubGraphInfoList(), {}, false);
+  ASSERT_EQ(builder.FinalizeDeclarativeAttachedStreams(), SUCCESS);
+  EXPECT_EQ(op_desc->GetAttachedStreamIds(), (std::vector<int64_t>{1}));
+}
+
+TEST(AnnotatedArgsTaskPlanTest, InsertsAndReconcilesCrossStreamEventTasks) {
+  auto graph = std::make_shared<ComputeGraph>("annotated_event_graph");
+  auto op_desc = std::make_shared<OpDesc>("annotated", "AnnotatedArgs");
+  op_desc->SetStreamId(0);
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+
+  auto plan = std::make_shared<AnnotatedArgsTaskPlan>();
+  for (size_t i = 0U; i < 3U; ++i) {
+    domi::TaskDef task;
+    task.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+    plan->task_templates.emplace_back(std::move(task));
+  }
+  plan->launch_stream_ids = {0U, 1U, 2U};
+  plan->dependencies = {{0U, 2U, 0U}};
+  Buffer encoded_plan;
+  ASSERT_EQ(SerializeAnnotatedArgsTaskPlan(*plan, encoded_plan), SUCCESS);
+  ASSERT_TRUE(AttrUtils::SetBytes(op_desc, "_custom_annotated_args_task_plan_bytes", encoded_plan));
+
+  std::unordered_map<int64_t, std::vector<domi::TaskDef>> tasks;
+  for (const auto stream : plan->launch_stream_ids) {
+    domi::TaskDef task;
+    task.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+    task.set_stream_id(stream);
+    tasks[op_desc->GetId()].emplace_back(std::move(task));
+  }
+  StreamAllocator allocator(graph, Graph2SubGraphInfoList());
+  int64_t event_num = 4;
+  ASSERT_EQ(allocator.InsertAnnotatedArgsEventTasks(tasks, event_num), SUCCESS);
+  EXPECT_EQ(event_num, 5);
+  ASSERT_EQ(allocator.ReconcileAnnotatedArgsEventTasks(tasks, event_num), SUCCESS);
+  size_t records = 0U;
+  size_t waits = 0U;
+  size_t kernels = 0U;
+  for (const auto &task : tasks[op_desc->GetId()]) {
+    kernels += (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+    records += (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD));
+    waits += (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT));
+    if (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD) ||
+        task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT)) {
+      EXPECT_EQ(task.event_id(), 4U);
+    }
+  }
+  EXPECT_EQ(records, 1U);
+  EXPECT_EQ(waits, 1U);
+  EXPECT_EQ(kernels, 3U);
+  EXPECT_EQ(tasks[op_desc->GetId()].size(), 5U);
+  EXPECT_EQ(event_num, 5);
+}
+
+TEST(AnnotatedArgsTaskPlanTest, PrunesSameStreamAndReconcilesMultipleDependencies) {
+  auto graph = std::make_shared<ComputeGraph>("annotated_event_multi_graph");
+  auto op_desc = std::make_shared<OpDesc>("annotated_multi", "AnnotatedArgs");
+  auto node = graph->AddNode(op_desc);
+  ASSERT_NE(node, nullptr);
+
+  auto plan = std::make_shared<AnnotatedArgsTaskPlan>();
+  for (size_t i = 0U; i < 4U; ++i) {
+    domi::TaskDef task;
+    task.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+    plan->task_templates.emplace_back(std::move(task));
+  }
+  plan->launch_stream_ids = {0U, 1U, 1U, 0U};
+  plan->dependencies = {{0U, 1U, 0U}, {1U, 2U, 1U}, {2U, 3U, 2U}};
+  Buffer encoded_plan;
+  ASSERT_EQ(SerializeAnnotatedArgsTaskPlan(*plan, encoded_plan), SUCCESS);
+  ASSERT_TRUE(AttrUtils::SetBytes(op_desc, "_custom_annotated_args_task_plan_bytes", encoded_plan));
+
+  std::unordered_map<int64_t, std::vector<domi::TaskDef>> tasks;
+  for (const auto stream : plan->launch_stream_ids) {
+    domi::TaskDef task;
+    task.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+    task.set_stream_id(stream);
+    tasks[op_desc->GetId()].emplace_back(std::move(task));
+  }
+  StreamAllocator allocator(graph, Graph2SubGraphInfoList());
+  int64_t event_num = 2;
+  ASSERT_EQ(allocator.InsertAnnotatedArgsEventTasks(tasks, event_num), SUCCESS);
+  ASSERT_EQ(allocator.ReconcileAnnotatedArgsEventTasks(tasks, event_num), SUCCESS);
+
+  size_t records = 0U;
+  size_t waits = 0U;
+  size_t kernels = 0U;
+  std::set<uint32_t> event_ids;
+  for (const auto &task : tasks[op_desc->GetId()]) {
+    kernels += (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CUSTOM_KERNEL));
+    if (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_RECORD)) {
+      ++records;
+      event_ids.insert(task.event_id());
+    } else if (task.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT)) {
+      ++waits;
+      event_ids.insert(task.event_id());
+    }
+  }
+  EXPECT_EQ(records, 2U);
+  EXPECT_EQ(waits, 2U);
+  EXPECT_EQ(kernels, 4U);
+  EXPECT_EQ(tasks[op_desc->GetId()].size(), 8U);
+  EXPECT_EQ(event_ids, (std::set<uint32_t>{2U, 3U}));
+  EXPECT_EQ(event_num, 4);
+}
+
 void AddTaskDefWithStreamId(std::vector<domi::TaskDef> &task_defs, uint32_t stream_id) {
   auto task = domi::TaskDef();
   task.set_stream_id(stream_id);

@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 #include "runtime/om2/om2_rt_var_manager.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "rt_external_mem.h"
 
 namespace gert {
@@ -19,46 +20,43 @@ class Om2RTVarManagerTest : public testing::Test {
  protected:
   RTVarEntry MakeVarEntry(const std::string &name, const std::string &op_type, uint64_t size) {
     RTVarEntry entry;
-    entry.var_name = name;
-    entry.op_type = op_type;
+    entry.var_name = gert::GertMakeStr(name);
+    entry.op_type = gert::GertMakeStr(op_type);
     entry.size = size;
     entry.memory_type = RT_MEMORY_HBM;
-    ge::Om2TensorDesc desc;
-    desc.SetFormat(ge::FORMAT_ND);
-    desc.SetDataType(ge::DT_FLOAT);
-    entry.tensor_desc = desc;
-    entry.var_key = RTVarResource::BuildVarKey(name, desc);
+    gert::GertTensorDesc desc;
+    desc.format = ge::FORMAT_ND;
+    desc.data_type = ge::DT_FLOAT;
+    entry.var_key = gert::GertMakeStr(RTVarBuildKey(name, desc));
+    entry.tensor_desc = std::move(desc);
     return entry;
   }
 
-  RTVarResource MakeResource(std::vector<RTVarEntry> entries) {
-    RTVarResource resource;
-    for (auto &e : entries) {
-      resource.AddEntry(std::move(e));
-    }
-    return resource;
+  std::vector<RTVarEntry> MakeEntries(RTVarEntry entry) {
+    std::vector<RTVarEntry> entries;
+    RTVarAddEntry(entries, std::move(entry));
+    return entries;
   }
 };
 
 TEST_F(Om2RTVarManagerTest, InitMergesEntries) {
   Om2RTVarManager mgr;
   auto e1 = MakeVarEntry("v1", "VARIABLE", 1024);
-  auto resource = MakeResource({std::move(e1)});
+  auto resource = MakeEntries(std::move(e1));
   ASSERT_EQ(mgr.Init(resource), ge::SUCCESS);
-  ASSERT_NE(mgr.GetVarResource(), nullptr);
-  EXPECT_NE(mgr.GetVarResource()->GetEntryByName("v1"), nullptr);
+  EXPECT_NE(mgr.GetVarResource().GetEntryByName("v1"), nullptr);
 }
 
 TEST_F(Om2RTVarManagerTest, InitSkipsDuplicateKeys) {
   Om2RTVarManager mgr;
   auto e1 = MakeVarEntry("v1", "VARIABLE", 1024);
-  auto r1 = MakeResource({std::move(e1)});
+  auto r1 = MakeEntries(std::move(e1));
   ASSERT_EQ(mgr.Init(r1), ge::SUCCESS);
 
   auto e2 = MakeVarEntry("v1", "VARIABLE", 1024);
-  auto r2 = MakeResource({std::move(e2)});
+  auto r2 = MakeEntries(std::move(e2));
   ASSERT_EQ(mgr.Init(r2), ge::SUCCESS);
-  EXPECT_EQ(mgr.GetVarResource()->GetAllEntries().size(), 1U);
+  EXPECT_EQ(mgr.GetVarResource().GetAllEntries().size(), 1U);
 }
 
 TEST_F(Om2RTVarManagerTest, GetVarDevAddrNotFound) {
@@ -72,7 +70,7 @@ TEST_F(Om2RTVarManagerTest, ConstPlaceHolderUsesExternAddr) {
   auto entry = MakeVarEntry("ph1", "CONSTPLACEHOLDER", 2048);
   uint8_t fake_extern_addr[2048];
   entry.extern_dev_addr = fake_extern_addr;
-  auto resource = MakeResource({std::move(entry)});
+  auto resource = MakeEntries(std::move(entry));
   ASSERT_EQ(mgr.Init(resource), ge::SUCCESS);
 
   void *addr = nullptr;
@@ -83,7 +81,7 @@ TEST_F(Om2RTVarManagerTest, ConstPlaceHolderUsesExternAddr) {
 TEST_F(Om2RTVarManagerTest, MultiDeviceIsolation) {
   Om2RTVarManager mgr;
   auto entry = MakeVarEntry("v1", "VARIABLE", 512);
-  auto resource = MakeResource({std::move(entry)});
+  auto resource = MakeEntries(std::move(entry));
   ASSERT_EQ(mgr.Init(resource), ge::SUCCESS);
 
   void *addr0 = nullptr;
@@ -98,7 +96,7 @@ TEST_F(Om2RTVarManagerTest, MultiDeviceIsolation) {
 TEST_F(Om2RTVarManagerTest, SameDeviceReturnsSameAddr) {
   Om2RTVarManager mgr;
   auto entry = MakeVarEntry("v1", "VARIABLE", 512);
-  auto resource = MakeResource({std::move(entry)});
+  auto resource = MakeEntries(std::move(entry));
   ASSERT_EQ(mgr.Init(resource), ge::SUCCESS);
 
   void *addr1 = nullptr;
@@ -133,7 +131,7 @@ TEST_F(Om2RTVarManagerTest, LegacyTryGetVarAddr) {
 TEST_F(Om2RTVarManagerTest, FinalizeFreesMemory) {
   auto mgr = std::make_unique<Om2RTVarManager>();
   auto entry = MakeVarEntry("v1", "VARIABLE", 512);
-  auto resource = MakeResource({std::move(entry)});
+  auto resource = MakeEntries(std::move(entry));
   ASSERT_EQ(mgr->Init(resource), ge::SUCCESS);
 
   void *addr = nullptr;
@@ -154,7 +152,7 @@ TEST_F(Om2RTVarManagerTest, PoolGetAndRemove) {
 TEST_F(Om2RTVarManagerTest, TransAllVarDataSkipsNoTransRoad) {
   Om2RTVarManager mgr;
   auto entry = MakeVarEntry("v1", "VARIABLE", 512);
-  auto resource = MakeResource({std::move(entry)});
+  auto resource = MakeEntries(std::move(entry));
   ASSERT_EQ(mgr.Init(resource), ge::SUCCESS);
   ASSERT_EQ(mgr.TransAllVarData({"v1"}, 0, 1), ge::SUCCESS);
 }
@@ -162,7 +160,7 @@ TEST_F(Om2RTVarManagerTest, TransAllVarDataSkipsNoTransRoad) {
 TEST_F(Om2RTVarManagerTest, CopyVarDataSkipsNoCopyInfo) {
   Om2RTVarManager mgr;
   auto entry = MakeVarEntry("v1", "VARIABLE", 512);
-  auto resource = MakeResource({std::move(entry)});
+  auto resource = MakeEntries(std::move(entry));
   ASSERT_EQ(mgr.Init(resource), ge::SUCCESS);
   ASSERT_EQ(mgr.CopyVarData({"v1"}, 0), ge::SUCCESS);
 }

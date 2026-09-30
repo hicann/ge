@@ -675,7 +675,8 @@ Status TaskGenerator::SaveFusionNodes(std::map<int64_t, std::vector<NodePtr>> &f
 
 Status TaskGenerator::GenerateTaskForFusionNode(Node *const node,
                                                 const std::map<int64_t, std::vector<NodePtr>> &fusion_nodes,
-                                                std::unordered_set<Node *> &fusion_nodes_seen) {
+                                                std::unordered_set<Node *> &fusion_nodes_seen,
+                                                const bool keep_marked_tasks) {
   int64_t group_key;
   const auto &fusion_op_desc = node->GetOpDesc();
   // without attr or has been seen, skip directly
@@ -686,9 +687,17 @@ Status TaskGenerator::GenerateTaskForFusionNode(Node *const node,
   GELOGI("Fusion: start fusion group index[%ld], nodes size[%zu].", group_key, fusion_nodes.at(group_key).size());
   // If op_desc have this attr, call nodes with same group key in a stream together
   for (const auto &fusion_node : fusion_nodes.at(group_key)) {
-    auto &task_defs = node_id_2_node_tasks_[fusion_node->GetOpDesc()->GetId()];
+    const auto node_id = fusion_node->GetOpDesc()->GetId();
+    // 打标节点保留拆流前生成的task，只补齐fusion场景的task顺序记录
+    if (keep_marked_tasks && NeedKeepGeneratedTasks(fusion_node->GetOpDesc())) {
+      fusion_ordered_node_list_.emplace_back(node_id);
+      fusion_task_node_name_list_.emplace_back(fusion_op_desc->GetName());
+      fusion_nodes_seen.insert(fusion_node.get());
+      continue;
+    }
+    auto &task_defs = node_id_2_node_tasks_[node_id];
     GE_ASSERT_SUCCESS(GenTaskForNormalNode(fusion_node.get(), "Fusion inner", task_defs));
-    fusion_ordered_node_list_.emplace_back(fusion_node->GetOpDesc()->GetId());
+    fusion_ordered_node_list_.emplace_back(node_id);
     fusion_task_node_name_list_.emplace_back(fusion_op_desc->GetName());
     // record nodes which have call generate task successfully
     fusion_nodes_seen.insert(fusion_node.get());
@@ -696,7 +705,8 @@ Status TaskGenerator::GenerateTaskForFusionNode(Node *const node,
   return SUCCESS;
 }
 
-Status TaskGenerator::GenTaskForFusionNodes(const std::map<int64_t, std::vector<NodePtr>> &fusion_nodes) {
+Status TaskGenerator::GenTaskForFusionNodes(const std::map<int64_t, std::vector<NodePtr>> &fusion_nodes,
+                                            const bool keep_marked_tasks) {
   fusion_nodes_seen_.clear();
   fusion_ordered_node_list_.clear();
   fusion_task_node_name_list_.clear();
@@ -707,7 +717,7 @@ Status TaskGenerator::GenTaskForFusionNodes(const std::map<int64_t, std::vector<
 
     const auto &name = op_desc->GetName();
     const auto &type = op_desc->GetType();
-    GE_ASSERT_SUCCESS(GenerateTaskForFusionNode(node, fusion_nodes, fusion_nodes_seen_),
+    GE_ASSERT_SUCCESS(GenerateTaskForFusionNode(node, fusion_nodes, fusion_nodes_seen_, keep_marked_tasks),
                       "[Call][GenerateTaskForFusionNode] node:%s(%s) failed", name.c_str(), type.c_str());
     // continue directly
     if (ge::AttrUtils::GetInt(op_desc, ATTR_NAME_FUSION_GROUP_KEY, group_key)) {
@@ -715,6 +725,12 @@ Status TaskGenerator::GenTaskForFusionNodes(const std::map<int64_t, std::vector<
       continue;
     }
     const auto node_id = op_desc->GetId();
+    if (keep_marked_tasks && NeedKeepGeneratedTasks(op_desc)) {
+      GELOGI("Node[name:%s, type:%s] keeps generated tasks in fusion mode.", name.c_str(), type.c_str());
+      fusion_ordered_node_list_.emplace_back(node_id);
+      fusion_task_node_name_list_.emplace_back(name);
+      continue;
+    }
     auto &task_defs = node_id_2_node_tasks_[node_id];
     GE_ASSERT_SUCCESS(GenTaskForNormalNode(node, "Fusion outer", task_defs));
     fusion_ordered_node_list_.emplace_back(node_id);
@@ -723,7 +739,7 @@ Status TaskGenerator::GenTaskForFusionNodes(const std::map<int64_t, std::vector<
   return SUCCESS;
 }
 
-Status TaskGenerator::GenerateTaskForNodes(const std::vector<Node *> nodes) {
+Status TaskGenerator::GenerateTaskForNodes(const std::vector<Node *> nodes, const bool keep_marked_tasks) {
   if (NeedDoFusionTask()) {
     // fusion node场景所有node都重新做gen task，因为fusion node不只是对自己GenTask，还会对同一个group key的node GenTask
     // todo 可以改成第二次GenTask时就只对部分node GenTaskForNormalNode
@@ -731,13 +747,19 @@ Status TaskGenerator::GenerateTaskForNodes(const std::vector<Node *> nodes) {
     GE_TRACE_RUN(TaskGenerator, SaveFusionNodes, fusion_nodes, nodes_);
     if (!fusion_nodes.empty()) {
       for (const auto &node : nodes_) {
+        if (keep_marked_tasks && NeedKeepGeneratedTasks(node->GetOpDesc())) {
+          continue;
+        }
         // 个别节点会二次GenTask，所以需要将第一次的结果清空
         node_id_2_node_tasks_[node->GetOpDesc()->GetId()].clear();
       }
-      return GenTaskForFusionNodes(fusion_nodes);
+      return GenTaskForFusionNodes(fusion_nodes, keep_marked_tasks);
     }
   }
   for (const auto &node : nodes) {
+    if (keep_marked_tasks && NeedKeepGeneratedTasks(node->GetOpDesc())) {
+      continue;
+    }
     // 个别节点会二次GenTask，所以需要将第一次的结果清空
     node_id_2_node_tasks_[node->GetOpDesc()->GetId()].clear();
   }
@@ -754,6 +776,11 @@ Status TaskGenerator::GenerateTaskForNodes(const std::vector<Node *> nodes) {
   (void)aclrtGetDevice(&device_id);
   GELOGI("Get device id %d", device_id);
   for (const auto node : nodes) {
+    if (keep_marked_tasks && NeedKeepGeneratedTasks(node->GetOpDesc())) {
+      GELOGI("Node[name:%s, type:%s] keeps generated tasks, skip regenerating.", node->GetNamePtr(),
+             node->GetTypePtr());
+      continue;
+    }
     const auto key = GetKey(node);
     auto &task_defs = node_id_2_node_tasks_[node->GetOpDesc()->GetId()];
     // key must be valid
@@ -1031,13 +1058,16 @@ Status TaskGenerator::ReGetTaskInfo(const ComputeGraphPtr &comp_graph) {
     for (auto &node : need_to_gen_task_nodes) {
       second_gen_task_nodes.emplace_back(node);
     }
-    GE_ASSERT_SUCCESS(GenerateTaskForNodes(second_gen_task_nodes));
+    GE_ASSERT_SUCCESS(GenerateTaskForNodes(second_gen_task_nodes, true));
     for (const auto &node : need_to_gen_task_nodes) {
       auto stream_id = node->GetOpDesc()->GetStreamId();
       const auto &iter = node_id_2_node_tasks_.find(node->GetOpDesc()->GetId());
       GE_ASSERT_TRUE(iter != node_id_2_node_tasks_.end(), "node: %s doesn't have taskdef", node->GetNamePtr());
       bool has_attached_stream = node->GetOpDesc()->HasValidAttachedStreamId();
-      if (!has_attached_stream) {
+      // 打标节点的task在拆流阶段已完成流号重映射，且可能包含非主流上的事件任务，这里不再统一改写。
+      // 前提：拆流之后不再有改动内存大小/offset/workspace的阶段（最后一次地址刷新是pass1内的ProcessAppendWs），
+      // 若将来新增此类阶段，必须同步处理打标节点，否则其保留的task里是失效地址
+      if ((!has_attached_stream) && (!NeedKeepGeneratedTasks(node->GetOpDesc()))) {
         RefreshTaskDefStreamId(has_attached_stream, stream_id, stream_id, iter->second);
       }
     }
@@ -1076,7 +1106,7 @@ Status TaskGenerator::GenModelTaskDef(const ComputeGraphPtr &graph, uint64_t ses
   } else {
     for (const auto &node : graph->GetNodes(graph->GetGraphUnknownFlag(), nullptr, ffts_filter)) {
       if (!NoNeedGenTask(node->GetOpDesc())) {
-        const auto &iter = node_id_2_node_tasks_.find(node->GetOpDesc()->GetId());
+        const auto iter = node_id_2_node_tasks_.find(node->GetOpDesc()->GetId());
         GE_ASSERT_TRUE(iter != node_id_2_node_tasks_.end(), "node %s does not gen task", node->GetNamePtr());
         op_names_.insert(op_names_.end(), iter->second.size(), node->GetOpDesc()->GetName());
         task_def_list.insert(task_def_list.end(), iter->second.begin(), iter->second.end());

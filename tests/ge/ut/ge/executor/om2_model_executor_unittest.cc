@@ -23,16 +23,16 @@
 #include "framework/runtime/rt_session.h"
 #include "ge/ge_ir_build.h"
 #include "common/env_path.h"
-#include "common/helper/om2/json_file.h"
+#include "framework/common/json_file.h"
 #include "depends/ascendcl/src/ascendcl_stub.h"
-#include "common/helper/om2/zip_archive_writer.h"
+#include "framework/common/zip_archive_writer.h"
 #include "common/path_utils.h"
 #include "graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "ge/ge_error_codes.h"
 #include "rt_external_mem.h"
-#include "runtime/om2/om2_aipp_utils.h"
+#include "framework/common/gert_model_data_utils.h"
 
 namespace ge {
 namespace {
@@ -73,6 +73,17 @@ void WriteBinaryFile(const std::string &file_path, const std::vector<uint8_t> &c
   ASSERT_TRUE(ofs.is_open());
   ofs.write(reinterpret_cast<const char *>(content.data()), static_cast<std::streamsize>(content.size()));
   ASSERT_TRUE(ofs.good());
+}
+
+static std::vector<uint8_t> ReadFileToVector(const std::string &path) {
+  std::ifstream ifs(path, std::ios::binary);
+  return {std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>()};
+}
+
+static bool WriteFileToZip(gert::ZipArchiveWriter &writer, const std::string &entry, const std::string &path,
+                           bool compress = true) {
+  auto data = ReadFileToVector(path);
+  return writer.WriteBytes(entry, data.data(), data.size(), compress);
 }
 
 void RunCommandOrAssert(const std::string &command) {
@@ -295,16 +306,6 @@ std::string MakeModelMetaJsonWithZeroCopySize() {
 })";
 }
 
-std::string MakeModelMetaJsonWithoutRootGraphName() {
-  return R"({
-    "inputs": [],
-    "name": "g1",
-    "outputs": [],
-    "work_size": 2048,
-    "zero_copy_size": 0
-})";
-}
-
 std::string MakeModelMetaJsonWithoutInputShape() {
   return R"({
     "inputs": [
@@ -325,7 +326,8 @@ std::string MakeModelMetaJsonWithoutInputShape() {
 })";
 }
 
-std::string MakeVariablesConfigJson() {
+// data/model_0/variables_config.json：graph_id + var_metas + entries（合并自原 var_resource.json）
+std::string MakeVariablesConfigJson(const size_t init_data_offset = 0U, const size_t init_data_size = 0U) {
   ge::JsonFile tensor_desc;
   (void)tensor_desc.Set("name", "var_0");
   (void)tensor_desc.Set("shape", std::vector<int64_t>{1});
@@ -342,21 +344,6 @@ std::string MakeVariablesConfigJson() {
   (void)meta.Set("tensor_desc", tensor_desc.Raw());
   auto metas = ge::JsonFile::json::array();
   metas.push_back(meta.Raw());
-
-  ge::JsonFile root;
-  (void)root.Set("graph_id", 7U);
-  (void)root.Set("var_metas", metas);
-  return root.Dump();
-}
-
-std::string MakeVarResourceJson(const size_t init_data_offset, const size_t init_data_size) {
-  ge::JsonFile tensor_desc;
-  (void)tensor_desc.Set("name", "var_0");
-  (void)tensor_desc.Set("shape", std::vector<int64_t>{1});
-  (void)tensor_desc.Set("data_type", "DT_FLOAT");
-  (void)tensor_desc.Set("format", "ND");
-  (void)tensor_desc.Set("size", 4U);
-  (void)tensor_desc.Set("shape_range", std::vector<std::pair<int64_t, int64_t>>{});
 
   const std::string var_key = "var_00_0";
   ge::JsonFile entry;
@@ -376,7 +363,10 @@ std::string MakeVarResourceJson(const size_t init_data_offset, const size_t init
 
   auto entries = ge::JsonFile::json::object();
   entries[var_key] = entry.Raw();
+
   ge::JsonFile root;
+  (void)root.Set("graph_id", 7U);
+  (void)root.Set("var_metas", metas);
   (void)root.Set("entries", entries);
   return root.Dump();
 }
@@ -895,8 +885,8 @@ class VarInitDataRecordingAclRuntimeStub : public AclRuntimeStub {
 
 enum class VarWeightOrder {
   kAbsent,
-  kBeforeResource,
-  kAfterResource,
+  kBeforeConfig,
+  kAfterConfig,
 };
 
 gert::Om2ModelLoadArg MakeOm2LoadArg() {
@@ -1005,7 +995,7 @@ class Om2ModelExecutorUt : public testing::Test {
                       std::vector<uint8_t>{1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U, 10U, 11U, 12U, 13U, 14U, 15U, 16U});
       WriteTextFile(archive_constant_cfg_path, MakeConstantsConfigJson());
 
-      ZipArchiveWriter zip_writer(om2_file_path_);
+      gert::ZipArchiveWriter zip_writer(om2_file_path_);
       ASSERT_TRUE(zip_writer.IsMemFileOpened());
       const auto manifest = MakeManifestJson();
       const auto model_meta = MakeModelMetaJson();
@@ -1038,7 +1028,8 @@ class Om2ModelExecutorUt : public testing::Test {
       const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_fileconst"});
       const std::string build_dir = PathUtils::Join({runtime_dir, "build"});
       const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
-      const std::string archive_constant_cfg_path = PathUtils::Join({test_work_dir_, "model_1_constants_config.json"});
+      const std::string archive_constant_cfg_path =
+          PathUtils::Join({test_work_dir_, "fileconst_constants_config.json"});
       const std::string weight_dir = PathUtils::Join({test_work_dir_, "weight"});
       const std::string file_const_path = PathUtils::Join({weight_dir, "fc.bin"});
 
@@ -1060,7 +1051,7 @@ class Om2ModelExecutorUt : public testing::Test {
       WriteTextFile(archive_constant_cfg_path, MakeIndividualConstantsConfigJson());
       WriteBinaryFile(file_const_path, {21U, 22U, 23U, 24U});
 
-      ZipArchiveWriter zip_writer(om2_fileconst_file_path_);
+      gert::ZipArchiveWriter zip_writer(om2_fileconst_file_path_);
       ASSERT_TRUE(zip_writer.IsMemFileOpened());
       const auto manifest = MakeManifestJson();
       const auto model_meta = MakeModelMetaJson();
@@ -1081,7 +1072,7 @@ class Om2ModelExecutorUt : public testing::Test {
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
                                        PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
-      ASSERT_TRUE(zip_writer.WriteFile("data/model_1/model_1_constants_config.json", archive_constant_cfg_path, false));
+      ASSERT_TRUE(zip_writer.WriteFile("data/model_0/model_0_constants_config.json", archive_constant_cfg_path, false));
       ASSERT_TRUE(zip_writer.SaveModelDataToFile());
       ASSERT_EQ(mmAccess2(om2_fileconst_file_path_.c_str(), M_F_OK), EOK);
     });
@@ -1092,7 +1083,7 @@ class Om2ModelExecutorUt : public testing::Test {
       const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_combined"});
       const std::string build_dir = PathUtils::Join({runtime_dir, "build"});
       const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
-      const std::string archive_constant_cfg_path = PathUtils::Join({test_work_dir_, "model_2_constants_config.json"});
+      const std::string archive_constant_cfg_path = PathUtils::Join({test_work_dir_, "combined_constants_config.json"});
       const std::string weight_dir = PathUtils::Join({test_work_dir_, "weight"});
       const std::string file_const_path = PathUtils::Join({weight_dir, "combined.bin"});
 
@@ -1114,7 +1105,7 @@ class Om2ModelExecutorUt : public testing::Test {
       WriteTextFile(archive_constant_cfg_path, MakeCombinedConstantsConfigJson());
       WriteBinaryFile(file_const_path, {41U, 42U, 43U, 44U});
 
-      ZipArchiveWriter zip_writer(om2_combined_file_path_);
+      gert::ZipArchiveWriter zip_writer(om2_combined_file_path_);
       ASSERT_TRUE(zip_writer.IsMemFileOpened());
       const auto manifest = MakeManifestJson();
       const auto model_meta = MakeModelMetaJson();
@@ -1135,7 +1126,7 @@ class Om2ModelExecutorUt : public testing::Test {
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
                                        PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
-      ASSERT_TRUE(zip_writer.WriteFile("data/model_2/model_2_constants_config.json", archive_constant_cfg_path, false));
+      ASSERT_TRUE(zip_writer.WriteFile("data/model_0/model_0_constants_config.json", archive_constant_cfg_path, false));
       ASSERT_TRUE(zip_writer.SaveModelDataToFile());
       ASSERT_EQ(mmAccess2(om2_combined_file_path_.c_str(), M_F_OK), EOK);
     });
@@ -1147,7 +1138,7 @@ class Om2ModelExecutorUt : public testing::Test {
       const std::string build_dir = PathUtils::Join({runtime_dir, "build"});
       const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
       const std::string archive_constant_path = PathUtils::Join({test_work_dir_, "constant_mixed_0"});
-      const std::string archive_constant_cfg_path = PathUtils::Join({test_work_dir_, "model_3_constants_config.json"});
+      const std::string archive_constant_cfg_path = PathUtils::Join({test_work_dir_, "mixed_constants_config.json"});
       const std::string weight_dir = PathUtils::Join({test_work_dir_, "weight"});
       const std::string individual_path = PathUtils::Join({weight_dir, "mixed_fc.bin"});
       const std::string combined_path = PathUtils::Join({weight_dir, "mixed_combined.bin"});
@@ -1173,7 +1164,7 @@ class Om2ModelExecutorUt : public testing::Test {
       WriteBinaryFile(individual_path, {61U, 62U, 63U, 64U});
       WriteBinaryFile(combined_path, {71U, 72U, 73U, 74U});
 
-      ZipArchiveWriter zip_writer(om2_mixed_file_path_);
+      gert::ZipArchiveWriter zip_writer(om2_mixed_file_path_);
       ASSERT_TRUE(zip_writer.IsMemFileOpened());
       const auto manifest = MakeManifestJson();
       const auto model_meta = MakeModelMetaJson();
@@ -1195,7 +1186,7 @@ class Om2ModelExecutorUt : public testing::Test {
                                        PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
       ASSERT_TRUE(zip_writer.WriteFile("data/constants/constant_0", archive_constant_path, false));
-      ASSERT_TRUE(zip_writer.WriteFile("data/model_3/model_3_constants_config.json", archive_constant_cfg_path, false));
+      ASSERT_TRUE(zip_writer.WriteFile("data/model_0/model_0_constants_config.json", archive_constant_cfg_path, false));
       ASSERT_TRUE(zip_writer.SaveModelDataToFile());
       ASSERT_EQ(mmAccess2(om2_mixed_file_path_.c_str(), M_F_OK), EOK);
     });
@@ -1207,7 +1198,7 @@ class Om2ModelExecutorUt : public testing::Test {
       const std::string build_dir = PathUtils::Join({runtime_dir, "build"});
       const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
       const std::string archive_constant_cfg_path =
-          PathUtils::Join({test_work_dir_, "model_duplicate_individual_constants_config.json"});
+          PathUtils::Join({test_work_dir_, "duplicate_individual_constants_config.json"});
       const std::string weight_dir = PathUtils::Join({test_work_dir_, "weight"});
       const std::string individual_path = PathUtils::Join({weight_dir, "duplicate_fc.bin"});
 
@@ -1229,7 +1220,7 @@ class Om2ModelExecutorUt : public testing::Test {
       WriteTextFile(archive_constant_cfg_path, MakeDuplicateIndividualConstantsConfigJson());
       WriteBinaryFile(individual_path, {101U, 102U, 103U, 104U});
 
-      ZipArchiveWriter zip_writer(om2_duplicate_individual_file_path_);
+      gert::ZipArchiveWriter zip_writer(om2_duplicate_individual_file_path_);
       ASSERT_TRUE(zip_writer.IsMemFileOpened());
       const auto manifest = MakeManifestJson();
       const auto model_meta = MakeModelMetaJson();
@@ -1250,9 +1241,7 @@ class Om2ModelExecutorUt : public testing::Test {
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
                                        PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
       ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
-      ASSERT_TRUE(
-          zip_writer.WriteFile("data/model_duplicate_individual/model_duplicate_individual_constants_config.json",
-                               archive_constant_cfg_path, false));
+      ASSERT_TRUE(zip_writer.WriteFile("data/model_0/model_0_constants_config.json", archive_constant_cfg_path, false));
       ASSERT_TRUE(zip_writer.SaveModelDataToFile());
       ASSERT_EQ(mmAccess2(om2_duplicate_individual_file_path_.c_str(), M_F_OK), EOK);
     });
@@ -1346,21 +1335,20 @@ class Om2ModelExecutorUt : public testing::Test {
   }
 
   static ModelDataHolder MakeVariableArchiveModelData(const std::string &case_suffix,
-                                                      const std::string &var_resource_json,
-                                                      const std::vector<uint8_t> *var_weight_data,
                                                       const std::string &variables_config_json,
+                                                      const std::vector<uint8_t> *var_weight_data,
                                                       const VarWeightOrder weight_order) {
     PrepareOm2File();
-    ge::ModelBufferData model_buf;
+    gert::GertBuffer model_buf;
     const auto om_path = PathUtils::Join({test_work_dir_, "variable_archive_" + case_suffix + ".om2"});
     const auto so_path = PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"});
-    ZipArchiveWriter zip_writer(om_path);
+    gert::ZipArchiveWriter zip_writer(om_path);
     EXPECT_TRUE(zip_writer.IsMemFileOpened());
     const auto model_meta = MakeModelMetaJson();
     EXPECT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
     const auto op_attr = MakeEmptyOpAttrJson();
     EXPECT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-    EXPECT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+    EXPECT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
     const auto manifest = MakeManifestJson();
     EXPECT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
     const std::string constants_config = "{}";
@@ -1368,19 +1356,17 @@ class Om2ModelExecutorUt : public testing::Test {
                                       constants_config.size(), false));
 
     const auto write_weight = [&]() {
-      EXPECT_TRUE(zip_writer.WriteBytes("data/variables/var_weight_data", var_weight_data->data(),
+      EXPECT_TRUE(zip_writer.WriteBytes("data/model_0/var_weight_data", var_weight_data->data(),
                                         var_weight_data->size(), false));
     };
-    if (var_weight_data != nullptr && weight_order == VarWeightOrder::kBeforeResource) {
+    if (var_weight_data != nullptr && weight_order == VarWeightOrder::kBeforeConfig) {
       write_weight();
     }
-    EXPECT_TRUE(zip_writer.WriteBytes("data/variables/var_resource.json", var_resource_json.data(),
-                                      var_resource_json.size(), false));
-    if (var_weight_data != nullptr && weight_order == VarWeightOrder::kAfterResource) {
-      write_weight();
-    }
-    EXPECT_TRUE(zip_writer.WriteBytes("data/variables/model_0_variables_config.json", variables_config_json.data(),
+    EXPECT_TRUE(zip_writer.WriteBytes("data/model_0/variables_config.json", variables_config_json.data(),
                                       variables_config_json.size(), false));
+    if (var_weight_data != nullptr && weight_order == VarWeightOrder::kAfterConfig) {
+      write_weight();
+    }
     EXPECT_TRUE(zip_writer.SaveModelData(model_buf, false));
 
     ModelDataHolder holder;
@@ -1432,14 +1418,15 @@ TEST_F(Om2ModelExecutorUt, load_ok) {
 
 TEST_F(Om2ModelExecutorUt, load_ok_with_zip_archive_writer_base_name_prefix) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_mem_path = PathUtils::Join({test_work_dir_, "load_with_base_prefix.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
   const std::string archive_constant_path = PathUtils::Join({test_work_dir_, "constant_0"});
-  const std::string archive_constant_cfg_path = PathUtils::Join({test_work_dir_, "model_0_constants_config.json"});
+  const std::string archive_constant_cfg_path = PathUtils::Join({test_work_dir_, "base_prefix_constants_config.json"});
+  WriteTextFile(archive_constant_cfg_path, MakeConstantsConfigJson());
 
-  ZipArchiveWriter zip_writer(om2_mem_path);
+  gert::ZipArchiveWriter zip_writer(om2_mem_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJson();
@@ -1466,16 +1453,15 @@ TEST_F(Om2ModelExecutorUt, load_ok_with_zip_archive_writer_base_name_prefix) {
 }
 
 TEST_F(Om2ModelExecutorUt, load_deserializes_variable_entries_regardless_of_weight_order) {
-  const auto resource_json = MakeVarResourceJson(0U, 4U);
-  const auto config_json = MakeVariablesConfigJson();
+  const auto config_json = MakeVariablesConfigJson(0U, 4U);
   const std::vector<uint8_t> weight{1U, 2U, 3U, 4U};
   const std::vector<std::pair<const char *, VarWeightOrder>> cases{
-      {"weight_before", VarWeightOrder::kBeforeResource},
-      {"weight_after", VarWeightOrder::kAfterResource},
+      {"weight_before", VarWeightOrder::kBeforeConfig},
+      {"weight_after", VarWeightOrder::kAfterConfig},
   };
   uint64_t session_id = 1001U;
   for (const auto &[suffix, order] : cases) {
-    auto holder = MakeVariableArchiveModelData(suffix, resource_json, &weight, config_json, order);
+    auto holder = MakeVariableArchiveModelData(suffix, config_json, &weight, order);
     ASSERT_EQ(setenv("OM2_EXPECT_VAR0_MODE", "NON_NULL", 1), 0);
     VarInitDataRecordingAclRuntimeStub runtime_stub;
     AclRuntimeStubGuard runtime_stub_guard(&runtime_stub);
@@ -1498,17 +1484,15 @@ TEST_F(Om2ModelExecutorUt, load_skips_invalid_variable_init_data) {
     uint64_t session_id;
   };
 
-  const auto config_json = MakeVariablesConfigJson();
   const std::vector<uint8_t> short_weight{1U, 2U};
   const std::vector<VariableWeightCase> cases{
       {"missing_weight", 0U, 4U, nullptr, VarWeightOrder::kAbsent, 1003U},
-      {"size_out_of_range", 1U, 4U, &short_weight, VarWeightOrder::kAfterResource, 1004U},
-      {"offset_out_of_range", 3U, 1U, &short_weight, VarWeightOrder::kBeforeResource, 1005U},
+      {"size_out_of_range", 1U, 4U, &short_weight, VarWeightOrder::kAfterConfig, 1004U},
+      {"offset_out_of_range", 3U, 1U, &short_weight, VarWeightOrder::kBeforeConfig, 1005U},
   };
   for (const auto &test_case : cases) {
-    const auto resource_json = MakeVarResourceJson(test_case.offset, test_case.size);
-    auto holder =
-        MakeVariableArchiveModelData(test_case.suffix, resource_json, test_case.weight, config_json, test_case.order);
+    const auto config_json = MakeVariablesConfigJson(test_case.offset, test_case.size);
+    auto holder = MakeVariableArchiveModelData(test_case.suffix, config_json, test_case.weight, test_case.order);
     ASSERT_EQ(setenv("OM2_EXPECT_VAR0_MODE", "NON_NULL", 1), 0);
     VarInitDataRecordingAclRuntimeStub runtime_stub;
     AclRuntimeStubGuard runtime_stub_guard(&runtime_stub);
@@ -1520,12 +1504,12 @@ TEST_F(Om2ModelExecutorUt, load_skips_invalid_variable_init_data) {
 
 TEST_F(Om2ModelExecutorUt, load_preserves_zero_copy_and_origin_input_dims_from_model_meta) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_mem_path = PathUtils::Join({test_work_dir_, "load_with_zero_copy.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_mem_path);
+  gert::ZipArchiveWriter zip_writer(om2_mem_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithZeroCopySize();
@@ -1533,10 +1517,10 @@ TEST_F(Om2ModelExecutorUt, load_preserves_zero_copy_and_origin_input_dims_from_m
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
   ASSERT_NE(model_buf.data, nullptr);
   ASSERT_GT(model_buf.length, 0U);
@@ -1555,21 +1539,21 @@ TEST_F(Om2ModelExecutorUt, load_preserves_zero_copy_and_origin_input_dims_from_m
   load_arg.work_size = external_work.size();
   ASSERT_EQ(executor.Load(holder.model_data, load_arg, 1U), SUCCESS);
 
-  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *input_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *output_desc = nullptr;
   ASSERT_EQ(executor.GetModelDescInfo(input_desc, output_desc, false), SUCCESS);
   ASSERT_NE(input_desc, nullptr);
   ASSERT_EQ(input_desc->size(), 2U);
-  EXPECT_EQ((*input_desc)[0].GetShape(), std::vector<int64_t>({1, 2, 3, 4}));
-  EXPECT_EQ((*input_desc)[1].GetShape(), std::vector<int64_t>({1, 1, 224, 224}));
+  EXPECT_EQ((*input_desc)[0].shape, std::vector<int64_t>({1, 2, 3, 4}));
+  EXPECT_EQ((*input_desc)[1].shape, std::vector<int64_t>({1, 1, 224, 224}));
 
-  const std::vector<ge::Om2TensorDesc> *input_desc_v2 = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc_v2 = nullptr;
+  const std::vector<gert::GertTensorDesc> *input_desc_v2 = nullptr;
+  const std::vector<gert::GertTensorDesc> *output_desc_v2 = nullptr;
   ASSERT_EQ(executor.GetModelDescInfo(input_desc_v2, output_desc_v2, true), SUCCESS);
   ASSERT_NE(input_desc_v2, nullptr);
   ASSERT_EQ(input_desc_v2->size(), 2U);
-  EXPECT_EQ((*input_desc_v2)[0].GetShape(), std::vector<int64_t>({1, 8, 3, 4}));
-  EXPECT_EQ((*input_desc_v2)[1].GetShape(), std::vector<int64_t>({1, 1, 448, 224}));
+  EXPECT_EQ((*input_desc_v2)[0].shape, std::vector<int64_t>({1, 8, 3, 4}));
+  EXPECT_EQ((*input_desc_v2)[1].shape, std::vector<int64_t>({1, 1, 448, 224}));
 
   const auto &origin_input_dims = executor.GetOriginInputDims();
   ASSERT_EQ(origin_input_dims.size(), 2U);
@@ -1624,10 +1608,10 @@ TEST_F(Om2ModelExecutorUt, load_calls_model_load_after_model_create) {
 
 TEST_F(Om2ModelExecutorUt, load_fallbacks_root_graph_name_to_model_name_when_meta_missing) {
   const std::string om2_file_path = PathUtils::Join({test_work_dir_, "missing_root_graph_name.om2"});
-  ZipArchiveWriter zip_writer(om2_file_path);
+  gert::ZipArchiveWriter zip_writer(om2_file_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
-  const auto model_meta = MakeModelMetaJsonWithoutRootGraphName();
+  const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so",
@@ -1654,7 +1638,7 @@ TEST_F(Om2ModelExecutorUt, load_fallbacks_root_graph_name_to_model_name_when_met
 
 TEST_F(Om2ModelExecutorUt, load_failed_when_model_desc_is_invalid) {
   const std::string om2_file_path = PathUtils::Join({test_work_dir_, "invalid_model_desc.om2"});
-  ZipArchiveWriter zip_writer(om2_file_path);
+  gert::ZipArchiveWriter zip_writer(om2_file_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   // Missing input shape should fail while parsing the cached model desc.
@@ -1663,8 +1647,8 @@ TEST_F(Om2ModelExecutorUt, load_failed_when_model_desc_is_invalid) {
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so",
-                                   PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so",
+                             PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"}), false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
@@ -1918,19 +1902,19 @@ TEST_F(Om2ModelExecutorUt, get_model_desc_info_ok) {
   auto load_arg = MakeOm2LoadArg();
   ASSERT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
 
-  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *input_desc = nullptr;
+  const std::vector<gert::GertTensorDesc> *output_desc = nullptr;
   EXPECT_EQ(executor.GetModelDescInfo(input_desc, output_desc, false), SUCCESS);
   ASSERT_NE(input_desc, nullptr);
   ASSERT_NE(output_desc, nullptr);
   ASSERT_EQ(input_desc->size(), 2U);
   ASSERT_EQ(output_desc->size(), 1U);
-  EXPECT_EQ((*input_desc)[0].GetName(), "data1");
-  EXPECT_EQ((*input_desc)[1].GetName(), "data2");
-  EXPECT_EQ((*output_desc)[0].GetName(), "output_0_reshape1_0");
+  EXPECT_EQ(std::string(gert::GertGetStr((*input_desc)[0].name)), "data1");
+  EXPECT_EQ(std::string(gert::GertGetStr((*input_desc)[1].name)), "data2");
+  EXPECT_EQ(std::string(gert::GertGetStr((*output_desc)[0].name)), "output_0_reshape1_0");
 
-  const std::vector<ge::Om2TensorDesc> *input_desc_v2 = nullptr;
-  const std::vector<ge::Om2TensorDesc> *output_desc_v2 = nullptr;
+  const std::vector<gert::GertTensorDesc> *input_desc_v2 = nullptr;
+  const std::vector<gert::GertTensorDesc> *output_desc_v2 = nullptr;
   EXPECT_EQ(executor.GetModelDescInfo(input_desc_v2, output_desc_v2, true), SUCCESS);
   ASSERT_NE(input_desc_v2, nullptr);
   ASSERT_NE(output_desc_v2, nullptr);
@@ -2034,7 +2018,7 @@ TEST_F(Om2ModelExecutorUt, get_mem_and_weight_size_from_file_ok) {
 TEST_F(Om2ModelExecutorUt, get_mem_and_weight_size_external_only_with_zero_internal_weight_size_ok) {
   const std::string om2_file_path =
       PathUtils::Join({test_work_dir_, "external_only_with_zero_internal_weight_size.om2"});
-  ZipArchiveWriter zip_writer(om2_file_path);
+  gert::ZipArchiveWriter zip_writer(om2_file_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto constants_config = MakeIndividualConstantsConfigJsonWithZeroInternalWeightSize();
@@ -2076,7 +2060,7 @@ TEST_F(Om2ModelExecutorUt, get_workspace_size_from_file_default_ok) {
 
 TEST_F(Om2ModelExecutorUt, get_workspace_size_from_file_with_zero_copy_size_ok) {
   const std::string om2_file_path = PathUtils::Join({test_work_dir_, "workspace_zero_copy.om2"});
-  ZipArchiveWriter zip_writer(om2_file_path);
+  gert::ZipArchiveWriter zip_writer(om2_file_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithZeroCopySize(512U);
@@ -2093,7 +2077,7 @@ TEST_F(Om2ModelExecutorUt, get_workspace_size_from_file_with_zero_copy_size_ok) 
 
 TEST_F(Om2ModelExecutorUt, get_workspace_size_missing_zero_copy_size_ok) {
   const std::string om2_file_path = PathUtils::Join({test_work_dir_, "workspace_missing_zero_copy.om2"});
-  ZipArchiveWriter zip_writer(om2_file_path);
+  gert::ZipArchiveWriter zip_writer(om2_file_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithoutZeroCopySize();
@@ -2110,7 +2094,7 @@ TEST_F(Om2ModelExecutorUt, get_workspace_size_missing_zero_copy_size_ok) {
 
 TEST_F(Om2ModelExecutorUt, get_workspace_size_failed_when_zero_copy_size_overflows_work_size) {
   const std::string om2_file_path = PathUtils::Join({test_work_dir_, "workspace_zero_copy_overflow.om2"});
-  ZipArchiveWriter zip_writer(om2_file_path);
+  gert::ZipArchiveWriter zip_writer(om2_file_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithZeroCopySize(4096U);
@@ -2139,6 +2123,8 @@ static std::string MakeMultipleOpAttrJson() {
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   // 创建包含op_attr.json的OM2文件
   const std::string om2_with_attr = PathUtils::Join({test_work_dir_, "om2_with_op_attr.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_attr"});
@@ -2160,7 +2146,7 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
   RunCommandOrAssert(cmake_build_cmd);
   ASSERT_EQ(mmAccess2(so_path.c_str(), M_F_OK), EOK);
 
-  ZipArchiveWriter zip_writer(om2_with_attr);
+  gert::ZipArchiveWriter zip_writer(om2_with_attr);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJson();
@@ -2168,22 +2154,22 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
-                                   PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
-                                   PathUtils::Join({runtime_dir, "g1_interface.h"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_resources.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_resources.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_kernel_reg.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_kernel_reg.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_args_manager.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_args_manager.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/CMakeLists.txt",
+                             PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_interface.h",
+                             PathUtils::Join({runtime_dir, "g1_interface.h"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_resources.cpp",
+                             PathUtils::Join({runtime_dir, "g1_resources.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_kernel_reg.cpp",
+                             PathUtils::Join({runtime_dir, "g1_kernel_reg.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_args_manager.cpp",
+                             PathUtils::Join({runtime_dir, "g1_args_manager.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_load_and_run.cpp",
+                             PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2217,6 +2203,8 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_ValidOpAttrJson_ReturnsParsedMap) {
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_EmptyOpAttrJson_ReturnsEmptyMap) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   // 创建包含空op_attr.json的OM2文件
   const std::string om2_empty_attr = PathUtils::Join({test_work_dir_, "om2_empty_op_attr.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_empty_attr"});
@@ -2238,7 +2226,7 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_EmptyOpAttrJson_ReturnsEmptyMap) {
   RunCommandOrAssert(cmake_build_cmd);
   ASSERT_EQ(mmAccess2(so_path.c_str(), M_F_OK), EOK);
 
-  ZipArchiveWriter zip_writer(om2_empty_attr);
+  gert::ZipArchiveWriter zip_writer(om2_empty_attr);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJson();
@@ -2246,22 +2234,22 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_EmptyOpAttrJson_ReturnsEmptyMap) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
-                                   PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
-                                   PathUtils::Join({runtime_dir, "g1_interface.h"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_resources.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_resources.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_kernel_reg.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_kernel_reg.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_args_manager.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_args_manager.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/CMakeLists.txt",
+                             PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_interface.h",
+                             PathUtils::Join({runtime_dir, "g1_interface.h"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_resources.cpp",
+                             PathUtils::Join({runtime_dir, "g1_resources.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_kernel_reg.cpp",
+                             PathUtils::Join({runtime_dir, "g1_kernel_reg.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_args_manager.cpp",
+                             PathUtils::Join({runtime_dir, "g1_args_manager.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_load_and_run.cpp",
+                             PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   // 加载模型并验证GetOpAttr返回空map
@@ -2305,6 +2293,8 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_MissingOpAttrJson_ReturnsEmptyMap) {
 }
 
 TEST_F(Om2ModelExecutorUt, GetOpAttr_InvalidOpAttrJson_ReturnsEmptyMap) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   // 创建包含无效JSON的OM2文件
   const std::string om2_invalid_attr = PathUtils::Join({test_work_dir_, "om2_invalid_op_attr.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_invalid_attr"});
@@ -2326,7 +2316,7 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_InvalidOpAttrJson_ReturnsEmptyMap) {
   RunCommandOrAssert(cmake_build_cmd);
   ASSERT_EQ(mmAccess2(so_path.c_str(), M_F_OK), EOK);
 
-  ZipArchiveWriter zip_writer(om2_invalid_attr);
+  gert::ZipArchiveWriter zip_writer(om2_invalid_attr);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJson();
@@ -2334,22 +2324,22 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_InvalidOpAttrJson_ReturnsEmptyMap) {
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
-                                   PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
-                                   PathUtils::Join({runtime_dir, "g1_interface.h"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_resources.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_resources.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_kernel_reg.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_kernel_reg.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_args_manager.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_args_manager.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/CMakeLists.txt",
+                             PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_interface.h",
+                             PathUtils::Join({runtime_dir, "g1_interface.h"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_resources.cpp",
+                             PathUtils::Join({runtime_dir, "g1_resources.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_kernel_reg.cpp",
+                             PathUtils::Join({runtime_dir, "g1_kernel_reg.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_args_manager.cpp",
+                             PathUtils::Join({runtime_dir, "g1_args_manager.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_load_and_run.cpp",
+                             PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   // 加载模型，无效JSON时fallback到空map
@@ -2376,6 +2366,8 @@ TEST_F(Om2ModelExecutorUt, GetOpAttr_InvalidOpAttrJson_ReturnsEmptyMap) {
 }
 
 TEST_F(Om2ModelExecutorUt, ParseOpAttrJsonToMapInternal_MultipleAttrs_ParsesAllAttrs) {
+  // slow_test_limit = 2000
+  // so 编译耗时较大
   // 创建包含多个算子多个属性的OM2文件
   const std::string om2_multi_attr = PathUtils::Join({test_work_dir_, "om2_multi_op_attr.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime_multi_attr"});
@@ -2397,7 +2389,7 @@ TEST_F(Om2ModelExecutorUt, ParseOpAttrJsonToMapInternal_MultipleAttrs_ParsesAllA
   RunCommandOrAssert(cmake_build_cmd);
   ASSERT_EQ(mmAccess2(so_path.c_str(), M_F_OK), EOK);
 
-  ZipArchiveWriter zip_writer(om2_multi_attr);
+  gert::ZipArchiveWriter zip_writer(om2_multi_attr);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJson();
@@ -2405,22 +2397,22 @@ TEST_F(Om2ModelExecutorUt, ParseOpAttrJsonToMapInternal_MultipleAttrs_ParsesAllA
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/CMakeLists.txt",
-                                   PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_interface.h",
-                                   PathUtils::Join({runtime_dir, "g1_interface.h"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_resources.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_resources.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_kernel_reg.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_kernel_reg.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_args_manager.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_args_manager.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/g1_load_and_run.cpp",
-                                   PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/CMakeLists.txt",
+                             PathUtils::Join({runtime_dir, "CMakeLists.txt"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_interface.h",
+                             PathUtils::Join({runtime_dir, "g1_interface.h"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_resources.cpp",
+                             PathUtils::Join({runtime_dir, "g1_resources.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_kernel_reg.cpp",
+                             PathUtils::Join({runtime_dir, "g1_kernel_reg.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_args_manager.cpp",
+                             PathUtils::Join({runtime_dir, "g1_args_manager.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/g1_load_and_run.cpp",
+                             PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   // 加载模型并验证所有属性都被解析
@@ -2500,7 +2492,7 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_InvalidGear_ReturnsError) {
   const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
   const std::string om2_dynamic_path = PathUtils::Join({test_work_dir_, "dynamic_batch.om2"});
 
-  ZipArchiveWriter zip_writer(om2_dynamic_path);
+  gert::ZipArchiveWriter zip_writer(om2_dynamic_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
@@ -2508,10 +2500,10 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_InvalidGear_ReturnsError) {
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   // 加载模型
@@ -2541,7 +2533,7 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_ValidGear_Success) {
   const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
   const std::string om2_dynamic_path = PathUtils::Join({test_work_dir_, "dynamic_batch_valid.om2"});
 
-  ZipArchiveWriter zip_writer(om2_dynamic_path);
+  gert::ZipArchiveWriter zip_writer(om2_dynamic_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
@@ -2549,10 +2541,10 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_ValidGear_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2589,7 +2581,7 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_DynamicHW_Success) {
   const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
   const std::string om2_dynamic_path = PathUtils::Join({test_work_dir_, "dynamic_hw.om2"});
 
-  ZipArchiveWriter zip_writer(om2_dynamic_path);
+  gert::ZipArchiveWriter zip_writer(om2_dynamic_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithDynamicHW();
@@ -2597,10 +2589,10 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_DynamicHW_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2637,7 +2629,7 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_DynamicDims_Success) {
   const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
   const std::string om2_dynamic_path = PathUtils::Join({test_work_dir_, "dynamic_dims.om2"});
 
-  ZipArchiveWriter zip_writer(om2_dynamic_path);
+  gert::ZipArchiveWriter zip_writer(om2_dynamic_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithDynamicDims();
@@ -2645,10 +2637,10 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_DynamicDims_Success) {
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2701,7 +2693,7 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_EmptyBatchNum_ReturnsError) {
   const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime/libg1_om2.so"});
   const std::string om2_path = PathUtils::Join({test_work_dir_, "dynamic_batch_empty.om2"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
@@ -2709,10 +2701,10 @@ TEST_F(Om2ModelExecutorUt, SetDynamicSize_EmptyBatchNum_ReturnsError) {
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
 
   uint32_t model_buf_size = 0U;
@@ -2741,7 +2733,7 @@ static bool LoadDynamicBatchModel(const std::string &test_work_dir, const std::s
   const std::string so_path = PathUtils::Join({test_work_dir, "fake_runtime/libg1_om2.so"});
   const std::string om2_path = PathUtils::Join({test_work_dir, "dynamic_batch_" + om2_suffix + ".om2"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   if (!zip_writer.IsMemFileOpened()) return false;
   const auto manifest = MakeManifestJson();
   const auto model_meta = MakeModelMetaJsonWithDynamicBatch();
@@ -2753,7 +2745,7 @@ static bool LoadDynamicBatchModel(const std::string &test_work_dir, const std::s
   if (!zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                              constants_config.size(), false))
     return false;
-  if (!zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false)) return false;
+  if (!WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false)) return false;
   if (!zip_writer.SaveModelDataToFile()) return false;
 
   uint32_t model_buf_size = 0U;
@@ -3138,7 +3130,7 @@ static bool LoadAippModel(const std::string &test_work_dir, const bool is_dynami
       std::string("aipp_") + (is_dynamic ? "dynamic_" : "static_") + std::to_string(aipp_type);
   const std::string om2_path = PathUtils::Join({test_work_dir, om2_suffix + ".om2"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   if (!zip_writer.IsMemFileOpened()) {
     return false;
   }
@@ -3159,7 +3151,7 @@ static bool LoadAippModel(const std::string &test_work_dir, const bool is_dynami
                              constants_config.size(), false)) {
     return false;
   }
-  if (!zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false)) {
+  if (!WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false)) {
     return false;
   }
   if (!zip_writer.SaveModelDataToFile()) {
@@ -3179,6 +3171,7 @@ static bool LoadAippModel(const std::string &test_work_dir, const bool is_dynami
   auto load_arg = MakeOm2LoadArg();
   return executor.Load(model_data, load_arg, 1U) == SUCCESS;
 }
+
 }  // namespace
 
 TEST_F(Om2ModelExecutorUt, GetAippInfo_NoAipp_ReturnsNotExist) {
@@ -3454,18 +3447,18 @@ std::string MakeManifestJsonWithoutCompatibility() {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case01_Baseline_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case01.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("1.0", "");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3485,18 +3478,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case01_Baseline_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case02_ExactMatch_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case02.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("1.0", "1.0");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3516,18 +3509,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case02_ExactMatch_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case03_RequiredLower_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case03.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("1.0", "0.9");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3547,18 +3540,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case03_RequiredLower_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case04_CompilerMinorHigher_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case04.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("1.5", "");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3578,18 +3571,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case04_CompilerMinorHigher_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case05_CompilerMinorHigher_RequiredMatch_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case05.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("1.5", "1.0");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3609,12 +3602,12 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case05_CompilerMinorHigher_RequiredMatc
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case06_CompilerMajorHigher_Fail) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case06.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("2.0", "");
   const auto model_meta = MakeModelMetaJson();
@@ -3622,7 +3615,7 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case06_CompilerMajorHigher_Fail) {
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
@@ -3640,12 +3633,12 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case06_CompilerMajorHigher_Fail) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case07_CompilerMajorHigher_RequiredSatisfied_Fail) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case07.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("2.0", "1.0");
   const auto model_meta = MakeModelMetaJson();
@@ -3653,7 +3646,7 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case07_CompilerMajorHigher_RequiredSati
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
@@ -3671,18 +3664,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case07_CompilerMajorHigher_RequiredSati
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case08_CompilerLower_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case08.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("0.9", "");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3702,18 +3695,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case08_CompilerLower_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case09_CompilerLower_RequiredLower_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case09.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("0.9", "0.9");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3733,18 +3726,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case09_CompilerLower_RequiredLower_Succ
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case10_EmptyStrings_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case10.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("", "");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3764,18 +3757,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case10_EmptyStrings_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case11_OnlyMajor_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case11.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("1", "1");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3795,18 +3788,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case11_OnlyMajor_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case12_InvalidFormat_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case12.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("abc", "");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3826,18 +3819,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case12_InvalidFormat_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case13_RequiredInvalidFormat_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case13.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("1.0", "xyz");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3857,12 +3850,12 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case13_RequiredInvalidFormat_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case14_CompatibilityMissing_Fail) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case14.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithoutCompatibility();
   const auto model_meta = MakeModelMetaJson();
@@ -3870,7 +3863,7 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case14_CompatibilityMissing_Fail) {
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const std::string constants_config = "{}";
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
                                     constants_config.size(), false));
@@ -3888,12 +3881,12 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case14_CompatibilityMissing_Fail) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case15_UsedFeaturesMissing_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case15.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   std::string manifest = "{\n";
   manifest += "  \"atc_command\": \"\",\n";
@@ -3906,7 +3899,7 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case15_UsedFeaturesMissing_Success) {
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3926,18 +3919,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case15_UsedFeaturesMissing_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case16_UsedFeaturesNotObject_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case16.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("1.0", "", "\"invalid\"");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3957,18 +3950,18 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case16_UsedFeaturesNotObject_Success) {
 
 TEST_F(Om2ModelExecutorUt, VersionCompat_Case17_UsedFeaturesWithData_Success) {
   PrepareOm2File();
-  ge::ModelBufferData model_buf;
+  gert::GertBuffer model_buf;
   const std::string om2_path = PathUtils::Join({test_work_dir_, "version_compat_case17.om2"});
   const std::string runtime_dir = PathUtils::Join({test_work_dir_, "fake_runtime"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
 
-  ZipArchiveWriter zip_writer(om2_path);
+  gert::ZipArchiveWriter zip_writer(om2_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJsonWithCompat("1.0", "", "{\"feature_a\":\"enabled\"}");
   const auto model_meta = MakeModelMetaJson();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
   const auto op_attr = MakeEmptyOpAttrJson();
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   const std::string constants_config = "{}";
@@ -3987,264 +3980,3 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case17_UsedFeaturesWithData_Success) {
 }
 
 }  // namespace ge
-
-namespace gert {
-namespace om2 {
-
-class Om2AippUtilsUt : public ::testing::Test {
- protected:
-  void SetUp() override {}
-  void TearDown() override {}
-};
-
-TEST_F(Om2AippUtilsUt, ParseAippDimInfo_InvalidPartsCount) {
-  ge::InputOutputDims dims_info;
-  auto status = ParseAippDimInfo("too:few", dims_info);
-  EXPECT_EQ(status, ge::FAILED);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippDimInfo_EmptyDimInShape) {
-  ge::InputOutputDims dims_info;
-  auto status = ParseAippDimInfo("NCHW:DT_FLOAT:data:0:4:1,,3,224", dims_info);
-  EXPECT_EQ(status, ge::SUCCESS);
-  EXPECT_EQ(dims_info.name, "data");
-  EXPECT_EQ(dims_info.dim_num, 4U);
-  EXPECT_EQ(dims_info.dims.size(), 3U);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippConfigFromJson_AllFields) {
-  ge::JsonFile entry;
-  entry.Set("aipp_mode", static_cast<int8_t>(1));
-  entry.Set("input_format", static_cast<int8_t>(1));
-  entry.Set("src_image_size_w", static_cast<int32_t>(224));
-  entry.Set("src_image_size_h", static_cast<int32_t>(224));
-  entry.Set("crop", static_cast<int8_t>(1));
-  entry.Set("csc_switch", static_cast<int8_t>(1));
-  entry.Set("matrix_r0c0", static_cast<int32_t>(1));
-  entry.Set("matrix_r2c2", static_cast<int32_t>(9));
-  entry.Set("mean_chn_0", static_cast<int32_t>(128));
-  entry.Set("min_chn_0", static_cast<float32_t>(0.0F));
-  entry.Set("var_reci_chn_0", static_cast<float32_t>(1.0F));
-  entry.Set("max_src_image_size", static_cast<uint32_t>(4096U));
-  entry.Set("support_rotation", static_cast<int8_t>(0));
-  entry.Set("related_input_rank", static_cast<uint32_t>(0U));
-
-  auto result = ParseAippConfigFromJson(entry);
-  EXPECT_EQ(result.aipp_mode, 1);
-  EXPECT_EQ(result.csc_switch, 1);
-  EXPECT_EQ(result.matrix_r0c0, 1);
-  EXPECT_EQ(result.matrix_r2c2, 9);
-  EXPECT_EQ(result.mean_chn_0, 128);
-  EXPECT_EQ(result.max_src_image_size, 4096U);
-}
-
-TEST_F(Om2AippUtilsUt, ParseOriginInputFromJson_Valid) {
-  ge::JsonFile entry;
-  entry.Set("orig_input_format", static_cast<int32_t>(0));
-  entry.Set("orig_input_data_type", static_cast<int32_t>(1));
-  entry.Set("orig_input_dim_num", static_cast<uint32_t>(4U));
-
-  auto result = ParseOriginInputFromJson(entry);
-  EXPECT_EQ(result.format, static_cast<ge::Format>(0));
-  EXPECT_EQ(result.data_type, static_cast<ge::DataType>(1));
-  EXPECT_EQ(result.dim_num, 4U);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippDimsFromJson_Valid) {
-  ge::JsonFile entry;
-  entry.Set("aipp_inputs", std::vector<std::string>{"NCHW:DT_FLOAT:data:0:4:1,3,224,224"});
-
-  auto result = ParseAippDimsFromJson(entry, "aipp_inputs");
-  EXPECT_EQ(result.size(), 1U);
-  EXPECT_EQ(result[0].name, "data");
-  EXPECT_EQ(result[0].dim_num, 4U);
-  EXPECT_EQ(result[0].dims.size(), 4U);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippDimsFromJson_WithInvalidEntry) {
-  ge::JsonFile entry;
-  entry.Set("aipp_inputs", std::vector<std::string>{"invalid", "NCHW:DT_FLOAT:data:0:4:1,3,224"});
-
-  auto result = ParseAippDimsFromJson(entry, "aipp_inputs");
-  EXPECT_EQ(result.size(), 1U);
-  EXPECT_EQ(result[0].name, "data");
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippJson_NoAippInfosKey) {
-  ge::JsonFile aipp_json;
-  std::vector<Om2AippMeta> aipp_infos;
-  bool has_aipp = false;
-
-  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
-  EXPECT_EQ(status, ge::FAILED);
-  EXPECT_FALSE(has_aipp);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippJson_AippInfosNotArray) {
-  ge::JsonFile aipp_json;
-  aipp_json.Set("aipp_infos", "not_an_array");
-  std::vector<Om2AippMeta> aipp_infos;
-  bool has_aipp = false;
-
-  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
-  EXPECT_EQ(status, ge::SUCCESS);
-  EXPECT_FALSE(has_aipp);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippJson_EmptyAippInfos) {
-  ge::JsonFile aipp_json;
-  aipp_json.Set("aipp_infos", nlohmann::json::array());
-  std::vector<Om2AippMeta> aipp_infos;
-  bool has_aipp = false;
-
-  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
-  EXPECT_EQ(status, ge::SUCCESS);
-  EXPECT_TRUE(has_aipp);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippJson_ValidAippInfo) {
-  nlohmann::json aipp_item;
-  aipp_item["index"] = 0;
-  aipp_item["aipp_type"] = 1;
-  aipp_item["aipp_data_index"] = 0;
-  aipp_item["aipp_mode"] = 1;
-  aipp_item["input_format"] = 1;
-  aipp_item["src_image_size_w"] = 224;
-  aipp_item["src_image_size_h"] = 224;
-  aipp_item["csc_switch"] = 1;
-  aipp_item["matrix_r0c0"] = 1;
-  aipp_item["matrix_r2c2"] = 9;
-  aipp_item["mean_chn_0"] = 128;
-  aipp_item["min_chn_0"] = 0.0F;
-  aipp_item["var_reci_chn_0"] = 1.0F;
-  aipp_item["max_src_image_size"] = 4096;
-  aipp_item["orig_input_format"] = 0;
-  aipp_item["orig_input_data_type"] = 1;
-  aipp_item["orig_input_dim_num"] = 4;
-  aipp_item["aipp_inputs"] = nlohmann::json::array({"NCHW:DT_FLOAT:data:0:4:1,3,224,224"});
-  aipp_item["aipp_outputs"] = nlohmann::json::array();
-
-  nlohmann::json root_json;
-  root_json["aipp_infos"] = nlohmann::json::array({aipp_item});
-
-  ge::JsonFile aipp_json(root_json);
-  std::vector<Om2AippMeta> aipp_infos;
-  bool has_aipp = false;
-
-  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
-  EXPECT_EQ(status, ge::SUCCESS);
-  EXPECT_TRUE(has_aipp);
-  EXPECT_EQ(aipp_infos.size(), 1U);
-  EXPECT_EQ(aipp_infos[0].aipp_type, ge::DATA_WITH_STATIC_AIPP);
-  EXPECT_EQ(aipp_infos[0].aipp_config_info.aipp_mode, 1);
-  EXPECT_EQ(aipp_infos[0].aipp_input_dims.size(), 1U);
-  EXPECT_EQ(aipp_infos[0].orig_input_info.dim_num, 4U);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippJson_SkipNonObjectItem) {
-  nlohmann::json root_json;
-  root_json["aipp_infos"] = nlohmann::json::array({"not_an_object", 42});
-
-  ge::JsonFile aipp_json(root_json);
-  std::vector<Om2AippMeta> aipp_infos;
-  bool has_aipp = false;
-
-  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
-  EXPECT_EQ(status, ge::SUCCESS);
-  EXPECT_TRUE(has_aipp);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippJson_IndexOutOfBounds) {
-  nlohmann::json aipp_item;
-  aipp_item["index"] = 2;
-  aipp_item["aipp_type"] = 1;
-  aipp_item["aipp_data_index"] = 0;
-  aipp_item["aipp_mode"] = 1;
-  aipp_item["input_format"] = 1;
-  aipp_item["src_image_size_w"] = 224;
-  aipp_item["src_image_size_h"] = 224;
-  aipp_item["csc_switch"] = 0;
-  aipp_item["matrix_r0c0"] = 0;
-  aipp_item["matrix_r2c2"] = 0;
-  aipp_item["mean_chn_0"] = 0;
-  aipp_item["min_chn_0"] = 0.0F;
-  aipp_item["var_reci_chn_0"] = 0.0F;
-  aipp_item["max_src_image_size"] = 0;
-  aipp_item["orig_input_format"] = 0;
-  aipp_item["orig_input_data_type"] = 0;
-  aipp_item["orig_input_dim_num"] = 0;
-  aipp_item["aipp_inputs"] = nlohmann::json::array();
-  aipp_item["aipp_outputs"] = nlohmann::json::array();
-
-  nlohmann::json root_json;
-  root_json["aipp_infos"] = nlohmann::json::array({aipp_item});
-
-  ge::JsonFile aipp_json(root_json);
-  std::vector<Om2AippMeta> aipp_infos;
-  bool has_aipp = false;
-
-  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
-  EXPECT_EQ(status, ge::SUCCESS);
-  EXPECT_EQ(aipp_infos.size(), 3U);
-}
-
-TEST_F(Om2AippUtilsUt, ParseAippJson_MultipleValidItems) {
-  nlohmann::json item0;
-  item0["index"] = 0;
-  item0["aipp_type"] = 1;
-  item0["aipp_data_index"] = 0;
-  item0["aipp_mode"] = 1;
-  item0["input_format"] = 1;
-  item0["src_image_size_w"] = 224;
-  item0["src_image_size_h"] = 224;
-  item0["csc_switch"] = 0;
-  item0["matrix_r0c0"] = 0;
-  item0["matrix_r2c2"] = 0;
-  item0["mean_chn_0"] = 0;
-  item0["min_chn_0"] = 0.0F;
-  item0["var_reci_chn_0"] = 0.0F;
-  item0["max_src_image_size"] = 0;
-  item0["orig_input_format"] = 0;
-  item0["orig_input_data_type"] = 0;
-  item0["orig_input_dim_num"] = 0;
-  item0["aipp_inputs"] = nlohmann::json::array();
-  item0["aipp_outputs"] = nlohmann::json::array();
-
-  nlohmann::json item1;
-  item1["index"] = 1;
-  item1["aipp_type"] = 2;
-  item1["aipp_data_index"] = 1;
-  item1["aipp_mode"] = 2;
-  item1["input_format"] = 2;
-  item1["src_image_size_w"] = 512;
-  item1["src_image_size_h"] = 512;
-  item1["csc_switch"] = 0;
-  item1["matrix_r0c0"] = 0;
-  item1["matrix_r2c2"] = 0;
-  item1["mean_chn_0"] = 0;
-  item1["min_chn_0"] = 0.0F;
-  item1["var_reci_chn_0"] = 0.0F;
-  item1["max_src_image_size"] = 0;
-  item1["orig_input_format"] = 0;
-  item1["orig_input_data_type"] = 0;
-  item1["orig_input_dim_num"] = 0;
-  item1["aipp_inputs"] = nlohmann::json::array();
-  item1["aipp_outputs"] = nlohmann::json::array();
-
-  nlohmann::json root_json;
-  root_json["aipp_infos"] = nlohmann::json::array({item0, item1});
-
-  ge::JsonFile aipp_json(root_json);
-  std::vector<Om2AippMeta> aipp_infos;
-  bool has_aipp = false;
-
-  auto status = ParseAippJson(aipp_json, aipp_infos, has_aipp);
-  EXPECT_EQ(status, ge::SUCCESS);
-  EXPECT_TRUE(has_aipp);
-  EXPECT_EQ(aipp_infos.size(), 2U);
-  EXPECT_EQ(aipp_infos[0].aipp_type, ge::DATA_WITH_STATIC_AIPP);
-  EXPECT_EQ(aipp_infos[1].aipp_type, ge::DATA_WITH_DYNAMIC_AIPP);
-}
-
-}  // namespace om2
-}  // namespace gert

@@ -121,10 +121,15 @@ TEST_F(CustomNodeConverterUT, custom_op_convert_test) {
                                                                   {"FreeMemory", 4},
                                                                   {"SelectL2Allocator", 1},
                                                                   {"SplitRtStreams", 1},
-                                                                  {"InnerData", 4},
+                                                                  {"InnerData", 5},
                                                                   {"MakeSureTensorAtDevice", 3},
                                                                   {"SplitDataTensor", 4}}),
             "success");
+  // 输入顺序：3 个 tensor + allocator + stream + custom_op_func + attached_stream_provider，
+  // 与 CustomOpInput 枚举保持一致，新增附加输入必须插在 func 之后
+  const auto *execute_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "ExecuteCustomOp");
+  ASSERT_NE(execute_node, nullptr);
+  ASSERT_EQ(execute_node->GetDataInNum(), 7);
 }
 
 TEST_F(CustomNodeConverterUT, host_cpu_custom_op_convert_test) {

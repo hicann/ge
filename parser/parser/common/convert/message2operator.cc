@@ -10,6 +10,8 @@
 
 #include "message2operator.h"
 
+#include <map>
+#include <string>
 #include <vector>
 
 #include "common/convert/pb2json.h"
@@ -21,6 +23,57 @@ namespace ge {
 namespace {
 const int kMaxParseDepth = 5;
 const uint32_t kInteval = 2;
+
+// ONNX AttributeProto 值字段名，键为 AttributeType 枚举值（1=FLOAT，2=INT，3=STRING）。
+// proto3 隐式 presence 下，值等于默认值（i=0、f=0.0、s=""）的字段不会出现在 JSON 中，
+// 插件侧按键取值会丢属性。ONNX IR 要求 type 必须设置且与值字段匹配，因此按 type
+// 判别式强制输出对应标量字段；复合类型（t/g 等）与列表字段不补齐。
+const std::map<int, std::string> kOnnxScalarValueFields = {
+    {1, "f"},
+    {2, "i"},
+    {3, "s"},
+};
+
+bool IsOnnxAttributeProto(const google::protobuf::FieldDescriptor *field) {
+  return (field->message_type() != nullptr) && (field->message_type()->full_name() == "ge.onnx.AttributeProto");
+}
+
+void ForceOnnxAttrValueField(const google::protobuf::Message &item, Json &item_json) {
+  const google::protobuf::Descriptor *descriptor = item.GetDescriptor();
+  const google::protobuf::Reflection *reflection = item.GetReflection();
+  if ((descriptor == nullptr) || (reflection == nullptr)) {
+    return;
+  }
+  const google::protobuf::FieldDescriptor *type_field = descriptor->FindFieldByName("type");
+  if ((type_field == nullptr) || type_field->is_repeated() ||
+      (type_field->type() != google::protobuf::FieldDescriptor::TYPE_ENUM)) {
+    return;
+  }
+  const google::protobuf::EnumValueDescriptor *type_value = reflection->GetEnum(item, type_field);
+  const auto iter = kOnnxScalarValueFields.find((type_value == nullptr) ? 0 : type_value->number());
+  if (iter == kOnnxScalarValueFields.cend()) {
+    return;
+  }
+  const google::protobuf::FieldDescriptor *value_field = descriptor->FindFieldByName(iter->second);
+  if ((value_field == nullptr) || value_field->is_repeated()) {
+    return;
+  }
+  Pb2Json::OneField2Json(item, value_field, reflection, std::set<std::string>(), item_json, false, 0);
+}
+
+void AppendOnnxAttributeItems(const google::protobuf::Message &message, const google::protobuf::Reflection *reflection,
+                              const google::protobuf::FieldDescriptor *field, Json &items) {
+  const int field_size = reflection->FieldSize(message, field);
+  for (int i = 0; i < field_size; ++i) {
+    const google::protobuf::Message &item = reflection->GetRepeatedMessage(message, field, i);
+    Json item_json;
+    if (item.ByteSizeLong() != 0UL) {
+      Pb2Json::Message2Json(item, std::set<std::string>(), item_json, false);
+    }
+    ForceOnnxAttrValueField(item, item_json);
+    items += item_json;
+  }
+}
 }  // namespace
 
 Status Message2Operator::ParseOperatorAttrs(const google::protobuf::Message *message, int depth, ge::Operator &ops) {
@@ -134,8 +187,12 @@ Status Message2Operator::ParseRepeatedField(const google::protobuf::Reflection *
 #undef CASE_FIELD_TYPE_REPEATED
     case google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE: {
       nlohmann::json message_json;
-      Pb2Json::RepeatedMessage2Json(*message, field, reflection, std::set<string>(), message_json[field->name()],
-                                    false);
+      if (IsOnnxAttributeProto(field)) {
+        AppendOnnxAttributeItems(*message, reflection, field, message_json[field->name()]);
+      } else {
+        Pb2Json::RepeatedMessage2Json(*message, field, reflection, std::set<string>(), message_json[field->name()],
+                                      false);
+      }
       std::string repeated_message_str;
       try {
         repeated_message_str = message_json.dump(kInteval, ' ', false, Json::error_handler_t::ignore);

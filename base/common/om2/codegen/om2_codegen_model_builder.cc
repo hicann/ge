@@ -18,7 +18,8 @@
 
 #include "common/file_constant_utils/file_constant_utils.h"
 #include "common/ge_common/string_util.h"
-#include "common/helper/om2/om2_package_contants.h"
+#include "framework/om2/model_data/om2_package_contants.h"
+#include "framework/common/gert_model_data_utils.h"
 #include "common/om2/codegen/om2_codegen_utils.h"
 #include "common/om2/codegen/om2_model_utils.h"
 #include "graph/debug/ge_attr_define.h"
@@ -96,7 +97,7 @@ Status Om2CodegenModelBuilder::BuildHostArgsOffsets(const std::multimap<uint64_t
 }
 
 Status Om2CodegenModelBuilder::CollectConstInputsFromOp(const OpDescPtr &op_desc, Om2CodegenModel &codegen_model,
-                                                        Om2ConstMetas &const_metas) {
+                                                        gert::GertModelDataConstMetas &const_metas) {
   GE_ASSERT_NOTNULL(op_desc);
   const vector_bit_t &v_is_input_const = op_desc->GetIsInputConst();
   for (size_t input_idx = 0U; input_idx < op_desc->GetAllInputsSize(); ++input_idx) {
@@ -122,9 +123,15 @@ Status Om2CodegenModelBuilder::CollectConstInputsFromOp(const OpDescPtr &op_desc
     GE_ASSERT_SUCCESS(Om2ModelUtils::BuildInputTensorInfo(tensor_desc, entry.tensor_info));
     codegen_model.const_inputs.push_back(std::move(entry));
     (void)weight_offset_to_varname_.emplace(data_offset, var_name);
-    constexpr size_t model_index = 0UL;
-    const auto file_name = FormatOm2Path("%s%zu", OM2_CONSTANTS_FILE_PREFIX, model_index);
-    const_metas.push_back(Om2ConstMeta{const_index, "INTERNAL", file_name, "", data_offset, tensor_size, ""});
+    const size_t model_index = 0UL;
+    const auto file_name = gert::FormatOm2Path("%s%zu", gert::OM2_CONSTANTS_FILE_PREFIX, model_index);
+    gert::GertModelDataConstMeta meta;
+    meta.index = const_index;
+    meta.type = gert::GertMakeStr("INTERNAL");
+    meta.file_name = gert::GertMakeStr(file_name);
+    meta.offset = data_offset;
+    meta.size = tensor_size;
+    const_metas.push_back(std::move(meta));
   }
   return SUCCESS;
 }
@@ -196,7 +203,7 @@ Status Om2CodegenModelBuilder::CreateTaskCodeBuilders(const GeModelPtr &model, A
 }
 
 Status Om2CodegenModelBuilder::Build(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
-                                     Om2CodegenModel &codegen_model, Om2ConstMetas &const_metas) {
+                                     Om2CodegenModel &codegen_model, gert::GertModelDataConstMetas &const_metas) {
   op_desc_by_index_.clear();
   op_id_to_input_edges_.clear();
   weight_offset_to_varname_.clear();
@@ -211,7 +218,7 @@ Status Om2CodegenModelBuilder::Build(const GeModelPtr &model, const std::vector<
   GE_ASSERT_SUCCESS(BuildModelIo(model, codegen_model));
   GE_ASSERT_SUCCESS(BuildFileConstInputs(model, codegen_model, const_metas));
   GE_ASSERT_SUCCESS(BuildConstInputs(model, task_builders, codegen_model, const_metas));
-  std::vector<Om2VarMeta> var_metas;
+  std::vector<gert::GertModelDataVarMeta> var_metas;
   GE_ASSERT_SUCCESS(BuildVarInputs(model, codegen_model, var_metas));
   GE_ASSERT_SUCCESS(BuildKernelRegistry(model, task_builders, codegen_model));
   GE_ASSERT_SUCCESS(GenerateArgsData(model, task_builders, codegen_model));
@@ -534,7 +541,8 @@ Status Om2CodegenModelBuilder::CollectNetOutputIoItems(const Node &node, const O
 
 Status Om2CodegenModelBuilder::BuildConstInputs(const GeModelPtr &model,
                                                 const std::vector<TaskCodeBuilderPtr> &task_builders,
-                                                Om2CodegenModel &codegen_model, Om2ConstMetas &const_metas) {
+                                                Om2CodegenModel &codegen_model,
+                                                gert::GertModelDataConstMetas &const_metas) {
   GE_ASSERT_NOTNULL(model);
   const auto &model_task_def = model->GetModelTaskDefPtr();
   GE_ASSERT_NOTNULL(model_task_def);
@@ -559,7 +567,7 @@ Status Om2CodegenModelBuilder::BuildConstInputs(const GeModelPtr &model,
 }
 
 Status Om2CodegenModelBuilder::BuildFileConstInputs(const GeModelPtr &model, Om2CodegenModel &codegen_model,
-                                                    Om2ConstMetas &const_metas) {
+                                                    gert::GertModelDataConstMetas &const_metas) {
   GE_ASSERT_NOTNULL(model);
   const auto compute_graph = model->GetGraph();
   GE_ASSERT_NOTNULL(compute_graph);
@@ -585,8 +593,8 @@ Status Om2CodegenModelBuilder::BuildFileConstInputs(const GeModelPtr &model, Om2
       has_file_const = true;
     } else if (is_combined && (combined_file_path != file_path)) {
       is_combined = false;
-      for (const size_t meta_index : file_const_meta_indices) {
-        const_metas[meta_index].type = "INDIVIDUAL";
+      for (const auto meta_index : file_const_meta_indices) {
+        const_metas[meta_index].type = gert::GertMakeStr("INDIVIDUAL");
       }
     }
     const auto output_desc = op_desc->MutableOutputDesc(0U);
@@ -604,16 +612,22 @@ Status Om2CodegenModelBuilder::BuildFileConstInputs(const GeModelPtr &model, Om2
     GE_ASSERT_SUCCESS(Om2ModelUtils::BuildOutputTensorInfo(output_desc, entry.tensor_info));
     codegen_model.const_inputs.push_back(std::move(entry));
     (void)fileconst_output_offset_to_varname_.emplace(output_offsets[0U], var_name);
-    const_metas.push_back(Om2ConstMeta{const_index, is_combined ? "COMBINED" : "INDIVIDUAL",
-                                       StringUtils::GetFileName(file_path), file_path, static_cast<int64_t>(offset),
-                                       tensor_size, op_desc->GetName()});
+    gert::GertModelDataConstMeta meta;
+    meta.index = const_index;
+    meta.type = gert::GertMakeStr(is_combined ? "COMBINED" : "INDIVIDUAL");
+    meta.file_name = gert::GertMakeStr(StringUtils::GetFileName(file_path));
+    meta.file_path = gert::GertMakeStr(file_path);
+    meta.offset = static_cast<int64_t>(offset);
+    meta.size = tensor_size;
+    meta.op_name = gert::GertMakeStr(op_desc->GetName());
+    const_metas.push_back(std::move(meta));
     file_const_meta_indices.push_back(const_index);
   }
   return SUCCESS;
 }
 
 Status Om2CodegenModelBuilder::BuildVarInputs(const GeModelPtr &model, Om2CodegenModel &codegen_model,
-                                              std::vector<Om2VarMeta> &var_metas) {
+                                              std::vector<gert::GertModelDataVarMeta> &var_metas) {
   GE_ASSERT_NOTNULL(model);
   const auto compute_graph = model->GetGraph();
   GE_ASSERT_NOTNULL(compute_graph);
@@ -630,60 +644,73 @@ Status Om2CodegenModelBuilder::BuildVarInputs(const GeModelPtr &model, Om2Codege
     if (output_offsets.empty()) {
       continue;
     }
-    const auto output_desc = op_desc->MutableOutputDesc(0U);
-    GE_ASSERT_NOTNULL(output_desc);
-    int64_t inner_offset = 0;
-    if (AttrUtils::GetInt(output_desc, ATTR_NAME_INNER_OFFSET, inner_offset)) {
-      GE_ASSERT_TRUE(inner_offset >= 0, "[OM2] Variable %s has negative inner offset %" PRId64,
-                     op_desc->GetName().c_str(), inner_offset);
-    }
-    const int64_t effective_offset = output_offsets[0U];
-    GE_ASSERT_TRUE(effective_offset >= 0, "[OM2] Variable %s has negative output offset %" PRId64,
-                   op_desc->GetName().c_str(), effective_offset);
-    GE_ASSERT_SUCCESS(CheckInt64SubOverflow(effective_offset, inner_offset));
-    const int64_t root_offset = effective_offset - inner_offset;
-    GE_ASSERT_TRUE(root_offset >= 0, "[OM2] Variable %s root offset is negative", op_desc->GetName().c_str());
-    int64_t tensor_size = 0;
-    GE_ASSERT_SUCCESS(TensorUtils::GetTensorSizeInBytes(*output_desc, tensor_size));
-    GE_ASSERT_TRUE(tensor_size > 0, "[OM2] Variable %s has invalid size %" PRId64, op_desc->GetName().c_str(),
-                   tensor_size);
-    const uint64_t root = static_cast<uint64_t>(root_offset);
-    const uint64_t size = static_cast<uint64_t>(tensor_size);
-    GE_ASSERT_SUCCESS(CheckUint64AddOverflow(root, size));
-
-    const auto existing = var_addr_ranges_.find(root);
-    if (existing != var_addr_ranges_.end()) {
-      GE_ASSERT_TRUE(existing->second.size == size, "[OM2] Variable root 0x%" PRIx64 " has conflicting sizes", root);
-    } else {
-      const auto next = var_addr_ranges_.lower_bound(root);
-      if (next != var_addr_ranges_.end()) {
-        GE_ASSERT_TRUE(root + size <= next->first, "[OM2] Variable ranges overlap at root 0x%" PRIx64, root);
-      }
-      if (next != var_addr_ranges_.begin()) {
-        const auto previous = std::prev(next);
-        GE_ASSERT_TRUE(previous->first + previous->second.size <= root,
-                       "[OM2] Variable ranges overlap at root 0x%" PRIx64, root);
-      }
-    }
-
-    GE_ASSERT_TRUE(var_index <= static_cast<size_t>(std::numeric_limits<uint32_t>::max()),
-                   "[OM2] Variable index %zu exceeds uint32 range", var_index);
-    const std::string var_name = "var_" + std::to_string(var_index);
-    var_addr_ranges_[root] = VarAddrInfo{size, var_index, var_name};
-    Om2VarMeta meta;
-    meta.index = var_index;
-    meta.var_name = op_desc->GetName();
-    meta.op_type = node_type;
-    meta.op_name = op_desc->GetName();
-    meta.tensor_desc.SetDataType(output_desc->GetDataType());
-    meta.tensor_desc.SetFormat(output_desc->GetFormat());
-    meta.tensor_desc.SetShape(output_desc->GetShape().GetDims());
-    meta.tensor_desc.SetName(op_desc->GetName());
-    meta.tensor_desc.SetSize(static_cast<size_t>(tensor_size));
-    var_metas.push_back(std::move(meta));
-    ++var_index;
+    GE_ASSERT_SUCCESS(BuildVarInputForNode(op_desc, node_type, var_metas, var_index));
   }
-  codegen_model.var_metas = var_metas;
+  codegen_model.var_metas = std::move(var_metas);
+  return SUCCESS;
+}
+
+Status Om2CodegenModelBuilder::ParseVarRootAndSize(const OpDescPtr &op_desc, const GeTensorDescPtr &output_desc,
+                                                   uint64_t &root, uint64_t &size) {
+  int64_t inner_offset = 0;
+  if (AttrUtils::GetInt(output_desc, ATTR_NAME_INNER_OFFSET, inner_offset)) {
+    GE_ASSERT_TRUE(inner_offset >= 0, "[OM2] Variable %s has negative inner offset %" PRId64,
+                   op_desc->GetName().c_str(), inner_offset);
+  }
+  const int64_t effective_offset = op_desc->GetOutputOffset()[0U];
+  GE_ASSERT_TRUE(effective_offset >= 0, "[OM2] Variable %s has negative output offset %" PRId64,
+                 op_desc->GetName().c_str(), effective_offset);
+  GE_ASSERT_SUCCESS(CheckInt64SubOverflow(effective_offset, inner_offset));
+  const int64_t root_offset = effective_offset - inner_offset;
+  GE_ASSERT_TRUE(root_offset >= 0, "[OM2] Variable %s root offset is negative", op_desc->GetName().c_str());
+  int64_t tensor_size = 0;
+  GE_ASSERT_SUCCESS(TensorUtils::GetTensorSizeInBytes(*output_desc, tensor_size));
+  GE_ASSERT_TRUE(tensor_size > 0, "[OM2] Variable %s has invalid size %" PRId64, op_desc->GetName().c_str(),
+                 tensor_size);
+  root = static_cast<uint64_t>(root_offset);
+  size = static_cast<uint64_t>(tensor_size);
+  GE_ASSERT_SUCCESS(CheckUint64AddOverflow(root, size));
+  return SUCCESS;
+}
+
+Status Om2CodegenModelBuilder::BuildVarInputForNode(const OpDescPtr &op_desc, const std::string &node_type,
+                                                    std::vector<gert::GertModelDataVarMeta> &var_metas,
+                                                    size_t &var_index) {
+  const auto output_desc = op_desc->MutableOutputDesc(0U);
+  GE_ASSERT_NOTNULL(output_desc);
+  uint64_t root = 0U;
+  uint64_t size = 0U;
+  GE_ASSERT_SUCCESS(ParseVarRootAndSize(op_desc, output_desc, root, size));
+
+  const auto existing = var_addr_ranges_.find(root);
+  if (existing != var_addr_ranges_.end()) {
+    GE_ASSERT_TRUE(existing->second.size == size, "[OM2] Variable root 0x%" PRIx64 " has conflicting sizes", root);
+  } else {
+    const auto next = var_addr_ranges_.lower_bound(root);
+    if (next != var_addr_ranges_.end()) {
+      GE_ASSERT_TRUE(root + size <= next->first, "[OM2] Variable ranges overlap at root 0x%" PRIx64, root);
+    }
+    if (next != var_addr_ranges_.begin()) {
+      const auto previous = std::prev(next);
+      GE_ASSERT_TRUE(previous->first + previous->second.size <= root,
+                     "[OM2] Variable ranges overlap at root 0x%" PRIx64, root);
+    }
+  }
+
+  GE_ASSERT_TRUE(var_index <= static_cast<size_t>(std::numeric_limits<uint32_t>::max()),
+                 "[OM2] Variable index %zu exceeds uint32 range", var_index);
+  const std::string var_name = "var_" + std::to_string(var_index);
+  var_addr_ranges_[root] = VarAddrInfo{size, var_index, var_name};
+  gert::GertModelDataVarMeta meta;
+  meta.index = var_index;
+  meta.var_name = gert::GertMakeStr(op_desc->GetName());
+  meta.op_type = gert::GertMakeStr(node_type);
+  meta.op_name = gert::GertMakeStr(op_desc->GetName());
+  meta.tensor_desc = gert::MakeGertTensorDesc(op_desc->GetName(), output_desc->GetDataType(), output_desc->GetFormat(),
+                                              output_desc->GetShape().GetDims());
+  meta.tensor_desc.size = size;
+  var_metas.push_back(std::move(meta));
+  ++var_index;
   return SUCCESS;
 }
 

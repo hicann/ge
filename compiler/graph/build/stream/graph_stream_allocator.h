@@ -11,11 +11,14 @@
 #ifndef GE_GRAPH_BUILD_STREAM_GRAPH_STREAM_ALLOCATOR_H_
 #define GE_GRAPH_BUILD_STREAM_GRAPH_STREAM_ALLOCATOR_H_
 
+#include <cstdint>
 #include <map>
 #include <set>
 #include <string>
 #include <utility>
 #include <vector>
+#include <unordered_map>
+#include "proto/task.pb.h"
 
 #include "framework/common/ge_inner_error_codes.h"
 #include "graph/compute_graph.h"
@@ -23,6 +26,7 @@
 #include "graph/utils/node_utils.h"
 
 namespace ge {
+struct AnnotatedArgsTaskPlan;
 enum class EventType : std::uint32_t {
   kEvent,
   kNotify,
@@ -45,6 +49,13 @@ struct StreamSplitSyncInfo {
   int64_t pre_stream_id;
   int64_t next_stream_id;
 };
+
+struct StandaloneWaitEvent {
+  NodePtr consumer_node;
+  uint32_t event_id;
+  bool generated;
+};
+
 using TaskNumInfos = std::map<int64_t, size_t>;
 using Nodes2SyncInfos = std::map<NodePtr, std::vector<uint32_t>, NodeCompareKey>;
 using Node2AttachedStreamId2EventId = std::map<NodePtr, std::map<int64_t, std::vector<uint32_t>>, NodeCompareKey>;
@@ -97,11 +108,30 @@ class StreamAllocator {
   Status SplitStreamAndRefreshTaskDef(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
                                       int64_t &stream_num, int64_t &event_num, int64_t &notify_num);
 
+  Status InsertAnnotatedArgsEventTasks(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
+                                       int64_t &event_num);
+  Status ReconcileAnnotatedArgsEventTasks(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
+                                          int64_t &event_num);
+
+  void ExtendLogicalStreamNum(const int64_t stream_num) {
+    if (stream_num > stream_num_) {
+      stream_num_ = stream_num;
+    }
+  }
+
   const std::vector<int64_t> &GetHugeStreams() const {
     return huge_streams_;
   }
   const std::vector<uint32_t> &GetNotifyTypes() const {
     return notify_types_;
+  }
+
+  Status AddExternalWaitRequest(const NodePtr &consumer_node);
+  const std::vector<StandaloneWaitEvent> &GetStandaloneWaitEvents() const {
+    return external_wait_events_;
+  }
+  int64_t GetStreamNum() const {
+    return stream_num_;
   }
 
   std::map<int64_t, int64_t> GetSplitStreamToLogicStream() const {
@@ -183,10 +213,12 @@ class StreamAllocator {
       const std::map<NodePtr, std::vector<uint32_t>, NodeCompareKey> &peer_sync_info) const;
 
   Status GenerateSyncEventNodes(bool change_topo = true);
+  Status AssignStandaloneWaitEvents();
   Status InsertSyncSendEventNode(const NodePtr &node, const std::vector<uint32_t> &event_id_list, int64_t stream_id,
                                  int32_t &total_num, std::unordered_map<std::string, uint32_t> &sync_event_name);
   Status InsertSyncRecvEventNode(const NodePtr &node, const std::vector<uint32_t> &event_id_list, int64_t stream_id,
                                  int32_t &total_num, std::unordered_map<std::string, uint32_t> &sync_event_name);
+  Status InsertStandaloneWaitEventNodes(std::unordered_map<std::string, uint32_t> &sync_event_name);
   Status InsertSyncSendNotifyNode(const NodePtr &node, int32_t &total_num,
                                   std::unordered_map<std::string, uint32_t> &sync_notify_name);
   Status InsertSyncRecvNotifyNode(const NodePtr &node, int32_t &total_num,
@@ -279,6 +311,19 @@ class StreamAllocator {
   // node may have multi attached stream(SuperKernel)
   Node2AttachedStreamId2EventId attached_node_to_stream_id_to_send_event_id_;
   Node2AttachedStreamId2EventId attached_node_to_stream_id_to_recv_event_id_;
+
+  std::vector<StandaloneWaitEvent> external_wait_events_;
+  Status ExpandAnnotatedArgsNodeEvents(const OpDescPtr &op_desc, const AnnotatedArgsTaskPlan &plan,
+                                       std::vector<domi::TaskDef> &tasks, int64_t &event_num);
+  Status CollectAnnotatedEventPairs(std::unordered_map<int64_t, std::vector<domi::TaskDef>> &node_id_2_node_tasks,
+                                    std::map<uint32_t, std::pair<domi::TaskDef *, domi::TaskDef *>> &pairs);
+
+  struct AnnotatedEventInfo {
+    int64_t node_id;
+    uint32_t predecessor_launch_index;
+    uint32_t successor_launch_index;
+  };
+  std::map<uint32_t, AnnotatedEventInfo> annotated_event_infos_;
 };
 }  // namespace ge
 #endif  // GE_GRAPH_BUILD_STREAM_GRAPH_STREAM_ALLOCATOR_H_

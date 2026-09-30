@@ -10,6 +10,7 @@
 
 include(../cmake/function.cmake)
 add_subdirectory(slice)
+add_subdirectory(common/om2/model_data)
 
 ##################################################################
 set(SRC_FORMAT_TRANSFERS
@@ -62,7 +63,7 @@ set(SRC_LIST
 )
 
 file(GLOB_RECURSE OM2_SRCS CONFIGURE_DEPENDS
-        "common/om2/*.cc"
+        "common/om2/codegen/*.cc"
         "common/helper/om2/*.cc"
         "common/helper/om2_package_helper.cc"
         "common/helper/visual_json_converter.cc"
@@ -232,6 +233,9 @@ target_include_directories(ge_common PRIVATE
 
 target_link_options(ge_common PRIVATE
     -Wl,-Bsymbolic
+    # 只治理 minizip/zlib 符号泄漏；保留 gert_model_data_serializer 归档符号（Om2ZipSaver 需导出给 ge_compiler）
+    -Wl,--exclude-libs,libminizip.a
+    -Wl,--exclude-libs,libz.a
 )
 
 target_link_libraries(ge_common
@@ -257,6 +261,7 @@ target_link_libraries(ge_common
         -ldl
         ${AIR_COMMON_LINK_OPTION}
     PUBLIC
+        gert_model_data_serializer
         $<BUILD_INTERFACE:air_headers>
         $<BUILD_INTERFACE:ge_metadef_headers>
 )
@@ -436,6 +441,8 @@ target_include_directories(ge_common PRIVATE
 
 target_link_options(ge_common PRIVATE
     -Wl,-Bsymbolic
+    -Wl,--exclude-libs,libminizip.a
+    -Wl,--exclude-libs,libz.a
 )
 
 target_link_libraries(ge_common

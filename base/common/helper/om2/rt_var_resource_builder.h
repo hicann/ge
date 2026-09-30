@@ -14,19 +14,20 @@
 #include <memory>
 #include <vector>
 
-#include "common/om2/rt_var_resource.h"
+#include "framework/om2/model_data/gert_model_data.h"
 
 namespace ge {
 class VarManager;
 class ComputeGraph;
 using ComputeGraphPtr = std::shared_ptr<ComputeGraph>;
-struct Om2VarMeta;
 }  // namespace ge
 
 namespace gert {
 
+// 从 VarManager 构建变量条目（含各自 init_data，随 entry 内嵌）
 ge::Status BuildRTVarResource(ge::VarManager &var_manager, const ge::ComputeGraphPtr &compute_graph,
-                              const std::vector<ge::Om2VarMeta> &var_metas, std::unique_ptr<RTVarResource> &resource);
+                              const std::vector<std::unique_ptr<gert::GertModelDataVarMeta>> &var_metas,
+                              std::vector<RTVarEntry> &entries);
 
 }  // namespace gert
 

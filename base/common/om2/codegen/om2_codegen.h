@@ -12,12 +12,14 @@
 
 #include "common/model/ge_model.h"
 #include "ge_common/ge_common_api_types.h"
-#include "common/om2/om2_model_data.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "common/om2/codegen/om2_codegen_types.h"
 
 namespace ge {
 class Om2Codegen {
  public:
-  Status Om2CodegenAndCompile(const GeModelPtr &ge_model, gert::Om2ModelData &model_data) const;
+  Status Om2CodegenAndCompile(const GeModelPtr &ge_model, gert::GertModelData &model_data,
+                              gert::GertModelDataModel &unit) const;
 };
 }  // namespace ge
 

@@ -23,6 +23,7 @@
 #include "common/datatype_transfer/om2_datatype_transfer.h"
 #include "om2_malloc_helper.h"
 #include "rt_external_mem.h"
+#include "framework/common/gert_model_data_utils.h"
 
 namespace gert {
 
@@ -36,11 +37,45 @@ bool IsNoNeedTrans(const std::string &node_type) {
 
 bool NeedRealTrans(const RTVarTransRoad &trans_road) {
   for (const auto &node : trans_road) {
-    if (!IsNoNeedTrans(node.node_type)) {
+    if (!IsNoNeedTrans(std::string(gert::GertGetStr(node.node_type)))) {
       return true;
     }
   }
   return false;
+}
+
+void CopyTensorDesc(GertTensorDesc &dst, const GertTensorDesc &src) {
+  dst.size = src.size;
+  dst.data_type = src.data_type;
+  dst.format = src.format;
+  dst.name = gert::GertMakeStr(src.name);
+  dst.shape = src.shape;
+  dst.shape_range = src.shape_range;
+}
+
+RTVarEntry CopyVarEntry(const RTVarEntry &src) {
+  RTVarEntry copy;
+  copy.var_name = gert::GertMakeStr(src.var_name);
+  copy.var_key = gert::GertMakeStr(src.var_key);
+  copy.op_type = gert::GertMakeStr(src.op_type);
+  copy.logic_addr = src.logic_addr;
+  copy.size = src.size;
+  copy.memory_type = src.memory_type;
+  CopyTensorDesc(copy.tensor_desc, src.tensor_desc);
+  copy.changed_graph_id = src.changed_graph_id;
+  copy.allocated_graph_id = src.allocated_graph_id;
+  copy.extern_dev_addr = src.extern_dev_addr;
+  copy.init_data = src.init_data;
+  copy.copy_info.src_var_name = gert::GertMakeStr(src.copy_info.src_var_name);
+  CopyTensorDesc(copy.copy_info.src_tensor_desc, src.copy_info.src_tensor_desc);
+  for (const auto &node : src.trans_road) {
+    RTTransNodeInfo node_copy;
+    node_copy.node_type = gert::GertMakeStr(node.node_type);
+    CopyTensorDesc(node_copy.input, node.input);
+    CopyTensorDesc(node_copy.output, node.output);
+    copy.trans_road.push_back(std::move(node_copy));
+  }
+  return copy;
 }
 }  // namespace
 
@@ -48,26 +83,23 @@ Om2RTVarManager::~Om2RTVarManager() {
   Finalize();
 }
 
-ge::Status Om2RTVarManager::Init(const RTVarResource &resource, void *const external_var_addr,
+ge::Status Om2RTVarManager::Init(const std::vector<RTVarEntry> &entries, void *const external_var_addr,
                                  const uint64_t external_var_size) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   external_var_addr_ = external_var_addr;
   external_var_size_ = external_var_size;
-  for (const auto &[var_key, new_entry] : resource.GetAllEntries()) {
-    if (var_resource_.GetEntry(var_key) != nullptr) {
-      continue;
-    }
-    GE_RETURN_IF_ERROR(var_resource_.AddEntry(new_entry));
+  for (const auto &new_entry : entries) {
+    GE_RETURN_IF_ERROR(var_resource_.AddEntry(CopyVarEntry(new_entry)));
   }
   return ge::SUCCESS;
 }
 
 ge::Status Om2RTVarManager::AllocDevAddr(const RTVarEntry &entry, void *&dev_addr) const {
   void *new_addr = nullptr;
-  const auto malloc_ret = Om2Malloc(&new_addr, entry.size, entry.memory_type, 0);
+  const auto malloc_ret = Om2Malloc(&new_addr, entry.size, static_cast<rtMemType_t>(entry.memory_type), 0);
   if (malloc_ret != ACL_SUCCESS) {
     GELOGE(ge::FAILED, "[OM2][Var][Alloc] aclrtMalloc failed, var=%s, size=%" PRIu64 ", ret=%u.",
-           entry.var_name.c_str(), entry.size, malloc_ret);
+           gert::GertGetStr(entry.var_name), entry.size, malloc_ret);
     return ge::FAILED;
   }
   dev_addr = new_addr;
@@ -97,7 +129,7 @@ ge::Status Om2RTVarManager::GetVarDevAddr(const std::string &var_name, const uin
 
 ge::Status Om2RTVarManager::GetVarDevAddr(const RTVarEntry &entry, const uint32_t device_id, void *&dev_addr) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
-  auto &state = GetOrCreateRuntimeState(entry.var_key);
+  auto &state = GetOrCreateRuntimeState(std::string(gert::GertGetStr(entry.var_key)));
   auto it = state.dev_addrs.find(device_id);
   if (it != state.dev_addrs.end()) {
     dev_addr = it->second;
@@ -110,7 +142,7 @@ ge::Status Om2RTVarManager::GetVarDevAddr(const RTVarEntry &entry, const uint32_
   } else if (external_var_addr_ != nullptr) {
     if (entry.logic_addr < logic_var_base_) {
       GELOGE(ge::FAILED, "[OM2][Var][Alloc] logic_addr %" PRIu64 " < base %" PRIu64 " for var=%s.", entry.logic_addr,
-             logic_var_base_, entry.var_name.c_str());
+             logic_var_base_, gert::GertGetStr(entry.var_name));
       return ge::FAILED;
     }
     const uint64_t offset = entry.logic_addr - logic_var_base_;
@@ -118,7 +150,7 @@ ge::Status Om2RTVarManager::GetVarDevAddr(const RTVarEntry &entry, const uint32_
       GELOGE(ge::FAILED,
              "[OM2][Var][Alloc] external arena overflow, var=%s, offset=%" PRIu64 ", size=%" PRIu64 ", arena=%" PRIu64
              ".",
-             entry.var_name.c_str(), offset, entry.size, external_var_size_);
+             gert::GertGetStr(entry.var_name), offset, entry.size, external_var_size_);
       return ge::FAILED;
     }
     new_addr = static_cast<uint8_t *>(external_var_addr_) + offset;
@@ -132,13 +164,13 @@ ge::Status Om2RTVarManager::GetVarDevAddr(const RTVarEntry &entry, const uint32_
   if (!entry.init_data.empty() && !state.is_loaded[device_id]) {
     if (entry.init_data.size() > entry.size) {
       GELOGE(ge::FAILED, "[OM2][Var][Alloc] init_data size %zu > entry size %" PRIu64 " for var=%s.",
-             entry.init_data.size(), entry.size, entry.var_name.c_str());
+             entry.init_data.size(), entry.size, gert::GertGetStr(entry.var_name));
       return ge::FAILED;
     }
     const auto ret =
         aclrtMemcpy(new_addr, entry.size, entry.init_data.data(), entry.init_data.size(), ACL_MEMCPY_HOST_TO_DEVICE);
     if (ret != ACL_SUCCESS) {
-      GELOGE(ge::FAILED, "[OM2][Var][Alloc] init H2D failed, var=%s, ret=%u.", entry.var_name.c_str(), ret);
+      GELOGE(ge::FAILED, "[OM2][Var][Alloc] init H2D failed, var=%s, ret=%u.", gert::GertGetStr(entry.var_name), ret);
       return ge::FAILED;
     }
     state.is_loaded[device_id] = true;
@@ -147,8 +179,8 @@ ge::Status Om2RTVarManager::GetVarDevAddr(const RTVarEntry &entry, const uint32_
   return ge::SUCCESS;
 }
 
-const RTVarResource *Om2RTVarManager::GetVarResource() const {
-  return &var_resource_;
+const RTVarResource &Om2RTVarManager::GetVarResource() const {
+  return var_resource_;
 }
 
 void Om2RTVarManager::Finalize() noexcept {
@@ -247,13 +279,14 @@ ge::Status Om2RTVarManager::CopyVarFromDevice(const RTVarEntry &entry, const RTV
                                               const uint32_t device_id, std::vector<uint8_t> &host_buf) const {
   auto it = state.dev_addrs.find(device_id);
   if (it == state.dev_addrs.end() || it->second == nullptr) {
-    GELOGE(ge::FAILED, "[OM2][Var] dev_addr not allocated for var=%s, device=%u.", entry.var_name.c_str(), device_id);
+    GELOGE(ge::FAILED, "[OM2][Var] dev_addr not allocated for var=%s, device=%u.", gert::GertGetStr(entry.var_name),
+           device_id);
     return ge::FAILED;
   }
   host_buf.resize(entry.size);
   const auto ret = aclrtMemcpy(host_buf.data(), entry.size, it->second, entry.size, ACL_MEMCPY_DEVICE_TO_HOST);
   if (ret != ACL_SUCCESS) {
-    GELOGE(ge::FAILED, "[OM2][Var][D2H] aclrtMemcpy failed, var=%s, ret=%u.", entry.var_name.c_str(), ret);
+    GELOGE(ge::FAILED, "[OM2][Var][D2H] aclrtMemcpy failed, var=%s, ret=%u.", gert::GertGetStr(entry.var_name), ret);
     return ge::FAILED;
   }
   return ge::SUCCESS;
@@ -263,12 +296,13 @@ ge::Status Om2RTVarManager::CopyVarToDevice(const RTVarEntry &entry, const RTVar
                                             const uint32_t device_id, const std::vector<uint8_t> &host_buf) const {
   auto it = state.dev_addrs.find(device_id);
   if (it == state.dev_addrs.end() || it->second == nullptr) {
-    GELOGE(ge::FAILED, "[OM2][Var] dev_addr not allocated for var=%s, device=%u.", entry.var_name.c_str(), device_id);
+    GELOGE(ge::FAILED, "[OM2][Var] dev_addr not allocated for var=%s, device=%u.", gert::GertGetStr(entry.var_name),
+           device_id);
     return ge::FAILED;
   }
   const auto ret = aclrtMemcpy(it->second, entry.size, host_buf.data(), host_buf.size(), ACL_MEMCPY_HOST_TO_DEVICE);
   if (ret != ACL_SUCCESS) {
-    GELOGE(ge::FAILED, "[OM2][Var][H2D] aclrtMemcpy failed, var=%s, ret=%u.", entry.var_name.c_str(), ret);
+    GELOGE(ge::FAILED, "[OM2][Var][H2D] aclrtMemcpy failed, var=%s, ret=%u.", gert::GertGetStr(entry.var_name), ret);
     return ge::FAILED;
   }
   return ge::SUCCESS;
@@ -278,7 +312,7 @@ ge::Status Om2RTVarManager::TransVarOnHost(const RTVarTransRoad &trans_road, std
   ge::formats::TransResult last_result{};
   bool use_init_data = true;
   for (const auto &node : trans_road) {
-    if (IsNoNeedTrans(node.node_type)) {
+    if (IsNoNeedTrans(std::string(gert::GertGetStr(node.node_type)))) {
       continue;
     }
     uint8_t *src_data = nullptr;
@@ -290,12 +324,13 @@ ge::Status Om2RTVarManager::TransVarOnHost(const RTVarTransRoad &trans_road, std
     }
 
     ge::formats::TransResult tmp_result{};
-    if (node.node_type == "TRANSDATA" || node.node_type == "TRANSPOSED") {
-      const auto src_format = node.input.GetFormat();
-      const auto dst_format = node.output.GetFormat();
-      const auto src_shape = node.input.GetShape();
-      const auto dst_shape = node.output.GetShape();
-      const auto data_type = node.input.GetDataType();
+    if (std::string(gert::GertGetStr(node.node_type)) == "TRANSDATA" ||
+        std::string(gert::GertGetStr(node.node_type)) == "TRANSPOSED") {
+      const auto src_format = node.input.format;
+      const auto dst_format = node.output.format;
+      const auto src_shape = node.input.shape;
+      const auto dst_shape = node.output.shape;
+      const auto data_type = node.input.data_type;
       const ge::Format src_primary = static_cast<ge::Format>(ge::GetPrimaryFormat(static_cast<int32_t>(src_format)));
       const ge::Format dst_primary = static_cast<ge::Format>(ge::GetPrimaryFormat(static_cast<int32_t>(dst_format)));
       const ge::Format src_sub = static_cast<ge::Format>(ge::GetSubFormat(static_cast<int32_t>(src_format)));
@@ -307,11 +342,11 @@ ge::Status Om2RTVarManager::TransVarOnHost(const RTVarTransRoad &trans_road, std
                                                     tmp_result);
       if (ret != ge::SUCCESS) {
         GELOGE(ge::FAILED, "[OM2][Var][Trans] TransDataFormat failed, %s, dst_format=%d, ret=%u.",
-               node.node_type.c_str(), static_cast<int>(dst_format), ret);
+               gert::GertGetStr(node.node_type), static_cast<int>(dst_format), ret);
         return ret;
       }
-    } else if (node.node_type == "CAST") {
-      const auto &src_shape = node.input.GetShape();
+    } else if (std::string(gert::GertGetStr(node.node_type)) == "CAST") {
+      const auto &src_shape = node.input.shape;
       int64_t element_count = 1;
       for (const auto dim : src_shape) {
         element_count *= dim;
@@ -319,8 +354,8 @@ ge::Status Om2RTVarManager::TransVarOnHost(const RTVarTransRoad &trans_road, std
       if (element_count == 0) {
         element_count = 1;
       }
-      const auto src_dtype = node.input.GetDataType();
-      const auto dst_dtype = node.output.GetDataType();
+      const auto src_dtype = node.input.data_type;
+      const auto dst_dtype = node.output.data_type;
       const auto ret = ge::formats::TransTensorDataType(
           {src_data, static_cast<size_t>(element_count), src_dtype, dst_dtype}, tmp_result);
       if (ret != ge::SUCCESS) {
@@ -328,7 +363,7 @@ ge::Status Om2RTVarManager::TransVarOnHost(const RTVarTransRoad &trans_road, std
         return ret;
       }
     } else {
-      GELOGE(ge::UNSUPPORTED, "[OM2][Var][Trans] unsupported node_type=%s.", node.node_type.c_str());
+      GELOGE(ge::UNSUPPORTED, "[OM2][Var][Trans] unsupported node_type=%s.", gert::GertGetStr(node.node_type));
       return ge::UNSUPPORTED;
     }
     last_result = tmp_result;
@@ -357,7 +392,7 @@ ge::Status Om2RTVarManager::TransSingleVarData(const std::string &var_name, cons
   void *old_dev_addr = nullptr;
   GE_RETURN_IF_ERROR(GetVarDevAddr(*old_entry, device_id, old_dev_addr));
 
-  const auto *old_state = GetRuntimeState(old_entry->var_key);
+  const auto *old_state = GetRuntimeState(std::string(gert::GertGetStr(old_entry->var_key)));
   if (old_state == nullptr) {
     GELOGE(ge::FAILED, "[OM2][Var][Trans] old state not found for var=%s.", var_name.c_str());
     return ge::FAILED;
@@ -370,7 +405,7 @@ ge::Status Om2RTVarManager::TransSingleVarData(const std::string &var_name, cons
   void *new_dev_addr = nullptr;
   GE_RETURN_IF_ERROR(GetVarDevAddr(*entry, device_id, new_dev_addr));
 
-  auto &new_state = GetOrCreateRuntimeState(entry->var_key);
+  auto &new_state = GetOrCreateRuntimeState(std::string(gert::GertGetStr(entry->var_key)));
   GE_RETURN_IF_ERROR(CopyVarToDevice(*entry, new_state, device_id, host_buf));
 
   new_state.is_loaded[device_id] = true;
@@ -393,7 +428,7 @@ ge::Status Om2RTVarManager::TransAllVarData(const std::vector<std::string> &var_
     if (entry->changed_graph_id != graph_id || entry->changed_graph_id == entry->allocated_graph_id) {
       continue;
     }
-    const auto *state = GetRuntimeState(entry->var_key);
+    const auto *state = GetRuntimeState(std::string(gert::GertGetStr(entry->var_key)));
     if (state != nullptr) {
       auto loaded_it = state->is_loaded.find(device_id);
       if (loaded_it != state->is_loaded.end() && loaded_it->second) {
@@ -451,10 +486,10 @@ ge::Status Om2RTVarManager::CopyVarData(const std::vector<std::string> &var_name
     if (entry == nullptr) {
       continue;
     }
-    if (entry->copy_info.src_var_name.empty()) {
+    if (!entry->copy_info.src_var_name) {
       continue;
     }
-    const auto *dst_state = GetRuntimeState(entry->var_key);
+    const auto *dst_state = GetRuntimeState(std::string(gert::GertGetStr(entry->var_key)));
     if (dst_state != nullptr) {
       auto loaded_it = dst_state->is_loaded.find(device_id);
       if (loaded_it != dst_state->is_loaded.end() && loaded_it->second) {
@@ -462,8 +497,8 @@ ge::Status Om2RTVarManager::CopyVarData(const std::vector<std::string> &var_name
       }
     }
 
-    const std::string src_var_key =
-        RTVarResource::BuildVarKey(entry->copy_info.src_var_name, entry->copy_info.src_tensor_desc);
+    const std::string src_var_key = RTVarResource::BuildVarKey(
+        std::string(gert::GertGetStr(entry->copy_info.src_var_name)), entry->copy_info.src_tensor_desc);
     const auto *src_entry = var_resource_.GetEntry(src_var_key);
     if (src_entry == nullptr) {
       GELOGW("[OM2][Var][Copy] src entry not found, var=%s, src_key=%s.", var_name.c_str(), src_var_key.c_str());
@@ -473,7 +508,7 @@ ge::Status Om2RTVarManager::CopyVarData(const std::vector<std::string> &var_name
     void *src_addr = nullptr;
     GE_RETURN_IF_ERROR(GetVarDevAddr(*src_entry, device_id, src_addr));
 
-    const auto *src_state = GetRuntimeState(src_entry->var_key);
+    const auto *src_state = GetRuntimeState(std::string(gert::GertGetStr(src_entry->var_key)));
     if (src_state == nullptr) {
       GELOGE(ge::FAILED, "[OM2][Var][Copy] src state not found, var=%s.", var_name.c_str());
       return ge::FAILED;
@@ -482,9 +517,9 @@ ge::Status Om2RTVarManager::CopyVarData(const std::vector<std::string> &var_name
     std::vector<uint8_t> host_buf;
     GE_RETURN_IF_ERROR(CopyVarFromDevice(*src_entry, *src_state, device_id, host_buf));
 
-    if (src_entry->tensor_desc.GetDataType() != entry->tensor_desc.GetDataType()) {
+    if (src_entry->tensor_desc.data_type != entry->tensor_desc.data_type) {
       int64_t element_count = 1;
-      for (const auto dim : src_entry->tensor_desc.GetShape()) {
+      for (const auto dim : src_entry->tensor_desc.shape) {
         element_count *= dim;
       }
       if (element_count == 0) {
@@ -493,7 +528,7 @@ ge::Status Om2RTVarManager::CopyVarData(const std::vector<std::string> &var_name
       ge::formats::TransResult cast_result{};
       const auto cast_ret =
           ge::formats::TransTensorDataType({host_buf.data(), static_cast<size_t>(element_count),
-                                            src_entry->tensor_desc.GetDataType(), entry->tensor_desc.GetDataType()},
+                                            src_entry->tensor_desc.data_type, entry->tensor_desc.data_type},
                                            cast_result);
       if (cast_ret != ge::SUCCESS) {
         GELOGE(ge::FAILED, "[OM2][Var][Copy] dtype cast failed, var=%s, ret=%u.", var_name.c_str(), cast_ret);
@@ -505,12 +540,12 @@ ge::Status Om2RTVarManager::CopyVarData(const std::vector<std::string> &var_name
     void *dst_addr = nullptr;
     GE_RETURN_IF_ERROR(GetVarDevAddr(*entry, device_id, dst_addr));
 
-    auto &new_dst_state = GetOrCreateRuntimeState(entry->var_key);
+    auto &new_dst_state = GetOrCreateRuntimeState(std::string(gert::GertGetStr(entry->var_key)));
     GE_RETURN_IF_ERROR(CopyVarToDevice(*entry, new_dst_state, device_id, host_buf));
 
     new_dst_state.is_loaded[device_id] = true;
     GELOGI("[OM2][Var][Copy] var=%s copied from src=%s on device=%u.", var_name.c_str(),
-           entry->copy_info.src_var_name.c_str(), device_id);
+           gert::GertGetStr(entry->copy_info.src_var_name), device_id);
   }
   return ge::SUCCESS;
 }

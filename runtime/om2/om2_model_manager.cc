@@ -12,7 +12,8 @@
 
 #include "common/ge_common/debug/ge_log.h"
 #include "common/ge_common/ge_inner_error_codes.h"
-#include "common/om2/om2_model_data.h"
+#include "common/checker.h"
+#include "framework/om2/model_data/gert_model_data.h"
 #include "framework/runtime/om2_model_executor.h"
 
 namespace ge {
@@ -21,7 +22,7 @@ Om2ModelManager &Om2ModelManager::GetInstance() {
   return instance;
 }
 
-ge::Status Om2ModelManager::LoadModel(uint32_t model_id, const gert::Om2ModelData &model_data,
+ge::Status Om2ModelManager::LoadModel(uint32_t model_id, const gert::GertModelData &model_data,
                                       const gert::Om2ModelLoadArg &load_arg, uint64_t session_id) {
   const std::lock_guard<std::mutex> lock(mutex_);
 

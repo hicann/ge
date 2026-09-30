@@ -30,6 +30,15 @@ bool NoNeedGenTask(const OpDescPtr &op_desc) {
   return false;
 }
 
+bool NeedKeepGeneratedTasks(const OpDescPtr &op_desc) {
+  if (op_desc == nullptr) {
+    return false;
+  }
+  bool keep_generated_tasks = false;
+  (void)ge::AttrUtils::GetBool(op_desc, kKeepGeneratedTasksAttr, keep_generated_tasks);
+  return keep_generated_tasks;
+}
+
 void RefreshTaskDefStreamId(bool has_attached_stream, int64_t logical_stream_id, int64_t real_stream_id,
                             std::vector<domi::TaskDef> &task_defs) {
   if (has_attached_stream) {

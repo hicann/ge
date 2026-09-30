@@ -30,6 +30,7 @@ class TrackingAllocatorFaker : public AllocatorFaker {
       }
       GertMemBlockFaker::Free(stream_id);
     }
+
    private:
     size_t *free_count_;
   };
@@ -40,7 +41,9 @@ class TrackingAllocatorFaker : public AllocatorFaker {
       delete block;
     }
   }
-  size_t GetFreeCount() const { return free_count_; }
+  size_t GetFreeCount() const {
+    return free_count_;
+  }
 
   GertMemBlock *Malloc(size_t size) override {
     void *addr = malloc(size);
@@ -51,9 +54,21 @@ class TrackingAllocatorFaker : public AllocatorFaker {
     blocks_.push_back(block);
     return block;
   }
+
  private:
   size_t free_count_ = 0;
   std::vector<GertMemBlock *> blocks_;
+};
+
+class FakeAttachedStreamProvider final : public AttachedStreamProvider {
+ public:
+  rtStream RequestAttachedStream(const ge::AscendString &key) override {
+    (void)key;
+    return reinterpret_cast<rtStream>(&dummy_);
+  }
+
+ private:
+  int32_t dummy_{0};
 };
 
 class EagerArgsHandlerTest : public ::testing::Test {
@@ -192,6 +207,30 @@ TEST_F(EagerArgsHandlerTest, MallocReadOnlyDevArgs_WithoutInitialize_ReturnsNull
 
   const KernelArgs *result = handler_->MallocReadOnlyDevArgs(host_data, sizeof(host_data));
   EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(EagerArgsHandlerTest, GetAttachedStreamProvider_DefaultNullptr) {
+  handler_ = std::make_unique<EagerArgsHandler>();
+  EXPECT_EQ(handler_->GetAttachedStreamProvider(), nullptr);
+}
+
+TEST_F(EagerArgsHandlerTest, SetAttachedStreamProvider_ReturnsSamePointer) {
+  handler_ = std::make_unique<EagerArgsHandler>(allocator_.get(), stream_id_);
+  FakeAttachedStreamProvider provider;
+  handler_->SetAttachedStreamProvider(&provider);
+  EXPECT_EQ(handler_->GetAttachedStreamProvider(), &provider);
+}
+
+TEST_F(EagerArgsHandlerTest, Release_KeepsAttachedStreamProvider) {
+  handler_ = std::make_unique<EagerArgsHandler>(allocator_.get(), stream_id_);
+  FakeAttachedStreamProvider provider;
+  handler_->SetAttachedStreamProvider(&provider);
+  uint8_t host_data[256] = {};
+  handler_->MallocReadOnlyDevArgs(host_data, sizeof(host_data));
+
+  // Release 每轮执行末尾都会跑，辅流容器跨执行复用，不能被清掉
+  handler_->Release();
+  EXPECT_EQ(handler_->GetAttachedStreamProvider(), &provider);
 }
 
 }  // namespace

@@ -46,6 +46,11 @@ class AclForAttachedStreamTest final : public AclRuntimeStub {
     events.push_back("bind");
     return bind_success ? ACL_SUCCESS : ACL_ERROR_FAILURE;
   }
+  aclError aclrtSynchronizeStream(aclrtStream stream) override {
+    synced_streams.push_back(stream);
+    events.push_back("sync");
+    return sync_success ? ACL_SUCCESS : ACL_ERROR_RT_FAILURE;
+  }
   aclError aclmdlRIUnbindStream(aclmdlRI, aclrtStream stream) override {
     unbound_streams.push_back(stream);
     events.push_back("unbind");
@@ -59,17 +64,35 @@ class AclForAttachedStreamTest final : public AclRuntimeStub {
 
   std::vector<aclrtStream> bound_streams;
   std::vector<uint32_t> bind_flags;
+  std::vector<aclrtStream> synced_streams;
   std::vector<aclrtStream> unbound_streams;
   std::vector<aclrtStream> destroyed_streams;
   std::vector<std::string> events;
   bool bind_success{true};
+  bool sync_success{true};
 };
 
-TEST(AttachedStreamCollectionTest, RejectsEmptyAndReservedKeysBeforeRuntimeCall) {
+TEST(AttachedStreamCollectionTest, RejectsEmptyKeysBeforeRuntimeCall) {
   AttachedStreamCollection collection(nullptr, RT_STREAM_PRIORITY_DEFAULT, RT_STREAM_DEFAULT);
   EXPECT_EQ(collection.RequestAttachedStream(AscendString()), nullptr);
   EXPECT_EQ(collection.RequestAttachedStream(AscendString("")), nullptr);
-  EXPECT_EQ(collection.RequestAttachedStream(AscendString("CANN-FMK-internal")), nullptr);
+}
+
+TEST(AttachedStreamCollectionTest, AcceptsFrameworkReservedPrefixKey) {
+  auto runtime = std::make_shared<RuntimeForAttachedStreamTest>();
+  auto acl = std::make_shared<AclForAttachedStreamTest>();
+  RuntimeStub::SetInstance(runtime);
+  AclRuntimeStub::SetInstance(acl);
+
+  AttachedStreamCollection collection(reinterpret_cast<rtModel_t>(0x55U), RT_STREAM_PRIORITY_DEFAULT,
+                                      RT_STREAM_DEFAULT);
+  // CANN-FMK- 前缀保留给 HCCL 等框架组件，属 API 文档软约束，代码不拦截
+  EXPECT_NE(collection.RequestAttachedStream(AscendString("CANN-FMK-hccl")), nullptr);
+  EXPECT_EQ(runtime->create_count_, 1);
+
+  collection.UnbindAndDestroy();
+  RuntimeStub::Reset();
+  AclRuntimeStub::Reset();
 }
 
 TEST(AttachedStreamCollectionTest, ReusesKeyAndCleansUpAfterUnbind) {
@@ -91,12 +114,16 @@ TEST(AttachedStreamCollectionTest, ReusesKeyAndCleansUpAfterUnbind) {
   EXPECT_EQ(acl->bind_flags[0], static_cast<uint32_t>(ACL_MODEL_STREAM_FLAG_HEAD));
 
   collection.UnbindAndDestroy();
+  EXPECT_EQ(acl->synced_streams.size(), 1U);
   EXPECT_EQ(acl->unbound_streams.size(), 1U);
   EXPECT_EQ(acl->destroyed_streams.size(), 1U);
-  ASSERT_EQ(acl->events.size(), 3U);
+  // 顺序必须是 bind -> sync -> unbind -> destroy：aclrtDestroyStream 要求流上任务已执行完，
+  // 且解绑会改动 rtModel 流表，故同步先于解绑
+  ASSERT_EQ(acl->events.size(), 4U);
   EXPECT_EQ(acl->events[0], "bind");
-  EXPECT_EQ(acl->events[1], "unbind");
-  EXPECT_EQ(acl->events[2], "destroy");
+  EXPECT_EQ(acl->events[1], "sync");
+  EXPECT_EQ(acl->events[2], "unbind");
+  EXPECT_EQ(acl->events[3], "destroy");
   RuntimeStub::Reset();
   AclRuntimeStub::Reset();
 }
@@ -117,7 +144,30 @@ TEST(AttachedStreamCollectionTest, BindFailureRollsBackTemporaryStream) {
                                       RT_STREAM_DEFAULT);
   EXPECT_EQ(collection.RequestAttachedStream(AscendString("rollback")), nullptr);
   EXPECT_EQ(runtime->create_count_, 1);
+  // 回滚路径销毁的是刚建好、未下发任何任务的流，不需要同步
+  EXPECT_TRUE(acl->synced_streams.empty());
   EXPECT_EQ(acl->unbound_streams.size(), 0U);
+  EXPECT_EQ(acl->destroyed_streams.size(), 1U);
+  RuntimeStub::Reset();
+  AclRuntimeStub::Reset();
+}
+
+// 同步失败仍须继续解绑销毁：跳过会让 streams_ 清空后句柄彻底丢失，变成确定性泄漏
+TEST(AttachedStreamCollectionTest, SyncFailureStillUnbindsAndDestroys) {
+  auto runtime = std::make_shared<RuntimeForAttachedStreamTest>();
+  auto acl = std::make_shared<AclForAttachedStreamTest>();
+  acl->sync_success = false;
+  RuntimeStub::SetInstance(runtime);
+  AclRuntimeStub::SetInstance(acl);
+
+  AttachedStreamCollection collection(reinterpret_cast<rtModel_t>(0x55U), RT_STREAM_PRIORITY_DEFAULT,
+                                      RT_STREAM_DEFAULT);
+  ASSERT_NE(collection.RequestAttachedStream(AscendString("sync_fail")), nullptr);
+
+  collection.UnbindAndDestroy();
+  ASSERT_EQ(acl->events.size(), 4U);
+  EXPECT_EQ(acl->events[1], "sync");
+  EXPECT_EQ(acl->unbound_streams.size(), 1U);
   EXPECT_EQ(acl->destroyed_streams.size(), 1U);
   RuntimeStub::Reset();
   AclRuntimeStub::Reset();

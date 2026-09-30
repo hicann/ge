@@ -20,12 +20,16 @@
 #include "exe_graph/runtime/extended_kernel_context.h"
 #include "graph/error_codes.h"
 #include "graph/tensor.h"
+#include "graph/ascend_string.h"
 
 namespace ge {
 struct ArgDesc;
 }
 
 namespace gert {
+// kernel launch 任务的标识符，由带 predecessors 参数的 AddLaunch 重载返回。
+// token 按提交顺序从 0 递增分配，用于后续 launch 声明前驱依赖关系。
+using AnnotatedLaunchToken = uint32_t;
 /**
  * 逻辑输入地址描述符，用于 AnnotatedKernelArgs 追加输入地址参数。
  * @since 9.2.0(2026-07)
@@ -219,6 +223,29 @@ class AnnotatedArgsContext : public ExtendedKernelContext {
    * @since 9.2.0(2026-07)
    */
   ge::graphStatus AddLaunch(const AnnotatedKernelLaunchInfo &launch_info, AnnotatedKernelArgs &&args);
+
+  /**
+   * 添加一个 kernel launch 任务并返回其 token，可同时指定依赖的前驱 launch token。
+   * 无依赖时 predecessors 传空 vector（{}）。
+   * @param launch_info  kernel launch 信息
+   * @param args         kernel launch 参数，通过 AnnotatedKernelArgs 构建
+   * @param predecessors 依赖的前驱 kernel launch token 列表，可为空；
+   *                     token 必须来自本上下文先前 AddLaunch 的返回值，不可重复、不可前向依赖
+   * @return 新添加的 kernel launch token（从 0 递增），供后续 launch 声明依赖；
+   *         失败时返回 UINT32_MAX
+   * @since 9.3.0(2026-09)
+   */
+  AnnotatedLaunchToken AddLaunch(const AnnotatedKernelLaunchInfo &launch_info, AnnotatedKernelArgs &&args,
+                                 const std::vector<AnnotatedLaunchToken> &predecessors);
+
+  /**
+   * 由声明式算子在编译期调用申请一条辅流。
+   * key 的作用域为算子所在的子图（对应一个编译子模型），同一子图内相同 key 复用同一辅流，不跨子图复用。
+   * @param key 辅流注册 key
+   * @return 辅流逻辑 ID；异常时返回 UINT32_MAX。
+   * @since 9.3.0(2026-09)
+   */
+  uint32_t RequestAttachedStream(const ge::AscendString &key);
 
   /**
    * 根据输入 index 获取输入 Tensor 指针。
