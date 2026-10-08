@@ -11,8 +11,8 @@
 #include "framework/runtime/dump/profiling_impl.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstring>
-#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,7 +20,6 @@
 #include "common/checker.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/runtime/dump/profiling_config.h"
-#include "graph_metadef/common/opskernel/ops_kernel_info_types.h"
 #include "mmpa/mmpa_api.h"
 #include "aprof_pub.h"
 #include "profiling/prof_common.h"
@@ -32,6 +31,9 @@ namespace dump {
 namespace {
 constexpr uint32_t kAgingFlag = 1U;
 constexpr uint32_t kNonAgingFlag = 0U;
+// 与 global_profiler.cc 的 kEnableHf32/kOpImplHf32Mode 保持一致，用于 MsprofNodeBasicInfo.opFlag 的 HF32 标志
+constexpr uint32_t kEnableHf32 = 0x40U;
+constexpr uint32_t kOpImplHf32Mode = 1U;
 constexpr uint32_t kModelGraphIdMapDataLen = 16U;
 constexpr uint32_t kOm1ModelLoadType = MSPROF_REPORT_MODEL_GRAPH_ID_MAP_TYPE + 2U;
 // 模型级 / Node 级 profiling type ID，对齐 gert::GeProfInfoType 枚举值
@@ -46,26 +48,20 @@ constexpr uint32_t kInvalidContextId = 0xFFFFFFFFU;
 constexpr uint32_t kFusionOpInfoCap = 52U;
 constexpr uint32_t kHashOffset = 8U;
 
-const std::map<ModelTaskType, MsprofGeTaskType> kModelTaskTypeToProfTaskType = {
-    {ModelTaskType::MODEL_TASK_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
-    {ModelTaskType::MODEL_TASK_VECTOR_KERNEL, MSPROF_GE_TASK_TYPE_AIV},
-    {ModelTaskType::MODEL_TASK_VECTOR_ALL_KERNEL, MSPROF_GE_TASK_TYPE_AIV},
-    {ModelTaskType::MODEL_TASK_KERNEL_EX, MSPROF_GE_TASK_TYPE_AI_CPU},
-    {ModelTaskType::MODEL_TASK_DSA, MSPROF_GE_TASK_TYPE_DSA},
-    {ModelTaskType::MODEL_TASK_HCCL, MSPROF_GE_TASK_TYPE_HCCL},
-    {ModelTaskType::MODEL_TASK_ALL_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
-    {ModelTaskType::MODEL_TASK_SUPER_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
-    {ModelTaskType::MODEL_TASK_FUSION_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
-    {ModelTaskType::MODEL_TASK_KERNEL_LAUNCH_V2, MSPROF_GE_TASK_TYPE_AI_CORE},
-    {ModelTaskType::MODEL_TASK_CUSTOM_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
-};
-
 Status CheckMsprofRet(int32_t ret, const char *action, const char *name) {
   if ((ret == MSPROF_ERROR_NONE) || (ret == MSPROF_ERROR_UNINITIALIZE)) {
     return SUCCESS;
   }
   GELOGW("%s failed, name=%s, ret=%d", action, name, ret);
   return FAILED;
+}
+
+// 旧版本 SO 生成的 GertModelTaskDesc 不含尾部 op_impl_mode 字段，按 struct_size 防御读取，缺省视为默认模式(0)
+uint32_t GetOpImplModeSafe(const GertModelTaskDesc &task_info) {
+  if (task_info.struct_size < (offsetof(GertModelTaskDesc, op_impl_mode) + sizeof(task_info.op_impl_mode))) {
+    return 0U;
+  }
+  return task_info.op_impl_mode;
 }
 
 void FillProfTensorDesc(const TaskDescInfo &task_desc_info, size_t tensor_index, size_t offset_idx,
@@ -234,18 +230,34 @@ Status ProfilingImpl::SaveTaskInfo(const GertModelTaskDesc &task_info, const Mod
            task_info.task_type);
     return SUCCESS;
   }
-  GE_CHK_STATUS_RET(ReportTaskDescInfo(task_desc_info, prof_task_type, task_info.thread_id));
+  GE_CHK_STATUS_RET(
+      ReportTaskDescInfo(task_desc_info, prof_task_type, task_info.thread_id, GetOpImplModeSafe(task_info)));
   GE_CHK_STATUS_RET(ReportFusionOpInfo(task_info, model_info.model_id));
+  // 对齐 OM1(davinci_model.cc SaveProfilingInfo)：FFTS+ mix 任务需上报 ctx_id(0) 与算子名的映射，
+  // msprof 分析侧依赖该映射解析 task_time 中 MIX_AIC/MIX_AIV 行的算子名
+  if ((prof_task_type == static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_MIX_AIC)) ||
+      (prof_task_type == static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_MIX_AIV))) {
+    GE_CHK_STATUS_RET(ReportContextIdInfo(task_desc_info, task_info.thread_id));
+  }
   GE_CHK_STATUS_RET(ReportLaunchInfo(task_info, task_desc_info.prof_time), "ReportLaunchInfo failed");
   return SUCCESS;
 }
 
 Status ProfilingImpl::BuildTaskDescInfo(const GertModelTaskDesc &task_info, const ModelDumpInfo &model_info,
                                         TaskDescInfo &task_desc_info, uint32_t &prof_task_type) const {
-  const auto model_task_type = static_cast<ModelTaskType>(task_info.task_type);
-  const auto iter = kModelTaskTypeToProfTaskType.find(model_task_type);
-  if (iter == kModelTaskTypeToProfTaskType.end()) {
-    GELOGD("Skip unsupported profiling task type: %u", task_info.task_type);
+  // task_type 保持 ModelTaskType 语义(executor/dump 消费)；profiling 口径读取尾部新增的 prof_ge_task_type 字段。
+  // prof_ge_task_type 与 prof_block_dim 同批追加，struct_size 覆盖后者时二者均存在
+  if (task_info.struct_size >= (offsetof(GertModelTaskDesc, prof_block_dim) + sizeof(task_info.prof_block_dim))) {
+    prof_task_type = static_cast<uint32_t>(task_info.prof_ge_task_type);
+  } else {
+    // 旧版本 SO 生成的 GertModelTaskDesc 不含尾部 prof 字段，跳过该任务的 profiling 上报
+    GELOGD("Skip profiling task info without prof fields, op_name=%s, struct_size=%lu",
+           task_info.op_name != nullptr ? task_info.op_name : "", static_cast<unsigned long>(task_info.struct_size));
+    prof_task_type = static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_INVALID);
+    return SUCCESS;
+  }
+  if (prof_task_type > static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_INVALID)) {
+    GELOGD("Skip unsupported profiling task type: %u", prof_task_type);
     prof_task_type = static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_INVALID);
     return SUCCESS;
   }
@@ -255,13 +267,12 @@ Status ProfilingImpl::BuildTaskDescInfo(const GertModelTaskDesc &task_info, cons
   task_desc_info.model_name = (model_info.model_name != nullptr) ? model_info.model_name : "";
   task_desc_info.op_name = op_name;
   task_desc_info.op_type = (task_info.op_type != nullptr) ? task_info.op_type : "";
-  task_desc_info.block_dim = task_info.block_dim;
+  task_desc_info.block_dim = static_cast<uint32_t>(task_info.prof_block_dim);
   task_desc_info.task_id = task_info.task_id;
   task_desc_info.stream_id = task_info.stream_id;
   task_desc_info.cur_iter_num = 0;
-  task_desc_info.task_type = std::to_string(static_cast<uint32_t>(iter->second));
+  task_desc_info.task_type = std::to_string(prof_task_type);
   task_desc_info.context_id = task_info.context_id;
-  prof_task_type = static_cast<uint32_t>(iter->second);
 
   AppendTensorInfo(task_info.inputs, task_info.input_num, op_name, task_desc_info.input_format,
                    task_desc_info.input_data_type, task_desc_info.input_shape);
@@ -272,8 +283,8 @@ Status ProfilingImpl::BuildTaskDescInfo(const GertModelTaskDesc &task_info, cons
   return SUCCESS;
 }
 
-Status ProfilingImpl::ReportTaskDescInfo(const TaskDescInfo &task_desc_info, uint32_t prof_task_type,
-                                         uint32_t tid) const {
+Status ProfilingImpl::ReportTaskDescInfo(const TaskDescInfo &task_desc_info, uint32_t prof_task_type, uint32_t tid,
+                                         uint32_t op_impl_mode) const {
   MsprofCompactInfo node_basic_info{};
   node_basic_info.level = static_cast<uint16_t>(MSPROF_REPORT_NODE_LEVEL);
   node_basic_info.type = MSPROF_REPORT_NODE_BASIC_INFO_TYPE;
@@ -284,14 +295,17 @@ Status ProfilingImpl::ReportTaskDescInfo(const TaskDescInfo &task_desc_info, uin
   prof_node_basic_info.opType = MsprofGetHashId(task_desc_info.op_type.c_str(), task_desc_info.op_type.length());
   prof_node_basic_info.taskType = prof_task_type;
   prof_node_basic_info.blockDim = task_desc_info.block_dim;
+  // 对齐 OM1 BuildNodeBasicInfo：HF32 模式(_op_impl_mode_enum == 0x40)算子标记 opFlag，供 HF32 Eligible 解析
+  prof_node_basic_info.opFlag = (op_impl_mode == kEnableHf32) ? kOpImplHf32Mode : 0U;
   GELOGD(
       "[OM2][Prof] ReportTaskDescInfo: op_name=%s, opName(hash)=%lu, opType(hash)=%lu, "
-      "prof_task_type=%u, block_dim=%u, task_id=%u, stream_id=%u, tid=%u, level=%u, type=%u, timeStamp=%lu",
+      "prof_task_type=%u, block_dim=%u, op_impl_mode=%u, opFlag=%u, task_id=%u, stream_id=%u, tid=%u, level=%u, "
+      "type=%u, timeStamp=%lu",
       task_desc_info.op_name.c_str(), prof_node_basic_info.opName, prof_node_basic_info.opType, prof_task_type,
-      task_desc_info.block_dim, task_desc_info.task_id, task_desc_info.stream_id, tid, node_basic_info.level,
-      node_basic_info.type, node_basic_info.timeStamp);
+      task_desc_info.block_dim, op_impl_mode, prof_node_basic_info.opFlag, task_desc_info.task_id,
+      task_desc_info.stream_id, tid, node_basic_info.level, node_basic_info.type, node_basic_info.timeStamp);
   const int32_t ret =
-      MsprofReportCompactInfo(kAgingFlag, &node_basic_info, static_cast<uint32_t>(sizeof(MsprofCompactInfo)));
+      MsprofReportCompactInfo(kNonAgingFlag, &node_basic_info, static_cast<uint32_t>(sizeof(MsprofCompactInfo)));
   if ((ret != MSPROF_ERROR_NONE) && (ret != MSPROF_ERROR_UNINITIALIZE)) {
     GELOGW("Report profiling compact info failed, op_name=%s, ret=%d", task_desc_info.op_name.c_str(), ret);
     return FAILED;
@@ -320,7 +334,7 @@ Status ProfilingImpl::ReportTensorInfo(const TaskDescInfo &task_desc_info, uint3
         tensor_info.threadId, tensor_info.dataLen,
         reinterpret_cast<const MsprofTensorInfo *>(tensor_info.data)->tensorNum);
     GE_CHK_STATUS_RET(CheckMsprofRet(
-        MsprofReportAdditionalInfo(kAgingFlag, &tensor_info, static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))),
+        MsprofReportAdditionalInfo(kNonAgingFlag, &tensor_info, static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))),
         "Report profiling tensor info", task_desc_info.op_name.c_str()));
   }
 
@@ -337,7 +351,7 @@ Status ProfilingImpl::ReportTensorInfo(const TaskDescInfo &task_desc_info, uint3
       tensor_info.threadId, tensor_info.dataLen,
       reinterpret_cast<const MsprofTensorInfo *>(tensor_info.data)->tensorNum);
   return CheckMsprofRet(
-      MsprofReportAdditionalInfo(kAgingFlag, &tensor_info, static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))),
+      MsprofReportAdditionalInfo(kNonAgingFlag, &tensor_info, static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))),
       "Report profiling tensor info", task_desc_info.op_name.c_str());
 }
 
@@ -363,8 +377,9 @@ Status ProfilingImpl::ReportContextIdInfo(const TaskDescInfo &task_desc_info, ui
       "type=%u, timeStamp=%lu, threadId=%u, dataLen=%u",
       task_desc_info.op_name.c_str(), context_data->opName, task_desc_info.context_id, context_data->ctxIdNum,
       context_info.level, context_info.type, context_info.timeStamp, context_info.threadId, context_info.dataLen);
+  // 对齐 OM1(ReportTaskTimeL0Info)：ctx 映射以 unaging 方式随首次上报，静态算子语义
   return CheckMsprofRet(
-      MsprofReportAdditionalInfo(kAgingFlag, &context_info, static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))),
+      MsprofReportAdditionalInfo(kNonAgingFlag, &context_info, static_cast<uint32_t>(sizeof(MsprofAdditionalInfo))),
       "Report profiling context id info", task_desc_info.op_name.c_str());
 }
 

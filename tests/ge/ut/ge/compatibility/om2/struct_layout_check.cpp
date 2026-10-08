@@ -79,7 +79,7 @@ TEST(Om2AbiStructCompatibility, TaskRawInfoLayoutIsFrozen) {
 }
 
 TEST(Om2AbiStructCompatibility, TaskDescLayoutIsFrozen) {
-  EXPECT_STRUCT_LAYOUT(GertModelTaskDesc, 232U, 8U);
+  EXPECT_STRUCT_LAYOUT(GertModelTaskDesc, 256U, 8U);
   EXPECT_MEMBER_LAYOUT(GertModelTaskDesc, struct_size, uint64_t, 0U);
   EXPECT_MEMBER_LAYOUT(GertModelTaskDesc, op_name, const char *, 8U);
   EXPECT_MEMBER_LAYOUT(GertModelTaskDesc, op_type, const char *, 16U);
@@ -109,22 +109,29 @@ TEST(Om2AbiStructCompatibility, TaskDescLayoutIsFrozen) {
   EXPECT_MEMBER_LAYOUT(GertModelTaskDesc, output_mem_size, uint64_t, 208U);
   EXPECT_MEMBER_LAYOUT(GertModelTaskDesc, workspace_mem_size, uint64_t, 216U);
   EXPECT_MEMBER_LAYOUT(GertModelTaskDesc, weight_mem_size, uint64_t, 224U);
+  // 首次尾部扩展：op_impl_mode 必须位于旧版 sizeof(232) 之后，禁止在中间插字段
+  EXPECT_MEMBER_LAYOUT(GertModelTaskDesc, op_impl_mode, uint64_t, 232U);
+  // 二次尾部扩展：prof_ge_task_type/prof_block_dim 必须位于旧版 sizeof(240) 之后，禁止在中间插字段
+  EXPECT_MEMBER_LAYOUT(GertModelTaskDesc, prof_ge_task_type, uint64_t, 240U);
+  EXPECT_MEMBER_LAYOUT(GertModelTaskDesc, prof_block_dim, uint64_t, 248U);
   EXPECT_NO_IMPLICIT_PADDING(
-      GertModelTaskDesc,
-      sizeof(GertModelTaskDesc::struct_size) + sizeof(GertModelTaskDesc::op_name) + sizeof(GertModelTaskDesc::op_type) +
-          sizeof(GertModelTaskDesc::task_id) + sizeof(GertModelTaskDesc::stream_id) +
-          sizeof(GertModelTaskDesc::context_id) + sizeof(GertModelTaskDesc::thread_id) +
-          sizeof(GertModelTaskDesc::block_dim) + sizeof(GertModelTaskDesc::op_desc_id) +
-          sizeof(GertModelTaskDesc::args_base) + sizeof(GertModelTaskDesc::args_size) +
-          sizeof(GertModelTaskDesc::input_num) + sizeof(GertModelTaskDesc::inputs) +
-          sizeof(GertModelTaskDesc::output_num) + sizeof(GertModelTaskDesc::outputs) +
-          sizeof(GertModelTaskDesc::workspace_num) + sizeof(GertModelTaskDesc::workspace_addrs) +
-          sizeof(GertModelTaskDesc::workspace_sizes) + sizeof(GertModelTaskDesc::task_type) +
-          sizeof(GertModelTaskDesc::kernel_type) + sizeof(GertModelTaskDesc::stream) +
-          sizeof(GertModelTaskDesc::is_raw_address) + sizeof(GertModelTaskDesc::task_raw_info) +
-          sizeof(GertModelTaskDesc::launch_begin) + sizeof(GertModelTaskDesc::original_op_names) +
-          sizeof(GertModelTaskDesc::input_mem_size) + sizeof(GertModelTaskDesc::output_mem_size) +
-          sizeof(GertModelTaskDesc::workspace_mem_size) + sizeof(GertModelTaskDesc::weight_mem_size));
+      GertModelTaskDesc, sizeof(GertModelTaskDesc::struct_size) + sizeof(GertModelTaskDesc::op_name) +
+                             sizeof(GertModelTaskDesc::op_type) + sizeof(GertModelTaskDesc::task_id) +
+                             sizeof(GertModelTaskDesc::stream_id) + sizeof(GertModelTaskDesc::context_id) +
+                             sizeof(GertModelTaskDesc::thread_id) + sizeof(GertModelTaskDesc::block_dim) +
+                             sizeof(GertModelTaskDesc::op_desc_id) + sizeof(GertModelTaskDesc::args_base) +
+                             sizeof(GertModelTaskDesc::args_size) + sizeof(GertModelTaskDesc::input_num) +
+                             sizeof(GertModelTaskDesc::inputs) + sizeof(GertModelTaskDesc::output_num) +
+                             sizeof(GertModelTaskDesc::outputs) + sizeof(GertModelTaskDesc::workspace_num) +
+                             sizeof(GertModelTaskDesc::workspace_addrs) + sizeof(GertModelTaskDesc::workspace_sizes) +
+                             sizeof(GertModelTaskDesc::task_type) + sizeof(GertModelTaskDesc::kernel_type) +
+                             sizeof(GertModelTaskDesc::stream) + sizeof(GertModelTaskDesc::is_raw_address) +
+                             sizeof(GertModelTaskDesc::task_raw_info) + sizeof(GertModelTaskDesc::launch_begin) +
+                             sizeof(GertModelTaskDesc::original_op_names) + sizeof(GertModelTaskDesc::input_mem_size) +
+                             sizeof(GertModelTaskDesc::output_mem_size) +
+                             sizeof(GertModelTaskDesc::workspace_mem_size) +
+                             sizeof(GertModelTaskDesc::weight_mem_size) + sizeof(GertModelTaskDesc::op_impl_mode) +
+                             sizeof(GertModelTaskDesc::prof_ge_task_type) + sizeof(GertModelTaskDesc::prof_block_dim));
 }
 
 TEST(Om2AbiStructCompatibility, BaseInfoLayoutIsFrozen) {

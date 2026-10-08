@@ -12,6 +12,7 @@
 #define GE_FRAMEWORK_RUNTIME_DUMP_PROFILING_IMPL_H_
 
 #include <cstdint>
+#include <string>
 #include "framework/runtime/dump/model_dump_manager.h"
 
 namespace ge {
@@ -32,7 +33,8 @@ class ProfilingImpl {
  private:
   Status BuildTaskDescInfo(const GertModelTaskDesc &task_info, const ModelDumpInfo &model_info,
                            TaskDescInfo &task_desc_info, uint32_t &prof_task_type) const;
-  Status ReportTaskDescInfo(const TaskDescInfo &task_desc_info, uint32_t prof_task_type, uint32_t tid) const;
+  Status ReportTaskDescInfo(const TaskDescInfo &task_desc_info, uint32_t prof_task_type, uint32_t tid,
+                            uint32_t op_impl_mode) const;
   Status ReportTensorInfo(const TaskDescInfo &task_desc_info, uint32_t tid) const;
   Status ReportContextIdInfo(const TaskDescInfo &task_desc_info, uint32_t tid) const;
   Status ReportFusionOpInfo(const GertModelTaskDesc &task_info, uint32_t model_id) const;

@@ -15,7 +15,6 @@
 #include "common/checker.h"
 #include "common/om2/codegen/ast/ast_nodes.h"
 #include "common/om2/codegen/task_code_builder/task_code_builder.h"
-#include "common/plugin/datatype_util.h"
 #include "common/ge_common/debug/ge_log.h"
 #include "common/math/ge_math_util.h"
 #include "graph/ge_context.h"
@@ -70,7 +69,7 @@ Status Om2ModelUtils::BuildInputTensorInfo(const GeTensorDescPtr &tensor_desc, O
   }
   tensor_info.args_offset = 0U;
   tensor_info.size = static_cast<uint64_t>(tensor_size);
-  tensor_info.data_type = DataTypeUtil::GetIrDataType(tensor_desc->GetDataType());
+  tensor_info.data_type = static_cast<int32_t>(tensor_desc->GetDataType());
   tensor_info.format = static_cast<int32_t>(tensor_desc->GetFormat());
   tensor_info.shape_dims = tensor_desc->GetShape().GetDims();
   return SUCCESS;
@@ -84,7 +83,7 @@ Status Om2ModelUtils::BuildOutputTensorInfo(const GeTensorDescPtr &tensor_desc, 
   }
   tensor_info.args_offset = 0U;
   tensor_info.size = static_cast<uint64_t>(tensor_size);
-  tensor_info.data_type = DataTypeUtil::GetIrDataType(tensor_desc->GetDataType());
+  tensor_info.data_type = static_cast<int32_t>(tensor_desc->GetDataType());
   tensor_info.format = static_cast<int32_t>(tensor_desc->GetFormat());
   tensor_info.shape_dims = tensor_desc->GetShape().GetDims();
   return SUCCESS;

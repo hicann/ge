@@ -13,7 +13,34 @@
 #include <iomanip>
 #include <sstream>
 
+#include "common/ge_common/ge_types.h"
+#include "common/om2/codegen/om2_codegen_utils.h"
+#include "graph/debug/ge_attr_define.h"
+#include "graph/utils/op_desc_utils.h"
+
 namespace ge {
+
+namespace {
+const std::string kAttrIsAiv = "_mix_is_aiv";
+const std::string kAttrIsFFTSTask = "_is_fftsplus_task";  // fftsplus task
+const std::string kAttrTaskRatio = "_task_ratio";
+// tiling sink 依赖算子的占位 block_dim，表示运行时由 Tiling 结果决定(与 davinci_model.cc 一致)
+constexpr uint32_t kTilingSinkBlockDim = 0xFFFFFFFFU;
+// ModelTaskType → profiling 上报任务类型查表（与 davinci_model.cc:model_task_type_to_task_types 一致）
+const std::map<ModelTaskType, uint32_t> model_task_type_to_task_types = {
+    {ModelTaskType::MODEL_TASK_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
+    {ModelTaskType::MODEL_TASK_VECTOR_KERNEL, MSPROF_GE_TASK_TYPE_AIV},
+    {ModelTaskType::MODEL_TASK_VECTOR_ALL_KERNEL, MSPROF_GE_TASK_TYPE_AIV},
+    {ModelTaskType::MODEL_TASK_KERNEL_EX, MSPROF_GE_TASK_TYPE_AI_CPU},
+    {ModelTaskType::MODEL_TASK_DSA, MSPROF_GE_TASK_TYPE_DSA},
+    {ModelTaskType::MODEL_TASK_HCCL, MSPROF_GE_TASK_TYPE_HCCL},
+    {ModelTaskType::MODEL_TASK_ALL_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
+    {ModelTaskType::MODEL_TASK_SUPER_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
+    {ModelTaskType::MODEL_TASK_FUSION_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
+    {ModelTaskType::MODEL_TASK_KERNEL_LAUNCH_V2, MSPROF_GE_TASK_TYPE_AI_CORE},
+    {ModelTaskType::MODEL_TASK_CUSTOM_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
+};
+}  // namespace
 
 Status TaskCodeBuilderUtil::RenderDispatchFunc(AstBuildContext &ast, const std::string &func_name,
                                                const std::vector<BodyItem> &body, std::vector<DeclNode *> &items) {
@@ -453,6 +480,94 @@ OpArgDesc TaskCodeBuilderUtil::ConvertAddrDesc(const AddrSemantic &addr) {
     arg.custom_value = addr.event_id;
   }
   return arg;
+}
+
+// 完整镜像 davinci_model.cc:GetProfilingTaskType() 的逻辑，返回 MsprofGeTaskType（aprof_pub.h）的 uint32_t 值
+uint32_t TaskCodeBuilderUtil::ConvertToProfilingTaskType(const OpDescPtr &op_desc, const domi::TaskDef &task_def) {
+  // 第1层: op_desc 属性 ATTR_NAME_CUBE_VECTOR_CORE_TYPE == "AIV"
+  std::string core_type;
+  if (AttrUtils::GetStr(op_desc, ATTR_NAME_CUBE_VECTOR_CORE_TYPE, core_type) && core_type == kTaskTypeAiv) {
+    return MSPROF_GE_TASK_TYPE_AIV;
+  }
+
+  // 第2层: FFTS+ 任务
+  bool is_fftsplus_task = false;
+  if (AttrUtils::GetBool(op_desc, kAttrIsFFTSTask, is_fftsplus_task) && is_fftsplus_task) {
+    bool is_mix_aiv = false;
+    (void)AttrUtils::GetBool(op_desc, kAttrIsAiv, is_mix_aiv);
+    return is_mix_aiv ? MSPROF_GE_TASK_TYPE_MIX_AIV : MSPROF_GE_TASK_TYPE_MIX_AIC;
+  }
+
+  // 第3层: ModelTaskType 查表（model_task_type_to_task_types，定义于文件顶部）
+  const auto model_task_type = static_cast<ModelTaskType>(task_def.type());
+  const auto it = model_task_type_to_task_types.find(model_task_type);
+  if (it == model_task_type_to_task_types.end()) {
+    return MSPROF_GE_TASK_TYPE_INVALID;
+  }
+
+  // 第4层: MODEL_TASK_KERNEL 内部根据 kernel_type 进一步区分
+  if (model_task_type == ModelTaskType::MODEL_TASK_KERNEL) {
+    const auto &context = task_def.kernel().context();
+    const auto kernel_type = static_cast<ccKernelType>(context.kernel_type());
+    if (kernel_type == ccKernelType::TE) {
+      return MSPROF_GE_TASK_TYPE_AI_CORE;
+    }
+    if ((kernel_type == ccKernelType::AI_CPU) || (kernel_type == ccKernelType::CUST_AI_CPU) ||
+        (kernel_type == ccKernelType::AI_CPU_KFC)) {
+      return MSPROF_GE_TASK_TYPE_AI_CPU;
+    }
+    return MSPROF_GE_TASK_TYPE_AI_CORE;
+  }
+
+  return it->second;
+}
+
+uint32_t TaskCodeBuilderUtil::GetOpImplMode(const OpDescPtr &op_desc) {
+  // 与 global_profiler.cc 的 kOpImplModeEnum/kEnableHf32 保持一致
+  const std::string kOpImplModeEnum = "_op_impl_mode_enum";
+  uint32_t op_impl_mode = 0U;
+  if (op_desc != nullptr) {
+    (void)AttrUtils::GetInt(op_desc, kOpImplModeEnum, op_impl_mode);
+  }
+  return op_impl_mode;
+}
+
+uint32_t TaskCodeBuilderUtil::GetProfilingBlockDim(const OpDescPtr &op_desc, const domi::TaskDef &task_def) {
+  // 完整镜像 davinci_model.cc:GetBlockDim() 的 profiling 加工逻辑
+  uint32_t block_dim = 0U;
+  ccKernelType kernel_type = ccKernelType::INVALID;
+  const auto model_task_type = static_cast<ModelTaskType>(task_def.type());
+  if ((model_task_type == ModelTaskType::MODEL_TASK_KERNEL) ||
+      (model_task_type == ModelTaskType::MODEL_TASK_VECTOR_KERNEL) ||
+      (model_task_type == ModelTaskType::MODEL_TASK_SUPER_KERNEL)) {
+    kernel_type = static_cast<ccKernelType>(task_def.kernel().context().kernel_type());
+    block_dim = task_def.kernel().block_dim();
+  }
+  if ((model_task_type == ModelTaskType::MODEL_TASK_ALL_KERNEL) ||
+      (model_task_type == ModelTaskType::MODEL_TASK_VECTOR_ALL_KERNEL)) {
+    kernel_type = static_cast<ccKernelType>(task_def.kernel_with_handle().context().kernel_type());
+    block_dim = task_def.kernel_with_handle().block_dim();
+  }
+  if (model_task_type == ModelTaskType::MODEL_TASK_HCCL) {
+    block_dim = task_def.kernel_hccl().aiv_block_dim();
+  }
+
+  // mix op: 针对 mix 算子，低16位为主加速器 blockdim，高16位为从加速器的 ratio 值，由工具解析
+  uint32_t task_ratio = 0U;
+  bool is_fftsplus_task = false;
+  if ((op_desc != nullptr) && (AttrUtils::GetBool(op_desc, kAttrIsFFTSTask, is_fftsplus_task) && is_fftsplus_task &&
+                               AttrUtils::GetInt(op_desc, kAttrTaskRatio, task_ratio))) {
+    block_dim = ((block_dim & 0xFFFFU) | (task_ratio << 16U));
+  }
+
+  bool is_tiling_depend = false;
+  if (op_desc != nullptr) {
+    (void)ge::AttrUtils::GetBool(op_desc, ATTR_NAME_DYNAMIC_TILING_DEPEND_OP, is_tiling_depend);
+  }
+  if (is_tiling_depend && Om2CodegenUtils::IsAICoreKernel(kernel_type)) {
+    return kTilingSinkBlockDim;
+  }
+  return block_dim;
 }
 
 }  // namespace ge

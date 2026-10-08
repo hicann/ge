@@ -639,9 +639,10 @@ TEST_F(UtestOpTask, test_TbeOpTask_FFTSTASK_ReportProfAdditionalInfo) {
   (void)AttrUtils::SetInt(op_desc, "_task_ratio", task_ratio);
 
   bool has_context_id = false;
+  // 注: moduleId 位透传 msprof 上报的 agingFlag(single op 动态执行场景为 1)，不再作为过滤条件
   auto check_func = [&task_ratio, &block_dim, &has_context_id](uint32_t moduleId, uint32_t type, void *data,
                                                                uint32_t len) -> int32_t {
-    if ((moduleId == 0) && (type == InfoType::kInfo)) {
+    if (type == InfoType::kInfo) {
       const auto *context_info = reinterpret_cast<MsprofAdditionalInfo *>(data);
       if (context_info->type == MSPROF_REPORT_NODE_CONTEXT_ID_INFO_TYPE) {
         const auto context_data = reinterpret_cast<const MsprofContextIdInfo *>(context_info->data);
@@ -652,7 +653,7 @@ TEST_F(UtestOpTask, test_TbeOpTask_FFTSTASK_ReportProfAdditionalInfo) {
       return 0;
     }
 
-    if ((moduleId == 0) && (type == InfoType::kCompactInfo)) {
+    if (type == InfoType::kCompactInfo) {
       const auto &node_basic_info = (reinterpret_cast<MsprofCompactInfo *>(data))->data.nodeBasicInfo;
       EXPECT_EQ(node_basic_info.taskType, MSPROF_GE_TASK_TYPE_MIX_AIV);
       EXPECT_EQ(node_basic_info.blockDim, ((block_dim & 0xFFFFU) | (task_ratio << 16U)));

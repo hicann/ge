@@ -12,6 +12,7 @@
 #include "framework/runtime/dump/dump_config.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/framework_types_internal.h"
+#include "common/plugin/datatype_util.h"
 #include "graph/def_types.h"
 #include "rt_external.h"
 #include "acl/acl_rt.h"
@@ -72,7 +73,8 @@ Status DataDumpImpl::SaveTask(const GertModelTaskDesc &task_info, ModelTaskType 
       inner_tensor.offset = entry.offset;
       inner_tensor.device_address = PtrToValue(tensor.GetAddr());
       inner_tensor.size = tensor.GetSize();
-      inner_tensor.data_type = tensor.GetDataType();
+      // 对齐 v1(data_dumper.cc)：dump proto 的 data_type 写 IR(proto) 枚举，与 ge::DataType 数值错位
+      inner_tensor.data_type = DataTypeUtil::GetIrDataType(tensor.GetDataType());
       inner_tensor.format = tensor.GetStorageFormat();
       if (tensor.GetStorageShape().GetDimNum() > 0U) {
         inner_tensor.shape_dims.clear();

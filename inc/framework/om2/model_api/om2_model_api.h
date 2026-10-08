@@ -107,6 +107,11 @@ struct GertModelTaskDesc {
   uint64_t output_mem_size = 0;             // 输入，输出内存大小，单位为字节。
   uint64_t workspace_mem_size = 0;          // 输入，workspace 内存大小，单位为字节。
   uint64_t weight_mem_size = 0;             // 输入，权重内存大小，单位为字节。
+  uint64_t op_impl_mode = 0;  // 输入，算子实现模式，取值与 ge 的 _op_impl_mode_enum 属性一致，0 表示默认模式。
+  uint64_t prof_ge_task_type =
+      0;  // 输入，profiling 上报任务类型，取值与 MsprofGeTaskType(aprof_pub.h)一致，0 表示 AI_CORE。
+  uint64_t prof_block_dim =
+      0;  // 输入，profiling 上报口径的 Block Dim(未归一/mix 编码/tiling_sink 占位)，与 block_dim(launch 口径)分离。
 };
 
 // GertModelBaseInfo: report_model_base_info 回调入参（codegen → executor 传递 rt_model_handle）

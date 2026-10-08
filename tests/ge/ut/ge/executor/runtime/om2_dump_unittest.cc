@@ -18,6 +18,7 @@
 #include "framework/runtime/dump/model_dump_manager.h"
 #include "framework/runtime/dump/overflow_dump_impl.h"
 #include "framework/runtime/dump/data_dump_impl.h"
+#include "framework/runtime/dump/dump_op_impl.h"
 #include "framework/runtime/dump/exception_dump_impl.h"
 #include "framework/runtime/dump/profiling_config.h"
 #include "framework/runtime/dump/profiling_callback_manager.h"
@@ -807,6 +808,63 @@ TEST(OverflowDumpImplTest, IsOpDebugEnabledDefaultTest) {
   EXPECT_FALSE(impl.IsOpDebugEnabled());
 }
 
+// 对齐 v1(data_dumper.cc)：dump proto 的 data_type 写 IR(proto) 枚举而非 ge::DataType 原值，
+// 两套枚举数值错位（DT_FLOAT: ge=0/proto=1, DT_BOOL: ge=12/proto=11），直接写 ge 枚举会导致
+// AICPU dump 解析侧 dtype 错位
+TEST(DumpOpProtoDtypeTest, BuildTaskInputsOutputsWriteIrDtype) {
+  DumpOp dump_op;
+  gert::Tensor tensor = {};
+  tensor.SetSize(1024U);
+  tensor.SetDataType(ge::DT_FLOAT);
+  tensor.SetStorageFormat(static_cast<ge::Format>(0U));
+  GertModelTaskIoEntry inputs[1] = {};
+  inputs[0U].tensor = &tensor;
+  GertModelTaskDesc task_desc = {};
+  task_desc.op_name = "custom_op";
+  task_desc.op_type = "CustomOp";
+  task_desc.inputs = inputs;
+  task_desc.input_num = 1U;
+  ASSERT_EQ(dump_op.BuildTaskInputs(task_desc), SUCCESS);
+  const auto &input_task = dump_op.GetOpMappingInfo().task(0);
+  ASSERT_EQ(input_task.input_size(), 1);
+  EXPECT_EQ(input_task.input(0).data_type(), 1);  // proto DT_FLOAT
+
+  DumpOp output_op;
+  gert::Tensor bool_tensor = {};
+  bool_tensor.SetSize(8U);
+  bool_tensor.SetDataType(ge::DT_BOOL);
+  GertModelTaskIoEntry outputs[1] = {};
+  outputs[0U].tensor = &bool_tensor;
+  GertModelTaskDesc output_desc = {};
+  output_desc.op_name = "custom_op";
+  output_desc.op_type = "CustomOp";
+  output_desc.outputs = outputs;
+  output_desc.output_num = 1U;
+  ASSERT_EQ(output_op.BuildTaskOutputs(output_desc), SUCCESS);
+  const auto &output_task = output_op.GetOpMappingInfo().task(0);
+  ASSERT_EQ(output_task.output_size(), 1);
+  EXPECT_EQ(output_task.output(0).data_type(), 11);  // proto DT_BOOL
+}
+
+// 未知 dtype 映射为 proto DT_UNDEFINED(0)，与 DataTypeUtil::GetIrDataType 的兜底行为一致
+TEST(DumpOpProtoDtypeTest, BuildTaskInputsUnknownDtypeMapsToUndefined) {
+  DumpOp dump_op;
+  gert::Tensor tensor = {};
+  tensor.SetSize(4U);
+  tensor.SetDataType(static_cast<ge::DataType>(0x99));
+  GertModelTaskIoEntry inputs[1] = {};
+  inputs[0U].tensor = &tensor;
+  GertModelTaskDesc task_desc = {};
+  task_desc.op_name = "custom_op";
+  task_desc.op_type = "CustomOp";
+  task_desc.inputs = inputs;
+  task_desc.input_num = 1U;
+  ASSERT_EQ(dump_op.BuildTaskInputs(task_desc), SUCCESS);
+  const auto &task = dump_op.GetOpMappingInfo().task(0);
+  ASSERT_EQ(task.input_size(), 1);
+  EXPECT_EQ(task.input(0).data_type(), 0);  // proto DT_UNDEFINED
+}
+
 // ProfilingConfig 测试类
 class ProfilingConfigTest : public Test {
  protected:
@@ -1189,10 +1247,229 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_InvalidTaskType_ReturnsSuccess) {
   GertModelTaskDesc task_info = {};
   task_info.op_name = "test_op";
   task_info.op_type = "Unknown";
-  task_info.task_type = 0xFFU;  // invalid task type
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);  // ModelTaskType 语义，不参与上报
+  task_info.prof_ge_task_type = 0xFFU;                                            // invalid profiling task type
   auto model_info = MakeModelInfo();
   Status ret = impl.SaveTaskInfo(task_info, model_info);
   EXPECT_EQ(ret, SUCCESS);
+}
+
+// 对齐 OM1：每次 dispatch 均上报算子基础/张量信息与 launch 耗时，不区分是否首次
+TEST_F(ProfilingImplTest, SaveTaskInfo_EveryDispatch_ReportsOpInfo) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  uint32_t compact_count = 0U;
+  uint32_t tensor_info_count = 0U;
+  uint32_t launch_api_count = 0U;
+  auto prof_func = [&](uint32_t, uint32_t type, void *data, uint32_t) -> int32_t {
+    if (type == ge::InfoType::kCompactInfo) {
+      ++compact_count;
+    } else if (type == ge::InfoType::kInfo) {
+      const auto *info = static_cast<const MsprofAdditionalInfo *>(data);
+      if (info->type == MSPROF_REPORT_NODE_TENSOR_INFO_TYPE) {
+        ++tensor_info_count;
+      }
+    } else if (type == ge::InfoType::kApi) {
+      const auto *api = static_cast<const MsprofApi *>(data);
+      if (api->type == MSPROF_REPORT_NODE_LAUNCH_TYPE) {
+        ++launch_api_count;
+      }
+    }
+    return 0;
+  };
+  ProfilingTestUtil::Instance().SetProfFunc(prof_func);
+
+  gert::Tensor tensor = {};
+  tensor.SetSize(1024U);
+  tensor.SetDataType(static_cast<ge::DataType>(0U));
+  tensor.SetStorageFormat(static_cast<ge::Format>(0U));
+  GertModelTaskIoEntry inputs[1] = {};
+  inputs[0U].tensor = &tensor;
+
+  ProfilingImpl impl;
+  GertModelTaskDesc task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  task_info.inputs = inputs;
+  task_info.input_num = 1U;
+  task_info.launch_begin = 100U;
+  auto model_info = MakeModelInfo();
+  ASSERT_EQ(impl.SaveTaskInfo(task_info, model_info), SUCCESS);
+  ASSERT_EQ(impl.SaveTaskInfo(task_info, model_info), SUCCESS);
+  EXPECT_EQ(compact_count, 2U);
+  EXPECT_EQ(tensor_info_count, 2U);
+  EXPECT_EQ(launch_api_count, 2U);
+}
+
+// 算子基础/张量信息以 unaging(agingFlag=0) 上报：msprof 分析侧按落盘文件模式判定 Op State(unaging=静态算子)，
+// OM2 需与 OM1 静态图一致
+TEST_F(ProfilingImplTest, SaveTaskInfo_OpInfoReportedUnaging) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  std::vector<uint32_t> compact_aging_flags;
+  std::vector<uint32_t> tensor_aging_flags;
+  auto prof_func = [&](uint32_t aging_flag, uint32_t type, void *data, uint32_t) -> int32_t {
+    if (type == ge::InfoType::kCompactInfo) {
+      compact_aging_flags.push_back(aging_flag);
+    } else if (type == ge::InfoType::kInfo) {
+      const auto *info = static_cast<const MsprofAdditionalInfo *>(data);
+      if (info->type == MSPROF_REPORT_NODE_TENSOR_INFO_TYPE) {
+        tensor_aging_flags.push_back(aging_flag);
+      }
+    }
+    return 0;
+  };
+  ProfilingTestUtil::Instance().SetProfFunc(prof_func);
+
+  gert::Tensor tensor = {};
+  tensor.SetSize(1024U);
+  tensor.SetDataType(static_cast<ge::DataType>(0U));
+  tensor.SetStorageFormat(static_cast<ge::Format>(0U));
+  GertModelTaskIoEntry inputs[1] = {};
+  inputs[0U].tensor = &tensor;
+
+  ProfilingImpl impl;
+  GertModelTaskDesc task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  task_info.inputs = inputs;
+  task_info.input_num = 1U;
+  auto model_info = MakeModelInfo();
+  ASSERT_EQ(impl.SaveTaskInfo(task_info, model_info), SUCCESS);
+  ASSERT_FALSE(compact_aging_flags.empty());
+  for (const auto flag : compact_aging_flags) {
+    EXPECT_EQ(flag, 0U);
+  }
+  ASSERT_FALSE(tensor_aging_flags.empty());
+  for (const auto flag : tensor_aging_flags) {
+    EXPECT_EQ(flag, 0U);
+  }
+}
+
+// 不同算子各自上报（每次 dispatch 逐次上报，无去重）
+TEST_F(ProfilingImplTest, SaveTaskInfo_DifferentOps_BothReported) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  uint32_t compact_count = 0U;
+  auto prof_func = [&](uint32_t, uint32_t type, void *, uint32_t) -> int32_t {
+    if (type == ge::InfoType::kCompactInfo) {
+      ++compact_count;
+    }
+    return 0;
+  };
+  ProfilingTestUtil::Instance().SetProfFunc(prof_func);
+
+  ProfilingImpl impl;
+  GertModelTaskDesc task_info = {};
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  auto model_info = MakeModelInfo();
+  task_info.op_name = "op_a";
+  ASSERT_EQ(impl.SaveTaskInfo(task_info, model_info), SUCCESS);
+  task_info.op_name = "op_b";
+  ASSERT_EQ(impl.SaveTaskInfo(task_info, model_info), SUCCESS);
+  EXPECT_EQ(compact_count, 2U);
+}
+
+// 对齐 OM1 BuildNodeBasicInfo：HF32 模式(_op_impl_mode_enum == 0x40)算子上报 opFlag=1，供 HF32 Eligible 解析
+TEST_F(ProfilingImplTest, SaveTaskInfo_Hf32Mode_ReportsOpFlag) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  uint32_t hf32_op_flag = 0xFFFFFFFFU;
+  auto prof_func = [&](uint32_t, uint32_t type, void *data, uint32_t) -> int32_t {
+    if (type == ge::InfoType::kCompactInfo) {
+      const auto *info = static_cast<const MsprofCompactInfo *>(data);
+      hf32_op_flag = info->data.nodeBasicInfo.opFlag;
+    }
+    return 0;
+  };
+  ProfilingTestUtil::Instance().SetProfFunc(prof_func);
+
+  ProfilingImpl impl;
+  GertModelTaskDesc task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  task_info.op_impl_mode = 0x40U;  // kEnableHf32
+  auto model_info = MakeModelInfo();
+  ASSERT_EQ(impl.SaveTaskInfo(task_info, model_info), SUCCESS);
+  EXPECT_EQ(hf32_op_flag, 1U);
+}
+
+// 旧版本 SO 按 232 字节(尾部扩展前旧版 sizeof)构造结构体：struct_size 不覆盖 prof_ge_task_type/prof_block_dim，
+// 读取方按 struct_size 防御判断并跳过该任务的 profiling 上报，不得越界读取尾部字段
+TEST_F(ProfilingImplTest, SaveTaskInfo_LegacyStructSize_SkipsReport) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  uint32_t compact_count = 0U;
+  auto prof_func = [&](uint32_t, uint32_t type, void *, uint32_t) -> int32_t {
+    if (type == ge::InfoType::kCompactInfo) {
+      ++compact_count;
+    }
+    return 0;
+  };
+  ProfilingTestUtil::Instance().SetProfFunc(prof_func);
+
+  ProfilingImpl impl;
+  GertModelTaskDesc template_info = {};
+  template_info.op_name = "test_op";
+  template_info.op_type = "Add";
+  template_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  auto model_info = MakeModelInfo();
+
+  // 按旧版 232 字节构造，仅拷贝旧版结构体长度，struct_size 声明为旧尺寸
+  constexpr size_t kLegacyTaskDescSize = 232U;
+  alignas(alignof(GertModelTaskDesc)) uint8_t legacy_mem[kLegacyTaskDescSize] = {};
+  // 逐字节拷贝旧版范围内数据，模拟旧版本 SO 填写的结构体
+  const auto *src = reinterpret_cast<const uint8_t *>(&template_info);
+  for (size_t i = 0U; i < kLegacyTaskDescSize; ++i) {
+    legacy_mem[i] = src[i];
+  }
+  const uint64_t legacy_struct_size = 232U;
+  (void)memcpy(legacy_mem, &legacy_struct_size, sizeof(legacy_struct_size));
+  const auto *legacy_desc = reinterpret_cast<const GertModelTaskDesc *>(legacy_mem);
+
+  ASSERT_EQ(impl.SaveTaskInfo(*legacy_desc, model_info), SUCCESS);
+  EXPECT_EQ(compact_count, 0U);
+}
+
+// 非默认非 HF32 的实现模式值：opFlag 仍为 0，与 OM1 的 (mode == 0x40) 判别一致
+TEST_F(ProfilingImplTest, SaveTaskInfo_DefaultImplMode_OpFlagZero) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  uint32_t op_flag = 0xFFFFFFFFU;
+  auto prof_func = [&](uint32_t, uint32_t type, void *data, uint32_t) -> int32_t {
+    if (type == ge::InfoType::kCompactInfo) {
+      const auto *info = static_cast<const MsprofCompactInfo *>(data);
+      op_flag = info->data.nodeBasicInfo.opFlag;
+    }
+    return 0;
+  };
+  ProfilingTestUtil::Instance().SetProfFunc(prof_func);
+
+  ProfilingImpl impl;
+  GertModelTaskDesc task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL);
+  task_info.op_impl_mode = 0U;  // 默认模式
+  auto model_info = MakeModelInfo();
+  ASSERT_EQ(impl.SaveTaskInfo(task_info, model_info), SUCCESS);
+  EXPECT_EQ(op_flag, 0U);
 }
 
 TEST_F(ProfilingImplTest, SaveTaskInfo_WithInputTensors_ReturnsSuccess) {
@@ -1307,7 +1584,8 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_AicpuTaskType_ReturnsSuccess) {
   GertModelTaskDesc task_info = {};
   task_info.op_name = "aicpu_op";
   task_info.op_type = "KernelEx";
-  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL_EX);  // AICPU
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL_EX);
+  task_info.prof_ge_task_type = static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_AI_CPU);
   task_info.block_dim = 1U;
   auto model_info = MakeModelInfo();
   Status ret = impl.SaveTaskInfo(task_info, model_info);
@@ -1324,6 +1602,7 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_DsaTaskType_ReturnsSuccess) {
   task_info.op_name = "dsa_op";
   task_info.op_type = "DSA";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_DSA);
+  task_info.prof_ge_task_type = static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_DSA);
   auto model_info = MakeModelInfo();
   Status ret = impl.SaveTaskInfo(task_info, model_info);
   EXPECT_EQ(ret, SUCCESS);
@@ -1339,9 +1618,43 @@ TEST_F(ProfilingImplTest, SaveTaskInfo_HcclTaskType_ReturnsSuccess) {
   task_info.op_name = "hccl_op";
   task_info.op_type = "HCCL";
   task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_HCCL);
+  task_info.prof_ge_task_type = static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_HCCL);
   auto model_info = MakeModelInfo();
   Status ret = impl.SaveTaskInfo(task_info, model_info);
   EXPECT_EQ(ret, SUCCESS);
+}
+
+// 上报数据源为尾部新增的 prof 字段：task_type(ModelTaskType)与 prof_ge_task_type 语义不同时，
+// 上报的 taskType/blockDim 取 prof_ge_task_type/prof_block_dim，而非 task_type/block_dim
+TEST_F(ProfilingImplTest, SaveTaskInfo_ReportUsesProfFields) {
+  ProfilingOptions options;
+  options.task_time_enabled = true;
+  ASSERT_EQ(ProfilingConfig::Instance().Enable(options), SUCCESS);
+
+  uint32_t reported_task_type = 0xFFFFFFFFU;
+  uint32_t reported_block_dim = 0U;
+  auto prof_func = [&](uint32_t, uint32_t type, void *data, uint32_t) -> int32_t {
+    if (type == ge::InfoType::kCompactInfo) {
+      const auto *info = static_cast<const MsprofCompactInfo *>(data);
+      reported_task_type = info->data.nodeBasicInfo.taskType;
+      reported_block_dim = info->data.nodeBasicInfo.blockDim;
+    }
+    return 0;
+  };
+  ProfilingTestUtil::Instance().SetProfFunc(prof_func);
+
+  ProfilingImpl impl;
+  GertModelTaskDesc task_info = {};
+  task_info.op_name = "test_op";
+  task_info.op_type = "Add";
+  task_info.task_type = static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL_EX);
+  task_info.block_dim = 7U;  // launch 口径
+  task_info.prof_ge_task_type = static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_AI_CPU);
+  task_info.prof_block_dim = 9U;  // profiling 口径
+  auto model_info = MakeModelInfo();
+  ASSERT_EQ(impl.SaveTaskInfo(task_info, model_info), SUCCESS);
+  EXPECT_EQ(reported_task_type, static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_AI_CPU));
+  EXPECT_EQ(reported_block_dim, 9U);
 }
 
 // --- ReportRunInfoPreprocess / ReportRunInfoPostprocess ---

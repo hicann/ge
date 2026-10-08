@@ -11,10 +11,12 @@
 #ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_BUILDER_TASK_CODE_BUILDER_UTIL_H_
 #define AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_BUILDER_TASK_CODE_BUILDER_UTIL_H_
 
+#include "aprof_pub.h"
 #include "common/om2/codegen/ast/ast_build_context.h"
 #include "common/om2/codegen/om2_codegen_types.h"
 
 namespace ge {
+
 class TaskCodeBuilderUtil {
  public:
   static Expr *BuildTaskIoEntries(AstBuildContext &ast, const std::vector<AddrSemantic> &addrs);
@@ -51,6 +53,23 @@ class TaskCodeBuilderUtil {
   static Arg RenderArgDataField(AstBuildContext &ast, const OpArgDesc &arg_desc);
   // 将 AddrSemantic 转换为 OpArgDesc（RAW_ADDR 类型）
   static OpArgDesc ConvertAddrDesc(const AddrSemantic &addr);
+
+  // 完整镜像 davinci_model.cc:GetProfilingTaskType() 的判别逻辑，
+  // 将 ModelTaskType + op 属性 + kernel_type 转换为 profiling task type 对应的 uint32_t 值
+  // @param op_desc   算子描述，用于读取 ATTR_NAME_CUBE_VECTOR_CORE_TYPE / kAttrIsFFTSTask / kAttrIsAiv
+  // @param task_def   protobuf task 定义，用于获取 ModelTaskType 和 kernel context
+  // @return          MsprofGeTaskType 对应的 uint32_t 值 (0~11)
+  static uint32_t ConvertToProfilingTaskType(const OpDescPtr &op_desc, const domi::TaskDef &task_def);
+
+  // 镜像 global_profiler.cc:BuildNodeBasicInfo 的 HF32 判别输入：读取 op 的 _op_impl_mode_enum 属性原值，
+  // 未设置时返回 0(默认模式)，由运行时上报侧与 kEnableHf32(0x40) 比较后填 MsprofNodeBasicInfo.opFlag
+  static uint32_t GetOpImplMode(const OpDescPtr &op_desc);
+
+  // 完整镜像 davinci_model.cc:GetBlockDim() 的 profiling 加工逻辑(与 launch 用的归一 block_dim 分离)：
+  // 1) 从 task_def 取未归一的原始 block_dim(launch 侧的 0→1 归一不适用于上报口径)；
+  // 2) FFTS+ mix 算子编码：低16位为主加速器 blockdim，高16位为从加速器 ratio 值，由 msprof 工具解析；
+  // 3) tiling sink 依赖算子返回 0xFFFFFFFF 占位值(表示运行时由 Tiling 结果决定)
+  static uint32_t GetProfilingBlockDim(const OpDescPtr &op_desc, const domi::TaskDef &task_def);
 };
 }  // namespace ge
 

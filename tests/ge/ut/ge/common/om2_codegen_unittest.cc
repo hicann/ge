@@ -21,6 +21,7 @@
 #include "common/om2/codegen/om2_code_printer.h"
 #include "common/helper/om2/om2_utils.h"
 #include "common/om2/codegen/om2_codegen_types.h"
+#include "common/om2/codegen/om2_model_utils.h"
 #include "common/ge_common/ge_types.h"
 #include "common/util/error_manager/error_manager.h"
 #include "graph/ge_local_context.h"
@@ -918,6 +919,79 @@ TEST_F(Om2CodegenUt, BuildL0ArgSlotEntries_EmitsTensorWorkspaceAndIgnoredKinds) 
                                 "{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_WORKSPACE, 0U, 8U, 0UL, 0U, 0U, 0U}",
                                 "{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_PLACEHOLDER, 0U, 16U, 0UL, 0U, 0U, 0U}",
                             });
+}
+
+TEST_F(Om2CodegenUt, BuildInputTensorInfo_DataTypeUsesGeEnumValue) {
+  // ge::DataType 与 proto::DataType 数值错位（DT_FLOAT: 0/1, DT_FLOAT16: 1/2, DT_BOOL: 12/11），
+  // data_type 必须写 ge::DataType 原值，否则生成代码 BuildTensor 强转后 profiling 上报错位
+  const std::vector<std::pair<DataType, int32_t>> dtype_cases = {{DT_FLOAT, 0}, {DT_FLOAT16, 1}, {DT_BOOL, 12}};
+  for (const auto &dtype_case : dtype_cases) {
+    const GeTensorDescPtr tensor_desc = std::make_shared<GeTensorDesc>(GeShape({2, 3}), FORMAT_ND, dtype_case.first);
+    Om2TensorInfo tensor_info;
+    ASSERT_EQ(Om2ModelUtils::BuildInputTensorInfo(tensor_desc, tensor_info), SUCCESS);
+    EXPECT_EQ(tensor_info.data_type, dtype_case.second) << "dtype=" << dtype_case.second;
+    EXPECT_EQ(tensor_info.data_type, static_cast<int32_t>(tensor_desc->GetDataType()));
+    EXPECT_EQ(tensor_info.format, static_cast<int32_t>(FORMAT_ND));
+    EXPECT_EQ(tensor_info.shape_dims, tensor_desc->GetShape().GetDims());
+  }
+}
+TEST_F(Om2CodegenUt, BuildOutputTensorInfo_DataTypeUsesGeEnumValue) {
+  const std::vector<std::pair<DataType, int32_t>> dtype_cases = {{DT_FLOAT, 0}, {DT_FLOAT16, 1}, {DT_BOOL, 12}};
+  for (const auto &dtype_case : dtype_cases) {
+    const GeTensorDescPtr tensor_desc = std::make_shared<GeTensorDesc>(GeShape({2, 3}), FORMAT_ND, dtype_case.first);
+    Om2TensorInfo tensor_info;
+    ASSERT_EQ(Om2ModelUtils::BuildOutputTensorInfo(tensor_desc, tensor_info), SUCCESS);
+    EXPECT_EQ(tensor_info.data_type, dtype_case.second) << "dtype=" << dtype_case.second;
+    EXPECT_EQ(tensor_info.data_type, static_cast<int32_t>(tensor_desc->GetDataType()));
+    EXPECT_EQ(tensor_info.format, static_cast<int32_t>(FORMAT_ND));
+    EXPECT_EQ(tensor_info.shape_dims, tensor_desc->GetShape().GetDims());
+  }
+}
+
+namespace {
+domi::TaskDef MakeKernelTaskDef(const ModelTaskType task_type, const uint32_t block_dim,
+                                const ccKernelType kernel_type = ccKernelType::TE) {
+  domi::TaskDef task_def;
+  task_def.set_type(static_cast<int32_t>(task_type));
+  auto kernel = task_def.mutable_kernel();
+  kernel->set_block_dim(block_dim);
+  kernel->mutable_context()->set_kernel_type(static_cast<int32_t>(kernel_type));
+  return task_def;
+}
+}  // namespace
+
+// 对齐 davinci_model.cc:GetBlockDim 的 profiling 加工：FFTS+ mix 算子低16位为主加速器 blockdim，
+// 高16位为从加速器 ratio 值，msprof 工具据此解析 Block Num / Mix Block Num
+TEST_F(Om2CodegenUt, GetProfilingBlockDim_MixOpEncodesTaskRatio) {
+  auto op_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)ge::AttrUtils::SetBool(op_desc, "_is_fftsplus_task", true);
+  (void)ge::AttrUtils::SetInt(op_desc, "_task_ratio", 10);
+  const auto task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_KERNEL, 16U);
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), ((16U & 0xFFFFU) | (10U << 16U)));
+}
+
+// tiling sink 依赖算子返回 0xFFFFFFFF 占位值，表示运行时由 Tiling 结果决定
+TEST_F(Om2CodegenUt, GetProfilingBlockDim_TilingSinkReturnsPlaceholder) {
+  auto op_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)ge::AttrUtils::SetBool(op_desc, "_dynamic_tiling_depend_op", true);
+  const auto task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_KERNEL, 8U);
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), 0xFFFFFFFFU);
+}
+
+// 上报口径使用 task_def 原值：block_dim=0 不做 launch 侧的 0→1 归一；KERNEL_EX/AICPU 任务上报 0
+TEST_F(Om2CodegenUt, GetProfilingBlockDim_RawValueWithoutNormalize) {
+  auto op_desc = std::make_shared<OpDesc>("add1", "Add");
+  auto task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_KERNEL, 0U);
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), 0U);
+
+  task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_KERNEL_EX, 8U);
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), 0U);
+
+  task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_ALL_KERNEL, 8U);
+  auto kernel_with_handle = task_def.mutable_kernel_with_handle();
+  kernel_with_handle->set_block_dim(8U);
+  kernel_with_handle->mutable_context()->set_kernel_type(static_cast<int32_t>(ccKernelType::TE));
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), 8U);
 }
 
 TEST_F(Om2CodegenUt, AstDsl_ContainerMethods_Ok) {
