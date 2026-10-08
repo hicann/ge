@@ -41,7 +41,7 @@ debug logging (see Section 3.6) to locate the offending file.
 
 ### 3.1 Preparing the CANN Package
 
-- Refer to [Environment Preparation](../../docs/en/quick_install.md#1-environment-preparation), section "Method 3: Manual Package Installation > Scenario 1: Experience master version capabilities or develop based on master version", and install the `toolkit` and `ops` packages properly.
+- Refer to [Environment Preparation](../../docs/en/quick_install.md#1-environment-preparation), section "Method 3: Manual Installation of Software Packages > Scenario 1: Experience master version capabilities or develop based on master version", and install the `toolkit` and `ops` packages properly.
 - Set environment variables (assuming the packages are installed in /usr/local/Ascend/):
 
   ```bash
@@ -56,7 +56,8 @@ debug logging (see Section 3.6) to locate the offending file.
 | onnx | Used internally by the `torch.onnx.export` export process | 1.21.0 verified |
 | NumPy | Input construction and result comparison | No special requirement |
 
-The `acl` Python API is provided by the CANN toolkit. Installation command:
+The `acl` Python API is bundled with the CANN toolkit and needs no separate
+installation. Install the other dependencies with:
 
 ```bash
 pip3 install torch numpy onnx
@@ -165,13 +166,12 @@ files:
 
 To inspect compilation logs, add `--log=info` (or a higher log level) to the
 atc command above and set the screen-printing environment variable
-`export ASCEND_SLOG_PRINT_TO_STDOUT=1` before running. See the
-[atc --log parameter description](../../docs/zh/user_guides/atc_tools/CLI_options/--log.md)
-for details. When a plugin callback raises a Python exception or a plugin file
-fails to load, the default error output (E19999) already carries the
-Python-side information (exception type, failing statement, plugin file, and
-line number); use the log level above only when the full compilation log is
-needed.
+`export ASCEND_SLOG_PRINT_TO_STDOUT=1` before running. See the `--log`
+parameter description of the atc tool for details. When a plugin callback
+raises a Python exception or a plugin file fails to load, the default error
+output (E19999) already carries the Python-side information (exception type,
+failing statement, plugin file, and line number); use the log level above
+only when the full compilation log is needed.
 
 ## 4. Plugin and Callback Writing
 
@@ -188,7 +188,8 @@ Integrating a custom operator involves two kinds of work:
 | `parse_operator` | Parse attributes as a whole (few cases, see 4.2) | `my_elu_plugin.py` |
 | `decompose` | Replace the node with a subgraph of existing operators | `thresholded_relu_plugin.py` |
 
-Only one plugin can be registered for a given `source`, and the `opsets` of
+Each origin type (`domain::opset::source`) can be registered by only one
+plugin: for the same `source` (and the same `domain`), the `opsets` of
 different plugins must not overlap (for example, `opsets=(1,)` together with
 `opsets=(1, 2)` is rejected) - a conflict aborts compilation with an explicit
 error at startup.
@@ -299,7 +300,7 @@ The callback receives two operators:
   one object per attribute on the node; each object describes one attribute
   with `name` (the attribute name), `type` (the type code), and the key that
   holds the value - which key holds the value depends on the attribute type.
-  For example, if `alpha_f=1.0` was written at export time, `source` gives:
+  For example, if `alpha_f=1.5` was written at export time, `source` gives:
 
 ```json
 {
@@ -316,9 +317,11 @@ The callback receives two operators:
 
   The type codes are the ONNX-standard attribute type numbers: 1 = float,
   2 = int, 3 = string, 4 = tensor, 5 = subgraph, 6 = float list, 7 = int list,
-  8 = string list. Scalar
-  attributes (`f`/`i`/`s`) hold their values as strings, so convert them when
-  using; list attributes (`floats`/`ints`/`strings`) come as plain JSON
+  8 = string list. Of the scalar
+  attributes, `f` holds its value as a string (formatted with `%g`, about 6
+  significant digits) and must be converted to a number when used, while `i`
+  and `s` are a number and a string respectively; list
+  attributes (`floats`/`ints`/`strings`) come as plain JSON
   arrays; tensor (`t`) and subgraph (`g`) attributes appear as complete
   structure dictionaries - a tensor attribute means the attribute value itself
   is a tensor (for example, the `value` attribute of the Constant operator),
@@ -334,8 +337,8 @@ it to Elu. This example has a single float attribute that `parse_node` could
 handle as well; it is used here to demonstrate how to read the JSON.
 
 For the complete description of every value field of `attribute` (including
-composite types such as tensor and subgraph), see the
-[parse_operator interface doc](../../docs/zh/api/graph_engine_api/python/ge/onnx_plugin/OnnxPlugin/parse_operator.md).
+composite types such as tensor and subgraph), see the `parse_operator` API
+reference in the ONNX Plugin documentation.
 
 ### 4.3 decompose: Replace the Node with a Subgraph of Existing Operators
 
@@ -349,7 +352,7 @@ The subgraph is built with the GE ES graph-building API: `GraphBuilder` builds
 the graph (creating inputs, setting outputs, building), and existing operators
 (Threshold, Mul, SplitD, and so on) are directly callable functions. For the
 full operator list and parameter descriptions, see the
-[ES Python API document](../../docs/zh/user_guides/es_graph/api/es_python.md).
+[ES Python API document](../../docs/en/user_guides/es_graph/api/es_python.md).
 
 Notes when writing `decompose`:
 
