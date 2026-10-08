@@ -344,11 +344,10 @@ void TeFusionManager::ReportBuildErrMessage(const OpBuildTaskPtr &relBuildTaskPt
   if (taskRes->statusCode == ERROR_DIED_PROCESS_STATUS_CODE) {
     std::string errMsgs =
         "op[" + opName + ", " + opType + "], compiler process died, unknown reason, please check detail log.";
-    TeInnerErrMessageReport(EM_UNKNOWN_PROCESS_DIED_ERROR, errMsgs);
+    TeInnerErrMessageReport(EM_INNER_ERROR, errMsgs);
   } else {
-    REPORT_TE_INNER_ERROR(
-        "%s op[%s] failed, oppath[%s], optype[%s], taskID[%lu]. Please check op's compilation error message.",
-        compileType.c_str(), opName.c_str(), opModuleNames.c_str(), opType.c_str(), taskRes->taskId);
+    TE_ERRLOGF("%s op[%s] failed, oppath[%s], optype[%s], taskID[%lu]. Please check op's compilation error message.",
+               compileType.c_str(), opName.c_str(), opModuleNames.c_str(), opType.c_str(), taskRes->taskId);
   }
 }
 

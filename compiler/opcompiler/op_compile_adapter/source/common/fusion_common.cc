@@ -604,12 +604,22 @@ bool IsOpParameterValid(const std::string &opModule, const std::string &opFuncNa
     return false;
   });
 
+  std::map<std::string, std::string> mapArgs;
   TE_FUSION_CHECK((opModule.find("//", 0) != opModule.npos), {
-    REPORT_TE_INNER_ERROR("OpModule[%s] has 2 or more '/', check error.", opModule.c_str());
+    mapArgs["path"] = opModule;
+    mapArgs["arg"] = "opModule";
+    mapArgs["result"] = "check opModule failed";
+    mapArgs["reason"] = "the module contains more than one '/'";
+    TeErrMessageReport(EM_PATH_INVALID_ERROR, mapArgs);
     return false;
   });
   TE_FUSION_CHECK((opModule.find("..", 0) != opModule.npos), {
-    REPORT_TE_INNER_ERROR("OpModule[%s] is invalid, check error.", opModule.c_str());
+    mapArgs.clear();
+    mapArgs["path"] = opModule;
+    mapArgs["arg"] = "opModule";
+    mapArgs["result"] = "check opModule failed";
+    mapArgs["reason"] = "the module contains '..'";
+    TeErrMessageReport(EM_PATH_INVALID_ERROR, mapArgs);
     return false;
   });
 

@@ -66,13 +66,11 @@ constexpr const char *EM_PARAMETER_INVALID_ERROR = "E40022";
  */
 constexpr const char *EM_PATH_INVALID_ERROR = "E40023";
 
-constexpr const char *EM_CALL_FUNC_MATHOD_ERROR = "E40024";
+constexpr const char *EM_CALL_FUNC_METHOD_ERROR = "E40024";
 
 constexpr const char *EM_INNER_WARNING = "W49999";
 
 constexpr const char *EM_INNER_ERROR = "E49999";
-
-constexpr const char *EM_UNKNOWN_PROCESS_DIED_ERROR = "EZ9999";
 
 }  // namespace fusion
 }  // namespace te

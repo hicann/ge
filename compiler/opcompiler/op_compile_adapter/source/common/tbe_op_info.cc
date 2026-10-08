@@ -13,6 +13,7 @@
 #include "inc/te_fusion_log.h"
 #include "inc/te_fusion_check.h"
 #include "inc/te_fusion_util_constants.h"
+#include "common/common_utils.h"
 
 namespace te {
 using namespace fusion;
@@ -188,8 +189,12 @@ bool TbeOpInfo::GetModuleName(std::string &moduleName) const {
   } else {
     // using custom module name
     int32_t moduleLen = moduleName.length();
+    std::map<std::string, std::string> mapArgs;
     TE_FUSION_CHECK(moduleLen <= 0, {
-      REPORT_TE_INNER_ERROR("Module name length should be greater than 0; it's currently [%d].", moduleLen);
+      mapArgs["invalid_value"] = std::to_string(moduleLen);
+      mapArgs["argument"] = "module_name";
+      mapArgs["valid_range"] = "(0, MAX]";
+      TeErrMessageReport(EM_PARAMETER_INVALID_ERROR, mapArgs);
       return false;
     });
     if (moduleName.at(moduleLen - 1) != '/') {
