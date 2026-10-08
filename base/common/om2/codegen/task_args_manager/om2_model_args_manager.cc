@@ -19,6 +19,7 @@
 #include "graph/utils/node_utils.h"
 #include "graph/utils/tensor_utils_ex.h"
 #include "om2_memory_app_type_classifier.h"
+#include "om2_aicpu_node_def_tlv.h"
 #include "om2_model_args_layout_planner.h"
 #include "om2_task_args_refresh_type_classifier.h"
 #include "om2_task_node_map.h"
@@ -138,7 +139,12 @@ Status ModelArgsManager::Init(const GeModelPtr &model, const std::vector<TaskCod
     return FAILED;
   }
   GE_ASSERT_SUCCESS(model_adapter_.Init(model));
-  return InitTaskInfoV2(*model_task_def);
+  domi::ModelTaskDef om2_task_def = *model_task_def;
+  for (int32_t i = 0; i < om2_task_def.task_size(); ++i) {
+    GE_ASSERT_SUCCESS(aicpu_node_def_tlv::RewriteTaskNodeDefToTlv(*om2_task_def.mutable_task(i)),
+                      "[OM2][AICPU][TLV] rewrite task %d failed", i);
+  }
+  return InitTaskInfoV2(om2_task_def);
 }
 
 Status ModelArgsManager::GenModelArgsRefreshInfosForTask(std::vector<TaskArgsRefreshInfo> &infos,
