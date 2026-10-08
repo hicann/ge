@@ -142,6 +142,8 @@ struct CopyHostInputInfo {
   CopyHostInputInfo() : input_index(0), host_addr(nullptr), device_addr(0u), tensor_size(0U) {}
 };
 
+class InputH2DOverlapRuntimePlan;
+
 // comments
 class DavinciModel {
  public:
@@ -281,6 +283,11 @@ class DavinciModel {
   /// @param [in/out] OutputData &output_data: user output data info.
   /// @return SUCCESS handle successfully / others handle failed
   Status CopyModelData(const std::vector<gert::Tensor> &input_tensor, const std::vector<gert::Tensor> &output_tensor);
+
+  Status PrepareModelData(InputData &input_data, OutputData &output_data, const std::vector<gert::Tensor> &input_tensor,
+                          const std::vector<gert::Tensor> &output_tensor);
+
+  Status CopyLegacyInputData(const InputData &input_data, const std::vector<gert::Tensor> &input_tensor);
 
   void GetGeTensorBlobs(InputData &input_data, const std::vector<gert::Tensor> &input_tensor) const;
 
@@ -1115,6 +1122,15 @@ class DavinciModel {
   Status CopyModelData(InputData &input_data, OutputData &output_data, const std::vector<GeTensor> &input_tensor,
                        const std::vector<GeTensor> &output_tensor);
 
+  Status PrepareModelData(InputData &input_data, OutputData &output_data, const std::vector<GeTensor> &input_tensor,
+                          const std::vector<GeTensor> &output_tensor);
+
+  template <typename T>
+  Status UpdateDynamicShapeAndArgs(InputData &input_data, OutputData &output_data, const std::vector<T> &input_tensor,
+                                   const std::vector<T> &output_tensor);
+
+  Status CopyLegacyInputData(const InputData &input_data, const std::vector<GeTensor> &input_tensor);
+
   Status ConstructZeroCopyIoActiveBaseAddrs(
       std::vector<std::pair<uint32_t, uint32_t>> &refreshable_index_to_allocation_ids,
       const std::vector<DataBuffer> &blobs, const std::vector<GeTensor> &tensors, bool is_input, uint32_t &ret_up,
@@ -1145,6 +1161,24 @@ class DavinciModel {
   void GetGeTensorBlobs(InputData &input_data, const std::vector<GeTensor> &input_tensor) const;
 
   Status HandleInputData(InputData &input_data);
+
+  struct MergeInputCollectResult {
+    std::vector<size_t> non_merge_copy_indexs;
+    void *input_merge_copy_device_addr = nullptr;
+    bool has_merge_input = false;
+    bool has_planned_merge_input = false;
+    size_t planned_merge_input_count = 0U;
+    size_t legacy_merge_input_count = 0U;
+    uint64_t planned_merge_prepared_bytes = 0U;
+  };
+
+  Status CollectMergeInputData(const std::vector<DataBuffer> &blobs, MergeInputCollectResult &collect);
+
+  Status CopyNonMergedInputData(const std::vector<DataBuffer> &blobs, const std::vector<size_t> &non_merge_copy_indexs);
+
+  Status GetValidatedInputBuffer(const std::vector<DataBuffer> &blobs, const size_t data_idx,
+                                 const ZeroCopyOffset &input_info, bool &skip_input, const DataBuffer *&data_buf,
+                                 uint64_t &data_size) const;
 
   Status CopyInputDataWithMergeH2D(const InputData &input_data);
 
@@ -1505,6 +1539,8 @@ class DavinciModel {
 
   Status GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> &index_to_data);
 
+  Status AllocateSingleInputMem(const std::pair<const uint32_t, OpDescPtr> &item, const uint32_t input_index);
+
   Status GenOutputMemAllocations(const std::vector<OpDescPtr> &output_op_list);
   Status GenSliceOutputMemAllocations(const std::vector<OpDescPtr> &output_op_list);
 
@@ -1611,6 +1647,7 @@ class DavinciModel {
 
   std::vector<rtNotify_t> notify_list_;
   std::vector<aclrtEvent> event_list_;
+  std::set<uint32_t> input_h2d_overlap_legacy_prepared_inputs_;
 
   std::unordered_set<std::string> hccl_group_id_set_;
   std::vector<aclrtEvent> hccl_group_ordered_event_list_;
@@ -1808,6 +1845,7 @@ class DavinciModel {
   std::vector<std::pair<uint32_t, uint32_t>> fixed_fm_index_and_allocation_ids_;
   std::map<uint32_t, MemAllocationSlice> input_indexes_to_copy_info_;
   std::map<uint32_t, MemAllocationSlice> output_indexes_to_copy_info_;
+  std::unique_ptr<InputH2DOverlapRuntimePlan> input_h2d_overlap_plan_;
   std::vector<uint32_t> input_index_to_allocation_ids_;         // 保存零拷贝的input index和allocation id的关系
   std::vector<uint32_t> output_index_to_allocation_ids_;        // 保存零拷贝的output index和allocation id的关系
   std::vector<uint64_t> input_index_to_active_mem_base_addrs_;  // 保存零拷贝的input index和对应的active mem base的关系
