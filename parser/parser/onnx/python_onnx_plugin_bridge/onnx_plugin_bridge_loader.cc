@@ -10,12 +10,16 @@
 
 #include "parser/parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.h"
 
+#include <dirent.h>
 #include <dlfcn.h>
+#include <sys/stat.h>
 
 #include <cstdlib>
+#include <cstring>
 #include <mutex>
 #include <string>
 
+#include "base/err_msg.h"
 #include "common/python_runtime/ge_python_runtime_manager.h"
 #include "common/python_runtime/python_artifact_utils.h"
 #include "common/python_runtime/python_bridge_loader_utils.h"
@@ -28,6 +32,74 @@ namespace ge {
 namespace {
 
 constexpr const char *kOnnxPluginArtifactsRelativePath = "onnx_plugin/python_onnx_plugin_artifacts";
+constexpr const char *kPythonFileSuffix = ".py";
+constexpr const char *kPythonPackageInitFile = "__init__.py";
+constexpr char kEnvPathSeparator = ':';
+
+bool IsPythonFile(const std::string &path) {
+  const auto suffix_size = std::strlen(kPythonFileSuffix);
+  return (path.size() > suffix_size) && (path.compare(path.size() - suffix_size, suffix_size, kPythonFileSuffix) == 0);
+}
+
+bool IsSkippedModuleEntry(const char *name) {
+  return (name[0] == '_') || (strcmp(name, ".") == 0) || (strcmp(name, "..") == 0);
+}
+
+bool HasPackageInitFile(const std::string &dir) {
+  struct stat path_stat{};
+  return stat((dir + "/" + kPythonPackageInitFile).c_str(), &path_stat) == 0;
+}
+
+bool DirHasPythonPluginEntry(const std::string &dir) {
+  DIR *dir_handle = opendir(dir.c_str());
+  if (dir_handle == nullptr) {
+    GELOGW("Skip scanning ONNX python plugin directory[%s] because opendir failed.", dir.c_str());
+    return false;
+  }
+  struct dirent *entry = nullptr;
+  while ((entry = readdir(dir_handle)) != nullptr) {
+    if (IsSkippedModuleEntry(entry->d_name)) {
+      continue;
+    }
+    const std::string entry_path = dir + "/" + entry->d_name;
+    struct stat entry_stat{};
+    if (stat(entry_path.c_str(), &entry_stat) != 0) {
+      GELOGW("Skip scanning ONNX python plugin path[%s] because stat failed.", entry_path.c_str());
+      continue;
+    }
+    if (S_ISREG(entry_stat.st_mode) && IsPythonFile(entry_path)) {
+      (void)closedir(dir_handle);
+      return true;
+    }
+    if (S_ISDIR(entry_stat.st_mode) && HasPackageInitFile(entry_path)) {
+      (void)closedir(dir_handle);
+      return true;
+    }
+  }
+  (void)closedir(dir_handle);
+  return false;
+}
+
+bool PathHasPythonPluginEntry(const std::string &path) {
+  struct stat path_stat{};
+  if (stat(path.c_str(), &path_stat) != 0) {
+    GELOGW("Skip scanning ONNX python plugin path[%s] because it does not exist or is inaccessible.", path.c_str());
+    return false;
+  }
+  if (S_ISREG(path_stat.st_mode)) {
+    return IsPythonFile(path);
+  }
+  return S_ISDIR(path_stat.st_mode) && DirHasPythonPluginEntry(path);
+}
+
+std::string TrimBlank(const std::string &value) {
+  const auto first = value.find_first_not_of(" \t");
+  if (first == std::string::npos) {
+    return "";
+  }
+  const auto last = value.find_last_not_of(" \t");
+  return value.substr(first, last - first + 1U);
+}
 
 namespace artifact = ::ge::python_artifact;
 namespace bridge_loader = ::ge::python_bridge_loader;
@@ -80,6 +152,12 @@ class OnnxPluginBridgeLoader {
       return PARAM_INVALID;
     }
     if (GePythonRuntimeManager::Instance().EnsureReady() != SUCCESS) {
+      REPORT_INNER_ERR_MSG(
+          "E19999",
+          "Prepare Python runtime for ONNX plugin bridge failed: no loadable python3/libpython is found in "
+          "PATH. The Python ONNX plugin bridge requires a usable python runtime, check the python3 and "
+          "libpython installation, or remove python plugin entries from ASCEND_CUSTOM_OPP_PATH if Python "
+          "ONNX plugins are not used.");
       GELOGE(FAILED, "Prepare Python runtime for ONNX plugin bridge failed.");
       return FAILED;
     }
@@ -107,7 +185,16 @@ class OnnxPluginBridgeLoader {
  private:
   bool NeedLoad() const {
     const char *plugin_path = std::getenv("ASCEND_CUSTOM_OPP_PATH");
-    return (plugin_path != nullptr) && (plugin_path[0] != '\0');
+    if ((plugin_path == nullptr) || (plugin_path[0] == '\0')) {
+      return false;
+    }
+    if (!HasPythonOnnxPluginEntryInEnv(plugin_path)) {
+      GELOGI(
+          "Skip loading ONNX Python plugin bridge because no loadable python plugin entry is found in "
+          "ASCEND_CUSTOM_OPP_PATH.");
+      return false;
+    }
+    return true;
   }
 
   Status EnsureLoaded() {
@@ -135,15 +222,45 @@ class OnnxPluginBridgeLoader {
       GELOGI("Load ONNX Python plugin bridge from [%s] success.", loaded_bridge.real_path.c_str());
       return SUCCESS;
     }
-    const auto manifests =
-        artifact::BuildArtifactManifestCandidates(loader_library_path, kOnnxPluginArtifactsRelativePath);
-    const char *python_path = std::getenv(artifact::kPythonPathEnvName);
-    GELOGE(FAILED,
-           "No compatible ONNX Python plugin bridge artifact found for runtime[%s], loader[%s], "
-           "PYTHONPATH[%s], manifests[%zu].",
-           runtime_key.ToString().c_str(), loader_library_path.c_str(), python_path == nullptr ? "" : python_path,
-           manifests.size());
+    ReportIncompatibleArtifacts(runtime_key, loader_library_path);
     return FAILED;
+  }
+
+  static std::string CollectAvailableArtifactSummary(const std::string &loader_library_path) {
+    std::string summary;
+    for (const auto &manifest_path :
+         artifact::BuildArtifactManifestCandidates(loader_library_path, kOnnxPluginArtifactsRelativePath)) {
+      artifact::PythonArtifactSet artifact_set;
+      if (!artifact::LoadArtifactManifest(manifest_path, artifact_set)) {
+        continue;
+      }
+      if (!summary.empty()) {
+        summary += ", ";
+      }
+      summary += artifact_set.python_tag + "-" + artifact_set.platform + "(bridge_abi " +
+                 std::to_string(artifact_set.bridge_abi) + ") at " + artifact_set.root;
+    }
+    return summary;
+  }
+
+  static void ReportIncompatibleArtifacts(const artifact::PythonRuntimeKey &runtime_key,
+                                          const std::string &loader_library_path) {
+    const auto available_artifacts = CollectAvailableArtifactSummary(loader_library_path);
+    const char *python_path = std::getenv(artifact::kPythonPathEnvName);
+    REPORT_INNER_ERR_MSG(
+        "E19999",
+        "No compatible ONNX Python plugin bridge artifact found for runtime[%s], available artifacts[%s], "
+        "loader[%s], PYTHONPATH[%s]. The python interpreter resolved by the process must match a prebuilt "
+        "artifact under <ge package>/onnx_plugin/python_onnx_plugin_artifacts; align the python3 version with "
+        "the artifact python tag or install the matching ge python package. If Python ONNX plugins are not "
+        "used, remove python plugin entries from ASCEND_CUSTOM_OPP_PATH to skip this bridge.",
+        runtime_key.ToString().c_str(), available_artifacts.empty() ? "none" : available_artifacts.c_str(),
+        loader_library_path.c_str(), python_path == nullptr ? "" : python_path);
+    GELOGE(FAILED,
+           "No compatible ONNX Python plugin bridge artifact found for runtime[%s], available artifacts[%s], "
+           "loader[%s], PYTHONPATH[%s].",
+           runtime_key.ToString().c_str(), available_artifacts.empty() ? "none" : available_artifacts.c_str(),
+           loader_library_path.c_str(), python_path == nullptr ? "" : python_path);
   }
 
   std::mutex mutex_;
@@ -159,6 +276,26 @@ Status LoadOnnxPythonPluginBridge(const onnx_plugin_bridge::PythonOnnxPluginRegi
 
 void UnloadOnnxPythonPluginBridge() {
   OnnxPluginBridgeLoader::Instance().Unload();
+}
+
+bool HasPythonOnnxPluginEntryInEnv(const char *env_value) {
+  if ((env_value == nullptr) || (env_value[0] == '\0')) {
+    return false;
+  }
+  const std::string env_paths(env_value);
+  size_t start = 0U;
+  while (start <= env_paths.size()) {
+    const auto end = env_paths.find(kEnvPathSeparator, start);
+    const auto segment = TrimBlank(env_paths.substr(start, end - start));
+    if (!segment.empty() && PathHasPythonPluginEntry(segment)) {
+      return true;
+    }
+    if (end == std::string::npos) {
+      break;
+    }
+    start = end + 1U;
+  }
+  return false;
 }
 
 }  // namespace ge
