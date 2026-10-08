@@ -144,6 +144,13 @@ HcclResult GenerateCclOpTag(const std::string &opType, const int64_t &hcomComm, 
 }
 
 HcclResult HcomGetInitStatus(bool *initiated) {
+  // 必须写输出参数：真实库语义是回读库内初始化标志。不写时调用方读到栈野值，
+  // 行为依赖环境（本机恰为非0走"已初始化"捷径，CI为0走完整路径）：
+  // 完整路径会GetOption(RANK_TABLE)落stub默认分支返回"0x<地址>"，十进制解析失败导致
+  // HcomInitialize返回HCCL_E_PARA。UT无真实rank table，恒返回已初始化以走捷径
+  if (initiated != nullptr) {
+    *initiated = true;
+  }
   return HCCL_SUCCESS;
 }
 

@@ -55,6 +55,16 @@
 using namespace std;
 using namespace hccl;
 
+class NodeTest : public ge::Node {
+ public:
+  NodeTest() {
+    ;
+  };
+  ~NodeTest() {
+    ;
+  };
+};
+
 class HcomGraphOptimizerTest : public testing::Test {
  protected:
   static void SetUpTestCase() {
@@ -328,6 +338,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionOpInfo) {
   HcomAllReduceFusion fusionHcomAllReduceOp;
   FusionInfos fusionOps;
   std::vector<ge::NodePtr> ops(7);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
 
   std::string tempStrReduction = "sum";
   ge::AttrUtils::SetStr(ops[1]->GetOpDesc(), "reduction", tempStrReduction);
@@ -417,6 +430,9 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseOps) {
   std::vector<u32> segmentIndex;
 
   std::vector<ge::NodePtr> ops(3);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
   std::vector<ge::NodePtr> nodeVec_0;
   std::string group = HCCL_WORLD_GROUP;
   int64_t fusionid = HCOM_ATTR_FUSION_ID_DEFAULT;
@@ -450,6 +466,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionStrategy) {
   ge::OpDescPtr nodeGroup = nullptr;
   ge::OpDescPtr nodeFusionId = 0;
   std::vector<ge::NodePtr> fusionOps(3);
+  for (auto &n : fusionOps) {
+    n = std::make_shared<NodeTest>();
+  }
   u32 segmentNum = 0;
   std::vector<u32> segmentIndex;
 
@@ -484,6 +503,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetNodeUnknownShapeInfo_known) {
   ge::ComputeGraph graph("test_graph");
   HcomAllReduceFusion fusionHcomAllReduceOp;
   std::vector<ge::NodePtr> fusionOps(3);
+  for (auto &n : fusionOps) {
+    n = std::make_shared<NodeTest>();
+  }
   u32 segmentNum = 0;
   std::vector<u32> segmentIndex;
   bool bUnknownShapeNodeStatus = false;
@@ -506,6 +528,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetNodeUnknownShapeInfo_unknown) {
   ge::ComputeGraph graph("test_graph");
   HcomAllReduceFusion fusionHcomAllReduceOp;
   std::vector<ge::NodePtr> fusionOps(3);
+  for (auto &n : fusionOps) {
+    n = std::make_shared<NodeTest>();
+  }
   u32 segmentNum = 0;
   std::vector<u32> segmentIndex;
   bool is_unknown = true;
@@ -528,16 +553,6 @@ TEST_F(HcomGraphOptimizerTest, ut_GetNodeUnknownShapeInfo_unknown) {
 
   GlobalMockObject::verify();
 }
-
-class NodeTest : public ge::Node {
- public:
-  NodeTest() {
-    ;
-  };
-  ~NodeTest() {
-    ;
-  };
-};
 
 TEST_F(HcomGraphOptimizerTest, ut_RunFusionOps) {
   HcclResult ret;
@@ -1026,6 +1041,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionOpInfo_Bcast) {
   HcomBroadcastFusion fusionHcomBroadcastOp;
   FusionInfos fusionOps;
   std::vector<ge::NodePtr> ops(5);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
 
   ge::AttrUtils::HasAttr(ops[0]->GetOpDesc(), "DUMMY_SET_FALSE_GROUP");
   ret = fusionHcomBroadcastOp.GetFusionOpInfo(ops[0], fusionOps);
@@ -1082,6 +1100,9 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseOps_Bcast) {
   std::map<std::string, std::vector<ge::NodePtr>> fusionOps;
 
   std::vector<ge::NodePtr> ops(3);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
   std::vector<ge::NodePtr> nodeVec_0;
   nodeVec_0.push_back(ops[0]);
   nodeVec_0.push_back(ops[1]);
@@ -1146,6 +1167,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionOpInfo_Reduce) {
   HcomReduceFusion fusionHcomReduceOp;
   FusionInfos fusionOps;
   std::vector<ge::NodePtr> ops(5);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
 
   ge::AttrUtils::HasAttr(ops[0]->GetOpDesc(), "DUMMY_SET_FALSE_GROUP");
   ret = fusionHcomReduceOp.GetFusionOpInfo(ops[0], fusionOps);
@@ -1216,6 +1240,9 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseOps_Reduce) {
   std::map<std::string, std::vector<ge::NodePtr>> fusionOps;
 
   std::vector<ge::NodePtr> ops(3);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
   std::vector<ge::NodePtr> nodeVec_0;
   nodeVec_0.push_back(ops[0]);
   nodeVec_0.push_back(ops[1]);
@@ -1231,6 +1258,9 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseOps_Reduce) {
 
 TEST_F(HcomGraphOptimizerTest, ut_GetFusionSegments_1) {
   std::vector<ge::NodePtr> ops(7);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
   std::vector<ge::NodePtr> nodes;
   nodes.push_back(ops[0]);
   nodes.push_back(ops[1]);
@@ -1261,6 +1291,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionSegments_1) {
 
 TEST_F(HcomGraphOptimizerTest, ut_GetFusionSegments_2) {
   std::vector<ge::NodePtr> ops(3);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
   std::vector<ge::NodePtr> nodes;
   nodes.push_back(ops[0]);
   nodes.push_back(ops[1]);
@@ -1389,6 +1422,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetCommFromOpDesc_by_group_pytorch) {
   ge::ComputeGraph graph("test_graph");
   HcomGraphOptimizer hcomGraphOptimizer;
   std::vector<ge::NodePtr> option(2);
+  for (auto &n : option) {
+    n = std::make_shared<NodeTest>();
+  }
   int64_t hcomComm = 0;
   std::string sGroup;
   std::string tempStr = HCCL_WORLD_GROUP;
@@ -1406,6 +1442,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionOpInfo_Reduce_by_comm_pytorch) {
   HcomReduceFusion fusionHcomReduceOp;
   FusionInfos fusionOps;
   std::vector<ge::NodePtr> ops(1);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
 
   std::string tempStrReduction = "sum";
 
@@ -1437,6 +1476,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionOpInfo_AllReduce_by_comm_pytorch) {
   HcomAllReduceFusion fusionHcomAllReduceOp;
   FusionInfos fusionOps;
   std::vector<ge::NodePtr> ops(1);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
 
   std::string tempStrReduction = "sum";
 
@@ -1472,6 +1514,9 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseOps_AllReduce_by_comm_pytorch) {
   std::map<std::string, std::vector<ge::NodePtr>> fusionOps;
 
   std::vector<ge::NodePtr> ops(3);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
   std::vector<ge::NodePtr> nodeVec_0;
   int64_t comm = 645678545;
   int64_t fusionid = HCOM_ATTR_FUSION_ID_DEFAULT;
@@ -1548,6 +1593,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionOpInfo_Bcast_by_comm_pytorch1) {
   HcomBroadcastFusion fusionHcomBroadcastOp;
   FusionInfos fusionOps;
   std::vector<ge::NodePtr> ops(1);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
 
   ge::AttrUtils::HasAttr(ops[0]->GetOpDesc(), "DUMMY_SET_TRUE_COMM");
   ge::AttrUtils::HasAttr(ops[0]->GetOpDesc(), "comm");
@@ -1568,6 +1616,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetFusionOpInfo_Bcast_by_comm_pytorch2) {
   HcomBroadcastFusion fusionHcomBroadcastOp;
   FusionInfos fusionOps;
   std::vector<ge::NodePtr> ops(1);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
 
   ge::AttrUtils::HasAttr(ops[0]->GetOpDesc(), "DUMMY_SET_TRUE_COMM");
   ge::AttrUtils::HasAttr(ops[0]->GetOpDesc(), "DUMMY_SET_TRUE_GROUP");
@@ -1590,6 +1641,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetCommFromOpDesc_by_comm_pytorch1) {
   ge::ComputeGraph graph("test_graph");
   HcomGraphOptimizer hcomGraphOptimizer;
   std::vector<ge::NodePtr> ops(1);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
   int64_t hcomComm = 0;
   std::string sGroup;
 
@@ -1607,6 +1661,9 @@ TEST_F(HcomGraphOptimizerTest, ut_GetCommFromOpDesc_by_comm_pytorch2) {
   ge::ComputeGraph graph("test_graph");
   HcomGraphOptimizer hcomGraphOptimizer;
   std::vector<ge::NodePtr> ops(1);
+  for (auto &n : ops) {
+    n = std::make_shared<NodeTest>();
+  }
   int64_t hcomComm = 0;
   std::string sGroup;
 
@@ -1905,6 +1962,11 @@ TEST_F(HcomGraphOptimizerTest, ut_FuseHcomAlltoAllVCNode) {
 }
 
 TEST_F(HcomGraphOptimizerTest, ut_RunFusionOpsAlltoAllVC) {
+  // mock AddOpsEdge：融合链路中新建的 split/splitv/concat 节点由 graph.AddNode 创建(NodeDummy)，
+  // 仅 Init 一次只有 1 个 in data anchor，真实 AddOpsEdge 对 GetInDataAnchor(1)/(2) 返回的
+  // nullptr 做检查会返回 HCCL_E_INTERNAL 中断链路，需 mock 隔离(与 ut_RunFusionOpsAllGather 同模式)。
+  // 注：此前 CI 的 SIGILL 根因是 stub 的 operator= 等非 void 空函数体缺 return，
+  // gcc15 对函数落尾生成 ud2 指令所致，已在 llt_hccl_stub_ge.cc 修复
   MOCKER_CPP(&HcomAlltoAllVCFusion::AddOpsEdge).stubs().will(returnValue(HCCL_SUCCESS));
 
   HcclResult ret;

@@ -143,8 +143,6 @@ set(src_path
     ${ASCEND_INSTALL_PATH}/include/slog/toolchain
     ${CMAKE_BINARY_DIR}/proto/hcce
     ${CMAKE_CURRENT_SOURCE_DIR}/../stub
-    ${AIR_CODE_DIR}/tests/engines/hccl_engine/third_party/mockcpp/mockcpp-2.7/3rdparty
-    ${AIR_CODE_DIR}/tests/engines/hccl_engine/third_party/mockcpp/mockcpp-2.7/include
 
     ${CMAKE_BINARY_DIR}/proto/metadef_protos
 )
@@ -185,15 +183,13 @@ target_link_directories(hccl_engine_utest PRIVATE
 
 find_library(REGISTER_LIB NAMES libregister.so PATH_SUFFIXES lib64)
 
-find_library(LIBRARY_MOCKCPP libmockcpp.a ${AIR_CODE_DIR}/tests/engines/hccl_engine/third_party/mockcpp/mockcpp-2.7/build)
-
 target_link_libraries(hcce_ut_llt PRIVATE
     intf_llt_pub
     runtime
     msprof_headers
     -Wl,--as-needed
     GTestShared::gtest GTestShared::gtest_main GTestShared::gmock
-    ${LIBRARY_MOCKCPP}
+    mockcpp
     error_manager
     graph
     graph_base
@@ -218,7 +214,7 @@ target_link_libraries(hccl_engine_utest PRIVATE
     msprof_headers
     -Wl,--as-needed
     GTestShared::gtest GTestShared::gtest_main GTestShared::gmock
-    ${LIBRARY_MOCKCPP}
+    mockcpp
     error_manager
     graph
     graph_base

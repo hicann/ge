@@ -123,8 +123,14 @@ Status ge::HcomTopoInfo::GetGroupRankSize(const char_t *group, int64_t &rank_siz
 ge::HiddenInputsFuncRegister::HiddenInputsFuncRegister(const HiddenInputsType input_type, const GetHiddenAddrs func) {}
 OpDesc::OpDesc() : impl_(std::shared_ptr<OpDescImpl>(new OpDescImpl())) {}
 OpDesc::~OpDesc() {}
-ge::ProtoAttrMap &OpDesc::MutableAttrMap() {};
-ge::ConstProtoAttrMap &OpDesc::GetAttrMap() const {}
+ge::ProtoAttrMap &OpDesc::MutableAttrMap() {
+  static AttrStore attrs;
+  return attrs;
+}
+ge::ConstProtoAttrMap &OpDesc::GetAttrMap() const {
+  static AttrStore attrs;
+  return attrs;
+}
 
 std::string dummyType;
 void OpDesc::SetType(const string &type) {
@@ -208,8 +214,12 @@ GeTensorDesc GeTensorDesc::Clone() const {
   GeTensorDesc desc;
   return desc;
 };
-GeTensorDesc &GeTensorDesc::operator=(const GeTensorDesc &desc) {};
-GeTensorDesc &GeTensorDesc::operator=(GeTensorDesc &&desc) {};
+GeTensorDesc &GeTensorDesc::operator=(const GeTensorDesc &desc) {
+  return *this;
+}
+GeTensorDesc &GeTensorDesc::operator=(GeTensorDesc &&desc) {
+  return *this;
+}
 
 void GeTensorDesc::SetShape(const GeShape &shape) {};
 void GeTensorDesc::SetShape(GeShape &&shape) {};
@@ -235,8 +245,14 @@ std::string OpDesc::GetInputNameByIndex(const uint32_t index) const {
 int32_t OpDesc::GetInputIndexByName(const std::string &name) const {
   return 0;
 }
-ge::ProtoAttrMap &GeTensorDesc::MutableAttrMap() {};
-ge::ConstProtoAttrMap &GeTensorDesc::GetAttrMap() const {}
+ge::ProtoAttrMap &GeTensorDesc::MutableAttrMap() {
+  static AttrStore attrs;
+  return attrs;
+}
+ge::ConstProtoAttrMap &GeTensorDesc::GetAttrMap() const {
+  static AttrStore attrs;
+  return attrs;
+}
 ge::GeTensorDesc dummyOutputDesc;
 const ge::GeTensorDesc &OpDesc::GetOutputDesc(uint32_t index) const {
   return dummyOutputDesc;
@@ -260,8 +276,12 @@ ge::GeShape::GeShape() {}
 ge::GeShape::GeShape(std::vector<int64_t> s) {}
 ge::GeShape::GeShape(const GeShape &other) {}
 ge::GeShape::GeShape(GeShape &&other) {}
-GeShape &GeShape::operator=(const GeShape &other) {}
-GeShape &GeShape::operator=(GeShape &&other) {}
+GeShape &GeShape::operator=(const GeShape &other) {
+  return *this;
+}
+GeShape &GeShape::operator=(GeShape &&other) {
+  return *this;
+}
 
 ge::OpDesc::OpDesc(const string &name, const string &type)
     : impl_(std::shared_ptr<OpDescImpl>(new OpDescImpl(name, type))) {}
@@ -1131,8 +1151,14 @@ OpDescPtr AttrUtils::CloneOpDesc(const ConstOpDescPtr &orgOpDesc) {
 OpDescPtr AttrUtils::CopyOpDesc(const ConstOpDescPtr &orgOpDesc) {
   return opPtr_;
 }
-ge::ProtoAttrMap &ComputeGraph::MutableAttrMap() {};
-ge::ConstProtoAttrMap &ComputeGraph::GetAttrMap() const {}
+ge::ProtoAttrMap &ComputeGraph::MutableAttrMap() {
+  static AttrStore attrs;
+  return attrs;
+}
+ge::ConstProtoAttrMap &ComputeGraph::GetAttrMap() const {
+  static AttrStore attrs;
+  return attrs;
+}
 
 uint32_t ComputeGraph::GetGraphID() const {
   return impl_->GetGraphID();
@@ -1226,8 +1252,8 @@ const TensorData &GeTensor::GetData() const {
   return tmpTensorData;
 }
 const GeTensorDesc &GeTensor::GetTensorDesc() const {
-  GeTensorDesc tenosrDesc;
-  return tenosrDesc;
+  static GeTensorDesc tensorDesc;
+  return tensorDesc;
 }
 
 std::size_t TensorData::GetSize() const {

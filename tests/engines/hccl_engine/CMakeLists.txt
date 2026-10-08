@@ -15,6 +15,9 @@ endif()
 
 set(ASCEND_SDK_PACKAGE_PATH "${ASCEND_INSTALL_PATH}")
 
+# mockcpp 走 CANN 统一三方机制（自动处理下载/patch/编译，include 自带 boost，与 te_fusion 一致）
+add_cann_third_party(mockcpp)
+
 add_custom_target(hcce_ut DEPENDS hccl_engine_utest)
 add_custom_command(TARGET hcce_ut
   COMMENT "=====run hccl engine test end====="
