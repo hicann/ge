@@ -46,12 +46,24 @@ class RTVarResourceTest : public testing::Test {
   }
 };
 
-TEST_F(RTVarResourceTest, AddAndGetEntry) {
+// 测试本地辅助：按 var_name 查找条目（返回最后一个匹配）
+const RTVarEntry *FindEntryByName(const std::vector<RTVarEntry> &entries, const std::string &var_name) {
+  const RTVarEntry *found = nullptr;
+  for (const auto &entry : entries) {
+    if (std::string(gert::GertGetStr(entry.var_name)) == var_name) {
+      found = &entry;
+    }
+  }
+  return found;
+}
+
+TEST_F(RTVarResourceTest, AddEntry) {
   std::vector<RTVarEntry> entries;
   auto entry = MakeEntry("weight1", 1, 0);
   ASSERT_EQ(RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
-  ASSERT_NE(RTVarFindEntry(entries, "weight11_0"), nullptr);
-  EXPECT_EQ(std::string(gert::GertGetStr(RTVarFindEntry(entries, "weight11_0")->var_name)), "weight1");
+  ASSERT_EQ(entries.size(), 1U);
+  EXPECT_EQ(std::string(gert::GertGetStr(entries[0].var_name)), "weight1");
+  EXPECT_EQ(std::string(gert::GertGetStr(entries[0].var_key)), "weight11_0");
 }
 
 TEST_F(RTVarResourceTest, AddEmptyKeyFails) {
@@ -59,23 +71,6 @@ TEST_F(RTVarResourceTest, AddEmptyKeyFails) {
   RTVarEntry entry;
   entry.var_key = gert::GertMakeStr("");
   EXPECT_NE(RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
-}
-
-TEST_F(RTVarResourceTest, GetEntryByName) {
-  std::vector<RTVarEntry> entries;
-  auto entry1 = MakeEntry("weight1", 1, 0);
-  auto entry2 = MakeEntry("weight1", 3, 0);
-  ASSERT_EQ(RTVarAddEntry(entries, std::move(entry1)), ge::SUCCESS);
-  ASSERT_EQ(RTVarAddEntry(entries, std::move(entry2)), ge::SUCCESS);
-  auto *result = RTVarFindEntryByName(entries, "weight1");
-  ASSERT_NE(result, nullptr);
-  EXPECT_EQ(std::string(gert::GertGetStr(result->var_key)), "weight13_0");
-}
-
-TEST_F(RTVarResourceTest, GetEntryNotFound) {
-  std::vector<RTVarEntry> entries;
-  EXPECT_EQ(RTVarFindEntry(entries, "nonexistent"), nullptr);
-  EXPECT_EQ(RTVarFindEntryByName(entries, "nonexistent"), nullptr);
 }
 
 TEST_F(RTVarResourceTest, BuildVarKeyFormat) {
@@ -102,11 +97,16 @@ TEST_F(RTVarResourceTest, MultipleFormatVariants) {
   auto new_entry = MakeEntry("weight1", 3, 0);
   ASSERT_EQ(RTVarAddEntry(entries, std::move(old_entry)), ge::SUCCESS);
   ASSERT_EQ(RTVarAddEntry(entries, std::move(new_entry)), ge::SUCCESS);
-  EXPECT_NE(RTVarFindEntry(entries, "weight11_0"), nullptr);
-  EXPECT_NE(RTVarFindEntry(entries, "weight13_0"), nullptr);
-  auto *latest = RTVarFindEntryByName(entries, "weight1");
-  ASSERT_NE(latest, nullptr);
-  EXPECT_EQ(std::string(gert::GertGetStr(latest->var_key)), "weight13_0");
+  ASSERT_EQ(entries.size(), 2U);
+  bool has_old = false;
+  bool has_new = false;
+  for (const auto &entry : entries) {
+    const std::string key(gert::GertGetStr(entry.var_key));
+    has_old = has_old || (key == "weight11_0");
+    has_new = has_new || (key == "weight13_0");
+  }
+  EXPECT_TRUE(has_old);
+  EXPECT_TRUE(has_new);
 }
 
 TEST_F(RTVarResourceTest, BuildConstPlaceHolderWithValidAddr) {
@@ -136,7 +136,7 @@ TEST_F(RTVarResourceTest, BuildConstPlaceHolderWithValidAddr) {
 
   std::vector<RTVarEntry> entries;
   ASSERT_EQ(BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
-  const auto *entry = RTVarFindEntryByName(entries, "placeholder");
+  const auto *entry = FindEntryByName(entries, "placeholder");
   ASSERT_NE(entry, nullptr);
   EXPECT_EQ(std::string(gert::GertGetStr(entry->op_type)), ge::CONSTPLACEHOLDER);
   EXPECT_EQ(entry->extern_dev_addr, reinterpret_cast<void *>(kDeviceAddr));
@@ -193,7 +193,7 @@ TEST_F(RTVarResourceTest, BuildVariableWithInitValue) {
 
   std::vector<RTVarEntry> entries;
   ASSERT_EQ(BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
-  const auto *entry = RTVarFindEntryByName(entries, "var1");
+  const auto *entry = FindEntryByName(entries, "var1");
   ASSERT_NE(entry, nullptr);
   EXPECT_EQ(std::string(gert::GertGetStr(entry->op_type)), ge::VARIABLE);
   ASSERT_FALSE(entry->init_data.empty());
@@ -228,7 +228,7 @@ TEST_F(RTVarResourceTest, BuildConstantWithWeights) {
 
   std::vector<RTVarEntry> entries;
   ASSERT_EQ(BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
-  const auto *entry = RTVarFindEntryByName(entries, "const1");
+  const auto *entry = FindEntryByName(entries, "const1");
   ASSERT_NE(entry, nullptr);
   EXPECT_EQ(std::string(gert::GertGetStr(entry->op_type)), "Constant");
   ASSERT_FALSE(entry->init_data.empty());
@@ -265,7 +265,7 @@ TEST_F(RTVarResourceTest, BuildWithTransRoad) {
 
   std::vector<RTVarEntry> entries;
   ASSERT_EQ(BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
-  const auto *entry = RTVarFindEntryByName(entries, "var_trans");
+  const auto *entry = FindEntryByName(entries, "var_trans");
   ASSERT_NE(entry, nullptr);
   EXPECT_EQ(entry->trans_road.size(), 1U);
   EXPECT_EQ(std::string(gert::GertGetStr(entry->trans_road[0].node_type)), "TransData");
@@ -301,10 +301,10 @@ TEST_F(RTVarResourceTest, BuildWithVarMetasAndCopyInfo) {
 
   std::vector<RTVarEntry> entries;
   ASSERT_EQ(BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
-  const auto *dst_entry = RTVarFindEntryByName(entries, "dst_var");
+  const auto *dst_entry = FindEntryByName(entries, "dst_var");
   ASSERT_NE(dst_entry, nullptr);
   EXPECT_EQ(std::string(gert::GertGetStr(dst_entry->copy_info.src_var_name)), "src_var");
-  const auto *src_entry = RTVarFindEntryByName(entries, "src_var");
+  const auto *src_entry = FindEntryByName(entries, "src_var");
   ASSERT_NE(src_entry, nullptr);
 }
 

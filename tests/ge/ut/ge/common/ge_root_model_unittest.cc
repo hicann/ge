@@ -296,9 +296,9 @@ TEST_F(UtestGeRootModel, Om2ModelData_MoveSemantics) {
   buf[1] = 0x02;
   buf[2] = 0x03;
   om2_data1->models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
-  om2_data1->constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  om2_data1->constants->constants_data[0] = std::make_unique<gert::GertModelDataFile>();
   om2_data1->constants->constants_data[0]->data = ge::ReadonlyByteBuffer(buf.release(), ge::ConditionalDeleter{true});
-  om2_data1->constants->constants_data[0]->size = 3U;
+  om2_data1->constants->constants_data[0]->data_size = 3U;
   om2_data1->models[0]->constants_config->internal_weight_size = 3U;
 
   auto om2_data2 = std::move(om2_data1);
@@ -426,8 +426,8 @@ TEST_F(UtestGeRootModel, Om2ModelData_WithKernelBinaries) {
   om2_data->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
   om2_data->models[0]->model_meta->model_name = gert::GertMakeStr("kernel_model");
 
-  gert::GertModelDataKernelBinary kb;
-  kb.name = gert::GertMakeStr("test_kernel.o");
+  gert::GertModelDataFile kb;
+  kb.file_name = gert::GertMakeStr("test_kernel.o");
   auto buf = std::make_unique<uint8_t[]>(4);
   buf[0] = 0xDE;
   buf[1] = 0xAD;
@@ -435,14 +435,14 @@ TEST_F(UtestGeRootModel, Om2ModelData_WithKernelBinaries) {
   buf[3] = 0xEF;
   kb.data = ge::ReadonlyByteBuffer(buf.release(), ge::ConditionalDeleter{true});
   kb.data_size = 4U;
-  om2_data->kernels->binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kb)));
+  om2_data->kernels->binaries.push_back(std::make_unique<gert::GertModelDataFile>(std::move(kb)));
 
   ge_root_model.SetOm2ModelData(om2_data);
 
   auto retrieved = ge_root_model.GetOm2ModelData();
   ASSERT_NE(retrieved, nullptr);
   EXPECT_EQ(retrieved->kernels->binaries.size(), 1U);
-  EXPECT_EQ(std::string(gert::GertGetStr(retrieved->kernels->binaries[0]->name)), "test_kernel.o");
+  EXPECT_EQ(std::string(gert::GertGetStr(retrieved->kernels->binaries[0]->file_name)), "test_kernel.o");
   EXPECT_NE(retrieved->kernels->binaries[0]->data, nullptr);
   EXPECT_EQ(retrieved->kernels->binaries[0]->data_size, 4U);
   EXPECT_EQ(retrieved->kernels->binaries[0]->data.get()[0], 0xDE);
@@ -461,9 +461,9 @@ TEST_F(UtestGeRootModel, Om2ModelData_NonOwningWeightBuffer) {
   om2_data->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
   om2_data->models[0]->model_meta->model_name = gert::GertMakeStr("non_owning_model");
   om2_data->models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
-  om2_data->constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  om2_data->constants->constants_data[0] = std::make_unique<gert::GertModelDataFile>();
   om2_data->constants->constants_data[0]->data = ge::ReadonlyByteBuffer(raw_weights, ge::ConditionalDeleter{false});
-  om2_data->constants->constants_data[0]->size = sizeof(raw_weights);
+  om2_data->constants->constants_data[0]->data_size = sizeof(raw_weights);
   om2_data->models[0]->constants_config->internal_weight_size = sizeof(raw_weights);
   ge_root_model.SetOm2ModelData(om2_data);
 
@@ -491,19 +491,19 @@ TEST_F(UtestGeRootModel, ForkWithKernelBinariesAndWeightData) {
   wbuf[1] = 0xBB;
   wbuf[2] = 0xCC;
   om2_data->models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
-  om2_data->constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  om2_data->constants->constants_data[0] = std::make_unique<gert::GertModelDataFile>();
   om2_data->constants->constants_data[0]->data = ge::ReadonlyByteBuffer(wbuf.release(), ge::ConditionalDeleter{true});
-  om2_data->constants->constants_data[0]->size = 3U;
+  om2_data->constants->constants_data[0]->data_size = 3U;
   om2_data->models[0]->constants_config->internal_weight_size = 3U;
 
-  gert::GertModelDataKernelBinary kb;
-  kb.name = gert::GertMakeStr("fork_kernel");
+  gert::GertModelDataFile kb;
+  kb.file_name = gert::GertMakeStr("fork_kernel");
   auto kbuf = std::make_unique<uint8_t[]>(2);
   kbuf[0] = 0x11;
   kbuf[1] = 0x22;
   kb.data = ge::ReadonlyByteBuffer(kbuf.release(), ge::ConditionalDeleter{true});
   kb.data_size = 2U;
-  om2_data->kernels->binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kb)));
+  om2_data->kernels->binaries.push_back(std::make_unique<gert::GertModelDataFile>(std::move(kb)));
 
   ge_root_model->SetOm2ModelData(om2_data);
 

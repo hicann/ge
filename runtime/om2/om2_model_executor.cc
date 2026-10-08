@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstddef>
 #include <string>
@@ -286,6 +287,35 @@ ge::Status ClassifyConstItems(const std::vector<Om2ConstItem> &const_items, Clas
   return ge::SUCCESS;
 }
 
+// 按 INTERNAL 常量的 file_name 查找常量数据源（多个 INTERNAL 共享同一数据文件，如 constant_0）
+ge::Status FindInternalWeightBuf(const gert::GertModelData &om2_data,
+                                 const gert::GertModelDataConstantsConfig &constants_config,
+                                 ge::ReadonlyByteBuffer &weight_buf) {
+  bool has_internal_const = false;
+  std::string internal_file_name;
+  for (const auto &const_meta : constants_config.consts) {
+    if (std::string(gert::GertGetStr(const_meta->type)) == "INTERNAL") {
+      has_internal_const = true;
+      internal_file_name = gert::GertGetStr(const_meta->file_name);
+      break;
+    }
+  }
+  if (!has_internal_const) {
+    return ge::SUCCESS;
+  }
+  GE_ASSERT_TRUE(!internal_file_name.empty(), "[OM2][Check] INTERNAL const is missing file_name in constants config.");
+  const auto &constants_data = om2_data.constants->constants_data;
+  const auto data_it =
+      std::find_if(constants_data.begin(), constants_data.end(),
+                   [&internal_file_name](const std::unique_ptr<gert::GertModelDataFile> &slot) {
+                     return (slot != nullptr) && (std::string(gert::GertGetStr(slot->file_name)) == internal_file_name);
+                   });
+  GE_ASSERT_TRUE(data_it != constants_data.end(), "[OM2][Check] Constants data [%s] not found.",
+                 internal_file_name.c_str());
+  weight_buf = ge::ReadonlyByteBuffer(data_it->get()->data.get(), ge::ConditionalDeleter{false});
+  return ge::SUCCESS;
+}
+
 ge::Status ValidateVarMetas(const std::vector<std::unique_ptr<gert::GertModelDataVarMeta>> &var_metas) {
   if (var_metas.empty()) {
     return ge::SUCCESS;
@@ -366,8 +396,8 @@ class Om2ModelExecutor::Impl {
     // dlopen custom kernel shared libraries
     for (const auto &kb : om2_data.custom_ops->libraries) {
       CustSharedLibInfo so_info;
-      GE_ASSERT_SUCCESS(
-          CreateSoMemFd(gert::GertGetStr(kb->name), kb->data.get(), kb->data_size, so_info.so_file, so_info.so_fd));
+      GE_ASSERT_SUCCESS(CreateSoMemFd(gert::GertGetStr(kb->file_name), kb->data.get(), kb->data_size, so_info.so_file,
+                                      so_info.so_fd));
       so_info.so_handle = mmDlopen(so_info.so_file.c_str(), MMPA_RTLD_NOW);
       if (so_info.so_handle == nullptr) {
         CloseMemFd(so_info.so_fd);
@@ -394,10 +424,7 @@ class Om2ModelExecutor::Impl {
       }
     }
 
-    if (!om2_data.constants->constants_data.empty() && (om2_data.constants->constants_data[0] != nullptr)) {
-      weight_buf =
-          ge::ReadonlyByteBuffer(om2_data.constants->constants_data[0]->data.get(), ge::ConditionalDeleter{false});
-    }
+    GE_ASSERT_SUCCESS(FindInternalWeightBuf(om2_data, *unit.constants_config, weight_buf));
 
     return ge::SUCCESS;
   }
@@ -439,7 +466,6 @@ class Om2ModelExecutor::Impl {
     model_meta_info_.origin_input_dims = meta.origin_input_dims;
     model_meta_info_.output_desc = DeepCopyGertTensorDescs(meta.output_desc);
     model_meta_info_.output_desc_v2 = DeepCopyGertTensorDescs(meta.output_desc_v2);
-    has_aipp_ = (meta.has_aipp != 0U);
     aipp_infos_.reserve(meta.aipp_infos.size());
     for (const auto &aipp : meta.aipp_infos) {
       if (aipp != nullptr) {
@@ -451,12 +477,12 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status BuildKernelBinInfoFromStruct(const std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &kernels,
+  ge::Status BuildKernelBinInfoFromStruct(const std::vector<std::unique_ptr<gert::GertModelDataFile>> &kernels,
                                           std::vector<KernelBinInfo> &info) {
     for (const auto &k : kernels) {
       KernelBinInfo bin_info;
-      bin_info.file = gert::GertGetStr(k->name);
-      // 创建非拥有引用：指向 GertModelDataKernelBinary::data 的内部缓冲区。
+      bin_info.file = gert::GertGetStr(k->file_name);
+      // 创建非拥有引用：指向 GertModelDataFile::data 的内部缓冲区。
       // 生命周期约束：调用方必须保证 GertModelData 在 kernel 二进制使用期间保持存活。
       // 当前调用链：LoadOm2Graph → Om2ModelManager::LoadModel → executor->Load(model_data, ...)
       // 其中 model_data 通过 const & 传递，指向 GeRootModel 持有的 shared_ptr<GertModelData>，
@@ -472,12 +498,12 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status LoadSoFromBuffer(const gert::GertModelDataProgramBody &so) {
-    if (so.data == nullptr || so.data_len == 0U || gert::GertGetStr(so.file_name)[0] == '\0') {
+  ge::Status LoadSoFromBuffer(const gert::GertModelDataFile &so) {
+    if (so.data == nullptr || so.data_size == 0U || gert::GertGetStr(so.file_name)[0] == '\0') {
       GELOGE(ge::FAILED, "[OM2] SO artifact data or file_name is empty.");
       return ge::FAILED;
     }
-    GE_ASSERT_SUCCESS(CreateSoMemFd(gert::GertGetStr(so.file_name), gert::GertGetStr(so.data), so.data_len,
+    GE_ASSERT_SUCCESS(CreateSoMemFd(gert::GertGetStr(so.file_name), so.data.get(), so.data_size,
                                     run_model_info_.so_file, run_model_info_.so_fd));
     return ge::SUCCESS;
   }
@@ -875,7 +901,7 @@ class Om2ModelExecutor::Impl {
   }
 
   ge::Status GetAippInfo(const uint32_t index, ge::AippConfigInfo &aipp_info) const {
-    if (!has_aipp_ || index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
+    if (index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
       return ACL_ERROR_GE_AIPP_NOT_EXIST;
     }
     if (aipp_infos_[index]->aipp_type == ge::DATA_WITHOUT_AIPP) {
@@ -889,7 +915,7 @@ class Om2ModelExecutor::Impl {
   }
 
   ge::Status GetAippType(const uint32_t index, ge::InputAippType &aipp_type, size_t &aipp_data_index) const {
-    if (!has_aipp_ || index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
+    if (index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
       aipp_type = ge::DATA_WITHOUT_AIPP;
       aipp_data_index = kOm2InvalidAippDataIndex;
       return ge::SUCCESS;
@@ -904,7 +930,7 @@ class Om2ModelExecutor::Impl {
   }
 
   ge::Status GetOrigInputInfo(const uint32_t index, ge::OriginInputInfo &orig_input_info) const {
-    if (!has_aipp_ || index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
+    if (index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
       return ACL_ERROR_GE_AIPP_NOT_EXIST;
     }
     if (aipp_infos_[index]->aipp_type == ge::DATA_WITHOUT_AIPP) {
@@ -922,7 +948,7 @@ class Om2ModelExecutor::Impl {
 
   ge::Status GetAllAippInputOutputDims(const uint32_t index, std::vector<ge::InputOutputDims> &input_dims,
                                        std::vector<ge::InputOutputDims> &output_dims) const {
-    if (!has_aipp_ || index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
+    if (index >= aipp_infos_.size() || aipp_infos_[index] == nullptr) {
       return ACL_ERROR_GE_AIPP_NOT_EXIST;
     }
     if (aipp_infos_[index]->aipp_type == ge::DATA_WITHOUT_AIPP) {
@@ -1122,7 +1148,6 @@ class Om2ModelExecutor::Impl {
   std::vector<uint64_t> cur_batch_size_;
   int32_t dynamic_type_ = 0;  // 0=FIXED
   std::vector<std::unique_ptr<gert::GertModelDataAippMeta>> aipp_infos_;
-  bool has_aipp_ = false;
 };
 
 Om2ModelExecutor::Om2ModelExecutor() : impl_(std::make_unique<Impl>()) {}
@@ -1327,27 +1352,31 @@ std::unique_ptr<Om2ModelExecutor> LoadOm2ExecutorFromData(ge::ModelData &model_d
 
 namespace {
 
-// 复用 DeserializeGertModelData 的文件类别掩码实现部分查询（原 GertQueryMemAndWeightSize 语义）
+// 通过按类别反序列化接口实现部分查询（原 GertQueryMemAndWeightSize 语义）
 ge::Status QueryMemAndWeightSizeFromData(const void *model_data, const size_t model_size, size_t &work_size,
                                          size_t &internal_weight_size) {
-  gert::GertModelData om2_data;
-  const uint32_t ret = gert::DeserializeGertModelData(
-      static_cast<const uint8_t *>(model_data), model_size, &om2_data,
-      gert::GertDeserializeFiles::kModelMeta | gert::GertDeserializeFiles::kConstantsConfig);
-  GE_ASSERT_TRUE(ret == 0U, "[OM2][Query] Deserialize model meta and constants config failed, ret = %u.", ret);
-  GE_ASSERT_TRUE(!om2_data.models.empty(), "[OM2][Query] models is empty");
-  work_size = static_cast<size_t>(om2_data.models[0]->model_meta->work_size);
-  internal_weight_size = static_cast<size_t>(om2_data.models[0]->constants_config->internal_weight_size);
+  gert::GertModelData meta_data;
+  const uint32_t meta_ret =
+      gert::DeserializeGertModelMeta(static_cast<const uint8_t *>(model_data), model_size, &meta_data);
+  GE_ASSERT_TRUE(meta_ret == 0U, "[OM2][Query] Deserialize model meta failed, ret = %u.", meta_ret);
+  GE_ASSERT_TRUE(!meta_data.models.empty(), "[OM2][Query] models is empty");
+  work_size = static_cast<size_t>(meta_data.models[0]->model_meta->work_size);
+
+  gert::GertModelData config_data;
+  const uint32_t config_ret =
+      gert::DeserializeGertConstantsConfig(static_cast<const uint8_t *>(model_data), model_size, &config_data);
+  GE_ASSERT_TRUE(config_ret == 0U, "[OM2][Query] Deserialize constants config failed, ret = %u.", config_ret);
+  GE_ASSERT_TRUE(!config_data.models.empty(), "[OM2][Query] models is empty");
+  internal_weight_size = static_cast<size_t>(config_data.models[0]->constants_config->internal_weight_size);
   return ge::SUCCESS;
 }
 
-// 复用 DeserializeGertModelData 的文件类别掩码实现部分查询（主线 GetOm2WorkspaceSize 语义，
+// 通过按类别反序列化接口实现部分查询（主线 GetOm2WorkspaceSize 语义，
 // 保留其 zero_copy_size 不得大于 work_size 的校验）
 ge::Status QueryWorkspaceSizeFromData(const void *model_data, const size_t model_size, bool query_zero_copy_size,
                                       size_t &work_size, size_t &zero_copy_size) {
   gert::GertModelData om2_data;
-  const uint32_t ret = gert::DeserializeGertModelData(static_cast<const uint8_t *>(model_data), model_size, &om2_data,
-                                                      gert::GertDeserializeFiles::kModelMeta);
+  const uint32_t ret = gert::DeserializeGertModelMeta(static_cast<const uint8_t *>(model_data), model_size, &om2_data);
   GE_ASSERT_TRUE(ret == 0U, "[OM2][Query] Deserialize model meta failed, ret = %u.", ret);
   GE_ASSERT_TRUE(!om2_data.models.empty(), "[OM2][Query] models is empty");
   work_size = static_cast<size_t>(om2_data.models[0]->model_meta->work_size);
@@ -1360,15 +1389,14 @@ ge::Status QueryWorkspaceSizeFromData(const void *model_data, const size_t model
   return ge::SUCCESS;
 }
 
-// 复用 DeserializeGertModelData 的文件类别掩码实现部分查询（原 GertQueryModelMetadata 语义）
+// 通过按类别反序列化接口实现部分查询（原 GertQueryModelMetadata 语义）
 ge::Status QueryModelMetadataFromData(const void *model_data, const size_t model_size,
                                       std::vector<gert::GertTensorDesc> &input_desc,
                                       std::vector<gert::GertTensorDesc> &input_desc_v2,
                                       std::vector<gert::GertTensorDesc> &output_desc,
                                       std::vector<gert::GertTensorDesc> &output_desc_v2) {
   gert::GertModelData om2_data;
-  const uint32_t ret = gert::DeserializeGertModelData(static_cast<const uint8_t *>(model_data), model_size, &om2_data,
-                                                      gert::GertDeserializeFiles::kModelMeta);
+  const uint32_t ret = gert::DeserializeGertModelMeta(static_cast<const uint8_t *>(model_data), model_size, &om2_data);
   GE_ASSERT_TRUE(ret == 0U, "[OM2][Query] Deserialize model meta failed, ret = %u.", ret);
   GE_ASSERT_TRUE(!om2_data.models.empty(), "[OM2][Query] models is empty");
   input_desc = std::move(om2_data.models[0]->model_meta->input_desc);

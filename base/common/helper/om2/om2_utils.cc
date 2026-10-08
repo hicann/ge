@@ -106,8 +106,8 @@ bool IsCppFile(const std::string &file_name) {
          (file_name.compare(file_name.size() - kCppSuffixSize, kCppSuffixSize, kCppSuffix) == 0);
 }
 
-Status FindArtifact(const gert::GertModelDataProgramBodies &artifacts, const std::string &file_name,
-                    const gert::GertModelDataProgramBody *&artifact) {
+Status FindArtifact(const std::vector<gert::GertModelDataFile> &artifacts, const std::string &file_name,
+                    const gert::GertModelDataFile *&artifact) {
   artifact = nullptr;
   for (const auto &item : artifacts) {
     if (std::string(gert::GertGetStr(item.file_name)) == file_name) {
@@ -459,14 +459,15 @@ Status ReplaceMakefileVariable(std::string &makefile_data, const std::string &va
   return FAILED;
 }
 
-Status BuildCompileMakefileData(const gert::GertModelDataProgramBody &makefile_artifact, const std::string &so_path,
+Status BuildCompileMakefileData(const gert::GertModelDataFile &makefile_artifact, const std::string &so_path,
                                 const std::vector<MemFdFile> &cpp_files, std::string &compile_makefile_data) {
   GE_ASSERT_SUCCESS(CheckSafePath(so_path));
   for (const auto &cpp_file : cpp_files) {
     GE_ASSERT_SUCCESS(CheckSafePath(cpp_file.fd_path));
   }
 
-  compile_makefile_data = gert::GertGetStr(makefile_artifact.data);
+  compile_makefile_data.assign(reinterpret_cast<const char *>(makefile_artifact.data.get()),
+                               makefile_artifact.data_size);
   GE_ASSERT_SUCCESS(ReplaceMakefileVariable(compile_makefile_data, "TARGET", so_path));
   GE_ASSERT_SUCCESS(ReplaceMakefileVariable(compile_makefile_data, "SRC_FILES", JoinFdPaths(cpp_files)));
   // 仅用于内存编译：fd 路径没有 .cpp 后缀，需要 -x c++ 显式指定语言。
@@ -502,13 +503,13 @@ Status ReplaceInclude(std::string &data, const std::string &include_name, const 
   return SUCCESS;
 }
 
-Status CreateCompileCppFiles(const gert::GertModelDataProgramBodies &artifacts, const std::string &interface_name,
+Status CreateCompileCppFiles(const std::vector<gert::GertModelDataFile> &artifacts, const std::string &interface_name,
                              const std::string &header_fd_path, std::vector<MemFdFile> &cpp_files) {
   for (const auto &artifact : artifacts) {
     if (!IsCppFile(gert::GertGetStr(artifact.file_name))) {
       continue;
     }
-    std::string compile_data = gert::GertGetStr(artifact.data);
+    std::string compile_data(reinterpret_cast<const char *>(artifact.data.get()), artifact.data_size);
     GE_ASSERT_SUCCESS(ReplaceInclude(compile_data, interface_name, header_fd_path));
 
     MemFdFile cpp_file;
@@ -518,10 +519,9 @@ Status CreateCompileCppFiles(const gert::GertModelDataProgramBodies &artifacts, 
   return SUCCESS;
 }
 
-Status CompileWithMemFdMakefile(const gert::GertModelDataProgramBody &makefile_artifact,
+Status CompileWithMemFdMakefile(const gert::GertModelDataFile &makefile_artifact,
                                 const std::vector<MemFdFile> &cpp_files, const bool is_release,
-                                gert::GertModelDataProgramBody &so_artifact, std::string &so_path,
-                                MemFdFile &makefile_file) {
+                                gert::GertModelDataFile &so_artifact, std::string &so_path, MemFdFile &makefile_file) {
   GE_ASSERT_SUCCESS(CreateTempFile(gert::GertGetStr(so_artifact.file_name), so_path));
 
   std::string compile_makefile_data;
@@ -543,9 +543,9 @@ Status CompileWithMemFdMakefile(const gert::GertModelDataProgramBody &makefile_a
   }
   std::string so_data;
   GE_ASSERT_SUCCESS(ReadFileToString(so_path, so_data));
-  so_artifact.data = gert::GertMakeBytes(so_data.data(), so_data.size());
-  so_artifact.data_len = so_data.size();
-  GE_ASSERT_TRUE(so_artifact.data_len != 0U, "[OM2] Compiled so artifact is empty: %s",
+  so_artifact.data = gert::GertMakeFileData(so_data.data(), so_data.size());
+  so_artifact.data_size = so_data.size();
+  GE_ASSERT_TRUE(so_artifact.data_size != 0U, "[OM2] Compiled so artifact is empty: %s",
                  gert::GertGetStr(so_artifact.file_name));
   return SUCCESS;
 }
@@ -559,16 +559,16 @@ std::string Om2Utils::NormalizeCpuArch(const std::string &cpu) {
   return cpu;
 }
 
-Status Om2Utils::CompileGeneratedCppToSo(const gert::GertModelDataProgramBodies &artifacts,
-                                         const std::string &model_name, gert::GertModelDataProgramBody &so_artifact,
+Status Om2Utils::CompileGeneratedCppToSo(const std::vector<gert::GertModelDataFile> &artifacts,
+                                         const std::string &model_name, gert::GertModelDataFile &so_artifact,
                                          const bool is_release) {
   constexpr char kModelApiName[] = "om2_model_api.h";
   const std::string interface_name = model_name + "_internal.h";
-  const gert::GertModelDataProgramBody *interface_artifact = nullptr;
+  const gert::GertModelDataFile *interface_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, interface_name, interface_artifact));
-  const gert::GertModelDataProgramBody *model_api_artifact = nullptr;
+  const gert::GertModelDataFile *model_api_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, kModelApiName, model_api_artifact));
-  const gert::GertModelDataProgramBody *makefile_artifact = nullptr;
+  const gert::GertModelDataFile *makefile_artifact = nullptr;
   GE_ASSERT_SUCCESS(FindArtifact(artifacts, "Makefile", makefile_artifact));
 
   MemFdFile model_api_file;
@@ -584,8 +584,11 @@ Status Om2Utils::CompileGeneratedCppToSo(const gert::GertModelDataProgramBodies 
     CloseMemFdFile(makefile_file);
   };
   GE_MAKE_GUARD(memfd_cleanup, memfd_cleanup_callback);
-  GE_ASSERT_SUCCESS(CreateMemFdFile(kModelApiName, gert::GertGetStr(model_api_artifact->data), model_api_file));
-  std::string interface_data = gert::GertGetStr(interface_artifact->data);
+  const std::string model_api_data(reinterpret_cast<const char *>(model_api_artifact->data.get()),
+                                   model_api_artifact->data_size);
+  GE_ASSERT_SUCCESS(CreateMemFdFile(kModelApiName, model_api_data, model_api_file));
+  std::string interface_data(reinterpret_cast<const char *>(interface_artifact->data.get()),
+                             interface_artifact->data_size);
   GE_ASSERT_SUCCESS(ReplaceInclude(interface_data, kModelApiName, model_api_file.fd_path));
   GE_ASSERT_SUCCESS(CreateMemFdFile(interface_name, interface_data, header_file));
   GE_ASSERT_SUCCESS(CreateCompileCppFiles(artifacts, interface_name, header_file.fd_path, cpp_files));

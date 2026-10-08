@@ -170,8 +170,8 @@ gert::GertModelData MakeOm2ModelDataWithFakeSo(const std::string &so_bytes_path)
   auto so_bytes = ReadFileBytes(so_bytes_path);
   model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest_model_om2.so");
   const std::string so_data(so_bytes.begin(), so_bytes.end());
-  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(so_data);
-  model_data.models[0]->runtime->so_artifact.data_len = so_data.size();
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeFileData(so_data.data(), so_data.size());
+  model_data.models[0]->runtime->so_artifact.data_size = so_data.size();
 
   return model_data;
 }

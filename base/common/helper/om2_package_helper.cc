@@ -358,7 +358,6 @@ static Status CollectAippMetas(const ComputeGraphPtr &graph, gert::GertModelData
       GELOGE(ret, "[OM2] ExtractAippMetaFromOpDesc failed for node: %s", op_desc->GetName().c_str());
       return ret;
     }
-    model_meta.has_aipp = 1U;
   }
   GELOGI("[OM2] Collected %zu AIPP metas", model_meta.aipp_infos.size());
   return SUCCESS;
@@ -379,7 +378,7 @@ Status CollectSerializableCustomOps(const std::set<std::string> &used_custom_op_
 }
 
 Status SerializeCustomOpToBinary(const std::string &op_type, PortableOp *serializable_op,
-                                 std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &kernel_binaries) {
+                                 std::vector<std::unique_ptr<gert::GertModelDataFile>> &kernel_binaries) {
   if (serializable_op == nullptr) {
     GELOGE(FAILED, "[OM2] serializable custom op is null, op_type:%s", op_type.c_str());
     return FAILED;
@@ -399,19 +398,19 @@ Status SerializeCustomOpToBinary(const std::string &op_type, PortableOp *seriali
     GELOGE(FAILED, "[Allocate][Mem]Allocate mem failed");
     return FAILED;
   }
-  auto kb = std::make_unique<gert::GertModelDataKernelBinary>();
+  auto kb = std::make_unique<gert::GertModelDataFile>();
   kb->data = ge::ReadonlyByteBuffer(bin_data, ge::ConditionalDeleter{true});
   kb->data_size = buffer.size();
   GE_ASSERT_EOK(memcpy_s(bin_data, buffer.size(), buffer.data(), buffer.size()));
   const size_t hash_id = std::hash<std::string>{}(std::string(kb->data.get(), kb->data.get() + kb->data_size));
   const auto entry_path = op_type + "_" + std::to_string(hash_id) + "_CustomKernel.bin";
-  kb->name = gert::GertMakeStr(entry_path);
+  kb->file_name = gert::GertMakeStr(entry_path);
   kernel_binaries.push_back(std::move(kb));
   return SUCCESS;
 }
 
 void CollectTbeKernels(const GeModelPtr &ge_model,
-                       std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &kernel_binaries,
+                       std::vector<std::unique_ptr<gert::GertModelDataFile>> &kernel_binaries,
                        std::unordered_set<std::string> &added_kernels) {
   const auto &graph = ge_model->GetGraph();
   const auto &tbe_kernel_store = ge_model->GetTBEKernelStore();
@@ -423,11 +422,11 @@ void CollectTbeKernels(const GeModelPtr &ge_model,
     }
     auto kernel_bin = tbe_kernel_store.FindKernel(kernel_name);
     if ((kernel_bin != nullptr) && (added_kernels.count(kernel_name) == 0)) {
-      gert::GertModelDataKernelBinary kb;
-      kb.name = gert::GertMakeStr(Om2CodegenUtils::GetKernelNameWithExtension(kernel_name));
+      gert::GertModelDataFile kb;
+      kb.file_name = gert::GertMakeStr(Om2CodegenUtils::GetKernelNameWithExtension(kernel_name));
       kb.data = ge::ReadonlyByteBuffer(kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
       kb.data_size = kernel_bin->GetBinDataSize();
-      kernel_binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kb)));
+      kernel_binaries.push_back(std::make_unique<gert::GertModelDataFile>(std::move(kb)));
       (void)added_kernels.insert(kernel_name);
     }
 
@@ -439,11 +438,11 @@ void CollectTbeKernels(const GeModelPtr &ge_model,
     if (!atomic_kernel_name.empty()) {
       const auto atomic_kernel_bin = tbe_kernel_store.FindKernel(atomic_kernel_name);
       if ((atomic_kernel_bin != nullptr) && (added_kernels.count(atomic_kernel_name) == 0)) {
-        gert::GertModelDataKernelBinary kb;
-        kb.name = gert::GertMakeStr(Om2CodegenUtils::GetKernelNameWithExtension(atomic_kernel_name));
+        gert::GertModelDataFile kb;
+        kb.file_name = gert::GertMakeStr(Om2CodegenUtils::GetKernelNameWithExtension(atomic_kernel_name));
         kb.data = ge::ReadonlyByteBuffer(atomic_kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
         kb.data_size = atomic_kernel_bin->GetBinDataSize();
-        kernel_binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kb)));
+        kernel_binaries.push_back(std::make_unique<gert::GertModelDataFile>(std::move(kb)));
         (void)added_kernels.insert(atomic_kernel_name);
       }
     }
@@ -451,7 +450,7 @@ void CollectTbeKernels(const GeModelPtr &ge_model,
 }
 
 void CollectCustAicpuKernels(const GeModelPtr &ge_model,
-                             std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &kernel_binaries,
+                             std::vector<std::unique_ptr<gert::GertModelDataFile>> &kernel_binaries,
                              std::unordered_set<std::string> &added_kernels) {
   const auto &graph = ge_model->GetGraph();
   const auto &cust_aicpu_kernel_store = ge_model->GetCustAICPUKernelStore();
@@ -466,11 +465,11 @@ void CollectCustAicpuKernels(const GeModelPtr &ge_model,
       if ((kernel_bin != nullptr) && (added_kernels.count(kernel_name) == 0)) {
         const size_t hash_id = std::hash<std::string>{}(
             std::string(reinterpret_cast<const char *>(kernel_bin->GetBinData()), kernel_bin->GetBinDataSize()));
-        gert::GertModelDataKernelBinary kb;
-        kb.name = gert::GertMakeStr(std::to_string(hash_id) + "_CustAicpuKernel.o");
+        gert::GertModelDataFile kb;
+        kb.file_name = gert::GertMakeStr(std::to_string(hash_id) + "_CustAicpuKernel.o");
         kb.data = ge::ReadonlyByteBuffer(kernel_bin->GetBinData(), ge::ConditionalDeleter{false});
         kb.data_size = kernel_bin->GetBinDataSize();
-        kernel_binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kb)));
+        kernel_binaries.push_back(std::make_unique<gert::GertModelDataFile>(std::move(kb)));
         (void)added_kernels.insert(cust_aicpu_kernel->GetName());
       }
     }
@@ -681,8 +680,8 @@ Status Om2PackageHelper::ExtractVisualJson(const void *model_data, size_t model_
   GE_ASSERT_TRUE(model_len > 0U, "[OM2] model_len is 0");
 
   gert::GertModelData om2_data;
-  const uint32_t deserialize_ret = gert::DeserializeGertModelData(static_cast<const uint8_t *>(model_data), model_len,
-                                                                  &om2_data, gert::GertDeserializeFiles::kVisualJson);
+  const uint32_t deserialize_ret =
+      gert::DeserializeGertVisualJson(static_cast<const uint8_t *>(model_data), model_len, &om2_data);
   const bool visual_json_valid = (!om2_data.models.empty() && (om2_data.models[0]->debug != nullptr) &&
                                   (om2_data.models[0]->debug->visual_json != nullptr));
   if ((deserialize_ret != 0U) || !visual_json_valid) {
@@ -706,8 +705,8 @@ Status Om2PackageHelper::BuildProgramBody(const GeModelPtr &ge_model, gert::Gert
   for (const auto &artifact : body.source_artifacts) {
     if (std::string(gert::GertGetStr(artifact.file_name)).find(".so") != std::string::npos) {
       body.so_artifact.file_name = gert::GertMakeStr(artifact.file_name);
-      body.so_artifact.data = gert::GertMakeBytes(gert::GertGetStr(artifact.data), artifact.data_len);
-      body.so_artifact.data_len = artifact.data_len;
+      body.so_artifact.data = gert::GertMakeFileData(artifact.data.get(), artifact.data_size);
+      body.so_artifact.data_size = artifact.data_size;
       break;
     }
   }
@@ -732,7 +731,7 @@ Status Om2PackageHelper::BuildCustomSharedLibs(const GeRootModelPtr &ge_root_mod
 
 Status Om2PackageHelper::ReadCustomOpSoToBuffer(
     const std::unordered_set<std::string> &ops_so_set,
-    std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &shared_lib_binaries) {
+    std::vector<std::unique_ptr<gert::GertModelDataFile>> &shared_lib_binaries) {
   for (const auto &op_so : ops_so_set) {
     uint32_t bin_len = 0U;
     auto op_so_bin = GetBinDataFromFile(op_so, bin_len);
@@ -741,8 +740,8 @@ Status Om2PackageHelper::ReadCustomOpSoToBuffer(
     GE_ASSERT_TRUE(pos != std::string::npos);
     const auto &so_name = op_so.substr(pos + 1UL);
     const size_t hash_id = std::hash<std::string>{}(std::string(op_so_bin.get(), op_so_bin.get() + bin_len));
-    auto kb = std::make_unique<gert::GertModelDataKernelBinary>();
-    kb->name = gert::GertMakeStr(std::to_string(bin_len) + "_" + std::to_string(hash_id) + "_" + so_name);
+    auto kb = std::make_unique<gert::GertModelDataFile>();
+    kb->file_name = gert::GertMakeStr(std::to_string(bin_len) + "_" + std::to_string(hash_id) + "_" + so_name);
     kb->data = ge::ReadonlyByteBuffer(reinterpret_cast<uint8_t *>(op_so_bin.release()), ge::ConditionalDeleter{true});
     kb->data_size = bin_len;
     (void)shared_lib_binaries.emplace_back(std::move(kb));
@@ -842,7 +841,8 @@ Status Om2PackageHelper::BuildModelMeta(const GeModelPtr &ge_model, gert::GertMo
 }
 
 Status Om2PackageHelper::BuildConstantsData(const GeModelPtr &ge_model, gert::GertModelDataModel &unit,
-                                            std::unique_ptr<gert::GertModelDataConstantsData> &weight_slot) {
+                                            std::unique_ptr<gert::GertModelDataFile> &weight_slot,
+                                            const size_t model_index) {
   GELOGI("[OM2] Begin to build constants data");
   gert::GertModelDataConstantsConfig &config = *unit.constants_config;
   auto &const_metas = config.consts;
@@ -859,8 +859,10 @@ Status Om2PackageHelper::BuildConstantsData(const GeModelPtr &ge_model, gert::Ge
   if (has_internal_const) {
     const uint8_t *weight_ptr = ge_model->GetWeightData();
     GE_ASSERT_NOTNULL(weight_ptr, "[OM2] Weight data pointer is null");
-    weight_slot = std::make_unique<gert::GertModelDataConstantsData>();
-    weight_slot->size = static_cast<uint64_t>(ge_model->GetWeightSize());
+    weight_slot = std::make_unique<gert::GertModelDataFile>();
+    weight_slot->data_size = static_cast<uint64_t>(ge_model->GetWeightSize());
+    weight_slot->file_name =
+        gert::GertMakeStr(gert::FormatOm2Path("%s%zu", gert::OM2_CONSTANTS_FILE_PREFIX, model_index));
     weight_slot->data = ge::ReadonlyByteBuffer(weight_ptr, ge::ConditionalDeleter{false});
   }
 
@@ -945,7 +947,7 @@ Status Om2PackageHelper::BuildOm2ModelData(const GeModelPtr &ge_model, gert::Ger
   GE_ASSERT_SUCCESS(BuildProgramBody(ge_model, model_data, unit));
   GE_ASSERT_SUCCESS(BuildKernelBinaries(ge_model, model_data));
   GE_ASSERT_SUCCESS(BuildModelMeta(ge_model, unit));
-  GE_ASSERT_SUCCESS(BuildConstantsData(ge_model, unit, model_data.constants->constants_data[0]));
+  GE_ASSERT_SUCCESS(BuildConstantsData(ge_model, unit, model_data.constants->constants_data[0], 0UL));
 
   const auto compute_graph = ge_model->GetGraph();
   if (unit.variables_config == nullptr) {

@@ -39,6 +39,16 @@ struct GertBuffer {
   uint64_t reserved[4] = {0U};
 };
 
+// 归档内文件内容通用结构（data/constants/constant_N、data/kernels/*.o、data/custom_ops/*、
+// data/model_N/runtime/ 的 so 与 csrc）：file_name 为文件基名；data 为拥有/视图二态
+// （视图指向外部内存，零拷贝，生命周期与底层内存耦合）
+struct GertModelDataFile {
+  std::unique_ptr<char[]> file_name;  // 文件基名（constant_0 / kernel_0.o / libxxx.so / xxx.cpp）
+  ge::ReadonlyByteBuffer data;        // 文件内容（拥有/视图二态，零拷贝）
+  uint64_t data_size = 0U;            // 内容字节数
+  uint64_t reserved[4] = {0U};
+};
+
 // ==================== manifest.json ====================
 struct UniquePtrCharCompare {
   bool operator()(const std::unique_ptr<char[]> &a, const std::unique_ptr<char[]> &b) const {
@@ -46,21 +56,24 @@ struct UniquePtrCharCompare {
   }
 };
 
+// manifest.json 的 "compatibility" 对象，字段与 JSON 同名
 struct GertModelDataCompatibility {
-  std::unique_ptr<char[]> compiler_version;
-  std::unique_ptr<char[]> required_executor_version;
+  std::unique_ptr<char[]> compiler_version;           // compiler_version
+  std::unique_ptr<char[]> required_executor_version;  // required_executor_version
+  // key 为特性名，value 为特性版本串
   std::map<std::unique_ptr<char[]>, std::unique_ptr<char[]>, UniquePtrCharCompare> used_features;
   uint64_t reserved[4] = {0U};
 };
 
 struct GertModelDataManifest {
   uint64_t struct_size = sizeof(GertModelDataManifest);
-  GertModelDataCompatibility compatibility;
-  uint64_t model_num = 0U;
-  std::unique_ptr<char[]> atc_command;
+  GertModelDataCompatibility compatibility;  // "compatibility"
+  uint64_t model_num = 0U;                   // model_num
+  std::unique_ptr<char[]> atc_command;       // atc_command
 };
 
 // ==================== data/model_N/model_meta.json ====================
+// "inputs"[]/"outputs"[]/"tensor_desc" 等处的 tensor desc 对象，字段与 JSON 同名；data_type/format 序列化为整型数值
 struct GertTensorDesc {
   uint64_t size = 0U;
   ge::DataType data_type = ge::DT_UNDEFINED;
@@ -71,52 +84,48 @@ struct GertTensorDesc {
   uint64_t reserved[4] = {0U};
 };
 
+// "aipp"."aipp_infos"[] 的单项（数组下标写入 "index"），其余字段与 JSON 同名
 struct GertModelDataAippMeta {
   uint64_t struct_size = sizeof(GertModelDataAippMeta);
-  ge::InputAippType aipp_type = ge::DATA_WITHOUT_AIPP;
-  uint64_t aipp_data_index = kOm2InvalidAippDataIndex;
+  ge::InputAippType aipp_type = ge::DATA_WITHOUT_AIPP;  // "aipp_type"
+  uint64_t aipp_data_index = kOm2InvalidAippDataIndex;  // "aipp_data_index"
+  // 展开为 aipp_mode/input_format/src_image_size_w/crop/matrix_r0c0 等 AippConfigInfo 各成员同名字段
   std::unique_ptr<ge::AippConfigInfo> aipp_config_info;
-  std::vector<std::unique_ptr<ge::InputOutputDims>> aipp_input_dims;
-  std::vector<std::unique_ptr<ge::InputOutputDims>> aipp_output_dims;
+  std::vector<std::unique_ptr<ge::InputOutputDims>> aipp_input_dims;   // "aipp_inputs"
+  std::vector<std::unique_ptr<ge::InputOutputDims>> aipp_output_dims;  // "aipp_outputs"
+  // 展开为 orig_input_format/orig_input_data_type/orig_input_dim_num
   std::unique_ptr<ge::OriginInputInfo> orig_input_info;
 };
 
 struct GertModelDataModelMeta {
   uint64_t struct_size = sizeof(GertModelDataModelMeta);
-  uint64_t work_size = 0U;
-  int64_t zero_copy_size = 0;
-  int64_t dynamic_type = 0;
-  uint64_t has_aipp = 0U;
-  std::unique_ptr<char[]> model_name;
-  std::vector<GertTensorDesc> input_desc;
-  std::vector<GertTensorDesc> output_desc;
-  std::vector<GertTensorDesc> input_desc_v2;
+  uint64_t work_size = 0U;                    // work_size
+  int64_t zero_copy_size = 0;                 // zero_copy_size
+  int64_t dynamic_type = 0;                   // "dynamic_dims"."dynamic_type"（仅动态分档模型写入）
+  std::unique_ptr<char[]> model_name;         // "name"
+  std::vector<GertTensorDesc> input_desc;     // "inputs"[]
+  std::vector<GertTensorDesc> output_desc;    // "outputs"[]
+  std::vector<GertTensorDesc> input_desc_v2;  // "inputs"[]"shape_aclmdlGetInputDimsV2"
+  // 无独立 JSON 字段：反序列化时由 "outputs"[] 拷贝派生，供 aclmdlGetOutputDimsV2 语义使用
   std::vector<GertTensorDesc> output_desc_v2;
-  std::vector<std::vector<int64_t>> dynamic_batch_info;
+  std::vector<std::vector<int64_t>> dynamic_batch_info;  // "dynamic_dims"."gears"[]"inputs"
+  // "gear_idx,xxx,dim1,dim2..." 逗号分隔串，按 gear_idx 分组解析为 "dynamic_dims"."gears"[]"outputs"
   std::vector<std::unique_ptr<char[]>> dynamic_output_shape;
-  std::vector<std::unique_ptr<char[]>> user_designate_shape_order;
+  std::vector<std::unique_ptr<char[]>> user_designate_shape_order;  // "dynamic_dims"."user_designate_shape_order"
+  // 动态分档模型的原始输入 shape：写入 "inputs"[]"shape"（此时 input_desc.shape 退为 "max_gear_shape"）
   std::vector<std::vector<int64_t>> origin_input_dims;
-  std::vector<std::unique_ptr<GertModelDataAippMeta>> aipp_infos;
+  std::vector<std::unique_ptr<GertModelDataAippMeta>> aipp_infos;  // "aipp"."aipp_infos"[]
 };
 
 // ==================== data/model_N/runtime/（so + csrc/）====================
-struct GertModelDataProgramBody {
-  std::unique_ptr<char[]> file_name;
-  std::unique_ptr<char[]> data;
-  uint64_t data_len = 0U;
-  uint64_t reserved[4] = {0U};
-};
-
-using GertModelDataProgramBodies = std::vector<GertModelDataProgramBody>;
-
 // data/model_N/runtime/ 目录的聚合结构
 struct GertModelDataRuntime {
   uint64_t struct_size = sizeof(GertModelDataRuntime);
-  GertModelDataProgramBody so_artifact;         // data/model_N/runtime/*.so
-  GertModelDataProgramBodies source_artifacts;  // data/model_N/runtime/csrc/*
+  GertModelDataFile so_artifact;                    // data/model_N/runtime/*.so
+  std::vector<GertModelDataFile> source_artifacts;  // data/model_N/runtime/csrc/*
 };
 
-// ==================== data/model_N/model_N_constants_config.json ====================
+// ==================== data/model_N/constants_config.json ====================
 struct GertModelDataConstMeta {
   uint64_t struct_size = sizeof(GertModelDataConstMeta);
   uint64_t index = 0U;
@@ -128,26 +137,19 @@ struct GertModelDataConstMeta {
   std::unique_ptr<char[]> op_name;
 };
 
-using GertModelDataConstMetas = std::vector<GertModelDataConstMeta>;
-
 struct GertModelDataConstantsConfig {
   uint64_t struct_size = sizeof(GertModelDataConstantsConfig);
-  uint64_t internal_weight_size = 0U;
-  std::vector<std::unique_ptr<GertModelDataConstMeta>> consts;
+  uint64_t internal_weight_size = 0U;                           // internal_weight_size
+  std::vector<std::unique_ptr<GertModelDataConstMeta>> consts;  // "consts"
 };
 
 // ==================== data/constants/constant_N ====================
-struct GertModelDataConstantsData {
-  uint64_t struct_size = sizeof(GertModelDataConstantsData);
-  uint64_t size = 0U;
-  ge::ReadonlyByteBuffer data;
-};
-
 // data/constants/ 目录的聚合结构
 struct GertModelDataConstants {
   uint64_t struct_size = sizeof(GertModelDataConstants);
-  // constant_N，下标与 GertModelDataData::models 一一对应（外置权重场景该元素为 null）
-  std::vector<std::unique_ptr<GertModelDataConstantsData>> constants_data;
+  // constant_N，下标与 GertModelDataData::models 一一对应（外置权重场景该元素为 null）；
+  // 元素 file_name 记录基名 constant_N，INTERNAL 常量按名匹配数据源
+  std::vector<std::unique_ptr<GertModelDataFile>> constants_data;
 };
 
 // ==================== data/model_N/debug/ge_visual_*.json ====================
@@ -175,7 +177,7 @@ struct RTCopyNodeInfo {
 
 struct RTVarEntry {
   std::unique_ptr<char[]> var_name;
-  std::unique_ptr<char[]> var_key;
+  std::unique_ptr<char[]> var_key;  // 同时作为 "entries" 对象的 key
   std::unique_ptr<char[]> op_type;
   uint64_t logic_addr = 0U;
   uint64_t size = 0U;
@@ -186,8 +188,8 @@ struct RTVarEntry {
   uint64_t allocated_graph_id = 0U;
   RTCopyNodeInfo copy_info;
   void *extern_dev_addr = nullptr;
-  // 变量初始数据（序列化时拼接为 var_weight_data，反序列化时按 offset/size 切片还原）
   std::vector<uint8_t> init_data;
+  std::unique_ptr<char[]> file_name;  // 权重数据文件基名（如 "var_weight_data_0"），反序列化按名寻址
   uint64_t reserved[4] = {0U};
 };
 
@@ -203,39 +205,32 @@ struct GertModelDataVarMeta {
 struct GertModelDataVariablesConfig {
   uint64_t struct_size = sizeof(GertModelDataVariablesConfig);
   uint64_t graph_id = 0U;
-  std::vector<RTVarEntry> entries;  // 合并自 var_resource.json
-  std::vector<std::unique_ptr<GertModelDataVarMeta>> var_metas;
+  std::vector<RTVarEntry> entries;                               // "entries"（合并自 var_resource.json）
+  std::vector<std::unique_ptr<GertModelDataVarMeta>> var_metas;  // "var_metas"
 };
 
 // ========= data/model_N/（单个模型目录的全部文件，对应 manifest.model_num）=========
 struct GertModelDataModel {
   uint64_t struct_size = sizeof(GertModelDataModel);
   std::unique_ptr<GertModelDataModelMeta> model_meta;              // data/model_N/model_meta.json
-  std::unique_ptr<GertModelDataConstantsConfig> constants_config;  // data/model_N/model_N_constants_config.json
+  std::unique_ptr<GertModelDataConstantsConfig> constants_config;  // data/model_N/constants_config.json
   std::unique_ptr<char[]> op_attr_json;                            // data/model_N/op_attr.json
   std::unique_ptr<GertModelDataRuntime> runtime;                   // data/model_N/runtime/
   std::unique_ptr<GertModelDataDebug> debug;                       // data/model_N/debug/
   std::unique_ptr<GertModelDataVariablesConfig> variables_config;  // data/model_N/variables_config.json
 };
 
-struct GertModelDataKernelBinary {
-  uint64_t struct_size = sizeof(GertModelDataKernelBinary);
-  std::unique_ptr<char[]> name;
-  ge::ReadonlyByteBuffer data;
-  uint64_t data_size = 0U;
-};
-
 // data/kernels/ 目录的聚合结构
 struct GertModelDataKernels {
   uint64_t struct_size = sizeof(GertModelDataKernels);
-  std::vector<std::unique_ptr<GertModelDataKernelBinary>> binaries;  // *.o
+  std::vector<std::unique_ptr<GertModelDataFile>> binaries;  // *.o
 };
 
 // ==================== data/custom_ops/ ====================
 struct GertModelDataCustomOps {
   uint64_t struct_size = sizeof(GertModelDataCustomOps);
-  std::vector<std::unique_ptr<GertModelDataKernelBinary>> binaries;   // data/custom_ops/binaries_npu_arch/*.bin
-  std::vector<std::unique_ptr<GertModelDataKernelBinary>> libraries;  // data/custom_ops/shared_libs/*.so
+  std::vector<std::unique_ptr<GertModelDataFile>> binaries;   // data/custom_ops/binaries_npu_arch/*.bin
+  std::vector<std::unique_ptr<GertModelDataFile>> libraries;  // data/custom_ops/shared_libs/*.so
 };
 
 // ==================== 包根：与 OM2 归档目录一一对应 ====================

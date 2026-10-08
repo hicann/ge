@@ -5709,7 +5709,7 @@ TEST_F(UtestGraphManagerTest, GetCompiledModel_SerializesOm2ModelDataInOm2Mode) 
   om2_data->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
   om2_data->models[0]->debug = std::make_unique<gert::GertModelDataDebug>();
   om2_data->models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
-  om2_data->constants->constants_data.emplace_back(std::make_unique<gert::GertModelDataConstantsData>());
+  om2_data->constants->constants_data.emplace_back(std::make_unique<gert::GertModelDataFile>());
   om2_data->manifest = std::make_unique<gert::GertModelDataManifest>();
   om2_data->models[0]->model_meta->model_name = gert::GertMakeStr("om2_ut_model");
   om2_data->models[0]->debug->visual_json =

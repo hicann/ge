@@ -97,7 +97,7 @@ Status Om2CodegenModelBuilder::BuildHostArgsOffsets(const std::multimap<uint64_t
 }
 
 Status Om2CodegenModelBuilder::CollectConstInputsFromOp(const OpDescPtr &op_desc, Om2CodegenModel &codegen_model,
-                                                        gert::GertModelDataConstMetas &const_metas) {
+                                                        std::vector<gert::GertModelDataConstMeta> &const_metas) {
   GE_ASSERT_NOTNULL(op_desc);
   const vector_bit_t &v_is_input_const = op_desc->GetIsInputConst();
   for (size_t input_idx = 0U; input_idx < op_desc->GetAllInputsSize(); ++input_idx) {
@@ -203,7 +203,8 @@ Status Om2CodegenModelBuilder::CreateTaskCodeBuilders(const GeModelPtr &model, A
 }
 
 Status Om2CodegenModelBuilder::Build(const GeModelPtr &model, const std::vector<TaskCodeBuilderPtr> &task_builders,
-                                     Om2CodegenModel &codegen_model, gert::GertModelDataConstMetas &const_metas) {
+                                     Om2CodegenModel &codegen_model,
+                                     std::vector<gert::GertModelDataConstMeta> &const_metas) {
   op_desc_by_index_.clear();
   op_id_to_input_edges_.clear();
   weight_offset_to_varname_.clear();
@@ -542,7 +543,7 @@ Status Om2CodegenModelBuilder::CollectNetOutputIoItems(const Node &node, const O
 Status Om2CodegenModelBuilder::BuildConstInputs(const GeModelPtr &model,
                                                 const std::vector<TaskCodeBuilderPtr> &task_builders,
                                                 Om2CodegenModel &codegen_model,
-                                                gert::GertModelDataConstMetas &const_metas) {
+                                                std::vector<gert::GertModelDataConstMeta> &const_metas) {
   GE_ASSERT_NOTNULL(model);
   const auto &model_task_def = model->GetModelTaskDefPtr();
   GE_ASSERT_NOTNULL(model_task_def);
@@ -567,7 +568,7 @@ Status Om2CodegenModelBuilder::BuildConstInputs(const GeModelPtr &model,
 }
 
 Status Om2CodegenModelBuilder::BuildFileConstInputs(const GeModelPtr &model, Om2CodegenModel &codegen_model,
-                                                    gert::GertModelDataConstMetas &const_metas) {
+                                                    std::vector<gert::GertModelDataConstMeta> &const_metas) {
   GE_ASSERT_NOTNULL(model);
   const auto compute_graph = model->GetGraph();
   GE_ASSERT_NOTNULL(compute_graph);

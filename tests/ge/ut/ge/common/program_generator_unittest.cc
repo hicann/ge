@@ -1420,7 +1420,7 @@ ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model, bool has_
     return ProgramGenerator(ast, {}, Om2CodegenModel(), has_custom_kernel);
   }
   Om2CodegenModelBuilder builder;
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   if (builder.Build(ge_model, task_code_builders, codegen_model, const_metas) != SUCCESS) {
     ADD_FAILURE() << "[OM2] Failed to build om2 codegen model";
     return ProgramGenerator(ast, {}, Om2CodegenModel(), has_custom_kernel);
@@ -1438,14 +1438,14 @@ const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
     {GeneratedFileIndex::kCMakeListsFile, "Makefile"},
 };
 
-Status ReadGeneratedArtifact(const gert::GertModelDataProgramBodies &artifacts, const GeneratedFileIndex file_index,
+Status ReadGeneratedArtifact(const std::vector<gert::GertModelDataFile> &artifacts, const GeneratedFileIndex file_index,
                              std::string &output) {
   const auto iter = kGeneratedFileNames.find(file_index);
   GE_ASSERT_TRUE(iter != kGeneratedFileNames.end(), "[OM2] unknown generated file index: %zu",
                  static_cast<size_t>(file_index));
   for (const auto &artifact : artifacts) {
     if (std::string(gert::GertGetStr(artifact.file_name)) == iter->second) {
-      output = gert::GertGetStr(artifact.data);
+      output.assign(reinterpret_cast<const char *>(artifact.data.get()), artifact.data_size);
       return SUCCESS;
     }
   }
@@ -1456,7 +1456,7 @@ Status ReadGeneratedArtifact(const gert::GertModelDataProgramBodies &artifacts, 
 Status GenerateProgramFiles(ProgramGenerator &generator, std::map<GeneratedFileIndex, std::string> &outputs) {
   Om2CodePrinter code_printer("g1");
   GE_ASSERT_SUCCESS(generator.GenerateProgram(code_printer));
-  gert::GertModelDataProgramBodies artifacts;
+  std::vector<gert::GertModelDataFile> artifacts;
   code_printer.GetOutputFiles(artifacts);
   outputs.clear();
   for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
@@ -5861,7 +5861,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoBarrierTask_LogicIdNumM
   Om2CodegenModel codegen_model;
   ASSERT_EQ(Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model), SUCCESS);
   Om2CodegenModelBuilder builder;
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   EXPECT_NE(builder.Build(ge_model, task_code_builders, codegen_model, const_metas), SUCCESS);
 }
 

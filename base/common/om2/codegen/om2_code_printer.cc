@@ -31,17 +31,17 @@ void Om2CodePrinter::InitDefaultFileInfo(const std::string &model_name) {
   SetFileInfo(GeneratedFileIndex::kCMakeListsFile, "Makefile");
 }
 
-void Om2CodePrinter::GetOutputFiles(gert::GertModelDataProgramBodies &artifacts) const {
+void Om2CodePrinter::GetOutputFiles(std::vector<gert::GertModelDataFile> &artifacts) const {
   artifacts.clear();
   for (const auto &generated_file_info : output_) {
     if (generated_file_info.file_name.empty()) {
       continue;
     }
-    gert::GertModelDataProgramBody artifact;
+    gert::GertModelDataFile artifact;
     artifact.file_name = gert::GertMakeStr(generated_file_info.file_name);
     const auto content_str = generated_file_info.content.str();
-    artifact.data = gert::GertMakeStr(content_str);
-    artifact.data_len = content_str.size();
+    artifact.data = gert::GertMakeFileData(content_str.data(), content_str.size());
+    artifact.data_size = content_str.size();
     artifacts.push_back(std::move(artifact));
   }
 }

@@ -189,14 +189,14 @@ const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
     {GeneratedFileIndex::kCMakeListsFile, "Makefile"},
 };
 
-Status ReadGeneratedArtifact(const gert::GertModelDataProgramBodies &artifacts, const GeneratedFileIndex file_index,
+Status ReadGeneratedArtifact(const std::vector<gert::GertModelDataFile> &artifacts, const GeneratedFileIndex file_index,
                              std::string &output) {
   const auto iter = kGeneratedFileNames.find(file_index);
   GE_ASSERT_TRUE(iter != kGeneratedFileNames.end(), "[OM2] unknown generated file index: %zu",
                  static_cast<size_t>(file_index));
   for (const auto &artifact : artifacts) {
     if (std::string(gert::GertGetStr(artifact.file_name)) == iter->second) {
-      output = gert::GertGetStr(artifact.data);
+      output.assign(reinterpret_cast<const char *>(artifact.data.get()), artifact.data_size);
       return SUCCESS;
     }
   }
@@ -301,7 +301,7 @@ Status BuildControlCodegenModel(const GeModelPtr &ge_model) {
   Om2CodegenModel codegen_model;
   GE_ASSERT_SUCCESS(Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model));
 
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   Om2CodegenModelBuilder builder;
   return builder.Build(ge_model, task_code_builders, codegen_model, const_metas);
 }
@@ -315,14 +315,14 @@ TEST_F(ControlTaskCodeGeneratorUt, GenerateControlTaskFiles_Ok) {
   Om2CodegenModel codegen_model;
   ASSERT_EQ(Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model), SUCCESS);
 
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   Om2CodegenModelBuilder builder;
   ASSERT_EQ(builder.Build(ge_model, task_code_builders, codegen_model, const_metas), SUCCESS);
 
   ProgramGenerator generator(ast, task_code_builders, std::move(codegen_model));
   Om2CodePrinter code_printer("g1");
   ASSERT_EQ(generator.GenerateProgram(code_printer), SUCCESS);
-  gert::GertModelDataProgramBodies artifacts;
+  std::vector<gert::GertModelDataFile> artifacts;
   code_printer.GetOutputFiles(artifacts);
 
   std::string header_file;

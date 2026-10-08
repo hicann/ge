@@ -14,6 +14,8 @@
 
 #include "gtest/gtest.h"
 #include "om2/model_api/om2_model_api.h"
+#include "framework/om2/model_data/gert_model_data.h"
+#include "common/dynamic_aipp.h"
 
 namespace {
 
@@ -285,6 +287,210 @@ TEST(Om2AbiStructCompatibility, ApiConfigLayoutsAreFrozen) {
   EXPECT_MEMBER_LAYOUT(GertModelUnloadOutput, struct_size, uint64_t, 0U);
   EXPECT_NO_IMPLICIT_PADDING(GertModelUnloadOutput, sizeof(GertModelUnloadOutput::struct_size));
 }
+
+// ===== gert_model_data.h（C++ 链接时边界）布局冻结 =====
+// 结构体含 STL 成员（非 standard-layout）：偏移/尺寸耦合 libstdc++ 布局，工具链升级时
+// 须有意识地重冻结；offsetof 对非标准布局为编译器条件支持（GCC 可用），此处显式消警。
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+
+// 含逗号的模板类型需经别名传入宏参数
+using UsedFeaturesMap = std::map<std::unique_ptr<char[]>, std::unique_ptr<char[]>, gert::UniquePtrCharCompare>;
+using ShapeRangeVec = std::vector<std::pair<int64_t, int64_t>>;
+
+TEST(Om2ModelDataStructCompatibility, GertBufferLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertBuffer, 56U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertBuffer, length, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertBuffer, data, std::shared_ptr<uint8_t>, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertBuffer, reserved, uint64_t[4], 24U);
+}
+
+TEST(Om2ModelDataStructCompatibility, ManifestLayoutsAreFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataCompatibility, 96U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataCompatibility, compiler_version, std::unique_ptr<char[]>, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataCompatibility, required_executor_version, std::unique_ptr<char[]>, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataCompatibility, used_features, UsedFeaturesMap, 16U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataCompatibility, reserved, uint64_t[4], 64U);
+
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataManifest, 120U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataManifest, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataManifest, compatibility, gert::GertModelDataCompatibility, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataManifest, model_num, uint64_t, 104U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataManifest, atc_command, std::unique_ptr<char[]>, 112U);
+}
+
+TEST(Om2ModelDataStructCompatibility, TensorDescLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertTensorDesc, 104U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertTensorDesc, size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertTensorDesc, data_type, ge::DataType, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertTensorDesc, format, ge::Format, 12U);
+  EXPECT_MEMBER_LAYOUT(gert::GertTensorDesc, name, std::unique_ptr<char[]>, 16U);
+  EXPECT_MEMBER_LAYOUT(gert::GertTensorDesc, shape, std::vector<int64_t>, 24U);
+  EXPECT_MEMBER_LAYOUT(gert::GertTensorDesc, shape_range, ShapeRangeVec, 48U);
+  EXPECT_MEMBER_LAYOUT(gert::GertTensorDesc, reserved, uint64_t[4], 72U);
+}
+
+TEST(Om2ModelDataStructCompatibility, AippMetaLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataAippMeta, 88U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataAippMeta, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataAippMeta, aipp_type, ge::InputAippType, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataAippMeta, aipp_data_index, uint64_t, 16U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataAippMeta, aipp_config_info, std::unique_ptr<ge::AippConfigInfo>, 24U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataAippMeta, aipp_input_dims, std::vector<std::unique_ptr<ge::InputOutputDims>>,
+                       32U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataAippMeta, aipp_output_dims, std::vector<std::unique_ptr<ge::InputOutputDims>>,
+                       56U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataAippMeta, orig_input_info, std::unique_ptr<ge::OriginInputInfo>, 80U);
+}
+
+TEST(Om2ModelDataStructCompatibility, ModelMetaLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataModelMeta, 256U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, work_size, uint64_t, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, zero_copy_size, int64_t, 16U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, dynamic_type, int64_t, 24U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, model_name, std::unique_ptr<char[]>, 32U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, input_desc, std::vector<gert::GertTensorDesc>, 40U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, output_desc, std::vector<gert::GertTensorDesc>, 64U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, input_desc_v2, std::vector<gert::GertTensorDesc>, 88U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, output_desc_v2, std::vector<gert::GertTensorDesc>, 112U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, dynamic_batch_info, std::vector<std::vector<int64_t>>, 136U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, dynamic_output_shape, std::vector<std::unique_ptr<char[]>>, 160U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, user_designate_shape_order, std::vector<std::unique_ptr<char[]>>,
+                       184U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, origin_input_dims, std::vector<std::vector<int64_t>>, 208U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModelMeta, aipp_infos,
+                       std::vector<std::unique_ptr<gert::GertModelDataAippMeta>>, 232U);
+}
+
+TEST(Om2ModelDataStructCompatibility, FileLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataFile, 64U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataFile, file_name, std::unique_ptr<char[]>, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataFile, data, ge::ReadonlyByteBuffer, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataFile, data_size, uint64_t, 24U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataFile, reserved, uint64_t[4], 32U);
+}
+
+TEST(Om2ModelDataStructCompatibility, RuntimeLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataRuntime, 96U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataRuntime, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataRuntime, so_artifact, gert::GertModelDataFile, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataRuntime, source_artifacts, std::vector<gert::GertModelDataFile>, 72U);
+}
+
+TEST(Om2ModelDataStructCompatibility, ConstantsLayoutsAreFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataConstMeta, 64U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstMeta, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstMeta, index, uint64_t, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstMeta, offset, int64_t, 16U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstMeta, size, int64_t, 24U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstMeta, type, std::unique_ptr<char[]>, 32U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstMeta, file_name, std::unique_ptr<char[]>, 40U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstMeta, file_path, std::unique_ptr<char[]>, 48U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstMeta, op_name, std::unique_ptr<char[]>, 56U);
+
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataConstantsConfig, 40U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstantsConfig, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstantsConfig, internal_weight_size, uint64_t, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstantsConfig, consts,
+                       std::vector<std::unique_ptr<gert::GertModelDataConstMeta>>, 16U);
+
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataConstants, 32U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstants, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataConstants, constants_data,
+                       std::vector<std::unique_ptr<gert::GertModelDataFile>>, 8U);
+}
+
+TEST(Om2ModelDataStructCompatibility, DebugLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataDebug, 16U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataDebug, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataDebug, visual_json, std::unique_ptr<char[]>, 8U);
+}
+
+TEST(Om2ModelDataStructCompatibility, RTVarLayoutsAreFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::RTTransNodeInfo, 248U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::RTTransNodeInfo, node_type, std::unique_ptr<char[]>, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::RTTransNodeInfo, input, gert::GertTensorDesc, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::RTTransNodeInfo, output, gert::GertTensorDesc, 112U);
+  EXPECT_MEMBER_LAYOUT(gert::RTTransNodeInfo, reserved, uint64_t[4], 216U);
+
+  EXPECT_STRUCT_LAYOUT(gert::RTCopyNodeInfo, 144U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::RTCopyNodeInfo, src_var_name, std::unique_ptr<char[]>, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::RTCopyNodeInfo, src_tensor_desc, gert::GertTensorDesc, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::RTCopyNodeInfo, reserved, uint64_t[4], 112U);
+
+  EXPECT_STRUCT_LAYOUT(gert::RTVarEntry, 408U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, var_name, std::unique_ptr<char[]>, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, var_key, std::unique_ptr<char[]>, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, op_type, std::unique_ptr<char[]>, 16U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, logic_addr, uint64_t, 24U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, size, uint64_t, 32U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, memory_type, uint64_t, 40U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, tensor_desc, gert::GertTensorDesc, 48U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, trans_road, gert::RTVarTransRoad, 152U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, changed_graph_id, uint64_t, 176U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, allocated_graph_id, uint64_t, 184U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, copy_info, gert::RTCopyNodeInfo, 192U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, extern_dev_addr, void *, 336U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, init_data, std::vector<uint8_t>, 344U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, file_name, std::unique_ptr<char[]>, 368U);
+  EXPECT_MEMBER_LAYOUT(gert::RTVarEntry, reserved, uint64_t[4], 376U);
+}
+
+TEST(Om2ModelDataStructCompatibility, VariablesConfigLayoutsAreFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataVarMeta, 144U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVarMeta, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVarMeta, index, uint64_t, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVarMeta, var_name, std::unique_ptr<char[]>, 16U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVarMeta, op_type, std::unique_ptr<char[]>, 24U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVarMeta, tensor_desc, gert::GertTensorDesc, 32U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVarMeta, op_name, std::unique_ptr<char[]>, 136U);
+
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataVariablesConfig, 64U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVariablesConfig, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVariablesConfig, graph_id, uint64_t, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVariablesConfig, entries, std::vector<gert::RTVarEntry>, 16U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVariablesConfig, var_metas,
+                       std::vector<std::unique_ptr<gert::GertModelDataVarMeta>>, 40U);
+}
+
+TEST(Om2ModelDataStructCompatibility, ModelLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataModel, 56U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModel, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModel, model_meta, std::unique_ptr<gert::GertModelDataModelMeta>, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModel, constants_config, std::unique_ptr<gert::GertModelDataConstantsConfig>,
+                       16U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModel, op_attr_json, std::unique_ptr<char[]>, 24U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModel, runtime, std::unique_ptr<gert::GertModelDataRuntime>, 32U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModel, debug, std::unique_ptr<gert::GertModelDataDebug>, 40U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataModel, variables_config, std::unique_ptr<gert::GertModelDataVariablesConfig>,
+                       48U);
+}
+
+TEST(Om2ModelDataStructCompatibility, KernelLayoutsAreFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataKernels, 32U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataKernels, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataKernels, binaries, std::vector<std::unique_ptr<gert::GertModelDataFile>>, 8U);
+
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataCustomOps, 56U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataCustomOps, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataCustomOps, binaries, std::vector<std::unique_ptr<gert::GertModelDataFile>>,
+                       8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataCustomOps, libraries, std::vector<std::unique_ptr<gert::GertModelDataFile>>,
+                       32U);
+}
+
+TEST(Om2ModelDataStructCompatibility, ModelDataRootLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(gert::GertModelData, 64U, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelData, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelData, manifest, std::unique_ptr<gert::GertModelDataManifest>, 8U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelData, models, std::vector<std::unique_ptr<gert::GertModelDataModel>>, 16U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelData, constants, std::unique_ptr<gert::GertModelDataConstants>, 40U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelData, kernels, std::unique_ptr<gert::GertModelDataKernels>, 48U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelData, custom_ops, std::unique_ptr<gert::GertModelDataCustomOps>, 56U);
+}
+
+#pragma GCC diagnostic pop
 
 #undef EXPECT_MEMBER_LAYOUT
 #undef EXPECT_NO_IMPLICIT_PADDING

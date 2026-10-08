@@ -437,6 +437,7 @@ set(BASE_COMMON_TEST_FILES
 set(OM2_COMPATIBILITY_TEST_FILES
     "compatibility/om2/struct_layout_check.cpp"
     "compatibility/om2/enum_value_check.cpp"
+    "compatibility/om2/const_check.cpp"
 )
 
 file(GLOB_RECURSE SYMBOL_SHAPE_INFER_FUNCS_TEST_SRCS CONFIGURE_DEPENDS "graph/optimize/symbolic/*.cc")
@@ -848,6 +849,7 @@ target_link_libraries(ut_libge_multiparts_utest
     ascend_protobuf
     ge_graph_dsl
     ge_compiler
+    gert_model_data_serializer
     custom_op_runtime
     ascendcl_stub
     -Wl,--whole-archive
@@ -970,7 +972,7 @@ target_link_libraries(ut_libge_common_utest
     slice
     ge_graph_dsl
     om2_executor
-    gert_model_data_deserializer
+    gert_model_data_serializer
     ge_compiler
     ge_runner
     ge_executor_shared
@@ -1542,7 +1544,7 @@ target_link_libraries(ut_libge_distinct_load_utest
     register
     opp_registry
     om2_executor
-    gert_model_data_deserializer
+    gert_model_data_serializer
     -Wl,-z,muldefs
     -Wl,--whole-archive
     ge_graph_dsl ge_runtime_stub

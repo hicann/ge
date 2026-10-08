@@ -19,6 +19,7 @@
 
 #include <securec.h>
 #include <cstring>
+#include <memory>
 #include <string>
 #include "common/checker.h"
 #include "common/ge_inner_error_codes.h"
@@ -38,11 +39,7 @@ inline std::unique_ptr<char[]> GertMakeStr(const char *s) {
            static_cast<unsigned long long>(kMaxStrAllocSize));
     return nullptr;
   }
-  auto p = std::unique_ptr<char[]>(new (std::nothrow) char[len]);
-  if (p == nullptr) {
-    GELOGE(ge::FAILED, "[OM2] GertMakeStr alloc %zu bytes failed", len);
-    return nullptr;
-  }
+  auto p = std::make_unique<char[]>(len);
   errno_t sec_ret = memcpy_s(p.get(), len, s, len);
   if (sec_ret != EOK) {
     GELOGE(ge::FAILED, "[OM2] GertMakeStr memcpy_s failed, ret = %d", sec_ret);
@@ -61,11 +58,7 @@ inline std::unique_ptr<char[]> GertMakeStr(const std::string &s) {
            static_cast<unsigned long long>(kMaxStrAllocSize));
     return nullptr;
   }
-  auto p = std::unique_ptr<char[]>(new (std::nothrow) char[len]);
-  if (p == nullptr) {
-    GELOGE(ge::FAILED, "[OM2] GertMakeStr alloc %zu bytes failed", len);
-    return nullptr;
-  }
+  auto p = std::make_unique<char[]>(len);
   errno_t sec_ret = memcpy_s(p.get(), len, s.data(), s.size());
   if (sec_ret != EOK) {
     GELOGE(ge::FAILED, "[OM2] GertMakeStr memcpy_s failed, ret = %d", sec_ret);
@@ -89,17 +82,32 @@ inline std::unique_ptr<char[]> GertMakeBytes(const void *data, uint64_t size) {
            static_cast<unsigned long long>(kMaxStrAllocSize));
     return nullptr;
   }
-  auto p = std::unique_ptr<char[]>(new (std::nothrow) char[static_cast<size_t>(size)]);
-  if (p == nullptr) {
-    GELOGE(ge::FAILED, "[OM2] GertMakeBytes alloc %" PRIu64 " bytes failed", size);
-    return nullptr;
-  }
+  auto p = std::make_unique<char[]>(static_cast<size_t>(size));
   errno_t sec_ret = memcpy_s(p.get(), size, data, size);
   if (sec_ret != EOK) {
     GELOGE(ge::FAILED, "[OM2] GertMakeBytes memcpy_s failed, ret = %d", sec_ret);
     return nullptr;
   }
   return p;
+}
+
+// 构造 GertModelDataFile::data 的拥有态副本（独立分配 + memcpy；视图场景直接构造 ReadonlyByteBuffer）
+inline ge::ReadonlyByteBuffer GertMakeFileData(const void *data, const uint64_t size) {
+  if (data == nullptr || size == 0U) {
+    return ge::ReadonlyByteBuffer(nullptr, ge::ConditionalDeleter{false});
+  }
+  if (size > kMaxStrAllocSize) {
+    GELOGE(ge::FAILED, "[OM2] GertMakeFileData size %" PRIu64 " exceeds limit %llu", size,
+           static_cast<unsigned long long>(kMaxStrAllocSize));
+    return ge::ReadonlyByteBuffer(nullptr, ge::ConditionalDeleter{false});
+  }
+  auto p = std::make_unique<uint8_t[]>(static_cast<size_t>(size));
+  errno_t sec_ret = memcpy_s(p.get(), static_cast<size_t>(size), data, static_cast<size_t>(size));
+  if (sec_ret != EOK) {
+    GELOGE(ge::FAILED, "[OM2] GertMakeFileData memcpy_s failed, ret = %d", sec_ret);
+    return ge::ReadonlyByteBuffer(nullptr, ge::ConditionalDeleter{false});
+  }
+  return ge::ReadonlyByteBuffer(p.release(), ge::ConditionalDeleter{true});
 }
 
 inline const char *GertGetStr(const std::unique_ptr<char[]> &s) {
@@ -177,25 +185,6 @@ inline ge::Status RTVarAddEntry(std::vector<RTVarEntry> &entries, RTVarEntry ent
   }
   entries.push_back(std::move(entry));
   return ge::SUCCESS;
-}
-
-inline const RTVarEntry *RTVarFindEntry(const std::vector<RTVarEntry> &entries, const std::string &var_key) {
-  for (const auto &entry : entries) {
-    if (std::string(GertGetStr(entry.var_key)) == var_key) {
-      return &entry;
-    }
-  }
-  return nullptr;
-}
-
-inline const RTVarEntry *RTVarFindEntryByName(const std::vector<RTVarEntry> &entries, const std::string &var_name) {
-  const RTVarEntry *found = nullptr;
-  for (const auto &entry : entries) {
-    if (std::string(GertGetStr(entry.var_name)) == var_name) {
-      found = &entry;
-    }
-  }
-  return found;
 }
 
 }  // namespace gert
