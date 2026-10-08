@@ -151,7 +151,90 @@ GE 不按芯片型号分支；RT/AICPU 的两个 Dump 通道和普通/TF AICPU �
 
 第一阶段 PR 同时包含 Dump 生产侧穿刺和普通 AICPU 生产侧穿刺。二者复制维护相同的 16 B frame/6 B record wire 规则，但业务 schema 独立：Dump 使用 `0x0000-0x0FFF`，普通 AICPU 使用 `0x1000-0x1FFF`。这次公共化的是字节规则、校验原则和测试方法，不把两类业务对象合并，也暂不引入跨仓公共头文件。
 
-Dump schema 已由专项穿刺定义：顶层 `MODEL=0x0001`、`TASK=0x0002`，子记录覆盖 INPUT、OUTPUT、WORKSPACE、BUFFER、ATTR、CONTEXT 和 DIM_RANGE。完整字段编号以 `dump_transport_info.h` 及其 golden/畸形输入 UT 为准；GE 侧保持模型级 `rtDatadumpInfoLoad` 和 custom `DumpDataInfo` 两条既有通道、时序及设备内存生命周期。
+Dump schema 已由专项穿刺定义。GE 侧保持模型级 `rtDatadumpInfoLoad` 和 custom `DumpDataInfo` 两条既有通道、时序及设备内存生命周期。当前穿刺的完整 63 个 Dump tag 如下；标记为“可重复”的集合记录按出现顺序累积，其余字段均为可选单值，重复时后值覆盖前值。未知 tag 跳过，但在错误层级出现另一个已知 tag 视为格式错误。
+
+| tag | 所属记录.字段 | payload | 基数 |
+| --- | --- | --- | --- |
+| `0x0001` | frame.model | MODEL 嵌套 record | 恰好 1 |
+| `0x0002` | frame.task | TASK 嵌套 record | `0..N` |
+| `0x0010` | task.input | INPUT 嵌套 record | `0..N` |
+| `0x0011` | task.output | OUTPUT 嵌套 record | `0..N` |
+| `0x0012` | task.workspace | WORKSPACE 嵌套 record | `0..N` |
+| `0x0013` | task.buffer | BUFFER 嵌套 record | `0..N` |
+| `0x0014` | task.attr | ATTR 嵌套 record | `0..N` |
+| `0x0015` | task.context | CONTEXT 嵌套 record | `0..N` |
+| `0x0016` | context.input | ADDR_SIZE 嵌套 record | `0..N` |
+| `0x0017` | context.output | ADDR_SIZE 嵌套 record | `0..N` |
+| `0x0018` | output.dim_range | DIM_RANGE 嵌套 record | `0..N` |
+
+| tag | MODEL 字段 | payload |
+| --- | --- | --- |
+| `0x0101` | dump_path | 原始 string bytes |
+| `0x0102` | model_name | 原始 string bytes |
+| `0x0103` | model_id | `u32` |
+| `0x0104` | step_id_addr | `u64` |
+| `0x0105` | iterations_per_loop_addr | `u64` |
+| `0x0106` | loop_cond_addr | `u64` |
+| `0x0107` | flag | `u32` |
+| `0x0108` | dump_step | 原始 string bytes |
+| `0x0109` | dump_data | `u32` enum |
+| `0x010A` | dump_switch_addr | `u64` |
+
+| tag | TASK 字段 | payload |
+| --- | --- | --- |
+| `0x0201` | task_id | `u32` |
+| `0x0202` | stream_id | `u32` |
+| `0x0203` | op_name | 原始 string bytes |
+| `0x0204` | op_type | 原始 string bytes |
+| `0x0205` | end_graph | `u8 bool`，仅允许 `0/1` |
+| `0x0206` | task_type | `u32` enum |
+| `0x0207` | context_id | `u32` |
+| `0x0208` | thread_id | `u32` |
+
+| tag | INPUT 字段 | payload |
+| --- | --- | --- |
+| `0x0301` | data_type | `i32` |
+| `0x0302` | format | `i32` |
+| `0x0303` | shape | `u32 count + u64[count]` |
+| `0x0304` | address | `u64` |
+| `0x0305` | size | `u64` |
+| `0x0306` | origin_shape | `u32 count + u64[count]` |
+| `0x0307` | addr_type | `u32` enum |
+| `0x0308` | offset | `u64` |
+
+| tag | OUTPUT 字段 | payload |
+| --- | --- | --- |
+| `0x0401` | data_type | `i32` |
+| `0x0402` | format | `i32` |
+| `0x0403` | shape | `u32 count + u64[count]` |
+| `0x0404` | address | `u64` |
+| `0x0405` | original_name | 原始 string bytes |
+| `0x0406` | original_output_index | `i32` |
+| `0x0407` | original_output_data_type | `i32` |
+| `0x0408` | original_output_format | `i32` |
+| `0x0409` | size | `u64` |
+| `0x040A` | origin_shape | `u32 count + u64[count]` |
+| `0x040B` | addr_type | `u32` enum |
+| `0x040C` | offset | `u64` |
+
+| tag | 其他 Dump 记录字段 | payload |
+| --- | --- | --- |
+| `0x0501` | workspace.type | `u32` enum |
+| `0x0502` | workspace.data_addr | `u64` |
+| `0x0503` | workspace.size | `u64` |
+| `0x0601` | buffer.type | `u32` enum |
+| `0x0602` | buffer.address | `u64` |
+| `0x0603` | buffer.size | `u64` |
+| `0x0701` | attr.name | 原始 string bytes |
+| `0x0702` | attr.value | 原始 string bytes |
+| `0x0801` | context.context_id | `u32` |
+| `0x0802` | context.thread_id | `u32` |
+| `0x0901` | addr_size.address | `u64` |
+| `0x0902` | addr_size.size | `u64` |
+| `0x0A01` | dim_range.dim_start | `u64` |
+| `0x0A02` | dim_range.dim_end | `u64` |
+
+Dump 所有固定宽度整数均为小端；`i32` 使用二进制补码；shape 的 `count` 必须与 payload 精确匹配。枚举未知值保留。frame 的 `record_count` 必须等于实际顶层 MODEL 与 TASK record 数，且解码先写临时对象，整帧成功后再提交。
 
 普通 AICPU 只识别 `libcpu_kernels.so` / `RunCpuKernel`，其已确认的 `TaskDef.kernel.args` 布局为：
 
@@ -184,9 +267,32 @@ GE 生产证据位于 `cpu_kernel_builder.cpp` 的 `BuildArgs`、`BuildMemCopyIn
 | `0x1031` | attr.name | UTF-8 bytes |
 | `0x1032` | attr.value | `u16 value_type + typed payload` |
 
-`attr.value` 暂定 `value_type` 为：`0 empty`、`1 string/bytes`、`2 int64`、`3 float32`、`4 bool`、`5 data_type(i32)`、`6 shape`、`7 tensor`、`8 list_string`、`9 list_int64`、`10 list_float32`、`11 list_bool`、`12 list_data_type`、`13 list_shape`、`14 list_tensor`、`15 list_list_int64`。
+`attr.value` 先编码 `value_type:u16`，随后紧跟下表 payload。该表为当前穿刺代码的完整 16 种类型，不是已冻结接口：
+
+| value_type | 名称 | `u16` 后的 payload |
+| --- | --- | --- |
+| `0` | empty | 空；总 payload 长度为 2 |
+| `1` | string/bytes | 原始 bytes，占满剩余 payload |
+| `2` | int64 | `i64` |
+| `3` | float32 | IEEE-754 `f32` |
+| `4` | bool | `u8`，目标协议仅允许 `0/1` |
+| `5` | data_type | `i32` |
+| `6` | shape | shape 嵌套 record 流，不再套 frame |
+| `7` | tensor | tensor 嵌套 record 流，不再套 frame |
+| `8` | list_string | `u32 count + (u32 byte_len + bytes)[count]` |
+| `9` | list_int64 | `u32 count + i64[count]` |
+| `10` | list_float32 | `u32 count + f32[count]` |
+| `11` | list_bool | `u32 count + u8[count]` |
+| `12` | list_data_type | `u32 count + i32[count]` |
+| `13` | list_shape | `u32 count + (u32 item_len + shape_records)[count]` |
+| `14` | list_tensor | `u32 count + (u32 item_len + tensor_records)[count]` |
+| `15` | list_list_int64 | `u32 rows + (u32 cols + i64[cols])[rows]` |
+
+普通 AICPU 当前编码器总是输出一个 NodeDef root；root 内 op 为单值，input/output/attr 可重复；tensor 总是输出 shape/type/name/data_ptr/data_size 五个单值；shape 总是输出 dims/unknown_rank/data_format 三个单值；attr 总是输出 name/value 两个单值。map 按 key 排序，repeated 保持 PB 顺序。目标解码规则应为单值重复即失败、未知 tag 跳过、已知 tag 出现在错误层级即失败；当前穿刺解码器除 attr.name/value 外尚未完整执行该规则，需在冻结前补齐。
 
 `list_shape` 与 `list_list_int64` 不是纯格式别名。现有 GE builder 对 `VT_LIST_LIST_INT` 的历史实现写入 PB `AttrValue.array.shape`，因此穿刺保持为 `list_shape`；`list_list_int64` 只对应 PB `AttrValue.list_list_int` oneof。空 `AttrValue` 继续表达“不支持的 GE 属性类型仍保留同名空键”，不能省略该 attr。
+
+当前代码还存在两项协议一致性缺口：AICPU 的 `float32` 和部分 `i32` 生产代码通过宿主内存布局写入，必须改成显式小端；PB 的 `array {}` 与 `VALUE_NOT_SET` 当前都编码为 `value_type=0`，未保留“空数组”和“空 AttrValue”的 presence 差异。二者均属于穿刺后续修正项，不能在字段冻结时沿用现状。
 
 普通 AICPU 最小 golden 为 `NodeDef { op: "Relu" }`：
 
