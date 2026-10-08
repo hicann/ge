@@ -27,7 +27,7 @@
 
 <!-- npu="910b" id1 -->
 
-- AAtlas A2训练系列产品/Atlas A2推理系列产品：针对AAtlas A2训练系列产品/Atlas A2推理系列产品，仅支持Atlas 800I A2 推理服务器、A200I A2 Box 异构组件。
+- Atlas A2系列产品：针对Atlas A2系列产品，仅支持Atlas 800I A2推理服务器、A200I A2 Box异构组件。
 <!-- end id1 -->
 
 <!-- npu="A3" id2 -->
