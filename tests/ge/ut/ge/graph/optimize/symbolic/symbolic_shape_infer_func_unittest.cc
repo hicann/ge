@@ -24,6 +24,7 @@
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_shape_symbolizer.h"
 #include <common_error_codes.h>
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 namespace {

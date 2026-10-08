@@ -17,6 +17,7 @@
 #include "graph/common/trans_op_creator.h"
 #include "attribute_group/attr_group_symbolic_desc.h"
 #include "checker.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph_utils.h"
 #include "dim1_transpose_to_squeeze_pass.h"
 #include "graph/operator_factory.h"

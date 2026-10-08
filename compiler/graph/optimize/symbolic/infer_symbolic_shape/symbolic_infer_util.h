@@ -23,6 +23,9 @@ namespace ge {
 const Expression kSymbolZero{Symbol(0)};
 const Expression kSymbolOne{Symbol(1)};
 const Expression kSymbolTwo{Symbol(2)};
+// 值符号化仅针对shape/索引类小tensor，值符号化/推导的size准入与值依赖前向触发共用的
+// 元素数上限，超限不符号化、不产生D2H与host输入契约开销
+constexpr int64_t kMaxSymbolizeValueElemNum = 200;
 
 #define GE_UNSUPPORTED_IF_NULL(exp, ...)                                          \
   do {                                                                            \
@@ -141,8 +144,17 @@ class SymbolicInferUtil {
   static std::string DumpSymbolTensor(const gert::SymbolTensor &symbolic_tensor);
   static bool IsSupportCondNode(const NodePtr &node);
   static NodePtr GetCondInput(const NodePtr &node);
-  static bool IsValueDependentDataNode(const NodePtr &data_node);
-  static Status GetValueDependentInputIdxs(const ComputeGraphPtr &graph, std::set<size_t> &value_dependent_idxs);
+  // 唯一的输入值依赖判断(op输入级)，点亮/推导/切图三方共用：
+  // ①InferSymbolShape注册表InputsDataDependency声明(默认registry为底、space_registry优先覆盖；
+  // ir map为空或instance->ir映射失败时①不参与判定，不打挂) ‖ ②op_infer_depends声明，
+  // 任一命中即为值依赖，均不满足视为非值依赖
+  static bool IsInputValueDependent(const OpDescPtr &op_desc, size_t instance_index);
+  // 唯一的值符号化准入判断(Data节点级)：元素数<上限(含维乘积溢出拦截) 且 涉及值依赖
+  // (直连声明值依赖 ‖ 间接值依赖：消费者注册了值符号计算kernel且data可符号化)
+  static bool NeedSymbolizeValueDataNode(const Node *data_node);
+  // 取出需要值符号化的图输入索引集合(结果缓存到图attr)
+  static Status GetNeedSymbolizeValueInputIdxs(const ComputeGraphPtr &graph,
+                                               std::set<size_t> &need_symbolize_value_idxs);
 };
 
 // Reshape 未知维度(-1)的整除性求解：total 与 known 的 hint 值满足 total >= 0、known > 0

@@ -91,11 +91,6 @@ class JitExecutor {
     uint32_t instance_id{0U};
   };
 
-  struct DataNodeInfo {
-    OpDescPtr op_desc;
-    int32_t input_index{-1};
-  };
-
   JitExecutor(GraphManager &graph_manager, UserGraphExecutionQueue &task_queue, ExecutionOrder &order,
               CompileContext &compile_context, CompiledModelCache &cmc, std::mutex &mutex,
               const std::map<MemoryType, std::pair<const void *, size_t>> *fixed_feature_memory_settings = nullptr);
@@ -112,9 +107,6 @@ class JitExecutor {
                                 std::vector<gert::Tensor> &outputs);
   Status GetOrCompileGuardedExecutionPoint(UserGraphExecution &task, const std::vector<gert::Tensor> &compile_inputs,
                                            ExecutionPoint *ep, rtStream_t stream, GuardedExecutionInfo &execution_info);
-  std::vector<DataNodeInfo> GetOrCreateDataNodeInfos(const ComputeGraphPtr &graph);
-  void MarkHostTensorOnDataNodes(const std::vector<gert::Tensor> &inputs, const ComputeGraphPtr &graph);
-
   GraphManager &graph_manager_;
   UserGraphExecutionQueue &task_queue_;
   ExecutionOrder &order_;
@@ -136,7 +128,6 @@ class JitExecutor {
   std::map<const ExecutionPoint *, GuardedExecutionCacheEntry> guarded_execution_cache_;
   std::mutex guarded_execution_cache_mutex_;
   std::map<ComputeGraph *, std::set<size_t>> cond_input_data_cache_;
-  std::map<ComputeGraph *, std::vector<DataNodeInfo>> data_node_cache_;
 };
 }  // namespace ge
 

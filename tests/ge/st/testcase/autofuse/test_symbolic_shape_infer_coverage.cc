@@ -21,6 +21,7 @@
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
 #include "register/op_impl_registry.h"
 #include "faker/space_registry_faker.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 namespace {

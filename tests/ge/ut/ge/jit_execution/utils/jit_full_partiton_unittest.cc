@@ -19,6 +19,7 @@
 #include "framework/ge_runtime_stub/include/common/compliant_share_graph.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_shape_inference.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/op_impl_infer_symbol_shape.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "tests/framework/ge_runtime_stub/include/common/summary_checker.h"
 #include "tests/framework/ge_runtime_stub/include/faker/space_registry_faker.h"
 #include "jit_execution/utils/partitioner/binary_partitioner.h"

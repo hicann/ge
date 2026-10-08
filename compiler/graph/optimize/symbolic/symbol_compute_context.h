@@ -11,8 +11,10 @@
 #ifndef AIR_CXX_COMPILER_GRAPH_OPTIMIZE_SYMBOLIC_SYMBOLIC_KERNEL_SYMBOL_COMPUTE_CONTEXT_H_
 #define AIR_CXX_COMPILER_GRAPH_OPTIMIZE_SYMBOLIC_SYMBOLIC_KERNEL_SYMBOL_COMPUTE_CONTEXT_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <type_traits>
-#include "common/checker.h"
+#include <vector>
 #include "exe_graph/runtime/runtime_attrs.h"
 #include "exe_graph/runtime/symbolic_tensor.h"
 #include "exe_graph/runtime/infer_symbol_shape_context.h"
@@ -30,20 +32,18 @@ class InferSymbolComputeContext : public InferSymbolShapeContext {
   }
 
   bool GetConstInputDims(const size_t index, std::vector<int64_t> &dims) const {
-    GE_ASSERT_NOTNULL(GetNodeName());
-    GE_ASSERT_NOTNULL(GetNodeType());
+    if (GetNodeName() == nullptr || GetNodeType() == nullptr) {
+      return false;
+    }
     dims.clear();
     auto shape = this->GetInputSymbolShape(index);
     if (shape == nullptr) {
-      GELOGW("shape is null, index %u, node %s[%s].", index, GetNodeName(), GetNodeType());
       return false;
     }
     for (const auto &s : shape->GetDims()) {
       int64_t dim = 0;
       if (!s.GetConstValue(dim)) {
         dims.clear();
-        GELOGW("GetConstValue failed, expr type(%u) not ConstExpr or impl is null, index %zu, node %s[%s].",
-               s.GetExprType(), index, GetNodeName(), GetNodeType());
         return false;
       }
       dims.push_back(dim);

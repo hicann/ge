@@ -10,6 +10,8 @@
 
 #ifndef AUTOFUSE_CAN_FUSE_BACKEND_FUSION_STRATEGY_SOLVER_H_
 #define AUTOFUSE_CAN_FUSE_BACKEND_FUSION_STRATEGY_SOLVER_H_
+#include <cmath>
+#include "common/checker.h"
 #include "ge_common/ge_common_api_types.h"
 #include "graph/compute_graph.h"
 #include "exe_graph/runtime/symbolic_tensor.h"

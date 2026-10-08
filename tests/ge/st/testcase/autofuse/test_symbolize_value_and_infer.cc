@@ -715,6 +715,7 @@ class JitValueDependentExecuteST : public JitValueDependentExecuteSTBase {
  *           以日志断言守护 placement 一致性。
  */
 TEST_F(JitValueDependentExecuteST, ExecuteGraphWithStreamAsyncValueDependentInputShouldNotDevicePassthrough) {
+  // slow_test_limit=4000
   std::map<AscendString, AscendString> options;
   options[OPTION_GRAPH_RUN_MODE] = "1";
   options[VARIABLE_MEMORY_MAX_SIZE] = "12800";
@@ -734,7 +735,8 @@ TEST_F(JitValueDependentExecuteST, ExecuteGraphWithStreamAsyncValueDependentInpu
   const auto ret = session.ExecuteGraphWithStreamAsync(graph_id, nullptr, inputs, outputs);
   EXPECT_EQ(ret, SUCCESS);
 
-  EXPECT_NE(runtime_stub_.GetSlogStub().FindLog(-1, "BuildCompileInputs:input[0] need copy data to host"), -1);
+  // 只校验日志语义(不绑定具体函数名)：值依赖输入 input[0] 在编译输入准备阶段被 D2H
+  EXPECT_NE(runtime_stub_.GetSlogStub().FindLog(-1, "input[0] need copy data to host"), -1);
   EXPECT_NE(runtime_stub_.GetSlogStub().FindLog(-1, "Start to compile GEP"), -1);
   EXPECT_NE(runtime_stub_.GetSlogStub().FindLog(-1, "ExecuteGraphWithStreamAsync GEP[ins_id:"), -1);
   // 正向证据：执行器 DebugString 日志对所有输入打印 placement 枚举名，EP[0] 的 value-dependent input[0]

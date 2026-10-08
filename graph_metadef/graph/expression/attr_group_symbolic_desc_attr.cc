@@ -10,6 +10,7 @@
 
 #include "attribute_group/attr_group_symbolic_desc.h"
 #include "common/checker.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "proto/ge_ir.pb.h"
 
 namespace ge {
