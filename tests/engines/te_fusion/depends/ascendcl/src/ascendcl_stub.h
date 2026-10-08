@@ -72,6 +72,7 @@ class AclRuntimeStub {
   virtual aclError aclrtResetDevice(int32_t deviceId);
   virtual aclError aclrtGetDevice(int32_t *deviceId);
   virtual aclError aclrtGetThreadLastTaskId(uint32_t *taskId);
+  virtual aclError aclrtGetThreadLastTaskIdAndStreamId(uint32_t *taskId, uint32_t *streamId);
   virtual aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId);
   virtual aclError aclrtDestroyContext(aclrtContext context);
   virtual aclError aclrtSetCurrentContext(aclrtContext context);

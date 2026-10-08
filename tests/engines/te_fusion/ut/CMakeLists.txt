@@ -63,7 +63,6 @@ target_include_directories(tefusion_ut PRIVATE
         ${AIR_CODE_DIR}/inc/graph_metadef/exe_graph
         ${ASCEND_INSTALL_PATH}/include/exe_graph
         ${ASCEND_INSTALL_PATH}/include/experiment/metadef
-        ${GTEST_INCLUDE}
         ${CMAKE_BINARY_DIR}/proto/tefusion_ut
         ${AIR_CODE_DIR}/compiler/opcompiler/op_compile_adapter/source
   	${AIR_CODE_DIR}/tests/engines/te_fusion/ut/stub

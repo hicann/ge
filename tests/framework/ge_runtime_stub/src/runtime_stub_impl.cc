@@ -516,6 +516,17 @@ aclError AclRuntimeStubImpl::aclrtGetThreadLastTaskId(uint32_t *taskId) {
   }
   return RT_ERROR_NONE;
 }
+aclError AclRuntimeStubImpl::aclrtGetThreadLastTaskIdAndStreamId(uint32_t *taskId, uint32_t *streamId) {
+  const std::lock_guard<std::mutex> lk(global_mtx_);
+  *taskId = stream_to_task_id_[last_stream_];
+  *streamId = static_cast<uint32_t>(last_stream_);
+
+  if (!all_launch_args_.empty()) {
+    all_launch_args_.back().SetTaskId(*taskId);
+    all_launch_args_.back().SetStreamId(*streamId);
+  }
+  return RT_ERROR_NONE;
+}
 aclError AclRuntimeStubImpl::aclrtPersistentTaskClean(aclrtStream stream) {
   last_stream_ = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(stream));
   stream_to_task_id_.erase(last_stream_);

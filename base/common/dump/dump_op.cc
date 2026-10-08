@@ -705,7 +705,10 @@ Status DumpOp::LaunchDumpOp(const bool is_single_op_dump, bool need_device_args)
   GELOGI("Dump step is %s, dump path is %s in Launch dump op", dump_properties_.GetDumpStep().c_str(),
          dump_path.c_str());
   if ((task_id_ == 0U) || (stream_id_ == 0U)) {
-    GE_CHK_RT(aclrtGetThreadLastTaskId(&task_id_));
+    // aclrtStreamGetId 保留不改：新接口的 streamId 出参是线程最近一次任务所在流的 id，
+    // 与本处需要的指定执行流（stream_）id 语义不同，不可用 acl_stream_id 替代，保持运行行为不变
+    uint32_t acl_stream_id = 0U;
+    GE_CHK_RT(aclrtGetThreadLastTaskIdAndStreamId(&task_id_, &acl_stream_id));
     int32_t temp_stream_id;
     GE_CHK_RT(aclrtStreamGetId(stream_, &temp_stream_id));
     stream_id_ = static_cast<uint32_t>(temp_stream_id);

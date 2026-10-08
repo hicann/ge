@@ -333,6 +333,15 @@ aclError AclRuntimeStub::aclrtGetThreadLastTaskId(uint32_t *taskId) {
   return ACL_SUCCESS;
 }
 
+aclError AclRuntimeStub::aclrtGetThreadLastTaskIdAndStreamId(uint32_t *taskId, uint32_t *streamId) {
+  if (*taskId == 999) {
+    return -1;
+  }
+  *taskId = 0;
+  *streamId = 0;
+  return ACL_SUCCESS;
+}
+
 aclError AclRuntimeStub::aclrtCreateContext(aclrtContext *context, int32_t deviceId) {
   aclrtContextStub *ctxStub = new aclrtContextStub;
   ctxStub->deviceId = deviceId;
@@ -1362,6 +1371,10 @@ aclError aclrtGetDevice(int32_t *deviceId) {
 
 aclError aclrtGetThreadLastTaskId(uint32_t *taskId) {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetThreadLastTaskId(taskId);
+}
+
+aclError aclrtGetThreadLastTaskIdAndStreamId(uint32_t *taskId, uint32_t *streamId) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetThreadLastTaskIdAndStreamId(taskId, streamId);
 }
 
 aclError aclrtSetCurrentContext(aclrtContext context) {

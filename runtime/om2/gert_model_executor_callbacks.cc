@@ -131,10 +131,12 @@ int32_t LaunchKernelV2Task(void *instance_handle, GertModelTaskLaunchInfo *launc
 }
 
 int32_t ReportTaskPostprocess(void *instance_handle, GertModelTaskDesc *task_info) {
-  uint32_t task_id;
-  const auto task_id_ret = aclrtGetThreadLastTaskId(&task_id);
+  uint32_t task_id = 0U;
+  uint32_t acl_stream_id = 0U;
+  const auto task_id_ret = aclrtGetThreadLastTaskIdAndStreamId(&task_id, &acl_stream_id);
   GE_RETURN_WITH_LOG_IF_ERROR(
-      task_id_ret, "[OM2] aclrtGetThreadLastTaskId failed, model_id=%u, op_name=%s, op_type=%s, thread_id=%u, ret=%d.",
+      task_id_ret,
+      "[OM2] aclrtGetThreadLastTaskIdAndStreamId failed, model_id=%u, op_name=%s, op_type=%s, thread_id=%u, ret=%d.",
       GetModelId(instance_handle), GetTaskOpName(task_info), GetTaskOpType(task_info), task_info->thread_id,
       task_id_ret);
   task_info->task_id = task_id;

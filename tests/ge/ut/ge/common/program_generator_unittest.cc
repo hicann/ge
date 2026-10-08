@@ -315,7 +315,8 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                uint32_t model_id, void *instance_handle,
                                uint32_t is_raw_address = 0U) {
   uint32_t task_id = 0U;
-  OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
+  uint32_t acl_stream_id = 0U;
+  OM2_CHK_RT(aclrtGetThreadLastTaskIdAndStreamId(&task_id, &acl_stream_id));
 
   uint32_t stream_id = 0U;
   OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
