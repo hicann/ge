@@ -57,9 +57,10 @@ struct ModelDumpInfo {
 class VISIBILITY_EXPORT ModelDumpManager {
  public:
   // ========================================================================
-  // 静态全局接口（进程初始化时调用）
+  // 静态全局接口（进程初始化时调用，涉及保存dump的配置，由于进程初始化阶段不确定会执行到OM2分支，因此暂不解析配置）
   // ========================================================================
   static Status GlobalInit();
+  static Status ParseDumpConfig();
 
   // ========================================================================
   // 构造/析构（每个模型一个实例）
@@ -100,6 +101,9 @@ class VISIBILITY_EXPORT ModelDumpManager {
   // Dump 下发接口
   // ========================================================================
   Status DispatchDumpInfo();
+
+  // 每次模型执行前刷新当前 step 到设备内存，供 AICPU dump kernel 计算 step 落盘目录
+  Status UpdateStepId(uint64_t step_id, aclrtStream stream);
 
   // ========================================================================
   // 异常查询接口（与 V1 exception_dumper 接口保持一致）

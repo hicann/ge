@@ -362,6 +362,8 @@ TEST_F(DumpCallbackManagerTest, EnableDumpCallbackDataDumpTest) {
   int32_t ret = DumpCallbackManager::EnableDumpCallback(0, kValidDataDumpConfig,
                                                         static_cast<int32_t>(strlen(kValidDataDumpConfig)));
   EXPECT_EQ(ret, 0);  // ADUMP_SUCCESS
+  ret = DumpCallbackManager::GetInstance().ParseDumpConfig();
+  EXPECT_EQ(ret, 0);  // ADUMP_SUCCESS
   EXPECT_TRUE(DumpConfig::Instance().IsDataDumpEnabled());
 }
 
@@ -369,6 +371,8 @@ TEST_F(DumpCallbackManagerTest, EnableDumpCallbackDataDumpTest) {
 TEST_F(DumpCallbackManagerTest, EnableDumpCallbackExceptionTest) {
   int32_t ret = DumpCallbackManager::EnableDumpCallback(0, kExceptionDumpConfig,
                                                         static_cast<int32_t>(strlen(kExceptionDumpConfig)));
+  EXPECT_EQ(ret, 0);  // ADUMP_SUCCESS
+  ret = DumpCallbackManager::GetInstance().ParseDumpConfig();
   EXPECT_EQ(ret, 0);  // ADUMP_SUCCESS
   EXPECT_TRUE(DumpConfig::Instance().IsExceptionDumpEnabled());
 }
@@ -378,6 +382,8 @@ TEST_F(DumpCallbackManagerTest, EnableDumpCallbackDebugTest) {
   int32_t ret =
       DumpCallbackManager::EnableDumpCallback(0, kDebugDumpConfig, static_cast<int32_t>(strlen(kDebugDumpConfig)));
   EXPECT_EQ(ret, 0);  // ADUMP_SUCCESS
+  ret = DumpCallbackManager::GetInstance().ParseDumpConfig();
+  EXPECT_EQ(ret, 0);  // ADUMP_SUCCESS
   EXPECT_TRUE(DumpConfig::Instance().IsOverflowDumpEnabled());
 }
 
@@ -385,6 +391,8 @@ TEST_F(DumpCallbackManagerTest, EnableDumpCallbackDebugTest) {
 TEST_F(DumpCallbackManagerTest, EnableDumpCallbackBitSwitchTest) {
   // dumpData 为 null，但异常位被设置
   int32_t ret = DumpCallbackManager::EnableDumpCallback(AIC_ERR_NORM_DUMP_BIT, nullptr, 0);
+  EXPECT_EQ(ret, 0);  // ADUMP_SUCCESS
+  ret = DumpCallbackManager::GetInstance().ParseDumpConfig();
   EXPECT_EQ(ret, 0);  // ADUMP_SUCCESS
   EXPECT_TRUE(DumpConfig::Instance().IsExceptionDumpEnabled());
   EXPECT_EQ(DumpConfig::Instance().GetDumpScene(), "aic_err_norm_dump");
@@ -394,6 +402,7 @@ TEST_F(DumpCallbackManagerTest, EnableDumpCallbackBitSwitchTest) {
 TEST_F(DumpCallbackManagerTest, DisableDumpCallbackTest) {
   // 先启用 Dump
   DumpCallbackManager::EnableDumpCallback(0, kValidDataDumpConfig, static_cast<int32_t>(strlen(kValidDataDumpConfig)));
+  EXPECT_EQ(DumpCallbackManager::GetInstance().ParseDumpConfig(), 0);  // ADUMP_SUCCESS
   EXPECT_TRUE(DumpConfig::Instance().IsDataDumpEnabled());
 
   // 再禁用
@@ -582,6 +591,27 @@ TEST_F(ModelDumpManagerTest, DispatchDumpInfoDataDumpEnabledTest) {
 
   Status ret = manager.DispatchDumpInfo();
   EXPECT_EQ(ret, SUCCESS);
+}
+
+// 测试 UpdateStepId 透传到 DataDumpImpl
+TEST_F(ModelDumpManagerTest, UpdateStepIdTest) {
+  DumpConfig::Instance().SetDataDumpEnabled(true);
+
+  ModelDumpManager manager(1);
+  ModelDumpInfo modelInfo{};
+  modelInfo.model_id = 1;
+  manager.SetModelDumpInfo(modelInfo);
+
+  GertModelTaskDesc taskInfo{};
+  taskInfo.op_name = "test_op";
+  taskInfo.task_id = 1;
+  taskInfo.stream_id = 1;
+  manager.PostprocessOm2TaskInfo(taskInfo);
+  // 下发 dump 信息，分配 step 设备内存
+  ASSERT_EQ(manager.DispatchDumpInfo(), SUCCESS);
+
+  // 同步路径刷新 step 应成功
+  EXPECT_EQ(manager.UpdateStepId(7U, nullptr), SUCCESS);
 }
 
 // ExceptionDumpImpl 测试
@@ -795,6 +825,33 @@ TEST(DataDumpImplTest, SaveTaskTest) {
 
   Status ret = impl.SaveTask(info, ModelTaskType::MODEL_TASK_KERNEL, nullptr, false);
   EXPECT_EQ(ret, SUCCESS);
+}
+
+// UpdateStepId：未分配 step 设备内存时应提前返回成功（数据 dump 未开启场景）
+TEST(DataDumpImplTest, UpdateStepIdWithoutInitReturnsSuccessTest) {
+  DataDumpImpl impl;
+  EXPECT_EQ(impl.step_id_dev_addr_, nullptr);
+  EXPECT_EQ(impl.UpdateStepId(5U, nullptr), SUCCESS);
+}
+
+// UpdateStepId：分配 step 设备内存后，同步路径应把 step 值写入主机侧源地址并成功下发
+TEST(DataDumpImplTest, UpdateStepIdAfterBuildCopiesStepTest) {
+  DumpConfig::Instance().Reset();
+  DataDumpImpl impl;
+  ModelDumpInfo model_info{};
+  model_info.model_id = 1U;
+  model_info.device_id = 0U;
+  toolkit::aicpu::dump::OpMappingInfo op_mapping_info;
+  ASSERT_EQ(impl.BuildOpMappingBasicInfo(model_info, op_mapping_info), SUCCESS);
+  ASSERT_NE(impl.step_id_dev_addr_, nullptr);
+
+  // 每次执行前刷新当前 step（对齐 v1 iterator_count_ 从 0 开始），验证 step 值被正确传递
+  EXPECT_EQ(impl.UpdateStepId(0U, nullptr), SUCCESS);
+  EXPECT_EQ(impl.step_id_host_val_, 0U);
+  EXPECT_EQ(impl.UpdateStepId(42U, nullptr), SUCCESS);
+  EXPECT_EQ(impl.step_id_host_val_, 42U);
+  impl.Clear();
+  DumpConfig::Instance().Reset();
 }
 
 // OverflowDumpImpl 测试

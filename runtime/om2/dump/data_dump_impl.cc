@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <cinttypes>
 #include "framework/runtime/dump/data_dump_impl.h"
 #include "framework/runtime/dump/dump_config.h"
 #include "framework/common/debug/ge_log.h"
@@ -168,20 +169,22 @@ Status DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
   op_mapping_info.set_flag(kAicpuLoadFlag);
 
   // step_id_addr 分配设备内存并初始化为 0，先释放旧的
+  // AICPU dump kernel 以 uint64_t 解引用 step_id_addr（dump_task.cpp: *(uint64_t *)stepIdAddr）
+  // 计算 step 落盘目录，此处必须分配 8 字节，否则高 4 字节为脏数据会导致 step 目录错乱
   if (step_id_dev_addr_ != nullptr) {
     (void)aclrtFree(step_id_dev_addr_);
     step_id_dev_addr_ = nullptr;
   }
 
   void *step_id_dev_addr = nullptr;
-  const aclError ret = aclrtMalloc(&step_id_dev_addr, sizeof(uint32_t), ACL_MEM_MALLOC_HUGE_FIRST);
+  const aclError ret = aclrtMalloc(&step_id_dev_addr, sizeof(uint64_t), ACL_MEM_MALLOC_HUGE_FIRST);
   if (ret != ACL_SUCCESS) {
     GELOGE(RT_FAILED, "Malloc step_id_addr failed, ret=%d", ret);
     return RT_FAILED;
   }
-  const uint32_t zero_val = 0U;
+  const uint64_t zero_val = 0U;
   const aclError cpy_ret =
-      aclrtMemcpy(step_id_dev_addr, sizeof(uint32_t), &zero_val, sizeof(uint32_t), ACL_MEMCPY_HOST_TO_DEVICE);
+      aclrtMemcpy(step_id_dev_addr, sizeof(uint64_t), &zero_val, sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE);
   if (cpy_ret != ACL_SUCCESS) {
     GELOGE(RT_FAILED, "Memcpy step_id_addr failed, ret=%d", cpy_ret);
     (void)aclrtFree(step_id_dev_addr);
@@ -208,6 +211,32 @@ Status DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo &model_info,
   dump_op_mapping_info = op_mapping_base_info_;
   op_mapping_base_info_initialized_ = true;
   return ge::SUCCESS;
+}
+
+Status DataDumpImpl::UpdateStepId(uint64_t step_id, rtStream_t stream) {
+  if (step_id_dev_addr_ == nullptr) {
+    // 未开启 data dump 时 step 设备内存未分配，无需刷新
+    return SUCCESS;
+  }
+
+  // 对齐 v1 DavinciModel::UpdateStepInfoWithStream：每次执行前把当前 step 刷到设备内存，
+  // AICPU dump kernel 解引用 step_id_addr 计算 step 落盘目录
+  step_id_host_val_ = step_id;
+  aclError ret = ACL_SUCCESS;
+  if (stream != nullptr) {
+    ret = aclrtMemcpyAsync(step_id_dev_addr_, sizeof(uint64_t), &step_id_host_val_, sizeof(uint64_t),
+                           ACL_MEMCPY_HOST_TO_BUF_TO_DEVICE, stream);
+  } else {
+    ret = aclrtMemcpy(step_id_dev_addr_, sizeof(uint64_t), &step_id_host_val_, sizeof(uint64_t),
+                      ACL_MEMCPY_HOST_TO_DEVICE);
+  }
+  if (ret != ACL_SUCCESS) {
+    GELOGE(RT_FAILED, "Update step_id_addr failed, step_id=%" PRIu64 ", ret=%d", step_id, ret);
+    return RT_FAILED;
+  }
+  GELOGD("Update step_id to device, step_id=%" PRIu64 ", step_id_addr=%p, stream=%p", step_id, step_id_dev_addr_,
+         stream);
+  return SUCCESS;
 }
 
 Status DataDumpImpl::BuildTaskList(toolkit::aicpu::dump::OpMappingInfo &op_mapping_info) const {

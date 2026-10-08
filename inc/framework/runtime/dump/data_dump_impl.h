@@ -33,6 +33,9 @@ class DataDumpImpl {
 
   Status BuildAndLoadOpMappingInfo(const ModelDumpInfo &model_info);
 
+  // 每次模型执行前刷新当前 step 到设备内存，AICPU dump kernel 解引用 step_id_addr 计算 step 落盘目录
+  Status UpdateStepId(uint64_t step_id, rtStream_t stream);
+
   void Clear();
 
   // Overflow dump 相关信息
@@ -88,6 +91,8 @@ class DataDumpImpl {
   bool op_mapping_base_info_initialized_ = false;
   void *dev_mem_load_ = nullptr;
   void *step_id_dev_addr_ = nullptr;
+  // 异步拷贝 step_id 时的主机侧源地址（ACL_MEMCPY_HOST_TO_BUF_TO_DEVICE 需保证源内存在拷贝期间有效）
+  uint64_t step_id_host_val_ = 0U;
   bool load_flag_ = false;
 
   // Overflow dump 相关成员

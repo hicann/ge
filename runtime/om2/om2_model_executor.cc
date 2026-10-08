@@ -16,6 +16,7 @@
 #include <regex>
 #include <sstream>
 #include <unordered_set>
+#include "ge_common/api_error_codes.h"
 #include <sys/syscall.h>
 #include <unistd.h>
 #include "acl/acl_rt.h"
@@ -741,6 +742,10 @@ class Om2ModelExecutor::Impl {
                                         .stream_sync_timeout_ms = static_cast<uint64_t>(timeout),
                                         .run_callbacks = run_callbacks_ptr};
     struct GertModelRunOutput output = {.struct_size = sizeof(GertModelRunOutput)};
+    // 对齐 v1：执行前把当前 step（从 0 开始）刷入 dump step 设备内存，供 AICPU dump kernel 计算 step 落盘目录
+    if (dump_manager_ != nullptr) {
+      GE_ASSERT_SUCCESS(dump_manager_->UpdateStepId(step_id_ - 1U, nullptr));
+    }
     GE_ASSERT_SUCCESS(run_model_info_.run_func(run_model_info_.model_handle, &config, &output));
     ++step_id_;
     return ge::GRAPH_SUCCESS;
@@ -765,6 +770,11 @@ class Om2ModelExecutor::Impl {
                                         .stream_sync_timeout_ms = 0,
                                         .run_callbacks = run_callbacks_ptr};
     struct GertModelRunOutput output = {.struct_size = sizeof(GertModelRunOutput)};
+    // 对齐 v1：执行前在模型流上异步刷新当前 step（从 0 开始）到 dump step 设备内存，
+    // 与后续模型任务保序，供 AICPU dump kernel 计算 step 落盘目录
+    if (dump_manager_ != nullptr) {
+      GE_ASSERT_SUCCESS(dump_manager_->UpdateStepId(step_id_ - 1U, stream));
+    }
     GE_ASSERT_SUCCESS(run_model_info_.run_async_func(run_model_info_.model_handle, stream, &config, &output));
     ++step_id_;
     return ge::GRAPH_SUCCESS;
@@ -1345,6 +1355,10 @@ std::unique_ptr<Om2ModelExecutor> LoadOm2ExecutorFromData(ge::ModelData &model_d
     return executor;
   }
   const uint64_t session_id = ResolveSessionId(load_arg);
+  // NOTE: dump config must be parsed before model loading
+  if (ge::dump::ModelDumpManager::ParseDumpConfig() != ge::SUCCESS) {
+    GELOGW("ModelDumpManager::ParseDumpConfig failed, dump may not work.");
+  }
   error_code = executor->Load(model_data, load_arg, session_id);
   GE_ASSERT_SUCCESS(error_code);
   return executor;
