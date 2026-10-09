@@ -55,6 +55,7 @@ std::map<std::string, ge::OpKernelBinPtr> g_kernel_bin_store;
 namespace {
 constexpr const size_t max_launch_cfg_num = 5UL;
 constexpr size_t const AtomicTaskdefMinNum = 2;
+constexpr const char *kCompileResultNotFoundErrCode = "E22001";
 
 struct ProcArgs {
   std::vector<bg::ValueHolderPtr> tiling_ret;
@@ -1294,7 +1295,7 @@ LowerResult LoweringAiCoreNode(const ge::NodePtr &node, const LowerInput &lower_
   auto compile_result = lower_input.global_data->FindCompiledResult(node);
   if (compile_result == nullptr) {
     REPORT_PREDEFINED_ERR_MSG(
-        "E22001", std::vector<const char *>({"opname", "optype"}),
+        kCompileResultNotFoundErrCode, std::vector<const char *>({"opname", "optype"}),
         std::vector<const char *>({node->GetName().c_str(), ge::NodeUtils::GetNodeType(node).c_str()}));
     GELOGE(ge::PARAM_INVALID, "Can not find compile result for node %s type %s", node->GetName().c_str(),
            ge::NodeUtils::GetNodeType(node).c_str());

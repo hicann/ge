@@ -9,6 +9,8 @@
  */
 
 #include <memory>
+#include <set>
+#include <string>
 #include <utility>
 #include <gtest/gtest.h>
 #include "graph/utils/graph_utils_ex.h"
@@ -29,6 +31,7 @@
 #include "expect_node_info_check_test.h"
 #include "api/aclgrph/option_utils.h"
 #include "compiler/graph/optimize/symbolic/infer_symbolic_shape/symbolic_shape_symbolizer.h"
+#include "compiler/graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
 
 namespace ge {
 
@@ -37,6 +40,7 @@ class SymbolicValueInferenceUT : public testing::Test {
  protected:
   void SetUp() override {
     EnableSliceScheduleEnv();
+    gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2();
     dlog_setlevel(0, 0, 0);
     global_options_ = GetThreadLocalContext().GetAllGlobalOptions();
     graph_options_ = GetThreadLocalContext().GetAllGraphOptions();
@@ -91,6 +95,105 @@ class SymbolicValueInferenceUT : public testing::Test {
     if (reshape_node != nullptr) {
       reshape_node->GetOpDesc()->AppendIrInput("x", ge::kIrInputRequired);
       reshape_node->GetOpDesc()->AppendIrInput("shape", ge::kIrInputRequired);
+    }
+    return cg;
+  }
+
+  ComputeGraphPtr CreateComputedShapeReshapeGraph() {
+    auto data0 = OP_CFG("Data")
+                     .InCnt(1)
+                     .Attr(ATTR_NAME_INDEX, 0)
+                     .TensorDesc(FORMAT_ND, DT_FLOAT16, {-1, -1, -1, -1})
+                     .OutCnt(1)
+                     .OutNames({"y"})
+                     .Build("data0");
+    auto data1 = OP_CFG("Data")
+                     .InCnt(1)
+                     .Attr(ATTR_NAME_INDEX, 1)
+                     .TensorDesc(FORMAT_ND, DT_INT64, {2})
+                     .OutCnt(1)
+                     .OutNames({"y"})
+                     .Build("data1");
+    auto data2 = OP_CFG("Data")
+                     .InCnt(1)
+                     .Attr(ATTR_NAME_INDEX, 2)
+                     .TensorDesc(FORMAT_ND, DT_INT64, {2})
+                     .OutCnt(1)
+                     .OutNames({"y"})
+                     .Build("data2");
+    auto add = OP_CFG("Add").TensorDesc(FORMAT_ND, DT_INT64, {2}).InCnt(2).OutCnt(1).OutNames({"y"}).Build("add");
+    auto reshape = OP_CFG("Reshape")
+                       .TensorDesc(FORMAT_ND, DT_FLOAT16, {-1, -1})
+                       .InCnt(2)
+                       .OutCnt(1)
+                       .OutNames({"y"})
+                       .Build("reshape");
+    DEF_GRAPH(g1) {
+      CHAIN(NODE(data0)->EDGE(0, 0)->NODE(reshape)->NODE("NetOutput", "NetOutput"));
+      CHAIN(NODE(data1)->EDGE(0, 0)->NODE(add));
+      CHAIN(NODE(data2)->EDGE(0, 1)->NODE(add));
+      CHAIN(NODE(add)->EDGE(0, 1)->NODE(reshape));
+    };
+    auto cg = ToComputeGraph(g1);
+    cg->TopologicalSorting();
+    for (auto &node : cg->GetAllNodes()) {
+      if (node->GetType() == DATA) {
+        node->GetOpDesc()->MutableOutputDesc(0)->SetPlacement(kPlacementHost);
+      }
+    }
+    SetNoStorage(cg, "data0", {FORMAT_ND, DT_FLOAT16, {-1, -1, -1, -1}}, 0);
+    SetNoStorage(cg, "data1", {FORMAT_ND, DT_INT64, {2}}, 1);
+    SetNoStorage(cg, "data2", {FORMAT_ND, DT_INT64, {2}}, 2);
+    auto add_node = cg->FindNode("add");
+    if (add_node != nullptr) {
+      add_node->GetOpDesc()->AppendIrInput("x1", ge::kIrInputRequired);
+      add_node->GetOpDesc()->AppendIrInput("x2", ge::kIrInputRequired);
+    }
+    auto reshape_node = cg->FindNode("reshape");
+    if (reshape_node != nullptr) {
+      reshape_node->GetOpDesc()->AppendIrInput("x", ge::kIrInputRequired);
+      reshape_node->GetOpDesc()->AppendIrInput("shape", ge::kIrInputRequired);
+    }
+    return cg;
+  }
+
+  // data0为声明制值依赖(op_infer_depends)，data1为前向触发；data0静态shape由入参控制，
+  // 用于验证"值依赖点亮与符号化共用同一尺寸上限"
+  ComputeGraphPtr CreateDeclaredValueDependentGraph(int64_t data_dim) {
+    auto data0 = OP_CFG("Data")
+                     .InCnt(1)
+                     .Attr(ATTR_NAME_INDEX, 0)
+                     .TensorDesc(FORMAT_ND, DT_INT64, {data_dim})
+                     .OutCnt(1)
+                     .OutNames({"y"})
+                     .Build("data0");
+    auto data1 = OP_CFG("Data")
+                     .InCnt(1)
+                     .Attr(ATTR_NAME_INDEX, 1)
+                     .TensorDesc(FORMAT_ND, DT_INT64, {2})
+                     .OutCnt(1)
+                     .OutNames({"y"})
+                     .Build("data1");
+    auto add = OP_CFG("Add").TensorDesc(FORMAT_ND, DT_INT64, {2}).InCnt(2).OutCnt(1).OutNames({"y"}).Build("add");
+    DEF_GRAPH(g1) {
+      CHAIN(NODE(data0)->EDGE(0, 0)->NODE(add)->NODE("NetOutput", "NetOutput"));
+      CHAIN(NODE(data1)->EDGE(0, 1)->NODE(add));
+    };
+    auto cg = ToComputeGraph(g1);
+    cg->TopologicalSorting();
+    for (auto &node : cg->GetAllNodes()) {
+      if (node->GetType() == DATA) {
+        node->GetOpDesc()->MutableOutputDesc(0)->SetPlacement(kPlacementHost);
+      }
+    }
+    SetNoStorage(cg, "data0", {FORMAT_ND, DT_INT64, {data_dim}}, 0);
+    SetNoStorage(cg, "data1", {FORMAT_ND, DT_INT64, {2}}, 1);
+    auto add_node = cg->FindNode("add");
+    if (add_node != nullptr) {
+      add_node->GetOpDesc()->AppendIrInput("x1", ge::kIrInputRequired);
+      add_node->GetOpDesc()->AppendIrInput("x2", ge::kIrInputRequired);
+      // IR方式声明data0对应输入为值依赖：DEF_GRAPH构图时input已按__input{N}命名，AppendIrInput晚于构图不生效
+      add_node->GetOpDesc()->SetOpInferDepends({"__input0"});
     }
     return cg;
   }
@@ -253,6 +356,148 @@ TEST_F(SymbolicValueInferenceUT, execute_path_reshape_with_real_data) {
   hint = -1;
   EXPECT_EQ(out_shape.GetDim(1).GetHint(hint), true);
   EXPECT_EQ(hint, 20);
+}
+
+// 计算型 shape 链(data1/data2 -> add -> reshape.shape)：不给 hint value，
+// 值符号应从源头 data 经注册了值符号计算的 Add 传播到 Reshape 完成推导
+TEST_F(SymbolicValueInferenceUT, execute_path_computed_shape_through_add) {
+  auto cg = CreateComputedShapeReshapeGraph();
+  ASSERT_NE(cg, nullptr);
+  std::vector<GeTensor> graph_inputs;
+  graph_inputs.emplace_back(BuildGeTensor<float, DT_FLOAT16>({5, 1, 20, 20}, {}));
+  graph_inputs.emplace_back(BuildGeTensor<int64_t, DT_INT64>({2}, {90, 10}));
+  graph_inputs.emplace_back(BuildGeTensor<int64_t, DT_INT64>({2}, {10, 10}));
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0:[5, 1, 20, 20]"}});
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, graph_inputs), SUCCESS);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), SUCCESS);
+
+  auto shape_env = cg->GetAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(shape_env, nullptr);
+  ShapeEnvGuarder guarder(shape_env);
+  auto reshape_sym = cg->FindNode("reshape")->GetOpDesc()->MutableOutputDesc(0)->GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(reshape_sym, nullptr);
+  auto out_shape = reshape_sym->symbolic_tensor.GetOriginSymbolShape();
+  ASSERT_EQ(out_shape.GetDimNum(), 2U);
+  int64_t hint = -1;
+  EXPECT_EQ(out_shape.GetDim(0).GetHint(hint), true);
+  EXPECT_EQ(hint, 100);
+  hint = -1;
+  EXPECT_EQ(out_shape.GetDim(1).GetHint(hint), true);
+  EXPECT_EQ(hint, 20);
+}
+
+// 通过op_infer_depends声明(IR方式)识别值依赖：data值符号经Add传播到Reshape完成推导
+TEST_F(SymbolicValueInferenceUT, execute_path_computed_shape_by_op_infer_depends) {
+  auto data0 = OP_CFG("Data")
+                   .InCnt(1)
+                   .Attr(ATTR_NAME_INDEX, 0)
+                   .TensorDesc(FORMAT_ND, DT_FLOAT16, {-1, -1, -1, -1})
+                   .OutCnt(1)
+                   .OutNames({"y"})
+                   .Build("data0");
+  auto data1 = OP_CFG("Data")
+                   .InCnt(1)
+                   .Attr(ATTR_NAME_INDEX, 1)
+                   .TensorDesc(FORMAT_ND, DT_INT64, {2})
+                   .OutCnt(1)
+                   .OutNames({"y"})
+                   .Build("data1");
+  auto data2 = OP_CFG("Data")
+                   .InCnt(1)
+                   .Attr(ATTR_NAME_INDEX, 2)
+                   .TensorDesc(FORMAT_ND, DT_INT64, {2})
+                   .OutCnt(1)
+                   .OutNames({"y"})
+                   .Build("data2");
+  auto add = OP_CFG("Add").TensorDesc(FORMAT_ND, DT_INT64, {2}).InCnt(2).OutCnt(1).OutNames({"y"}).Build("add");
+  auto reshape =
+      OP_CFG("Reshape").TensorDesc(FORMAT_ND, DT_FLOAT16, {-1, -1}).InCnt(2).OutCnt(1).OutNames({"y"}).Build("reshape");
+  DEF_GRAPH(g1) {
+    CHAIN(NODE(data0)->EDGE(0, 0)->NODE(reshape)->NODE("NetOutput", "NetOutput"));
+    CHAIN(NODE(data1)->EDGE(0, 0)->NODE(add));
+    CHAIN(NODE(data2)->EDGE(0, 1)->NODE(add));
+    CHAIN(NODE(add)->EDGE(0, 1)->NODE(reshape));
+  };
+  auto cg = ToComputeGraph(g1);
+  cg->TopologicalSorting();
+  for (auto &node : cg->GetAllNodes()) {
+    if (node->GetType() == DATA) {
+      node->GetOpDesc()->MutableOutputDesc(0)->SetPlacement(kPlacementHost);
+    }
+  }
+  SetNoStorage(cg, "data0", {FORMAT_ND, DT_FLOAT16, {-1, -1, -1, -1}}, 0);
+  SetNoStorage(cg, "data1", {FORMAT_ND, DT_INT64, {2}}, 1);
+  SetNoStorage(cg, "data2", {FORMAT_ND, DT_INT64, {2}}, 2);
+  auto add_node = cg->FindNode("add");
+  if (add_node != nullptr) {
+    add_node->GetOpDesc()->AppendIrInput("x1", ge::kIrInputRequired);
+    add_node->GetOpDesc()->AppendIrInput("x2", ge::kIrInputRequired);
+    // IR方式的值依赖声明：DEF_GRAPH构图时input已按__input{N}自动命名，AppendIrInput晚于构图不生效
+    add_node->GetOpDesc()->SetOpInferDepends({"__input0", "__input1"});
+  }
+  auto reshape_node = cg->FindNode("reshape");
+  if (reshape_node != nullptr) {
+    reshape_node->GetOpDesc()->AppendIrInput("x", ge::kIrInputRequired);
+    reshape_node->GetOpDesc()->AppendIrInput("shape", ge::kIrInputRequired);
+  }
+  std::vector<GeTensor> graph_inputs;
+  graph_inputs.emplace_back(BuildGeTensor<float, DT_FLOAT16>({5, 1, 20, 20}, {}));
+  graph_inputs.emplace_back(BuildGeTensor<int64_t, DT_INT64>({2}, {90, 10}));
+  graph_inputs.emplace_back(BuildGeTensor<int64_t, DT_INT64>({2}, {10, 10}));
+  GetThreadLocalContext().SetGraphOption({{INPUT_HINT_SHAPE, "0:[5,1,20,20]"}});
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, graph_inputs), SUCCESS);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), SUCCESS);
+
+  auto shape_env = cg->GetAttrsGroup<ShapeEnvAttr>();
+  ASSERT_NE(shape_env, nullptr);
+  ShapeEnvGuarder guarder(shape_env);
+  auto reshape_sym = cg->FindNode("reshape")->GetOpDesc()->MutableOutputDesc(0)->GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(reshape_sym, nullptr);
+  auto out_shape = reshape_sym->symbolic_tensor.GetOriginSymbolShape();
+  ASSERT_EQ(out_shape.GetDimNum(), 2U);
+  int64_t hint = -1;
+  EXPECT_EQ(out_shape.GetDim(0).GetHint(hint), true);
+  EXPECT_EQ(hint, 100);
+  hint = -1;
+  EXPECT_EQ(out_shape.GetDim(1).GetHint(hint), true);
+  EXPECT_EQ(hint, 20);
+}
+
+// 声明制值依赖但静态shape超限(>200)：尺寸准入与点亮共用同一上限，不点亮(不产生无谓D2H)
+TEST_F(SymbolicValueInferenceUT, value_dependent_declared_oversize_not_lit_up) {
+  auto oversize = CreateDeclaredValueDependentGraph(201);
+  ASSERT_NE(oversize, nullptr);
+  std::set<size_t> oversize_idxs;
+  ASSERT_EQ(SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(oversize, oversize_idxs), SUCCESS);
+  EXPECT_EQ(oversize_idxs.count(0U), 0U);
+
+  // 边界对照：恰好200仍按声明制点亮
+  auto at_limit = CreateDeclaredValueDependentGraph(200);
+  ASSERT_NE(at_limit, nullptr);
+  std::set<size_t> at_limit_idxs;
+  ASSERT_EQ(SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(at_limit, at_limit_idxs), SUCCESS);
+  EXPECT_EQ(at_limit_idxs.count(0U), 1U);
+}
+
+// hint输入按host准入：host且带hint即符号化，与tensor元素数无关
+// (尺寸准入只约束需要值符号化的输入集合，hint输入不在该集合内)
+TEST_F(SymbolicValueInferenceUT, hint_input_symbolized_when_on_host) {
+  for (const int64_t dim : {201L, 200L}) {
+    auto cg = CreateDeclaredValueDependentGraph(dim);
+    ASSERT_NE(cg, nullptr);
+    std::vector<GeTensor> graph_inputs;
+    graph_inputs.emplace_back(BuildGeTensor<int64_t, DT_INT64>({dim}, {}));
+    graph_inputs.emplace_back(BuildGeTensor<int64_t, DT_INT64>({2}, {1, 1}));
+    GetThreadLocalContext().SetGraphOption(
+        {{INPUT_HINT_SHAPE, "0:[" + std::to_string(dim) + "]"}, {INPUT_HINT_VALUE, "0:[1]"}});
+    ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, graph_inputs), SUCCESS);
+
+    auto attr = cg->FindNode("data0")->GetOpDesc()->MutableOutputDesc(0)->GetAttrsGroup<SymbolicDescAttr>();
+    ASSERT_NE(attr, nullptr);
+    EXPECT_NE(attr->symbolic_tensor.GetSymbolicValue(), nullptr);
+  }
 }
 
 }  // namespace ge

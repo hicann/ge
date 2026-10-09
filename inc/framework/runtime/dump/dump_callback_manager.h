@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <string>
+#include <mutex>
 #include "common/ge_common/ge_types.h"
 #include "ge/ge_api_error_codes.h"
 
@@ -24,6 +25,7 @@ class DumpCallbackManager {
   static DumpCallbackManager &GetInstance();
   static Status GlobalInit();
   bool RegisterDumpCallbacks(uint32_t module_id) const;
+  int32_t ParseDumpConfig();
 
  private:
   DumpCallbackManager() = default;
@@ -43,6 +45,13 @@ class DumpCallbackManager {
   static Status HandleDisableDump();
   static Status HandleDumpExceptionConfig();
   static Status HandleDumpDebugConfig();
+
+  int32_t SetDumpConfig(uint64_t dumpSwitch, const char *dumpData, int32_t size);
+
+  std::mutex lock_;
+  bool config_parsed_ = false;
+  uint64_t dump_switch_ = 0;
+  std::string dump_config_data_;
 };
 
 }  // namespace dump

@@ -33,7 +33,6 @@
 
 namespace ge {
 namespace {
-constexpr int64_t kMaxSymbolicValueSize = 200;
 
 template <typename T>
 ge::Symbol CreateSymbol(const uint8_t *ptr, size_t i) {
@@ -85,18 +84,6 @@ bool IsInputDescValid(const ge::GeTensorDesc &input_desc, size_t &invalid_index_
   return true;
 }
 
-bool IsInputDataDependencyByOpInferDepends(const ge::OpDescPtr &op_desc, const size_t instance_index) {
-  if (op_desc == nullptr) {
-    return false;
-  }
-  const auto &op_infer_depends = op_desc->GetOpInferDepends();
-  if (op_infer_depends.empty()) {
-    return false;
-  }
-  const auto input_name = op_desc->GetValidInputNameByIndex(static_cast<uint32_t>(instance_index));
-  return std::find(op_infer_depends.cbegin(), op_infer_depends.cend(), input_name) != op_infer_depends.cend();
-}
-
 bool IsSupportInfer(const ge::OpDescPtr &op_desc) {
   size_t idx = 0;
   if (!op_desc->GetSubgraphInstanceNames().empty()) {
@@ -132,15 +119,14 @@ graphStatus CreateExpression(const ge::DataType dtype, const uint8_t *ptr, size_
 bool SupportSymbolizeValue(const char *op_type, const GeTensorDescPtr &tensor_desc) {
   GE_ASSERT_NOTNULL(op_type);
   GE_ASSERT_NOTNULL(tensor_desc);
-  GELOGI("Max symbolic value size %lld is supported", kMaxSymbolicValueSize);
   auto attr = tensor_desc->GetAttrsGroup<SymbolicDescAttr>();
   GE_ASSERT_NOTNULL(attr);
   auto symbol_shape_size = attr->symbolic_tensor.GetOriginSymbolShape().GetSymbolShapeSize();
   int64_t const_shape_size = -1;
   if (symbol_shape_size.GetExprType() == ExprType::kExprConstantInteger &&
-      symbol_shape_size.GetConstValue(const_shape_size) && const_shape_size > kMaxSymbolicValueSize) {
+      symbol_shape_size.GetConstValue(const_shape_size) && const_shape_size > kMaxSymbolizeValueElemNum) {
     GELOGW("symbolic value generalize and compute only support shape size <= %lld, but current shape size is %lld",
-           kMaxSymbolicValueSize, const_shape_size);
+           kMaxSymbolizeValueElemNum, const_shape_size);
     return false;
   }
   return true;
@@ -255,7 +241,6 @@ std::unique_ptr<gert::SymbolTensor> GetInputSymbolTensorHolder(const Operator &o
 }
 
 Status ConstructInferSymbolShapeContextInputs(const NodePtr &node,
-                                              const gert::OpImplKernelRegistry::OpImplFunctionsV2 &func,
                                               std::vector<std::unique_ptr<gert::SymbolTensor>> &inputs) {
   auto op_desc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
@@ -268,14 +253,7 @@ Status ConstructInferSymbolShapeContextInputs(const NodePtr &node,
     }
 
     const size_t instance_index = i - invalid_index_num;
-    const auto valid_op_ir_map = ge::OpDescUtils::GetInputIrIndexes2InstanceIndexesPairMap(op_desc);
-    GE_ASSERT_TRUE(!valid_op_ir_map.empty(), "Get valid op ir map failed, op[%s]", op_desc->GetName().c_str());
-    size_t ir_index;
-    GE_ASSERT_GRAPH_SUCCESS(ge::OpDescUtils::GetInputIrIndexByInstanceIndex(op_desc, instance_index, ir_index),
-                            "[Get][InputIrIndexByInstanceIndex] failed, op[%s], instance index[%zu], input_index[%zu]",
-                            op_desc->GetName().c_str(), instance_index, i);
-    const auto is_data_dependency =
-        func.IsInputDataDependency(ir_index) || IsInputDataDependencyByOpInferDepends(op_desc, instance_index);
+    const auto is_data_dependency = SymbolicInferUtil::IsInputValueDependent(op_desc, instance_index);
     auto holder = GetInputSymbolTensorHolder(op, op_desc, i, is_data_dependency);
     inputs.emplace_back(std::move(holder));
   }
@@ -459,7 +437,7 @@ Status DoInferAndUpdate(const NodePtr &node, const gert::OpImplKernelRegistry::O
   std::vector<std::unique_ptr<gert::SymbolTensor>> inputs_holder;
   std::vector<std::unique_ptr<gert::SymbolShape>> outputs_holder;
   inputs_holder.reserve(op_desc->GetAllInputsDescPtr().size());
-  const auto ret = ConstructInferSymbolShapeContextInputs(node, *func, inputs_holder);
+  const auto ret = ConstructInferSymbolShapeContextInputs(node, inputs_holder);
   GE_ASSERT_TRUE((ret == SUCCESS) || (ret == UNSUPPORTED), "[Construct][InferShapeContextInputs] failed, name[%s]",
                  op_desc->GetName().c_str());
   if (ret == UNSUPPORTED) {

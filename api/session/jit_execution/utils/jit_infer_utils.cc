@@ -14,11 +14,9 @@
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
 #include "graph/optimize/symbolic/symbolic_kernel_factory.h"
 #include "graph/utils/op_type_utils.h"
-#include "graph/utils/op_desc_utils.h"
 #include "graph/utils/constant_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "attribute_group/attr_group_symbolic_desc.h"
-#include "base/registry/op_impl_space_registry_v2.h"
 #include "opt_info/ge_opt_info.h"
 #include "graph/optimize/autofuse/autofuse/lowering/lowering_query.h"
 
@@ -128,9 +126,7 @@ void DeleteNodesWithoutParentNode(std::vector<NodePtr> &inferred_nodes) {
                                       [&inferred_set](const NodePtr &n) { return inferred_set.count(n) == 0U; }),
                        inferred_nodes.end());
 }
-
-bool HasUnsuppliableInput(const NodePtr &node, const OpDescPtr &op_desc,
-                          const gert::OpImplKernelRegistry::OpImplFunctionsV2 &func) {
+bool HasUnsuppliableInput(const NodePtr &node, const OpDescPtr &op_desc) {
   size_t invalid_index_num = 0UL;
   for (size_t i = 0UL; i < op_desc->GetAllInputsSize(); ++i) {
     const auto in_anchor = node->GetInDataAnchor(static_cast<int32_t>(i));
@@ -138,10 +134,7 @@ bool HasUnsuppliableInput(const NodePtr &node, const OpDescPtr &op_desc,
       invalid_index_num++;
       continue;
     }
-    size_t ir_index = 0;
-    const bool has_ir =
-        (OpDescUtils::GetInputIrIndexByInstanceIndex(op_desc, i - invalid_index_num, ir_index) == SUCCESS);
-    if (!has_ir || !func.IsInputDataDependency(ir_index)) {
+    if (!SymbolicInferUtil::IsInputValueDependent(op_desc, i - invalid_index_num)) {
       continue;
     }
     const auto source_node = in_anchor->GetPeerOutAnchor()->GetOwnerNode();
@@ -206,12 +199,8 @@ void ClassifyPullable(const NodePtr &node, PullableCategories &categories) {
     return;
   }
   // 优先级3: 值依赖无法满足
-  const auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
-  if (space_registry != nullptr) {
-    const auto *func = space_registry->GetOpImpl(op_desc->GetType().c_str());
-    if (func != nullptr && HasUnsuppliableInput(node, op_desc, *func)) {
-      categories.unsuppliable_input.insert(node);
-    }
+  if (HasUnsuppliableInput(node, op_desc)) {
+    categories.unsuppliable_input.insert(node);
   }
 }
 

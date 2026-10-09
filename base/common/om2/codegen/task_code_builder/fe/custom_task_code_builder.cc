@@ -37,6 +37,9 @@ Status CustomTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
 
   build_data_.semantic.task_type = context.task_type;
   build_data_.semantic.kernel_type = static_cast<ccKernelType>(context.task_def.kernel().context().kernel_type());
+  build_data_.semantic.prof_ge_task_type =
+      TaskCodeBuilderUtil::ConvertToProfilingTaskType(context.op_desc, context.task_def);
+  build_data_.semantic.op_impl_mode = TaskCodeBuilderUtil::GetOpImplMode(context.op_desc);
 
   GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveWorkspaceAddrs(context, build_data_.semantic.workspace_addrs));
   GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, build_data_.semantic.input_addrs));
@@ -102,6 +105,8 @@ Status CustomTaskCodeBuilder::RenderOpDefTableFields(std::vector<std::pair<std::
       {"args_idx", static_cast<int64_t>(build_data_.semantic.args_table_entry->table_index)},
       {"stream_id", static_cast<uint32_t>(header_.stream_id)},
       {"task_type", static_cast<int64_t>(build_data_.semantic.task_type)},
+      {"prof_ge_task_type", static_cast<int64_t>(build_data_.semantic.prof_ge_task_type)},
+      {"op_impl_mode", static_cast<int64_t>(build_data_.semantic.op_impl_mode)},
   };
   auto custom_dispatch = ast_.DesignatedInit({{"custom", ast_.DesignatedInit(custom_fields)}});
   (void)fields.emplace_back("dispatch_info", custom_dispatch);
@@ -267,6 +272,14 @@ std::vector<BodyItem> CustomTaskCodeBuilder::HandleExecuteCallback(const VarRef 
                            task_type,
                            stream,
                            ast_.UInt(0U),
+                           ast_.UInt(0U),
+                           Arg(nullptr),
+                           ast_.ULong(0U),
+                           ast_.ULong(0U),
+                           ast_.ULong(0U),
+                           ast_.ULong(0U),
+                           custom.Attr("op_impl_mode"),
+                           custom.Attr("prof_ge_task_type"),
                            ast_.UInt(0U)})),
       ChkStatus(ast_.Call("aclrtStreamGetId",
                           {ast_.Var("", "task_info").Attr("stream"),

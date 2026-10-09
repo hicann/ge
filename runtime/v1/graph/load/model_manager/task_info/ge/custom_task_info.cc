@@ -721,7 +721,10 @@ Status CustomTaskInfo::DistributeAnnotatedArgsFromTaskDef() {
   launch_kernel_param.block_dim = block_dim_;
   launch_kernel_param.stream = stream_;
   GE_ASSERT_SUCCESS(KernelHandleUtils::LaunchKernel(func_handle, launch_kernel_param));
-  GE_ASSERT_RT_OK(aclrtGetThreadLastTaskId(&task_id_));
+  // aclrtStreamGetId 保留不改：新接口的 streamId 出参是线程最近一次任务所在流的 id，
+  // 与本处需要的指定执行流（stream_）id 语义不同，不可用 acl_stream_id 替代，保持运行行为不变
+  uint32_t acl_stream_id = 0U;
+  GE_ASSERT_RT_OK(aclrtGetThreadLastTaskIdAndStreamId(&task_id_, &acl_stream_id));
   int32_t rt_stream_id = 0;
   GE_ASSERT_RT_OK(aclrtStreamGetId(stream_, &rt_stream_id));
   stream_id_ = static_cast<uint32_t>(rt_stream_id);

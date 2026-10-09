@@ -163,28 +163,29 @@ TEST_F(Om2OnlineSessionTest, Om2ModelData_StructureIntegrity) {
   model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
   model_data.models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
   model_data.models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
-  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataFile>();
 
   model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest.so");
-  model_data.models[0]->runtime->so_artifact.data =
-      gert::GertMakeStr(std::string("\x7f"
-                                    "ELF",
-                                    4));
-  model_data.models[0]->runtime->so_artifact.data_len = 4U;
+  const std::string so_bytes(
+      "\x7f"
+      "ELF",
+      4);
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeFileData(so_bytes.data(), so_bytes.size());
+  model_data.models[0]->runtime->so_artifact.data_size = 4U;
 
   // Populate model meta
   model_data.models[0]->model_meta->model_name = gert::GertMakeStr("test_model");
   model_data.models[0]->model_meta->work_size = 4096U;
 
-  gert::GertModelDataKernelBinary kernel;
-  kernel.name = gert::GertMakeStr("test_kernel");
+  gert::GertModelDataFile kernel;
+  kernel.file_name = gert::GertMakeStr("test_kernel");
   auto kbuf = std::make_unique<uint8_t[]>(3);
   kbuf[0] = 0x01;
   kbuf[1] = 0x02;
   kbuf[2] = 0x03;
   kernel.data = ge::ReadonlyByteBuffer(kbuf.release(), ge::ConditionalDeleter{true});
   kernel.data_size = 3U;
-  model_data.kernels->binaries.push_back(std::make_unique<gert::GertModelDataKernelBinary>(std::move(kernel)));
+  model_data.kernels->binaries.push_back(std::make_unique<gert::GertModelDataFile>(std::move(kernel)));
 
   auto wbuf = std::make_unique<uint8_t[]>(4);
   wbuf[0] = 0xAA;
@@ -192,15 +193,15 @@ TEST_F(Om2OnlineSessionTest, Om2ModelData_StructureIntegrity) {
   wbuf[2] = 0xCC;
   wbuf[3] = 0xDD;
   model_data.constants->constants_data[0]->data = ge::ReadonlyByteBuffer(wbuf.release(), ge::ConditionalDeleter{true});
-  model_data.constants->constants_data[0]->size = 4U;
+  model_data.constants->constants_data[0]->data_size = 4U;
   model_data.models[0]->constants_config->internal_weight_size = 4U;
 
   EXPECT_EQ(std::string(gert::GertGetStr(model_data.models[0]->runtime->so_artifact.file_name)), "libtest.so");
-  EXPECT_EQ(model_data.models[0]->runtime->so_artifact.data_len, 4U);
+  EXPECT_EQ(model_data.models[0]->runtime->so_artifact.data_size, 4U);
   EXPECT_EQ(model_data.models[0]->model_meta->work_size, 4096U);
   EXPECT_EQ(model_data.kernels->binaries.size(), 1U);
-  EXPECT_EQ(std::string(gert::GertGetStr(model_data.kernels->binaries[0]->name)), "test_kernel");
-  EXPECT_EQ(model_data.constants->constants_data[0]->size, 4U);
+  EXPECT_EQ(std::string(gert::GertGetStr(model_data.kernels->binaries[0]->file_name)), "test_kernel");
+  EXPECT_EQ(model_data.constants->constants_data[0]->data_size, 4U);
   EXPECT_EQ(model_data.models[0]->constants_config->internal_weight_size, 4U);
 }
 
@@ -249,14 +250,14 @@ TEST_F(Om2OnlineSessionTest, Om2ModelData_SharedPtrFork) {
   om2_data->constants->constants_data.emplace_back();
   om2_data->models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
   om2_data->models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
-  om2_data->constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  om2_data->constants->constants_data[0] = std::make_unique<gert::GertModelDataFile>();
   om2_data->models[0]->model_meta->model_name = gert::GertMakeStr("shared_model");
   auto wbuf2 = std::make_unique<uint8_t[]>(3);
   wbuf2[0] = 0x01;
   wbuf2[1] = 0x02;
   wbuf2[2] = 0x03;
   om2_data->constants->constants_data[0]->data = ge::ReadonlyByteBuffer(wbuf2.release(), ge::ConditionalDeleter{true});
-  om2_data->constants->constants_data[0]->size = 3U;
+  om2_data->constants->constants_data[0]->data_size = 3U;
   om2_data->models[0]->constants_config->internal_weight_size = 3U;
   ge_root_model->SetOm2ModelData(om2_data);
 
@@ -264,7 +265,7 @@ TEST_F(Om2OnlineSessionTest, Om2ModelData_SharedPtrFork) {
 
   EXPECT_NE(ge_root_model->GetOm2ModelData(), nullptr);
   EXPECT_EQ(std::string(gert::GertGetStr(forked_data->models[0]->model_meta->model_name)), "shared_model");
-  EXPECT_EQ(forked_data->constants->constants_data[0]->size, 3U);
+  EXPECT_EQ(forked_data->constants->constants_data[0]->data_size, 3U);
   EXPECT_EQ(forked_data->models[0]->constants_config->internal_weight_size, 3U);
 
   // Both point to the same data
@@ -403,7 +404,7 @@ gert::GertModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
   model_data.constants->constants_data.emplace_back();
   model_data.models[0]->model_meta = std::make_unique<gert::GertModelDataModelMeta>();
   model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
-  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataFile>();
   model_data.models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
   model_data.models[0]->debug = std::make_unique<gert::GertModelDataDebug>();
   model_data.manifest = std::make_unique<gert::GertModelDataManifest>();
@@ -440,8 +441,8 @@ gert::GertModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
 
   auto so_bytes = ReadFileBytes(so_path);
   model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libst_test_model_om2.so");
-  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(std::string(so_bytes.begin(), so_bytes.end()));
-  model_data.models[0]->runtime->so_artifact.data_len = so_bytes.size();
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeFileData(so_bytes.data(), so_bytes.size());
+  model_data.models[0]->runtime->so_artifact.data_size = so_bytes.size();
 
   return model_data;
 }

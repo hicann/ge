@@ -96,7 +96,7 @@ struct PyWrapper {
       if (stderrPrint) {
         std::string result = methodName != nullptr ? methodName : format;
         std::map<std::string, std::string> importMapArgs = {{"func_name", result}, {"reason", err_info.c_str()}};
-        TeErrMessageReport(EM_CALL_FUNC_MATHOD_ERROR, importMapArgs);
+        TeErrMessageReport(EM_CALL_FUNC_METHOD_ERROR, importMapArgs);
       }
       return res;
     }

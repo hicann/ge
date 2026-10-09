@@ -39,17 +39,17 @@ Status Om2Codegen::Om2CodegenAndCompile(const ge::GeModelPtr &ge_model, gert::Ge
   std::vector<TaskCodeBuilderPtr> task_code_builders;
   GE_ASSERT_SUCCESS(Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model));
   Om2CodegenModelBuilder builder;
-  gert::GertModelDataConstMetas tmp_const_metas;
+  std::vector<gert::GertModelDataConstMeta> tmp_const_metas;
   GE_ASSERT_SUCCESS(builder.Build(ge_model, task_code_builders, codegen_model, tmp_const_metas));
   auto tmp_var_metas = std::move(codegen_model.var_metas);
   ProgramGenerator generator(ast, task_code_builders, std::move(codegen_model), has_custom_kernel);
 
   Om2CodePrinter code_printer(ge_model->GetName());
   GE_ASSERT_SUCCESS(generator.GenerateProgram(code_printer));
-  gert::GertModelDataProgramBodies source_artifacts;
+  std::vector<gert::GertModelDataFile> source_artifacts;
   code_printer.GetOutputFiles(source_artifacts);
 
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   so_artifact.file_name = gert::GertMakeStr("lib" + ge_model->GetName() + "_om2.so");
   GE_ASSERT_SUCCESS(Om2Utils::CompileGeneratedCppToSo(source_artifacts, ge_model->GetName(), so_artifact, false),
                     "[OM2] Failed to compile generated C++ to shared library for model %s",

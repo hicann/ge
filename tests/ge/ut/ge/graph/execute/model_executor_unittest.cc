@@ -176,7 +176,7 @@ gert::GertModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
   model.constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
   model.runtime = std::make_unique<gert::GertModelDataRuntime>();
   model_data.constants = std::make_unique<gert::GertModelDataConstants>();
-  model_data.constants->constants_data.emplace_back(std::make_unique<gert::GertModelDataConstantsData>());
+  model_data.constants->constants_data.emplace_back(std::make_unique<gert::GertModelDataFile>());
   model.debug = std::make_unique<gert::GertModelDataDebug>();
   model_data.manifest = std::make_unique<gert::GertModelDataManifest>();
   model.model_meta->model_name = gert::GertMakeStr("test_model");
@@ -210,8 +210,8 @@ gert::GertModelData MakeOm2ModelDataWithFakeSo(const std::string &so_path) {
 
   auto so_bytes = ReadFileBytes(so_path);
   model.runtime->so_artifact.file_name = gert::GertMakeStr("libtest_model_om2.so");
-  model.runtime->so_artifact.data = gert::GertMakeBytes(so_bytes.data(), so_bytes.size());
-  model.runtime->so_artifact.data_len = so_bytes.size();
+  model.runtime->so_artifact.data = gert::GertMakeFileData(so_bytes.data(), so_bytes.size());
+  model.runtime->so_artifact.data_size = so_bytes.size();
 
   return model_data;
 }
@@ -224,7 +224,7 @@ gert::GertModelData MakeMinimalOm2ModelData(size_t work_size = 1024U, size_t ten
   model.constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
   model.runtime = std::make_unique<gert::GertModelDataRuntime>();
   model_data.constants = std::make_unique<gert::GertModelDataConstants>();
-  model_data.constants->constants_data.emplace_back(std::make_unique<gert::GertModelDataConstantsData>());
+  model_data.constants->constants_data.emplace_back(std::make_unique<gert::GertModelDataFile>());
   model.debug = std::make_unique<gert::GertModelDataDebug>();
   model_data.manifest = std::make_unique<gert::GertModelDataManifest>();
   model.model_meta->model_name = gert::GertMakeStr("om2_ut_model");

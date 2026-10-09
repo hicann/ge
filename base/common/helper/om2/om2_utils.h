@@ -26,8 +26,8 @@ inline bool IsOm2OnlineMode() {
 
 class Om2Utils {
  public:
-  static Status CompileGeneratedCppToSo(const gert::GertModelDataProgramBodies &artifacts,
-                                        const std::string &model_name, gert::GertModelDataProgramBody &so_artifact,
+  static Status CompileGeneratedCppToSo(const std::vector<gert::GertModelDataFile> &artifacts,
+                                        const std::string &model_name, gert::GertModelDataFile &so_artifact,
                                         const bool is_release = true);
   static std::string NormalizeCpuArch(const std::string &cpu);
 };

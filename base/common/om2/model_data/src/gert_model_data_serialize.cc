@@ -20,7 +20,6 @@
 #include "framework/common/zip_archive_writer.h"
 #include "framework/om2/model_data/gert_model_data.h"
 #include "framework/common/gert_model_data_utils.h"
-#include "graph/utils/type_utils.h"
 #include "nlohmann/json.hpp"
 
 namespace gert {
@@ -35,8 +34,8 @@ ge::JsonFile SerializeTensorDesc(const gert::GertTensorDesc &desc) {
   ge::JsonFile json;
   (void)json.Set("name", gert::GertGetStr(desc.name));
   (void)json.Set("shape", desc.shape);
-  (void)json.Set("data_type", ge::TypeUtils::DataTypeToSerialString(desc.data_type));
-  (void)json.Set("format", ge::TypeUtils::FormatToSerialString(desc.format));
+  (void)json.Set("data_type", static_cast<int32_t>(desc.data_type));
+  (void)json.Set("format", static_cast<int32_t>(desc.format));
   (void)json.Set("size", desc.size);
   (void)json.Set("shape_range", desc.shape_range);
   return json;
@@ -55,19 +54,19 @@ ge::Status SerializeCodegenArtifacts(const gert::GertModelDataModel &unit,
       continue;
     }
     const std::string entry_name = csrc_dir + file_name;
-    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_name, gert::GertGetStr(artifact.data), artifact.data_len, true),
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_name, artifact.data.get(), artifact.data_size, true),
                    "Failed to write artifact [%s]", file_name.c_str());
   }
   const auto &so_artifact = unit.runtime->so_artifact;
   if ((so_artifact.data != nullptr) && (gert::GertGetStr(so_artifact.file_name)[0] != '\0')) {
     const std::string so_entry = runtime_dir + gert::GertGetStr(so_artifact.file_name);
-    GE_ASSERT_TRUE(zip_writer->WriteBytes(so_entry, gert::GertGetStr(so_artifact.data), so_artifact.data_len, false),
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(so_entry, so_artifact.data.get(), so_artifact.data_size, false),
                    "Failed to write so artifact [%s]", gert::GertGetStr(so_artifact.file_name));
   }
   return ge::SUCCESS;
 }
 
-ge::Status SerializeWeightData(const gert::GertModelDataModel &unit, const gert::GertModelDataConstantsData &weight,
+ge::Status SerializeWeightData(const gert::GertModelDataModel &unit, const gert::GertModelDataFile &weight,
                                const std::shared_ptr<ZipArchiveWriter> &zip_writer, const size_t model_index) {
   const bool has_internal_const =
       (unit.constants_config != nullptr) && (unit.constants_config->internal_weight_size > 0U);
@@ -75,7 +74,7 @@ ge::Status SerializeWeightData(const gert::GertModelDataModel &unit, const gert:
     return ge::SUCCESS;
   }
   const auto constant_file_name = FormatOm2Path("%s%s%zu", OM2_CONSTANTS_DIR, OM2_CONSTANTS_FILE_PREFIX, model_index);
-  GE_ASSERT_TRUE(zip_writer->WriteBytes(constant_file_name, weight.data.get(), weight.size, false));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(constant_file_name, weight.data.get(), weight.data_size, false));
   return ge::SUCCESS;
 }
 
@@ -109,8 +108,7 @@ ge::Status SerializeConstantsConfig(const gert::GertModelDataModel &unit,
   (void)json_file.Set("consts", const_json_object);
   const std::string constants_json_str = json_file.Dump();
   const std::string model_index_str = std::to_string(model_index);
-  const auto constants_config_path =
-      FormatOm2Path(OM2_CONSTANTS_CONFIG_PATH_FORMAT, model_index_str.c_str(), model_index_str.c_str());
+  const auto constants_config_path = FormatOm2Path(OM2_CONSTANTS_CONFIG_PATH_FORMAT, model_index_str.c_str());
   GE_ASSERT_TRUE(
       zip_writer->WriteBytes(constants_config_path, constants_json_str.data(), constants_json_str.size(), true));
   return ge::SUCCESS;
@@ -128,9 +126,11 @@ ge::JsonFile::json SerializeVarTransRoad(const gert::RTVarTransRoad &trans_road)
   return trans_road_json;
 }
 
-ge::JsonFile::json SerializeVarEntry(const gert::RTVarEntry &entry, std::vector<uint8_t> &weight_buffer) {
+ge::JsonFile::json SerializeVarEntry(const gert::RTVarEntry &entry, const std::string &file_base,
+                                     std::vector<uint8_t> &weight_buffer) {
   ge::JsonFile entry_json;
   (void)entry_json.Set("var_name", gert::GertGetStr(entry.var_name));
+  (void)entry_json.Set("file_name", file_base);
   (void)entry_json.Set("var_key", gert::GertGetStr(entry.var_key));
   (void)entry_json.Set("op_type", gert::GertGetStr(entry.op_type));
   (void)entry_json.Set("logic_addr", entry.logic_addr);
@@ -156,7 +156,7 @@ ge::JsonFile::json SerializeVarEntry(const gert::RTVarEntry &entry, std::vector<
   return entry_json.Raw();
 }
 
-// data/model_%s/variables_config.json（graph_id + var_metas + entries）+ data/model_%s/var_weight_data
+// data/model_%s/variables_config.json（graph_id + var_metas + entries）+ data/variables/var_weight_data_%s
 ge::Status SerializeVariablesData(const gert::GertModelDataModel &unit,
                                   const std::shared_ptr<ZipArchiveWriter> &zip_writer, const size_t model_index) {
   if ((unit.variables_config == nullptr) ||
@@ -182,12 +182,14 @@ ge::Status SerializeVariablesData(const gert::GertModelDataModel &unit,
   if (!variables_config.entries.empty()) {
     auto entries_json = ge::JsonFile::json::object();
     std::vector<uint8_t> weight_buffer;
+    const auto weight_file = FormatOm2Path(OM2_VAR_WEIGHT_FILE_FORMAT, std::to_string(model_index).c_str());
+    // file_name 记录权重文件基名（由路径常量推导，与实际写盘文件保持一致），供反序列化按名寻址
+    const std::string file_base = weight_file.substr(weight_file.find_last_of('/') + 1U);
     for (const auto &entry : variables_config.entries) {
-      entries_json[gert::GertGetStr(entry.var_key)] = SerializeVarEntry(entry, weight_buffer);
+      entries_json[gert::GertGetStr(entry.var_key)] = SerializeVarEntry(entry, file_base, weight_buffer);
     }
     (void)json_file.Set("entries", entries_json);
     if (!weight_buffer.empty()) {
-      const auto weight_file = FormatOm2Path(OM2_VAR_WEIGHT_FILE_FORMAT, std::to_string(model_index).c_str());
       GE_ASSERT_TRUE(zip_writer->WriteBytes(weight_file, weight_buffer.data(), weight_buffer.size(), false));
     }
   }
@@ -202,7 +204,7 @@ ge::Status SerializeKernelBinaries(const gert::GertModelData &model_data,
                                    const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
   const auto kernel_bin_dir = OM2_KERNELS_DIR;
   for (const auto &kb_ptr : model_data.kernels->binaries) {
-    const auto entry_path = kernel_bin_dir + std::string(gert::GertGetStr(kb_ptr->name));
+    const auto entry_path = kernel_bin_dir + std::string(gert::GertGetStr(kb_ptr->file_name));
     GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb_ptr->data.get(), kb_ptr->data_size, false));
   }
   return ge::SUCCESS;
@@ -212,7 +214,7 @@ ge::Status SerializeCustomKernelBinaries(const gert::GertModelData &model_data,
                                          const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
   const auto kernel_bin_dir = FormatOm2Path(OM2_CUSTOM_KERNELS_DIR_FORMAT, "binaries_npu_arch");
   for (const auto &kb_ptr : model_data.custom_ops->binaries) {
-    const auto entry_path = kernel_bin_dir + std::string(gert::GertGetStr(kb_ptr->name));
+    const auto entry_path = kernel_bin_dir + std::string(gert::GertGetStr(kb_ptr->file_name));
     GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb_ptr->data.get(), kb_ptr->data_size, false));
   }
   return ge::SUCCESS;
@@ -222,14 +224,14 @@ ge::Status SerializeCustomKernelSharedLibs(const gert::GertModelData &model_data
                                            const std::shared_ptr<ZipArchiveWriter> &zip_writer) {
   const auto kernel_bin_dir = FormatOm2Path(OM2_CUSTOM_KERNELS_DIR_FORMAT, "shared_libs");
   for (const auto &kb_ptr : model_data.custom_ops->libraries) {
-    const auto entry_path = kernel_bin_dir + std::string(gert::GertGetStr(kb_ptr->name));
+    const auto entry_path = kernel_bin_dir + std::string(gert::GertGetStr(kb_ptr->file_name));
     GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb_ptr->data.get(), kb_ptr->data_size, false));
   }
   return ge::SUCCESS;
 }
 
 ge::JsonFile SerializeAippDimsToJson(const std::vector<std::unique_ptr<ge::InputOutputDims>> &dims_list,
-                                     const std::string &fmt_str, const std::string &dt_str) {
+                                     const int32_t fmt, const int32_t dt) {
   ge::JsonFile::json arr = ge::JsonFile::json::array();
   for (const auto &dims_ptr : dims_list) {
     if (dims_ptr == nullptr) {
@@ -243,8 +245,8 @@ ge::JsonFile SerializeAippDimsToJson(const std::vector<std::unique_ptr<ge::Input
       }
       dim_csv += std::to_string(dims.dims[d]);
     }
-    arr.push_back(fmt_str + ":" + dt_str + ":" + dims.name + ":" + std::to_string(dims.size) + ":" +
-                  std::to_string(dims.dim_num) + ":" + dim_csv);
+    arr.push_back(std::to_string(fmt) + ":" + std::to_string(dt) + ":" + dims.name + ":" + std::to_string(dims.size) +
+                  ":" + std::to_string(dims.dim_num) + ":" + dim_csv);
   }
   return ge::JsonFile(arr);
 }
@@ -265,8 +267,8 @@ void SerializeAippMeta(const gert::GertModelDataModelMeta &model_meta, ge::JsonF
         (meta.orig_input_info != nullptr) ? *meta.orig_input_info : ge::OriginInputInfo{};
     const ge::AippConfigInfo config_info =
         (meta.aipp_config_info != nullptr) ? *meta.aipp_config_info : ge::AippConfigInfo{};
-    const std::string fmt_str = ge::TypeUtils::FormatToSerialString(orig_input_info.format);
-    const std::string dt_str = ge::TypeUtils::DataTypeToSerialString(orig_input_info.data_type);
+    const int32_t fmt_val = static_cast<int32_t>(orig_input_info.format);
+    const int32_t dt_val = static_cast<int32_t>(orig_input_info.data_type);
     ge::JsonFile entry;
     (void)entry.Set("index", i)
         .Set("aipp_type", static_cast<int32_t>(meta.aipp_type))
@@ -322,8 +324,8 @@ void SerializeAippMeta(const gert::GertModelDataModelMeta &model_meta, ge::JsonF
         .Set("support_rotation", static_cast<int32_t>(config_info.support_rotation))
         .Set("related_input_rank", config_info.related_input_rank)
         .Set("max_src_image_size", config_info.max_src_image_size)
-        .Set("aipp_inputs", SerializeAippDimsToJson(meta.aipp_input_dims, fmt_str, dt_str))
-        .Set("aipp_outputs", SerializeAippDimsToJson(meta.aipp_output_dims, fmt_str, dt_str))
+        .Set("aipp_inputs", SerializeAippDimsToJson(meta.aipp_input_dims, fmt_val, dt_val))
+        .Set("aipp_outputs", SerializeAippDimsToJson(meta.aipp_output_dims, fmt_val, dt_val))
         .Set("orig_input_format", static_cast<int32_t>(orig_input_info.format))
         .Set("orig_input_data_type", static_cast<int32_t>(orig_input_info.data_type))
         .Set("orig_input_dim_num", orig_input_info.dim_num);
@@ -347,12 +349,12 @@ void SerializeModelInputDescs(const gert::GertModelDataModelMeta &model_meta, ge
     } else {
       (void)input_info.Set("shape", desc.shape);
     }
-    if (model_meta.has_aipp != 0U) {
+    if (!model_meta.aipp_infos.empty()) {
       const auto &desc_v2 = (i < model_meta.input_desc_v2.size()) ? model_meta.input_desc_v2[i] : desc;
       (void)input_info.Set("shape_aclmdlGetInputDimsV2", desc_v2.shape);
     }
-    (void)input_info.Set("data_type", ge::TypeUtils::DataTypeToSerialString(desc.data_type));
-    (void)input_info.Set("format", ge::TypeUtils::FormatToSerialString(desc.format));
+    (void)input_info.Set("data_type", static_cast<int32_t>(desc.data_type));
+    (void)input_info.Set("format", static_cast<int32_t>(desc.format));
     (void)input_info.Set("size", desc.size);
     (void)input_info.Set("shape_range", desc.shape_range);
     input_json_array.push_back(input_info.Raw());
@@ -368,8 +370,8 @@ void SerializeModelOutputDescs(const gert::GertModelDataModelMeta &model_meta, g
     (void)output_info.Set("name", gert::GertGetStr(desc.name));
     (void)output_info.Set("index", i);
     (void)output_info.Set("shape", desc.shape);
-    (void)output_info.Set("data_type", ge::TypeUtils::DataTypeToSerialString(desc.data_type));
-    (void)output_info.Set("format", ge::TypeUtils::FormatToSerialString(desc.format));
+    (void)output_info.Set("data_type", static_cast<int32_t>(desc.data_type));
+    (void)output_info.Set("format", static_cast<int32_t>(desc.format));
     (void)output_info.Set("size", desc.size);
     (void)output_info.Set("shape_range", desc.shape_range);
     output_json_array.push_back(output_info.Raw());

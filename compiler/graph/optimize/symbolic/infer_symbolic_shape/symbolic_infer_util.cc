@@ -16,8 +16,10 @@
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/attr_utils.h"
+#include "graph/utils/type_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "base/registry/op_impl_space_registry_v2.h"
+#include "graph/optimize/symbolic/symbolic_kernel_factory.h"
 
 #include <op_type_utils.h>
 
@@ -25,8 +27,96 @@ namespace ge {
 constexpr static size_t kByteBitCount = 8UL;
 
 namespace {
-constexpr const char *const kValueDependentIdxsAttr = "_ge_value_dependent_idxs";
+constexpr const char *const kNeedSymbolizeValueIdxsAttr = "_ge_need_symbolize_value_idxs";
+
+// 值符号计算仅支持整型dtype
+bool IsIntegerDtype(const DataType dtype) {
+  return dtype == DT_INT32 || dtype == DT_INT64 || dtype == DT_UINT32 || dtype == DT_UINT64;
+}
+
+// 尺寸准入：Data节点静态shape可得且元素数超限(或维乘积溢出)返回false；
+// 静态shape未知时放行，由符号化按真实tensor兜底
+bool IsWithinSymbolizeSizeLimit(const Node *data_node) {
+  if (data_node == nullptr) {
+    return false;
+  }
+  const auto &op_desc = data_node->GetOpDesc();
+  if (op_desc == nullptr) {
+    return false;
+  }
+  const auto &shape = op_desc->GetOutputDesc(0U).GetShape();
+  if (shape.IsUnknownShape() || shape.IsUnknownDimNum()) {
+    return true;
+  }
+  // GetShapeSize 在维乘积溢出时返回 -1，一并拦截
+  const int64_t shape_size = shape.GetShapeSize();
+  return (shape_size >= 0) && (shape_size <= kMaxSymbolizeValueElemNum);
+}
+
+// 间接(前向)值依赖的data准入：整型且shape全静态；元素数上限由 IsWithinSymbolizeSizeLimit 统一把关
+bool IsValueRelayEligibleDataNode(const Node *data_node) {
+  const auto &op_desc = data_node->GetOpDesc();
+  if (op_desc == nullptr) {
+    return false;
+  }
+  const auto &output_desc = op_desc->GetOutputDesc(0U);
+  if (!IsIntegerDtype(output_desc.GetDataType())) {
+    GELOGI("data node %s is not value relay eligible, dtype %s is not integer.", data_node->GetNamePtr(),
+           TypeUtils::DataTypeToSerialString(output_desc.GetDataType()).c_str());
+    return false;
+  }
+  const auto &shape = output_desc.GetShape();
+  if (shape.IsUnknownShape() || shape.IsUnknownDimNum()) {
+    GELOGI("data node %s is not value relay eligible, shape is unknown.", data_node->GetNamePtr());
+    return false;
+  }
+  return true;
+}
+
+// 遍历data节点的消费者边，提取两类信号：声明制值依赖、消费者是否注册值符号计算kernel
+graphStatus InspectDataConsumers(const Node *data_node, bool &declared, bool &has_value_kernel) {
+  declared = false;
+  has_value_kernel = false;
+  for (const auto *out_anchor : data_node->GetAllOutDataAnchorsPtr()) {
+    GE_ASSERT_NOTNULL(out_anchor);
+    for (const auto *peer_anchor : out_anchor->GetPeerInDataAnchorsPtr()) {
+      GE_ASSERT_NOTNULL(peer_anchor);
+      auto *owner_node = peer_anchor->GetOwnerNodeBarePtr();
+      GE_ASSERT_NOTNULL(owner_node);
+      const auto &consumer_op = owner_node->GetOpDesc();
+      GE_ASSERT_NOTNULL(consumer_op);
+      const size_t input_idx = static_cast<size_t>(peer_anchor->GetIdx());
+      if (SymbolicInferUtil::IsInputValueDependent(consumer_op, input_idx)) {
+        GELOGI("data node %s is value-dependent, consumer %s input idx %zu is data dependency or in op_infer_depends.",
+               data_node->GetNamePtr(), consumer_op->GetNamePtr(), input_idx);
+        declared = true;
+        return GRAPH_SUCCESS;
+      }
+      if (SymbolicKernelFactory::GetInstance().Create(consumer_op->GetType()) != nullptr) {
+        has_value_kernel = true;
+      }
+    }
+  }
+  return GRAPH_SUCCESS;
+}
 }  // namespace
+
+bool SymbolicInferUtil::NeedSymbolizeValueDataNode(const Node *data_node) {
+  if (data_node == nullptr) {
+    return false;
+  }
+  if (!IsWithinSymbolizeSizeLimit(data_node)) {
+    GELOGI("data node %s exceeds symbolize value size limit, skip.", data_node->GetNamePtr());
+    return false;
+  }
+  bool declared = false;
+  bool has_value_kernel = false;
+  if (InspectDataConsumers(data_node, declared, has_value_kernel) != GRAPH_SUCCESS) {
+    return false;
+  }
+  // 直连声明值依赖 ‖ 间接值依赖(消费者注册了值符号计算kernel且data可符号化)
+  return declared || (has_value_kernel && IsValueRelayEligibleDataNode(data_node));
+}
 
 graphStatus SymbolicInferUtil::GetConstInt(const gert::SymbolTensor *tensor, DataType dt, int64_t &value) {
   const auto &expr = tensor->GetSymbolicValue()->at(0);
@@ -135,71 +225,44 @@ NodePtr SymbolicInferUtil::GetCondInput(const NodePtr &node) {
   return parent_input == nullptr ? cond_input : parent_input;
 }
 
-bool SymbolicInferUtil::IsValueDependentDataNode(const NodePtr &data_node) {
+bool SymbolicInferUtil::IsInputValueDependent(const OpDescPtr &op_desc, size_t instance_index) {
+  if (op_desc == nullptr) {
+    return false;
+  }
+  const auto *funcs = gert::OpImplInferSymbolShapeRegistry::GetInstance().GetOpImpl(op_desc->GetType().c_str());
   const auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
-  for (const auto *out_anchor : data_node->GetAllOutDataAnchorsPtr()) {
-    if (out_anchor == nullptr) {
-      continue;
+  if (space_registry != nullptr) {
+    const auto *space_funcs = space_registry->GetOpImpl(op_desc->GetType().c_str());
+    if (space_funcs != nullptr) {
+      funcs = space_funcs;
     }
-    for (const auto *peer_anchor : out_anchor->GetPeerInDataAnchorsPtr()) {
-      if (peer_anchor == nullptr) {
-        continue;
-      }
-      auto *owner_node = peer_anchor->GetOwnerNodeBarePtr();
-      if (owner_node == nullptr) {
-        continue;
-      }
-      const auto &consumer_op = owner_node->GetOpDesc();
-      if (consumer_op == nullptr) {
-        continue;
-      }
-      const size_t input_idx = static_cast<size_t>(peer_anchor->GetIdx());
-
-      auto functions = gert::OpImplInferSymbolShapeRegistry::GetInstance().GetOpImpl(consumer_op->GetType().c_str());
-      if (functions != nullptr) {
-        const gert::OpImplKernelRegistry::OpImplFunctionsV2 *function_new = functions;
-        if (space_registry != nullptr) {
-          const auto *space_func = space_registry->GetOpImpl(consumer_op->GetType().c_str());
-          if (space_func != nullptr) {
-            function_new = space_func;
-          }
-        }
-        size_t ir_index = 0UL;
-        if (!ge::OpDescUtils::GetInputIrIndexes2InstanceIndexesPairMap(consumer_op).empty() &&
-            ge::OpDescUtils::GetInputIrIndexByInstanceIndex(consumer_op, input_idx, ir_index) != GRAPH_SUCCESS) {
-          ir_index = input_idx;
-        }
-        if (function_new->IsInputDataDependency(ir_index)) {
-          GELOGI("data node %s is value-dependent, consumer %s input idx %zu is data dependency.",
-                 data_node->GetNamePtr(), consumer_op->GetNamePtr(), input_idx);
-          return true;
-        }
-      }
-
-      const auto &op_infer_depends = consumer_op->GetOpInferDepends();
-      if (op_infer_depends.empty()) {
-        continue;
-      }
-      auto input_name = consumer_op->GetValidInputNameByIndex(static_cast<uint32_t>(input_idx));
-      if (std::find(op_infer_depends.cbegin(), op_infer_depends.cend(), input_name) != op_infer_depends.cend()) {
-        GELOGI("data node %s is value-dependent, consumer %s input name %s in op_infer_depends.",
-               data_node->GetNamePtr(), consumer_op->GetNamePtr(), input_name.c_str());
-        return true;
-      }
+  }
+  if ((funcs != nullptr) && !ge::OpDescUtils::GetInputIrIndexes2InstanceIndexesPairMap(op_desc).empty()) {
+    size_t ir_index;
+    if ((ge::OpDescUtils::GetInputIrIndexByInstanceIndex(op_desc, instance_index, ir_index) == GRAPH_SUCCESS) &&
+        funcs->IsInputDataDependency(ir_index)) {
+      return true;
+    }
+  }
+  const auto &op_infer_depends = op_desc->GetOpInferDepends();
+  if (!op_infer_depends.empty()) {
+    const auto input_name = op_desc->GetValidInputNameByIndex(static_cast<uint32_t>(instance_index));
+    if (std::find(op_infer_depends.cbegin(), op_infer_depends.cend(), input_name) != op_infer_depends.cend()) {
+      return true;
     }
   }
   return false;
 }
 
-Status SymbolicInferUtil::GetValueDependentInputIdxs(const ComputeGraphPtr &graph,
-                                                     std::set<size_t> &value_dependent_idxs) {
+Status SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(const ComputeGraphPtr &graph,
+                                                         std::set<size_t> &need_symbolize_value_idxs) {
   if (graph == nullptr) {
     return SUCCESS;
   }
   std::vector<int64_t> cached_idxs;
-  if (ge::AttrUtils::GetListInt(graph, kValueDependentIdxsAttr, cached_idxs)) {
+  if (ge::AttrUtils::GetListInt(graph, kNeedSymbolizeValueIdxsAttr, cached_idxs)) {
     for (const auto idx : cached_idxs) {
-      value_dependent_idxs.insert(static_cast<size_t>(idx));
+      need_symbolize_value_idxs.insert(static_cast<size_t>(idx));
     }
     return SUCCESS;
   }
@@ -214,14 +277,14 @@ Status SymbolicInferUtil::GetValueDependentInputIdxs(const ComputeGraphPtr &grap
     }
     int32_t data_index = -1;
     (void)AttrUtils::GetInt(op_desc, ATTR_NAME_INDEX, data_index);
-    if (data_index >= 0 && IsValueDependentDataNode(node)) {
+    if (data_index >= 0 && NeedSymbolizeValueDataNode(node.get())) {
       computed_idxs.insert(static_cast<size_t>(data_index));
-      GELOGI("graph %s input data index %d is value-dependent.", graph->GetName().c_str(), data_index);
+      GELOGI("graph %s input data index %d needs symbolize value.", graph->GetName().c_str(), data_index);
     }
   }
   std::vector<int64_t> cached_vec(computed_idxs.cbegin(), computed_idxs.cend());
-  (void)ge::AttrUtils::SetListInt(graph, kValueDependentIdxsAttr, cached_vec);
-  value_dependent_idxs.insert(computed_idxs.cbegin(), computed_idxs.cend());
+  (void)ge::AttrUtils::SetListInt(graph, kNeedSymbolizeValueIdxsAttr, cached_vec);
+  need_symbolize_value_idxs.insert(computed_idxs.cbegin(), computed_idxs.cend());
   return SUCCESS;
 }
 

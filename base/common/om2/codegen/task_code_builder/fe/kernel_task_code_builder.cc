@@ -245,6 +245,11 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
       (!IsAllKernelTask(build_data_.semantic)) &&
       Om2CodegenUtils::IsSeparatelyCleanTask(context.op_desc, context.task_def.kernel().kernel_name());
   is_blocking_aicpu_op_ = IsAicpuTask(build_data_.semantic) && Om2CodegenUtils::IsBlockingAicpuOp(context.op_desc);
+  build_data_.semantic.prof_ge_task_type =
+      TaskCodeBuilderUtil::ConvertToProfilingTaskType(context.op_desc, context.task_def);
+  build_data_.semantic.op_impl_mode = TaskCodeBuilderUtil::GetOpImplMode(context.op_desc);
+  build_data_.semantic.launch.prof_block_dim =
+      TaskCodeBuilderUtil::GetProfilingBlockDim(context.op_desc, context.task_def);
   GE_ASSERT_SUCCESS(CheckTaskSupport());
   GE_ASSERT_SUCCESS(ResolveTaskAddrs(context));
   AssignTaskLocalIoNames();
@@ -1632,7 +1637,15 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderAicpuLaunchAndReport(const Va
                                             aicpu.Attr("task_type"),
                                             stream,
                                             ast_.UInt(0U),
-                                            ast_.UInt(0U)})),
+                                            ast_.UInt(0U),
+                                            Arg(nullptr),
+                                            ast_.ULong(0U),
+                                            ast_.ULong(0U),
+                                            ast_.ULong(0U),
+                                            ast_.ULong(0U),
+                                            aicpu.Attr("op_impl_mode"),
+                                            aicpu.Attr("prof_ge_task_type"),
+                                            aicpu.Attr("prof_block_dim")})),
       ChkStatus(ast_.Call("aclrtStreamGetId", {task_info.Attr("stream"),
                                                ast_.ReinterpretCast("int32_t *", task_info.Attr("stream_id").Addr())})),
       ast_.Assign(task_info.Attr("kernel_type"), aicpu.Attr("kernel_type")),
@@ -1778,7 +1791,10 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDistribution(const VarRef &op
                            aicore.Attr("fusion_op").Attr("input_mem_size"),
                            aicore.Attr("fusion_op").Attr("output_mem_size"),
                            aicore.Attr("fusion_op").Attr("workspace_mem_size"),
-                           aicore.Attr("fusion_op").Attr("weight_mem_size")})),
+                           aicore.Attr("fusion_op").Attr("weight_mem_size"),
+                           aicore.Attr("op_impl_mode"),
+                           aicore.Attr("prof_ge_task_type"),
+                           aicore.Attr("prof_block_dim")})),
       ChkStatus(ast_.Call("aclrtStreamGetId", {task_info.Attr("stream"),
                                                ast_.ReinterpretCast("int32_t *", task_info.Attr("stream_id").Addr())})),
       ast_.Assign(task_info.Attr("kernel_type"), aicore.Attr("kernel_type")),
@@ -1963,9 +1979,12 @@ Arg KernelTaskCodeBuilder::RenderAicoreOpDefFields(const AicoreTaskData &data) {
       {"op_type", Arg::StringLiteral(header_.op_type)},
       {"args_idx", static_cast<int64_t>(build_data_.semantic.args_table_entry->table_index)},
       {"block_dim", build_data_.semantic.launch.block_dim},
+      {"prof_block_dim", static_cast<int64_t>(build_data_.semantic.launch.prof_block_dim)},
       {"func_idx", static_cast<int64_t>(build_data_.semantic.launch.func_handle_index)},
       {"stream_id", static_cast<uint32_t>(header_.stream_id)},
       {"task_type", static_cast<int64_t>(build_data_.semantic.task_type)},
+      {"prof_ge_task_type", static_cast<int64_t>(build_data_.semantic.prof_ge_task_type)},
+      {"op_impl_mode", static_cast<int64_t>(build_data_.semantic.op_impl_mode)},
       {"kernel_type", static_cast<uint32_t>(data.kernel_type)},
       {"launch", ast_.InitList(launch_values)},
       {"slot_args", ast_.InitList(l0_values)},
@@ -1993,6 +2012,7 @@ Arg KernelTaskCodeBuilder::RenderAicpuOpDefFields(const AicpuTaskData &data) {
       {"args_idx", static_cast<int64_t>(build_data_.semantic.args_table_entry->table_index)},
       {"func_idx", static_cast<int64_t>(build_data_.semantic.launch.func_handle_index)},
       {"block_dim", build_data_.semantic.launch.block_dim},
+      {"prof_block_dim", static_cast<int64_t>(build_data_.semantic.launch.prof_block_dim)},
       {"stream_id", static_cast<uint32_t>(header_.stream_id)},
       {"args_blob", !build_data_.semantic.aicpu_args.has_value() || build_data_.semantic.aicpu_args->args_buffer.empty()
                         ? Arg(nullptr)
@@ -2015,6 +2035,8 @@ Arg KernelTaskCodeBuilder::RenderAicpuOpDefFields(const AicpuTaskData &data) {
                                                        : -1)},
       {"aicpu_task_index", static_cast<uint32_t>(build_data_.semantic.aicpu_task_index)},
       {"task_type", static_cast<int64_t>(build_data_.semantic.task_type)},
+      {"prof_ge_task_type", static_cast<int64_t>(build_data_.semantic.prof_ge_task_type)},
+      {"op_impl_mode", static_cast<int64_t>(build_data_.semantic.op_impl_mode)},
       {"kernel_type", static_cast<uint32_t>(data.kernel_type)},
   };
   return ast_.DesignatedInit({{"aicpu", ast_.DesignatedInit(aicpu_fields)}});

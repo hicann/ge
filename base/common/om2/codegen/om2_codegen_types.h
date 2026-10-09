@@ -146,6 +146,7 @@ struct LaunchConfigSemantic {
 
 struct LaunchCallSemantic {
   uint32_t block_dim{0U};
+  uint32_t prof_block_dim{0U};  // profiling 上报口径的 block_dim(未归一/mix 编码/tiling_sink 占位)，launch 不使用
   uint32_t stream_id{0U};
   LaunchConfigSemantic config;
   uint32_t func_handle_index{0U};
@@ -254,6 +255,8 @@ struct AicpuExtInfoSemantic {
 
 struct KernelTaskSemantic {
   ModelTaskType task_type{ModelTaskType::MODEL_TASK_KERNEL};
+  uint32_t prof_ge_task_type{0U};  // 上报给 profiling 的 MsprofGeTaskType 值
+  uint32_t op_impl_mode{0U};       // 算子实现模式(_op_impl_mode_enum 属性原值)，0 表示默认模式
   ccKernelType kernel_type{ccKernelType::INVALID};
   uint64_t tiling_key{0U};
   LaunchCallSemantic launch;

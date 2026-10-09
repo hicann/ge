@@ -12,6 +12,7 @@
 #include "framework/runtime/dump/dump_config.h"
 #include "framework/common/debug/ge_log.h"
 #include <dump/adump_api.h>
+#include <mutex>
 
 namespace ge {
 namespace dump {
@@ -94,20 +95,7 @@ bool DumpCallbackManager::ProcessExceptionDumpBySwitch(uint64_t dumpSwitch) {
 
 int32_t DumpCallbackManager::EnableDumpCallback(uint64_t dumpSwitch, const char *dumpData, int32_t size) {
   GELOGI("Enable dump callback triggered, dumpSwitch=%lu, size=%d", dumpSwitch, size);
-
-  if ((dumpData == nullptr || size <= 0) && IsEnableExceptionDumpBySwitch(dumpSwitch)) {
-    GELOGI("dumpData is null but exception dump bit is set, processing exception dump by switch");
-    return ProcessExceptionDumpBySwitch(dumpSwitch) ? ADUMP_SUCCESS : ADUMP_FAILED;
-  }
-
-  Status ret = HandleEnableDump(dumpData, size);
-  if (ret == SUCCESS) {
-    GELOGI("Enable dump callback processed successfully");
-    return ADUMP_SUCCESS;
-  } else {
-    GELOGE(ret, "[Handle][EnableDump] Enable dump callback failed, ret=%u", ret);
-    return ADUMP_FAILED;
-  }
+  return DumpCallbackManager::GetInstance().SetDumpConfig(dumpSwitch, dumpData, size);
 }
 
 int32_t DumpCallbackManager::DisableDumpCallback(uint64_t dumpSwitch, const char *dumpData, int32_t size) {
@@ -172,6 +160,38 @@ Status DumpCallbackManager::HandleDumpExceptionConfig() {
 Status DumpCallbackManager::HandleDumpDebugConfig() {
   GELOGI("Handling dump debug configuration for overflow detection");
   return SUCCESS;
+}
+
+int32_t DumpCallbackManager::SetDumpConfig(uint64_t dumpSwitch, const char *dumpData, int32_t size) {
+  std::lock_guard<std::mutex> g(lock_);
+  // if config not change, do nothing
+  if ((dump_switch_ == dumpSwitch) && (dump_config_data_ == std::string(dumpData, size))) {
+    GELOGI("Dump config is same as old config, do nothing");
+    return SUCCESS;
+  }
+  // update dump config
+  dump_switch_ = dumpSwitch;
+  dump_config_data_ = std::string(dumpData, size);
+  config_parsed_ = false;
+  GELOGI("Dump config is updated successfully, dumpSwitch=%lu, size=%d.", dumpSwitch, size);
+  return SUCCESS;
+}
+
+int32_t DumpCallbackManager::ParseDumpConfig() {
+  std::lock_guard<std::mutex> g(lock_);
+  if ((dump_config_data_.empty()) && IsEnableExceptionDumpBySwitch(dump_switch_)) {
+    GELOGI("Dump config is empty but exception dump bit is set, processing exception dump by switch");
+    return ProcessExceptionDumpBySwitch(dump_switch_) ? ADUMP_SUCCESS : ADUMP_FAILED;
+  }
+
+  Status ret = HandleEnableDump(dump_config_data_.c_str(), dump_config_data_.size());
+  if (ret == SUCCESS) {
+    GELOGI("Enable dump callback processed successfully");
+    return ADUMP_SUCCESS;
+  } else {
+    GELOGE(ret, "[Handle][EnableDump] Enable dump callback failed, ret=%u", ret);
+    return ADUMP_FAILED;
+  }
 }
 
 }  // namespace dump

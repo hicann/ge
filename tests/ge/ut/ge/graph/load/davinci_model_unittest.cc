@@ -10,8 +10,14 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <algorithm>
 #include <memory>
 #include <fstream>
+#include <limits>
+#include <chrono>
+#include <thread>
+#include <condition_variable>
+#include <mutex>
 
 #include "ge_graph_dsl/graph_dsl.h"
 #include "ge_local_context.h"
@@ -27,6 +33,7 @@
 #include "common/opskernel/ops_kernel_info_store.h"
 #include "graph/load/model_manager/davinci_model.h"
 #include "register/core_num_utils.h"
+#include "graph/load/model_manager/davinci_model_input_h2d_overlap_plan.h"
 #include "graph/manager/graph_var_manager.h"
 #include "graph/manager/mem_manager.h"
 #include "graph/load/model_manager/task_info/ge/profiler_trace_task_info.h"
@@ -60,6 +67,7 @@ using namespace std;
 extern std::string g_runtime_stub_mock;
 
 namespace ge {
+
 namespace {
 ModelParam default_parm;
 class MockRtExecute : public ge::RuntimeStub {
@@ -7532,6 +7540,1429 @@ TEST_F(UtestDavinciModel, NoNeedToCopyInputOutputWithemptyData) {
             SUCCESS);
   davinci_model.is_async_mode_ = true;
   EXPECT_EQ(davinci_model.CopyOutputData(data, tensor), SUCCESS);
+}
+
+namespace {
+constexpr uint32_t kOverlapPlanVersion = 1U;
+constexpr uint32_t kOverlapInputIndex = 0U;
+constexpr uint32_t kOverlapAllocationId = 0U;
+constexpr uint32_t kOverlapAllocationOffset = 16U;
+constexpr uint32_t kOverlapInputSize = 32U;
+constexpr uint32_t kOverlapWaitStreamId = 0U;
+constexpr uint32_t kOverlapCopyStreamId = 1U;
+constexpr uint32_t kOverlapEventId = 0U;
+constexpr uint32_t kOverlapWaitTaskId = 0U;
+constexpr char kOverlapPlanAttrName[] = "_ge_input_h2d_overlap_plan";
+constexpr const char *kOverlapPlanAttrVersion = "version";
+constexpr const char *kOverlapPlanAttrCopyStreamId = "copy_stream_id";
+constexpr const char *kOverlapPlanAttrGroups = "groups";
+constexpr const char *kOverlapPlanAttrInputs = "inputs";
+constexpr const char *kOverlapPlanAttrWaitPoints = "wait_points";
+constexpr const char *kOverlapPlanAttrInputIndex = "input_index";
+constexpr const char *kOverlapPlanAttrSize = "size";
+constexpr const char *kOverlapPlanAttrStreamId = "stream_id";
+constexpr const char *kOverlapPlanAttrEventId = "event_id";
+constexpr const char *kOverlapPlanAttrWaitTaskId = "wait_task_id";
+
+struct InputH2DOverlapCopyInput {
+  uint32_t input_index = 0U;
+  uint64_t size = 0U;
+};
+
+struct InputH2DOverlapFinalWaitPoint {
+  uint32_t stream_id = 0U;
+  uint32_t event_id = 0U;
+  uint32_t wait_task_id = 0U;
+};
+
+struct InputH2DOverlapFinalCopyGroup {
+  std::vector<InputH2DOverlapCopyInput> inputs;
+  std::vector<InputH2DOverlapFinalWaitPoint> wait_points;
+};
+
+struct InputH2DOverlapFinalPlan {
+  uint32_t version = 0U;
+  uint32_t copy_stream_id = 0U;
+  std::vector<InputH2DOverlapFinalCopyGroup> groups;
+};
+
+Status SetInputH2DOverlapUintAttr(NamedAttrs &attrs, const char *const name, const uint64_t value) {
+  GE_ASSERT_TRUE(value <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max()),
+                 "[Check][InputH2DOverlapTest] attr:%s value exceeds int64 max.", name);
+  GE_ASSERT_TRUE(AttrUtils::SetInt(attrs, name, static_cast<int64_t>(value)),
+                 "[Set][InputH2DOverlapTest] attr:%s failed.", name);
+  return SUCCESS;
+}
+
+Status SerializeInputH2DOverlapPlan(const InputH2DOverlapFinalPlan &plan, NamedAttrs &plan_attr) {
+  plan_attr.SetName("input_h2d_overlap_plan");
+  GE_CHK_STATUS_RET(SetInputH2DOverlapUintAttr(plan_attr, kOverlapPlanAttrVersion, plan.version),
+                    "[Set][InputH2DOverlapPlanVersion] failed.");
+  GE_CHK_STATUS_RET(SetInputH2DOverlapUintAttr(plan_attr, kOverlapPlanAttrCopyStreamId, plan.copy_stream_id),
+                    "[Set][InputH2DOverlapPlanCopyStreamId] failed.");
+
+  std::vector<NamedAttrs> group_attrs;
+  group_attrs.reserve(plan.groups.size());
+  for (const auto &group : plan.groups) {
+    NamedAttrs group_attr;
+    group_attr.SetName("copy_group");
+
+    std::vector<NamedAttrs> input_attrs;
+    input_attrs.reserve(group.inputs.size());
+    for (const auto &input : group.inputs) {
+      NamedAttrs input_attr;
+      input_attr.SetName("input");
+      GE_CHK_STATUS_RET(SetInputH2DOverlapUintAttr(input_attr, kOverlapPlanAttrInputIndex, input.input_index),
+                        "[Set][InputH2DOverlapInputIndex] failed.");
+      GE_CHK_STATUS_RET(SetInputH2DOverlapUintAttr(input_attr, kOverlapPlanAttrSize, input.size),
+                        "[Set][InputH2DOverlapInputSize] failed.");
+      input_attrs.emplace_back(std::move(input_attr));
+    }
+    GE_ASSERT_TRUE(AttrUtils::SetListNamedAttrs(group_attr, kOverlapPlanAttrInputs, input_attrs),
+                   "[Set][InputH2DOverlapPlanInputs] failed.");
+
+    std::vector<NamedAttrs> wait_point_attrs;
+    wait_point_attrs.reserve(group.wait_points.size());
+    for (const auto &wait_point : group.wait_points) {
+      NamedAttrs wait_point_attr;
+      wait_point_attr.SetName("wait_point");
+      GE_CHK_STATUS_RET(SetInputH2DOverlapUintAttr(wait_point_attr, kOverlapPlanAttrStreamId, wait_point.stream_id),
+                        "[Set][InputH2DOverlapWaitStreamId] failed.");
+      GE_CHK_STATUS_RET(SetInputH2DOverlapUintAttr(wait_point_attr, kOverlapPlanAttrEventId, wait_point.event_id),
+                        "[Set][InputH2DOverlapWaitEventId] failed.");
+      GE_CHK_STATUS_RET(
+          SetInputH2DOverlapUintAttr(wait_point_attr, kOverlapPlanAttrWaitTaskId, wait_point.wait_task_id),
+          "[Set][InputH2DOverlapWaitTaskId] failed.");
+      wait_point_attrs.emplace_back(std::move(wait_point_attr));
+    }
+    GE_ASSERT_TRUE(AttrUtils::SetListNamedAttrs(group_attr, kOverlapPlanAttrWaitPoints, wait_point_attrs),
+                   "[Set][InputH2DOverlapPlanWaitPoints] failed.");
+
+    group_attrs.emplace_back(std::move(group_attr));
+  }
+  GE_ASSERT_TRUE(AttrUtils::SetListNamedAttrs(plan_attr, kOverlapPlanAttrGroups, group_attrs),
+                 "[Set][InputH2DOverlapPlanGroups] failed.");
+  return SUCCESS;
+}
+
+struct InputH2DOverlapMemcpyCall {
+  void *dst = nullptr;
+  const void *src = nullptr;
+  size_t dst_size = 0U;
+  size_t src_size = 0U;
+  aclrtMemcpyKind kind = ACL_MEMCPY_DEVICE_TO_DEVICE;
+  aclrtStream stream = nullptr;
+};
+
+struct InputH2DOverlapMemcpyBatchCall {
+  std::vector<InputH2DOverlapMemcpyCall> items;
+  aclrtStream stream = nullptr;
+};
+
+struct InputH2DOverlapRecordEventCall {
+  aclrtEvent event = nullptr;
+  aclrtStream stream = nullptr;
+};
+
+struct InputH2DOverlapExecuteCallLog {
+  std::vector<std::string> calls;
+  std::vector<InputH2DOverlapMemcpyCall> memcpy_calls;
+  std::vector<InputH2DOverlapMemcpyBatchCall> memcpy_batch_calls;
+  std::vector<InputH2DOverlapRecordEventCall> record_event_calls;
+  aclError memcpy_ret = ACL_SUCCESS;
+  aclError record_ret = ACL_SUCCESS;
+  aclrtStream model_execute_stream = nullptr;
+  std::mutex mutex;
+  std::condition_variable cv;
+
+  aclError AddMemcpyCall(const InputH2DOverlapMemcpyCall &call) {
+    const std::lock_guard<std::mutex> lk(mutex);
+    calls.emplace_back("h2d");
+    memcpy_calls.push_back(call);
+    cv.notify_all();
+    return memcpy_ret;
+  }
+
+  aclError AddMemcpyBatchCall(InputH2DOverlapMemcpyBatchCall &&call) {
+    const std::lock_guard<std::mutex> lk(mutex);
+    calls.emplace_back("batch_h2d");
+    memcpy_batch_calls.emplace_back(std::move(call));
+    cv.notify_all();
+    return memcpy_ret;
+  }
+
+  aclError AddRecordEventCall(const InputH2DOverlapRecordEventCall &call) {
+    const std::lock_guard<std::mutex> lk(mutex);
+    calls.emplace_back("record");
+    record_event_calls.push_back(call);
+    cv.notify_all();
+    return record_ret;
+  }
+
+  void AddExecuteCall(const aclrtStream stream) {
+    const std::lock_guard<std::mutex> lk(mutex);
+    calls.emplace_back("execute");
+    model_execute_stream = stream;
+    cv.notify_all();
+  }
+
+  bool WaitForCallCount(const size_t expected) {
+    std::unique_lock<std::mutex> lk(mutex);
+    return cv.wait_for(lk, std::chrono::milliseconds(200), [this, expected]() { return calls.size() >= expected; });
+  }
+
+  void Clear() {
+    const std::lock_guard<std::mutex> lk(mutex);
+    calls.clear();
+    memcpy_calls.clear();
+    memcpy_batch_calls.clear();
+    record_event_calls.clear();
+    model_execute_stream = nullptr;
+  }
+};
+
+size_t CountInputH2DOverlapCall(const InputH2DOverlapExecuteCallLog &call_log, const std::string &name) {
+  return static_cast<size_t>(std::count(call_log.calls.begin(), call_log.calls.end(), name));
+}
+
+class InputH2DOverlapAclRuntimeStub : public ge::AclRuntimeStub {
+ public:
+  explicit InputH2DOverlapAclRuntimeStub(InputH2DOverlapExecuteCallLog &call_log) : call_log_(call_log) {}
+
+  aclError aclrtMemcpy(void *dst, size_t dest_max, const void *src, size_t count, aclrtMemcpyKind kind) override {
+    const aclError ret = call_log_.AddMemcpyCall({dst, src, dest_max, count, kind, nullptr});
+    if ((ret == ACL_SUCCESS) && (dst != nullptr) && (src != nullptr)) {
+      (void)memcpy_s(dst, dest_max, src, count);
+    }
+    return ret;
+  }
+
+  aclError aclrtMemcpyAsync(void *dst, size_t dest_max, const void *src, size_t src_count, aclrtMemcpyKind kind,
+                            aclrtStream stream) override {
+    const aclError ret = call_log_.AddMemcpyCall({dst, src, dest_max, src_count, kind, stream});
+    if ((ret == ACL_SUCCESS) && (dst != nullptr) && (src != nullptr)) {
+      (void)memcpy_s(dst, dest_max, src, src_count);
+    }
+    return ret;
+  }
+
+  aclError aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,
+                            aclrtMemcpyBatchAttr *attrs, size_t *attrsIndexex, size_t numAttrs,
+                            size_t *failIndex) override {
+    (void)attrs;
+    (void)attrsIndexex;
+    (void)numAttrs;
+    InputH2DOverlapMemcpyBatchCall batch_call;
+    batch_call.items.reserve(numBatches);
+    for (size_t i = 0U; i < numBatches; ++i) {
+      batch_call.items.push_back({dsts[i], srcs[i], destMax[i], sizes[i], ACL_MEMCPY_HOST_TO_DEVICE, nullptr});
+      if ((call_log_.memcpy_ret == ACL_SUCCESS) && (dsts[i] != nullptr) && (srcs[i] != nullptr)) {
+        (void)memcpy_s(dsts[i], destMax[i], srcs[i], sizes[i]);
+      }
+    }
+    const aclError ret = call_log_.AddMemcpyBatchCall(std::move(batch_call));
+    if (failIndex != nullptr) {
+      *failIndex = (ret == ACL_SUCCESS) ? std::numeric_limits<size_t>::max() : 0U;
+    }
+    return ret;
+  }
+
+  aclError aclrtRecordEvent(aclrtEvent event, aclrtStream stream) override {
+    return call_log_.AddRecordEventCall({event, stream});
+  }
+
+  aclError aclmdlRIExecuteAsync(aclmdlRI model, aclrtStream stream) override {
+    (void)model;
+    call_log_.AddExecuteCall(stream);
+    return ACL_SUCCESS;
+  }
+
+ private:
+  InputH2DOverlapExecuteCallLog &call_log_;
+};
+
+class InputH2DOverlapRuntimeStub : public ge::RuntimeStub {
+ public:
+  explicit InputH2DOverlapRuntimeStub(InputH2DOverlapExecuteCallLog &call_log) : call_log_(call_log) {}
+
+  rtError_t rtModelExecute(rtModel_t model, rtStream_t stream, uint32_t flag) override {
+    (void)model;
+    (void)flag;
+    call_log_.AddExecuteCall(stream);
+    return RT_ERROR_NONE;
+  }
+
+ private:
+  InputH2DOverlapExecuteCallLog &call_log_;
+};
+
+void PrepareInputH2DOverlapModel(DavinciModel &model) {
+  model.runtime_param_.stream_num = 2U;
+  model.runtime_param_.event_num = 1U;
+  model.stream_to_first_task_id_.clear();
+  model.stream_to_first_task_id_.emplace(kOverlapWaitStreamId, kOverlapWaitTaskId);
+
+  MemAllocation allocation = {};
+  allocation.id = kOverlapAllocationId;
+  allocation.data_size = 128U;
+  allocation.tensor_size = kOverlapInputSize;
+  allocation.type = MemAllocation::INPUT;
+  model.logical_mem_allocations_.clear();
+  model.logical_mem_allocations_.emplace_back(allocation);
+
+  MemAllocationSlice copy_info = {};
+  copy_info.id = kOverlapAllocationId;
+  copy_info.offset = kOverlapAllocationOffset;
+  copy_info.data_size = kOverlapInputSize;
+  model.input_indexes_to_copy_info_.clear();
+  model.input_indexes_to_copy_info_.emplace(kOverlapInputIndex, copy_info);
+}
+
+void AddInputH2DOverlapWaitTask(domi::ModelTaskDef &model_task_def, const uint32_t stream_id, const uint32_t event_id) {
+  domi::TaskDef *task_def = model_task_def.add_task();
+  task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_EVENT_WAIT));
+  task_def->set_stream_id(stream_id);
+  task_def->set_event_id(event_id);
+}
+
+InputH2DOverlapFinalPlan MakeValidInputH2DOverlapPlan() {
+  InputH2DOverlapFinalPlan plan;
+  plan.version = kOverlapPlanVersion;
+  plan.copy_stream_id = kOverlapCopyStreamId;
+  InputH2DOverlapFinalCopyGroup group;
+  InputH2DOverlapCopyInput input;
+  input.input_index = kOverlapInputIndex;
+  input.size = kOverlapInputSize;
+  group.inputs.emplace_back(input);
+  InputH2DOverlapFinalWaitPoint wait_point;
+  wait_point.stream_id = kOverlapWaitStreamId;
+  wait_point.event_id = kOverlapEventId;
+  wait_point.wait_task_id = kOverlapWaitTaskId;
+  group.wait_points.emplace_back(wait_point);
+  plan.groups.emplace_back(group);
+  return plan;
+}
+
+InputH2DOverlapFinalPlan MakeTwoInputGroupInputH2DOverlapPlan() {
+  auto plan = MakeValidInputH2DOverlapPlan();
+  InputH2DOverlapCopyInput input;
+  input.input_index = 1U;
+  input.size = kOverlapInputSize;
+  plan.groups[0].inputs.emplace_back(input);
+  return plan;
+}
+
+InputH2DOverlapFinalPlan MakeRefreshableInputH2DOverlapPlan() {
+  return MakeValidInputH2DOverlapPlan();
+}
+
+Status SetInputH2DOverlapPlanAttr(DavinciModel &model, const InputH2DOverlapFinalPlan &plan) {
+  NamedAttrs plan_attr;
+  GE_CHK_STATUS_RET(SerializeInputH2DOverlapPlan(plan, plan_attr), "[Serialize][InputH2DOverlapPlan] failed.");
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  GE_CHECK_NOTNULL(ge_model);
+  if (!AttrUtils::SetNamedAttrs(ge_model, kOverlapPlanAttrName, plan_attr)) {
+    return FAILED;
+  }
+  model.Assign(ge_model);
+  return SUCCESS;
+}
+
+Status SetRawInputH2DOverlapPlanAttr(DavinciModel &model, const NamedAttrs &plan_attr) {
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  GE_CHECK_NOTNULL(ge_model);
+  if (!AttrUtils::SetNamedAttrs(ge_model, kOverlapPlanAttrName, plan_attr)) {
+    return FAILED;
+  }
+  model.Assign(ge_model);
+  return SUCCESS;
+}
+
+NamedAttrs MakeInputH2DOverlapIndexOnlyPlanAttr() {
+  NamedAttrs input_attr;
+  input_attr.SetName("input");
+  (void)AttrUtils::SetInt(input_attr, kOverlapPlanAttrInputIndex, kOverlapInputIndex);
+
+  std::vector<NamedAttrs> input_attrs;
+  input_attrs.emplace_back(std::move(input_attr));
+  NamedAttrs group_attr;
+  group_attr.SetName("copy_group");
+  (void)AttrUtils::SetListNamedAttrs(group_attr, kOverlapPlanAttrInputs, input_attrs);
+
+  std::vector<NamedAttrs> group_attrs;
+  group_attrs.emplace_back(std::move(group_attr));
+  NamedAttrs plan_attr;
+  plan_attr.SetName("input_h2d_overlap_plan");
+  (void)AttrUtils::SetInt(plan_attr, kOverlapPlanAttrVersion, kOverlapPlanVersion);
+  (void)AttrUtils::SetListNamedAttrs(plan_attr, kOverlapPlanAttrGroups, group_attrs);
+  return plan_attr;
+}
+
+void FillValidInputH2DOverlapTaskDef(domi::ModelTaskDef &model_task_def) {
+  AddInputH2DOverlapWaitTask(model_task_def, kOverlapWaitStreamId, kOverlapEventId);
+}
+
+Status InitRuntimePlanForTest(DavinciModel &model, const domi::ModelTaskDef &model_task_def) {
+  return model.input_h2d_overlap_plan_->Init(model.ge_model_.get(), model_task_def, model.is_online_infer_dynamic_,
+                                             model.has_no_tiling_input_, model.model_id_, model.runtime_param_,
+                                             model.stream_to_first_task_id_, model.logical_mem_allocations_,
+                                             model.input_indexes_to_copy_info_, model.input_index_to_allocation_ids_);
+}
+
+Status LoadRuntimePlanInputIndexesForTest(DavinciModel &model) {
+  return model.input_h2d_overlap_plan_->LoadInputIndexes(model.ge_model_.get(), model.model_id_);
+}
+
+bool IsRuntimePlanEnabledForTest(const DavinciModel &model) {
+  return model.input_h2d_overlap_plan_->Enabled();
+}
+
+bool IsRuntimePlanInputForTest(const DavinciModel &model, const uint32_t input_index) {
+  return model.input_h2d_overlap_plan_->IsPlannedInput(input_index);
+}
+
+Status LaunchRuntimePlanForTest(DavinciModel &model, const InputData &input_data,
+                                const std::vector<GeTensor> &input_tensors) {
+  const Status ret = model.input_h2d_overlap_plan_->Launch(
+      model.model_id_, model.stream_list_, model.event_list_, model.logical_mem_allocations_,
+      model.allocation_ids_to_active_base_addr_, input_data, input_tensors,
+      model.input_h2d_overlap_legacy_prepared_inputs_, !model.copy_host_input_indexes_.empty(), model.is_dynamic_,
+      model.is_dynamic_aipp_, model.logLevel_);
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  return ret;
+}
+
+Status LaunchRuntimePlanForTest(DavinciModel &model, const std::vector<gert::Tensor> &input_tensors) {
+  const Status ret = model.input_h2d_overlap_plan_->Launch(
+      model.model_id_, model.stream_list_, model.event_list_, model.logical_mem_allocations_,
+      model.allocation_ids_to_active_base_addr_, input_tensors, model.input_h2d_overlap_legacy_prepared_inputs_,
+      model.is_dynamic_, model.is_dynamic_aipp_, model.logLevel_);
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  return ret;
+}
+
+Status PrepareExecutableInputH2DOverlapModel(DavinciModel &model, std::vector<uint8_t> &device_memory,
+                                             const aclrtStream compute_stream, const aclrtStream copy_stream,
+                                             const aclrtEvent ready_event) {
+  PrepareInputH2DOverlapModel(model);
+  const Status ret = model.args_manager_.AllocKernelLaunchArgsHostMem(model.logical_mem_allocations_.size());
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  model.allocation_ids_to_active_base_addr_ = model.args_manager_.GetActivateMemBaseAddrs();
+  if (model.allocation_ids_to_active_base_addr_ == nullptr) {
+    return FAILED;
+  }
+
+  model.allocation_ids_to_active_base_addr_[kOverlapAllocationId] = PtrToValue(device_memory.data());
+  model.input_index_to_allocation_ids_.assign(1U, UINT32_MAX);
+  model.stream_list_ = {compute_stream, copy_stream};
+  model.event_list_ = {ready_event};
+  model.task_list_.push_back(nullptr);
+
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  GE_CHK_STATUS_RET(SetInputH2DOverlapPlanAttr(model, MakeValidInputH2DOverlapPlan()),
+                    "[Set][InputH2DOverlapPlanAttr] failed.");
+  return InitRuntimePlanForTest(model, model_task_def);
+}
+
+Status PrepareExecutableTwoInputGroupInputH2DOverlapModel(DavinciModel &model, std::vector<uint8_t> &device_memory,
+                                                          const aclrtStream compute_stream,
+                                                          const aclrtStream copy_stream, const aclrtEvent ready_event) {
+  PrepareInputH2DOverlapModel(model);
+  model.logical_mem_allocations_[kOverlapAllocationId].data_size = 128U;
+  MemAllocationSlice copy_info = {};
+  copy_info.id = kOverlapAllocationId;
+  copy_info.offset = kOverlapAllocationOffset + kOverlapInputSize;
+  copy_info.data_size = kOverlapInputSize;
+  model.input_indexes_to_copy_info_.emplace(1U, copy_info);
+  const Status ret = model.args_manager_.AllocKernelLaunchArgsHostMem(model.logical_mem_allocations_.size());
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  model.allocation_ids_to_active_base_addr_ = model.args_manager_.GetActivateMemBaseAddrs();
+  if (model.allocation_ids_to_active_base_addr_ == nullptr) {
+    return FAILED;
+  }
+
+  model.allocation_ids_to_active_base_addr_[kOverlapAllocationId] = PtrToValue(device_memory.data());
+  model.input_index_to_allocation_ids_.assign(2U, UINT32_MAX);
+  model.stream_list_ = {compute_stream, copy_stream};
+  model.event_list_ = {ready_event};
+  model.task_list_.push_back(nullptr);
+
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  GE_CHK_STATUS_RET(SetInputH2DOverlapPlanAttr(model, MakeTwoInputGroupInputH2DOverlapPlan()),
+                    "[Set][InputH2DOverlapPlanAttr] failed.");
+  return InitRuntimePlanForTest(model, model_task_def);
+}
+
+Status PrepareExecutableRefreshableInputH2DOverlapModel(DavinciModel &model, std::vector<uint8_t> &device_memory,
+                                                        const aclrtStream compute_stream, const aclrtStream copy_stream,
+                                                        const aclrtEvent ready_event) {
+  PrepareInputH2DOverlapModel(model);
+  model.input_indexes_to_copy_info_.clear();
+  model.logical_mem_allocations_[kOverlapAllocationId].logical_addr = PtrToValue(device_memory.data());
+  model.refreshable_input_index_and_allocation_ids_.emplace_back(kOverlapInputIndex, kOverlapAllocationId);
+  const Status ret = model.args_manager_.AllocKernelLaunchArgsHostMem(model.logical_mem_allocations_.size());
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  model.allocation_ids_to_active_base_addr_ = model.args_manager_.GetActivateMemBaseAddrs();
+  if (model.allocation_ids_to_active_base_addr_ == nullptr) {
+    return FAILED;
+  }
+
+  model.allocation_ids_to_active_base_addr_[kOverlapAllocationId] = PtrToValue(device_memory.data());
+  model.input_index_to_allocation_ids_.emplace_back(kOverlapAllocationId);
+  model.stream_list_ = {compute_stream, copy_stream};
+  model.event_list_ = {ready_event};
+  model.task_list_.push_back(nullptr);
+
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  GE_CHK_STATUS_RET(SetInputH2DOverlapPlanAttr(model, MakeRefreshableInputH2DOverlapPlan()),
+                    "[Set][InputH2DOverlapPlanAttr] failed.");
+  return InitRuntimePlanForTest(model, model_task_def);
+}
+
+Status PrepareExecutableInputH2DOverlapNoPlanModel(DavinciModel &model, std::vector<uint8_t> &device_memory) {
+  PrepareInputH2DOverlapModel(model);
+  const Status ret = model.args_manager_.AllocKernelLaunchArgsHostMem(model.logical_mem_allocations_.size());
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  model.allocation_ids_to_active_base_addr_ = model.args_manager_.GetActivateMemBaseAddrs();
+  if (model.allocation_ids_to_active_base_addr_ == nullptr) {
+    return FAILED;
+  }
+
+  model.allocation_ids_to_active_base_addr_[kOverlapAllocationId] = PtrToValue(device_memory.data());
+  model.input_index_to_allocation_ids_.assign(1U, UINT32_MAX);
+  model.task_list_.push_back(nullptr);
+
+  domi::ModelTaskDef model_task_def;
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  GE_CHECK_NOTNULL(ge_model);
+  model.Assign(ge_model);
+  return InitRuntimePlanForTest(model, model_task_def);
+}
+}  // namespace
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_ValidPlanSuccess) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, MakeValidInputH2DOverlapPlan()), SUCCESS);
+
+  EXPECT_EQ(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+  EXPECT_TRUE(IsRuntimePlanEnabledForTest(model));
+  EXPECT_TRUE(IsRuntimePlanInputForTest(model, kOverlapInputIndex));
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_MissingAttrNoop) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  domi::ModelTaskDef model_task_def;
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ASSERT_NE(ge_model, nullptr);
+  model.Assign(ge_model);
+
+  EXPECT_EQ(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+  EXPECT_FALSE(IsRuntimePlanEnabledForTest(model));
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_RejectMalformedPlanAttr) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  NamedAttrs malformed_plan;
+  malformed_plan.SetName("input_h2d_overlap_plan");
+  ASSERT_TRUE(AttrUtils::SetInt(malformed_plan, kOverlapPlanAttrVersion, 1));
+  ASSERT_EQ(SetRawInputH2DOverlapPlanAttr(model, malformed_plan), SUCCESS);
+
+  EXPECT_NE(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_RejectUnsupportedPlanVersion) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  auto plan = MakeValidInputH2DOverlapPlan();
+  plan.version = kOverlapPlanVersion + 1U;
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, plan), SUCCESS);
+
+  EXPECT_NE(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_RejectCopyStreamWithTask) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  model.stream_to_first_task_id_.emplace(kOverlapCopyStreamId, kOverlapWaitTaskId);
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, MakeValidInputH2DOverlapPlan()), SUCCESS);
+
+  EXPECT_NE(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_RejectConcretePlanWithoutCopyInfo) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  model.input_indexes_to_copy_info_.clear();
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, MakeValidInputH2DOverlapPlan()), SUCCESS);
+
+  EXPECT_NE(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_ResolveRefreshableInput) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  model.input_indexes_to_copy_info_.clear();
+  model.input_index_to_allocation_ids_.emplace_back(kOverlapAllocationId);
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, MakeRefreshableInputH2DOverlapPlan()), SUCCESS);
+
+  EXPECT_EQ(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+  EXPECT_TRUE(IsRuntimePlanEnabledForTest(model));
+  EXPECT_TRUE(IsRuntimePlanInputForTest(model, kOverlapInputIndex));
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_LoadInputIndexesDoesNotRequireFullPlan) {
+  DavinciModel model(0, nullptr);
+  ASSERT_EQ(SetRawInputH2DOverlapPlanAttr(model, MakeInputH2DOverlapIndexOnlyPlanAttr()), SUCCESS);
+
+  EXPECT_EQ(LoadRuntimePlanInputIndexesForTest(model), SUCCESS);
+  EXPECT_TRUE(IsRuntimePlanEnabledForTest(model));
+  EXPECT_TRUE(IsRuntimePlanInputForTest(model, kOverlapInputIndex));
+
+  domi::ModelTaskDef model_task_def;
+  EXPECT_NE(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+}
+
+TEST_F(UtestDavinciModel, GenInputMemAllocations_InputH2DOverlapPlannedHostInputSkipsLegacyHostInputSize) {
+  DavinciModel model(0, nullptr);
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, MakeRefreshableInputH2DOverlapPlan()), SUCCESS);
+  ASSERT_EQ(LoadRuntimePlanInputIndexesForTest(model), SUCCESS);
+
+  std::map<std::string, std::string> options_map;
+  options_map["ge.exec.hostInputIndexes"] = "0";
+  GetThreadLocalContext().SetGraphOption(options_map);
+
+  GeTensorDesc tensor_desc(GeShape({static_cast<int64_t>(kOverlapInputSize)}), FORMAT_ND, DT_UINT8);
+  TensorUtils::SetSize(tensor_desc, kOverlapInputSize);
+  OpDescPtr op_desc = CreateOpDesc("data0", DATA);
+  op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({0});
+  std::map<uint32_t, OpDescPtr> index_to_data;
+  index_to_data.emplace(kOverlapInputIndex, op_desc);
+
+  EXPECT_EQ(model.GenInputMemAllocations(index_to_data), SUCCESS);
+  EXPECT_EQ(model.host_input_size_, 0U);
+  ASSERT_EQ(model.copy_host_input_infos_.size(), 1U);
+  EXPECT_EQ(model.copy_host_input_infos_[kOverlapInputIndex].tensor_size, 0U);
+  ASSERT_EQ(model.input_index_to_allocation_ids_.size(), 1U);
+  EXPECT_NE(model.input_index_to_allocation_ids_[kOverlapInputIndex], UINT32_MAX);
+
+  GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_RejectUnresolvedInput) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  model.input_indexes_to_copy_info_.clear();
+  model.input_index_to_allocation_ids_.clear();
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, MakeRefreshableInputH2DOverlapPlan()), SUCCESS);
+
+  EXPECT_NE(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_RejectWaitTaskMismatch) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  model_task_def.mutable_task(kOverlapWaitTaskId)->set_event_id(kOverlapEventId + 1U);
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, MakeValidInputH2DOverlapPlan()), SUCCESS);
+
+  EXPECT_NE(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+}
+
+TEST_F(UtestDavinciModel, CopyInputForNoZeroCopy_SkipInputH2DOverlapPlannedInput) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, MakeValidInputH2DOverlapPlan()), SUCCESS);
+  ASSERT_EQ(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+
+  MemAllocationSlice copy_info = {};
+  copy_info.id = kOverlapAllocationId;
+  copy_info.offset = kOverlapAllocationOffset;
+  copy_info.data_size = kOverlapInputSize;
+  std::map<uint32_t, MemAllocationSlice> copy_infos;
+  copy_infos.emplace(kOverlapInputIndex, copy_info);
+
+  std::vector<DataBuffer> input_blobs = {DataBuffer()};
+  std::vector<GeTensor> input_tensors;
+  EXPECT_EQ(model.CopyInputForNoZeroCopy(input_blobs, copy_infos, input_tensors), SUCCESS);
+}
+
+TEST_F(UtestDavinciModel, CopyInputData_SkipInputH2DOverlapPlannedInput) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+            SUCCESS);
+  model.input_data_info_.emplace(kOverlapInputIndex, ZeroCopyOffset());
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input.data(), kOverlapInputSize, false, kPlacementHost);
+  EXPECT_EQ(model.CopyInputData(input_data), SUCCESS);
+  EXPECT_TRUE(call_log.memcpy_calls.empty());
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, CopyInputDataWithMergeH2D_InputH2DOverlapKeepsPlannedMergeCopy) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input0(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> host_input1(kOverlapInputSize, 0xA5);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+            SUCCESS);
+
+  ZeroCopyOffset planned_input = {};
+  planned_input.basic_addr_ = device_memory.data();
+  planned_input.data_size_ = kOverlapInputSize;
+  ZeroCopyOffset unplanned_input = {};
+  unplanned_input.basic_addr_ = device_memory.data() + kOverlapInputSize;
+  unplanned_input.data_size_ = kOverlapInputSize;
+  model.input_data_info_[kOverlapInputIndex] = planned_input;
+  model.input_data_info_[1U] = unplanned_input;
+
+  std::vector<uint8_t> merge_buffer(kOverlapInputSize * 2U, 0U);
+  model.input_merge_copy_mem_base_.reset(merge_buffer.data(), [](uint8_t *) {});
+  model.input_merge_copy_mem_size_ = merge_buffer.size();
+  model.fisrt_input_index_of_merge_copy_ = kOverlapInputIndex;
+  model.input_index_to_merge_copy_offset_[kOverlapInputIndex] = 0U;
+  model.input_index_to_merge_copy_offset_[1U] = kOverlapInputSize;
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input0.data(), kOverlapInputSize, false, kPlacementHost);
+  input_data.blobs.emplace_back(host_input1.data(), kOverlapInputSize, false, kPlacementHost);
+  EXPECT_EQ(model.CopyInputDataWithMergeH2D(input_data), SUCCESS);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  const auto &memcpy_call = call_log.memcpy_calls.front();
+  EXPECT_EQ(memcpy_call.dst, device_memory.data());
+  EXPECT_EQ(memcpy_call.src, merge_buffer.data());
+  EXPECT_EQ(memcpy_call.dst_size, kOverlapInputSize * 2U);
+  EXPECT_EQ(memcpy_call.src_size, kOverlapInputSize * 2U);
+  EXPECT_EQ(memcpy_call.kind, ACL_MEMCPY_HOST_TO_DEVICE);
+  EXPECT_EQ(memcmp(merge_buffer.data(), host_input0.data(), kOverlapInputSize), 0);
+  EXPECT_EQ(memcmp(device_memory.data(), host_input0.data(), kOverlapInputSize), 0);
+  EXPECT_EQ(memcmp(device_memory.data() + kOverlapInputSize, host_input1.data(), kOverlapInputSize), 0);
+
+  model.input_merge_copy_mem_base_.reset();
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, CopyInputDataWithMergeH2D_InputH2DOverlapPreparedMergeInputSkipsWorkerCopy) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input0(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> host_input1(kOverlapInputSize, 0xA5);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableTwoInputGroupInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream,
+                                                               ready_event),
+            SUCCESS);
+
+  ZeroCopyOffset input0 = {};
+  input0.basic_addr_ = device_memory.data();
+  input0.data_size_ = kOverlapInputSize;
+  ZeroCopyOffset input1 = {};
+  input1.basic_addr_ = device_memory.data() + kOverlapInputSize;
+  input1.data_size_ = kOverlapInputSize;
+  model.input_data_info_[kOverlapInputIndex] = input0;
+  model.input_data_info_[1U] = input1;
+
+  std::vector<uint8_t> merge_buffer(kOverlapInputSize * 2U, 0U);
+  model.input_merge_copy_mem_base_.reset(merge_buffer.data(), [](uint8_t *) {});
+  model.input_merge_copy_mem_size_ = merge_buffer.size();
+  model.fisrt_input_index_of_merge_copy_ = kOverlapInputIndex;
+  model.input_index_to_merge_copy_offset_[kOverlapInputIndex] = 0U;
+  model.input_index_to_merge_copy_offset_[1U] = kOverlapInputSize;
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input0.data(), kOverlapInputSize, false, kPlacementHost);
+  input_data.blobs.emplace_back(host_input1.data(), kOverlapInputSize, false, kPlacementHost);
+  EXPECT_EQ(model.CopyInputDataWithMergeH2D(input_data), SUCCESS);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  EXPECT_EQ(call_log.memcpy_calls[0].stream, nullptr);
+  EXPECT_EQ(call_log.memcpy_calls[0].dst_size, kOverlapInputSize * 2U);
+
+  call_log.memcpy_calls.clear();
+  call_log.record_event_calls.clear();
+  EXPECT_EQ(LaunchRuntimePlanForTest(model, input_data, std::vector<GeTensor>()), SUCCESS);
+  EXPECT_TRUE(call_log.memcpy_calls.empty());
+  EXPECT_TRUE(call_log.memcpy_batch_calls.empty());
+  ASSERT_EQ(call_log.record_event_calls.size(), 1U);
+  EXPECT_EQ(call_log.record_event_calls[0].event, ready_event);
+  EXPECT_EQ(call_log.record_event_calls[0].stream, copy_stream);
+
+  model.input_merge_copy_mem_base_.reset();
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_RejectInvalidHostInputBeforeCopy) {
+  DavinciModel model(0, nullptr);
+  PrepareInputH2DOverlapModel(model);
+  domi::ModelTaskDef model_task_def;
+  FillValidInputH2DOverlapTaskDef(model_task_def);
+  ASSERT_EQ(SetInputH2DOverlapPlanAttr(model, MakeValidInputH2DOverlapPlan()), SUCCESS);
+  ASSERT_EQ(InitRuntimePlanForTest(model, model_task_def), SUCCESS);
+  model.stream_list_ = {reinterpret_cast<aclrtStream>(0x1), reinterpret_cast<aclrtStream>(0x2)};
+
+  InputData input_data;
+  DataBuffer input_blob;
+  input_blob.data = nullptr;
+  input_blob.length = kOverlapInputSize;
+  input_blob.placement = kPlacementHost;
+  input_data.blobs.emplace_back(input_blob);
+
+  std::vector<GeTensor> input_tensors;
+  EXPECT_EQ(LaunchRuntimePlanForTest(model, input_data, input_tensors), PARAM_INVALID);
+  model.stream_list_.clear();
+}
+
+TEST_F(UtestDavinciModel, InputH2DOverlapRuntimePlan_GertTensorLaunchUsesWorkerH2DAndCopyStreamEvent) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+            SUCCESS);
+
+  std::vector<gert::Tensor> input_tensors(1);
+  input_tensors[0] = {{{static_cast<int64_t>(kOverlapInputSize)}, {static_cast<int64_t>(kOverlapInputSize)}},
+                      {ge::FORMAT_ND, ge::FORMAT_ND, {}},
+                      gert::kOnHost,
+                      ge::DT_UINT8,
+                      static_cast<void *>(host_input.data())};
+
+  EXPECT_EQ(LaunchRuntimePlanForTest(model, input_tensors), SUCCESS);
+
+  const std::vector<std::string> expected_calls = {"h2d", "record"};
+  EXPECT_EQ(call_log.calls, expected_calls);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  const auto &memcpy_call = call_log.memcpy_calls[0];
+  EXPECT_EQ(memcpy_call.dst, static_cast<void *>(device_memory.data() + kOverlapAllocationOffset));
+  EXPECT_EQ(memcpy_call.src, static_cast<const void *>(host_input.data()));
+  EXPECT_EQ(memcpy_call.dst_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.src_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.kind, ACL_MEMCPY_HOST_TO_DEVICE);
+  EXPECT_EQ(memcpy_call.stream, nullptr);
+
+  ASSERT_EQ(call_log.record_event_calls.size(), 1U);
+  EXPECT_EQ(call_log.record_event_calls[0].event, ready_event);
+  EXPECT_EQ(call_log.record_event_calls[0].stream, copy_stream);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapFeaturePlanLaunchesCopyBeforeModelExecute) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+            SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input.data(), kOverlapInputSize, false, kPlacementHost);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  EXPECT_TRUE(call_log.WaitForCallCount(3U));
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "h2d"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "record"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "execute"), 1U);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  const auto &memcpy_call = call_log.memcpy_calls[0];
+  EXPECT_EQ(memcpy_call.dst, static_cast<void *>(device_memory.data() + kOverlapAllocationOffset));
+  EXPECT_EQ(memcpy_call.src, static_cast<const void *>(host_input.data()));
+  EXPECT_EQ(memcpy_call.dst_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.src_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.kind, ACL_MEMCPY_HOST_TO_DEVICE);
+  EXPECT_EQ(memcpy_call.stream, nullptr);
+  EXPECT_EQ(memcmp(device_memory.data() + kOverlapAllocationOffset, host_input.data(), kOverlapInputSize), 0);
+
+  ASSERT_EQ(call_log.record_event_calls.size(), 1U);
+  EXPECT_EQ(call_log.record_event_calls[0].event, ready_event);
+  EXPECT_EQ(call_log.record_event_calls[0].stream, copy_stream);
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapGroupUsesBatchCopyOnCopyStream) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input0(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> host_input1(kOverlapInputSize, 0xA5);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableTwoInputGroupInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream,
+                                                               ready_event),
+            SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input0.data(), kOverlapInputSize, false, kPlacementHost);
+  input_data.blobs.emplace_back(host_input1.data(), kOverlapInputSize, false, kPlacementHost);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  EXPECT_TRUE(call_log.WaitForCallCount(3U));
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "batch_h2d"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "record"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "execute"), 1U);
+  EXPECT_TRUE(call_log.memcpy_calls.empty());
+  ASSERT_EQ(call_log.memcpy_batch_calls.size(), 1U);
+  const auto &batch_call = call_log.memcpy_batch_calls[0];
+  EXPECT_EQ(batch_call.stream, nullptr);
+  ASSERT_EQ(batch_call.items.size(), 2U);
+  EXPECT_EQ(batch_call.items[0].dst, static_cast<void *>(device_memory.data() + kOverlapAllocationOffset));
+  EXPECT_EQ(batch_call.items[0].src, static_cast<const void *>(host_input0.data()));
+  EXPECT_EQ(batch_call.items[0].dst_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(batch_call.items[0].src_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(batch_call.items[1].dst,
+            static_cast<void *>(device_memory.data() + kOverlapAllocationOffset + kOverlapInputSize));
+  EXPECT_EQ(batch_call.items[1].src, static_cast<const void *>(host_input1.data()));
+  EXPECT_EQ(batch_call.items[1].dst_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(batch_call.items[1].src_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcmp(device_memory.data() + kOverlapAllocationOffset, host_input0.data(), kOverlapInputSize), 0);
+  EXPECT_EQ(memcmp(device_memory.data() + kOverlapAllocationOffset + kOverlapInputSize, host_input1.data(),
+                   kOverlapInputSize),
+            0);
+  ASSERT_EQ(call_log.record_event_calls.size(), 1U);
+  EXPECT_EQ(call_log.record_event_calls[0].event, ready_event);
+  EXPECT_EQ(call_log.record_event_calls[0].stream, copy_stream);
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapFeaturePlanSyncModeUsesWorkerH2DAndCopyStreamEvent) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+            SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input.data(), kOverlapInputSize, false, kPlacementHost);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, false, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  EXPECT_TRUE(call_log.WaitForCallCount(3U));
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "h2d"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "record"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "execute"), 1U);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  const auto &memcpy_call = call_log.memcpy_calls[0];
+  EXPECT_EQ(memcpy_call.dst, static_cast<void *>(device_memory.data() + kOverlapAllocationOffset));
+  EXPECT_EQ(memcpy_call.src, static_cast<const void *>(host_input.data()));
+  EXPECT_EQ(memcpy_call.dst_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.src_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.kind, ACL_MEMCPY_HOST_TO_DEVICE);
+  EXPECT_EQ(memcpy_call.stream, nullptr);
+  EXPECT_EQ(memcmp(device_memory.data() + kOverlapAllocationOffset, host_input.data(), kOverlapInputSize), 0);
+
+  ASSERT_EQ(call_log.record_event_calls.size(), 1U);
+  EXPECT_EQ(call_log.record_event_calls[0].event, ready_event);
+  EXPECT_EQ(call_log.record_event_calls[0].stream, copy_stream);
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapRefreshableHostInputCopiesOnCopyStream) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(
+      PrepareExecutableRefreshableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+      SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input.data(), kOverlapInputSize, false, kPlacementHost);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  EXPECT_TRUE(call_log.WaitForCallCount(3U));
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "h2d"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "record"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "execute"), 1U);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  const auto &memcpy_call = call_log.memcpy_calls[0];
+  EXPECT_EQ(memcpy_call.dst, static_cast<void *>(device_memory.data()));
+  EXPECT_EQ(memcpy_call.src, static_cast<const void *>(host_input.data()));
+  EXPECT_EQ(memcpy_call.dst_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.src_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.kind, ACL_MEMCPY_HOST_TO_DEVICE);
+  EXPECT_EQ(memcpy_call.stream, nullptr);
+  EXPECT_EQ(memcmp(device_memory.data(), host_input.data(), kOverlapInputSize), 0);
+  ASSERT_EQ(call_log.record_event_calls.size(), 1U);
+  EXPECT_EQ(call_log.record_event_calls[0].event, ready_event);
+  EXPECT_EQ(call_log.record_event_calls[0].stream, copy_stream);
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapSkipsHostInputIndexesStaging) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(
+      PrepareExecutableRefreshableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+      SUCCESS);
+  (void)model.copy_host_input_indexes_.insert(kOverlapInputIndex);
+  model.copy_host_input_infos_.clear();
+  model.allocation_ids_to_active_base_addr_[kOverlapAllocationId] = PtrToValue(device_memory.data());
+
+  GeTensorDesc tensor_desc(GeShape({static_cast<int64_t>(kOverlapInputSize)}), FORMAT_ND, DT_UINT8);
+  tensor_desc.SetPlacement(kPlacementHost);
+  GeTensor input_tensor;
+  input_tensor.SetTensorDesc(tensor_desc);
+  input_tensor.SetData(host_input.data(), host_input.size());
+
+  InputData input_data;
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors = {input_tensor};
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  EXPECT_TRUE(call_log.WaitForCallCount(3U));
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "h2d"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "record"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "execute"), 1U);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  const auto &memcpy_call = call_log.memcpy_calls[0];
+  EXPECT_EQ(memcpy_call.dst, static_cast<void *>(device_memory.data()));
+  EXPECT_EQ(memcpy_call.src, static_cast<const void *>(input_tensors[0].GetData().data()));
+  EXPECT_EQ(memcpy_call.kind, ACL_MEMCPY_HOST_TO_DEVICE);
+  EXPECT_EQ(memcpy_call.stream, nullptr);
+  EXPECT_EQ(memcmp(device_memory.data(), host_input.data(), kOverlapInputSize), 0);
+  ASSERT_EQ(call_log.record_event_calls.size(), 1U);
+  EXPECT_EQ(call_log.record_event_calls[0].event, ready_event);
+  EXPECT_EQ(call_log.record_event_calls[0].stream, copy_stream);
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapRefreshableDeviceInputFails) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> device_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(
+      PrepareExecutableRefreshableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+      SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(device_input.data(), kOverlapInputSize, false, kPlacementDevice);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors),
+            PARAM_INVALID);
+  EXPECT_TRUE(call_log.calls.empty());
+  EXPECT_TRUE(call_log.memcpy_calls.empty());
+  EXPECT_TRUE(call_log.record_event_calls.empty());
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapRefreshableRejectInvalidPlacement) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(
+      PrepareExecutableRefreshableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+      SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(input.data(), kOverlapInputSize, false,
+                                static_cast<uint32_t>(Placement::kPlacementEnd));
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors),
+            PARAM_INVALID);
+  EXPECT_TRUE(call_log.calls.empty());
+  EXPECT_TRUE(call_log.memcpy_calls.empty());
+  EXPECT_TRUE(call_log.record_event_calls.empty());
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapNoPlanUsesOriginalCopyPath) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapNoPlanModel(model, device_memory), SUCCESS);
+  ASSERT_FALSE(IsRuntimePlanEnabledForTest(model));
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input.data(), kOverlapInputSize, false, kPlacementHost);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  const std::vector<std::string> expected_calls = {"h2d", "execute"};
+  EXPECT_EQ(call_log.calls, expected_calls);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  const auto &memcpy_call = call_log.memcpy_calls[0];
+  EXPECT_EQ(memcpy_call.dst, static_cast<void *>(device_memory.data() + kOverlapAllocationOffset));
+  EXPECT_EQ(memcpy_call.src, static_cast<const void *>(host_input.data()));
+  EXPECT_EQ(memcpy_call.dst_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.src_size, static_cast<size_t>(kOverlapInputSize));
+  EXPECT_EQ(memcpy_call.kind, ACL_MEMCPY_HOST_TO_BUF_TO_DEVICE);
+  EXPECT_EQ(memcpy_call.stream, compute_stream);
+  EXPECT_EQ(memcmp(device_memory.data() + kOverlapAllocationOffset, host_input.data(), kOverlapInputSize), 0);
+  EXPECT_TRUE(call_log.record_event_calls.empty());
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapFeaturePlanRunsRepeatedly) {
+  InputH2DOverlapExecuteCallLog call_log;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+            SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input.data(), kOverlapInputSize, false, kPlacementHost);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+  EXPECT_TRUE(call_log.WaitForCallCount(3U));
+
+  std::fill(host_input.begin(), host_input.end(), 0xA5);
+  std::fill(device_memory.begin(), device_memory.end(), 0U);
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  EXPECT_TRUE(call_log.WaitForCallCount(6U));
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "h2d"), 2U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "record"), 2U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "execute"), 2U);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 2U);
+  EXPECT_EQ(call_log.memcpy_calls[0].stream, nullptr);
+  EXPECT_EQ(call_log.memcpy_calls[1].stream, nullptr);
+  ASSERT_EQ(call_log.record_event_calls.size(), 2U);
+  EXPECT_EQ(call_log.record_event_calls[0].event, ready_event);
+  EXPECT_EQ(call_log.record_event_calls[1].event, ready_event);
+  EXPECT_EQ(memcmp(device_memory.data() + kOverlapAllocationOffset, host_input.data(), kOverlapInputSize), 0);
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapH2DFailureDoesNotBlockCurrentModelExecute) {
+  InputH2DOverlapExecuteCallLog call_log;
+  call_log.memcpy_ret = ACL_ERROR_RT_PARAM_INVALID;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+            SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input.data(), kOverlapInputSize, false, kPlacementHost);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  EXPECT_TRUE(call_log.WaitForCallCount(2U));
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "h2d"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "execute"), 1U);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  EXPECT_EQ(call_log.memcpy_calls[0].stream, nullptr);
+  EXPECT_TRUE(call_log.record_event_calls.empty());
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapRecordFailureDoesNotBlockCurrentModelExecute) {
+  InputH2DOverlapExecuteCallLog call_log;
+  call_log.record_ret = ACL_ERROR_RT_PARAM_INVALID;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+            SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input.data(), kOverlapInputSize, false, kPlacementHost);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  EXPECT_TRUE(call_log.WaitForCallCount(3U));
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "h2d"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "record"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "execute"), 1U);
+  ASSERT_EQ(call_log.memcpy_calls.size(), 1U);
+  EXPECT_EQ(call_log.memcpy_calls[0].stream, nullptr);
+  ASSERT_EQ(call_log.record_event_calls.size(), 1U);
+  EXPECT_EQ(call_log.record_event_calls[0].event, ready_event);
+  EXPECT_EQ(call_log.record_event_calls[0].stream, copy_stream);
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
+}
+
+TEST_F(UtestDavinciModel, NnExecute_InputH2DOverlapPreviousWorkerFailureBlocksNextRun) {
+  InputH2DOverlapExecuteCallLog call_log;
+  call_log.memcpy_ret = ACL_ERROR_RT_PARAM_INVALID;
+  auto acl_runtime = std::make_shared<InputH2DOverlapAclRuntimeStub>(call_log);
+  auto rt_runtime = std::make_shared<InputH2DOverlapRuntimeStub>(call_log);
+  ge::AclRuntimeStub::SetInstance(acl_runtime);
+  ge::RuntimeStub::SetInstance(rt_runtime);
+
+  DavinciModel model(0, nullptr);
+  std::vector<uint8_t> host_input(kOverlapInputSize, 0x5A);
+  std::vector<uint8_t> device_memory(128U, 0U);
+  const aclrtStream compute_stream = reinterpret_cast<aclrtStream>(0x10);
+  const aclrtStream copy_stream = reinterpret_cast<aclrtStream>(0x20);
+  const aclrtEvent ready_event = reinterpret_cast<aclrtEvent>(0x30);
+  ASSERT_EQ(PrepareExecutableInputH2DOverlapModel(model, device_memory, compute_stream, copy_stream, ready_event),
+            SUCCESS);
+
+  InputData input_data;
+  input_data.blobs.emplace_back(host_input.data(), kOverlapInputSize, false, kPlacementHost);
+  OutputData output_data;
+  std::vector<GeTensor> input_tensors;
+  std::vector<GeTensor> output_tensors;
+  EXPECT_EQ(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+
+  EXPECT_TRUE(call_log.WaitForCallCount(2U));
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "h2d"), 1U);
+  EXPECT_EQ(CountInputH2DOverlapCall(call_log, "execute"), 1U);
+  EXPECT_EQ(call_log.model_execute_stream, compute_stream);
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+  call_log.Clear();
+  call_log.memcpy_ret = ACL_SUCCESS;
+  EXPECT_NE(model.NnExecute(compute_stream, true, input_data, output_data, input_tensors, output_tensors), SUCCESS);
+  EXPECT_TRUE(call_log.calls.empty());
+  EXPECT_TRUE(call_log.memcpy_calls.empty());
+  EXPECT_TRUE(call_log.record_event_calls.empty());
+  EXPECT_EQ(call_log.model_execute_stream, nullptr);
+
+  model.stream_list_.clear();
+  model.event_list_.clear();
+  model.task_list_.clear();
+  ge::AclRuntimeStub::Reset();
+  ge::RuntimeStub::Reset();
 }
 
 TEST_F(UtestDavinciModel, InitModelInputsMergeCopyHostMem_input_fusion_size_zero) {

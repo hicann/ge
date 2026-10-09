@@ -30,6 +30,12 @@ Status ModelDumpManager::GlobalInit() {
   return SUCCESS;
 }
 
+Status ModelDumpManager::ParseDumpConfig() {
+  GELOGD("ModelDumpManager::ParseDumpConfig start");
+  DumpConfig::Instance().Reset();
+  return DumpCallbackManager::GetInstance().ParseDumpConfig();
+}
+
 ModelDumpManager::ModelDumpManager(uint32_t model_id) : model_id_(model_id) {
   GELOGD("ModelDumpManager constructed, model_id=%u", model_id);
 
@@ -263,6 +269,13 @@ Status ModelDumpManager::DispatchDumpInfo() {
   }
 
   return SUCCESS;
+}
+
+Status ModelDumpManager::UpdateStepId(uint64_t step_id, aclrtStream stream) {
+  if (data_dump_impl_ == nullptr) {
+    return SUCCESS;
+  }
+  return data_dump_impl_->UpdateStepId(step_id, stream);
 }
 
 bool ModelDumpManager::GetOpDescInfo(const OpDescInfoId &op_id, OpDescInfo &op_info) const {

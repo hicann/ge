@@ -563,7 +563,10 @@ Status TaskContext::SaveProfilingTaskDescInfo(const std::string &task_type, cons
                                               const std::string &op_type) {
   if (DumpManager::GetInstance().IsDumpExceptionOpen() || ProfilingManager::Instance().ProfilingModelLoadOn() ||
       ProfilingProperties::Instance().ProfilingSubscribeOn()) {
-    GE_CHK_ACL_RET(aclrtGetThreadLastTaskId(&task_id_));
+    // aclrtStreamGetId 保留不改：新接口的 streamId 出参是线程最近一次任务所在流的 id，
+    // 与本处需要的指定执行流（GetStream()）id 语义不同，不可用 acl_stream_id 替代，保持运行行为不变
+    uint32_t acl_stream_id = 0U;
+    GE_CHK_ACL_RET(aclrtGetThreadLastTaskIdAndStreamId(&task_id_, &acl_stream_id));
     GE_CHK_ACL_RET(aclrtStreamGetId(GetStream(), reinterpret_cast<int32_t *>(&stream_id_)));
     GELOGD("Get Node[%s] task id: %u, stream id: %u.", GetNodeName(), task_id_, stream_id_);
   }

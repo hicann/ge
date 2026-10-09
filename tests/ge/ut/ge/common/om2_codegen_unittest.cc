@@ -21,6 +21,7 @@
 #include "common/om2/codegen/om2_code_printer.h"
 #include "common/helper/om2/om2_utils.h"
 #include "common/om2/codegen/om2_codegen_types.h"
+#include "common/om2/codegen/om2_model_utils.h"
 #include "common/ge_common/ge_types.h"
 #include "common/util/error_manager/error_manager.h"
 #include "graph/ge_local_context.h"
@@ -920,6 +921,79 @@ TEST_F(Om2CodegenUt, BuildL0ArgSlotEntries_EmitsTensorWorkspaceAndIgnoredKinds) 
                             });
 }
 
+TEST_F(Om2CodegenUt, BuildInputTensorInfo_DataTypeUsesGeEnumValue) {
+  // ge::DataType 与 proto::DataType 数值错位（DT_FLOAT: 0/1, DT_FLOAT16: 1/2, DT_BOOL: 12/11），
+  // data_type 必须写 ge::DataType 原值，否则生成代码 BuildTensor 强转后 profiling 上报错位
+  const std::vector<std::pair<DataType, int32_t>> dtype_cases = {{DT_FLOAT, 0}, {DT_FLOAT16, 1}, {DT_BOOL, 12}};
+  for (const auto &dtype_case : dtype_cases) {
+    const GeTensorDescPtr tensor_desc = std::make_shared<GeTensorDesc>(GeShape({2, 3}), FORMAT_ND, dtype_case.first);
+    Om2TensorInfo tensor_info;
+    ASSERT_EQ(Om2ModelUtils::BuildInputTensorInfo(tensor_desc, tensor_info), SUCCESS);
+    EXPECT_EQ(tensor_info.data_type, dtype_case.second) << "dtype=" << dtype_case.second;
+    EXPECT_EQ(tensor_info.data_type, static_cast<int32_t>(tensor_desc->GetDataType()));
+    EXPECT_EQ(tensor_info.format, static_cast<int32_t>(FORMAT_ND));
+    EXPECT_EQ(tensor_info.shape_dims, tensor_desc->GetShape().GetDims());
+  }
+}
+TEST_F(Om2CodegenUt, BuildOutputTensorInfo_DataTypeUsesGeEnumValue) {
+  const std::vector<std::pair<DataType, int32_t>> dtype_cases = {{DT_FLOAT, 0}, {DT_FLOAT16, 1}, {DT_BOOL, 12}};
+  for (const auto &dtype_case : dtype_cases) {
+    const GeTensorDescPtr tensor_desc = std::make_shared<GeTensorDesc>(GeShape({2, 3}), FORMAT_ND, dtype_case.first);
+    Om2TensorInfo tensor_info;
+    ASSERT_EQ(Om2ModelUtils::BuildOutputTensorInfo(tensor_desc, tensor_info), SUCCESS);
+    EXPECT_EQ(tensor_info.data_type, dtype_case.second) << "dtype=" << dtype_case.second;
+    EXPECT_EQ(tensor_info.data_type, static_cast<int32_t>(tensor_desc->GetDataType()));
+    EXPECT_EQ(tensor_info.format, static_cast<int32_t>(FORMAT_ND));
+    EXPECT_EQ(tensor_info.shape_dims, tensor_desc->GetShape().GetDims());
+  }
+}
+
+namespace {
+domi::TaskDef MakeKernelTaskDef(const ModelTaskType task_type, const uint32_t block_dim,
+                                const ccKernelType kernel_type = ccKernelType::TE) {
+  domi::TaskDef task_def;
+  task_def.set_type(static_cast<int32_t>(task_type));
+  auto kernel = task_def.mutable_kernel();
+  kernel->set_block_dim(block_dim);
+  kernel->mutable_context()->set_kernel_type(static_cast<int32_t>(kernel_type));
+  return task_def;
+}
+}  // namespace
+
+// 对齐 davinci_model.cc:GetBlockDim 的 profiling 加工：FFTS+ mix 算子低16位为主加速器 blockdim，
+// 高16位为从加速器 ratio 值，msprof 工具据此解析 Block Num / Mix Block Num
+TEST_F(Om2CodegenUt, GetProfilingBlockDim_MixOpEncodesTaskRatio) {
+  auto op_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)ge::AttrUtils::SetBool(op_desc, "_is_fftsplus_task", true);
+  (void)ge::AttrUtils::SetInt(op_desc, "_task_ratio", 10);
+  const auto task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_KERNEL, 16U);
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), ((16U & 0xFFFFU) | (10U << 16U)));
+}
+
+// tiling sink 依赖算子返回 0xFFFFFFFF 占位值，表示运行时由 Tiling 结果决定
+TEST_F(Om2CodegenUt, GetProfilingBlockDim_TilingSinkReturnsPlaceholder) {
+  auto op_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)ge::AttrUtils::SetBool(op_desc, "_dynamic_tiling_depend_op", true);
+  const auto task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_KERNEL, 8U);
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), 0xFFFFFFFFU);
+}
+
+// 上报口径使用 task_def 原值：block_dim=0 不做 launch 侧的 0→1 归一；KERNEL_EX/AICPU 任务上报 0
+TEST_F(Om2CodegenUt, GetProfilingBlockDim_RawValueWithoutNormalize) {
+  auto op_desc = std::make_shared<OpDesc>("add1", "Add");
+  auto task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_KERNEL, 0U);
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), 0U);
+
+  task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_KERNEL_EX, 8U);
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), 0U);
+
+  task_def = MakeKernelTaskDef(ModelTaskType::MODEL_TASK_ALL_KERNEL, 8U);
+  auto kernel_with_handle = task_def.mutable_kernel_with_handle();
+  kernel_with_handle->set_block_dim(8U);
+  kernel_with_handle->mutable_context()->set_kernel_type(static_cast<int32_t>(ccKernelType::TE));
+  EXPECT_EQ(TaskCodeBuilderUtil::GetProfilingBlockDim(op_desc, task_def), 8U);
+}
+
 TEST_F(Om2CodegenUt, AstDsl_ContainerMethods_Ok) {
   AstContext ctx;
   AstBuildContext ast(ctx);
@@ -975,61 +1049,61 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MakefileVariableContinuation_Ok) {
   const std::string model_name = "continuation_test";
   const std::string interface_name = model_name + "_internal.h";
   const std::string include_line = "#include \"" + interface_name + "\"\n";
-  gert::GertModelDataProgramBodies artifacts;
+  std::vector<gert::GertModelDataFile> artifacts;
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr("om2_model_api.h");
     const std::string data_content = "#pragma once\n";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr(interface_name);
     const std::string data_content = "#pragma once\n#include \"om2_model_api.h\"\n#define CONTINUATION_TEST_VALUE 7\n";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr(model_name + "_resources.cpp");
     const std::string data_content =
         include_line + "extern \"C\" int ContinuationTestResources() { return CONTINUATION_TEST_VALUE; }\n";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr(model_name + "_kernel_reg.cpp");
     const std::string data_content =
         include_line + "extern \"C\" int ContinuationTestKernelReg() { return CONTINUATION_TEST_VALUE; }\n";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr(model_name + "_load_and_run.cpp");
     const std::string data_content =
         include_line + "extern \"C\" int ContinuationTestLoadAndRun() { return CONTINUATION_TEST_VALUE; }\n";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr(model_name + "_args_manager.cpp");
     const std::string data_content =
         include_line + "extern \"C\" int ContinuationTestArgsManager() { return CONTINUATION_TEST_VALUE; }\n";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr("Makefile");
     const std::string data_content = R"(CXX := g++
 TARGET := libcontinuation_test_om2.so
@@ -1047,12 +1121,12 @@ all: $(TARGET)
 $(TARGET): $(SRC_FILES)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 )";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
 
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   ScopedStdoutCapture stdout_capture;
   ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(artifacts, model_name, so_artifact, false), SUCCESS);
   const std::string compile_stdout = stdout_capture.Stop();
@@ -1062,36 +1136,36 @@ $(TARGET): $(SRC_FILES)
 }
 
 // build_config 校验 UT：通过 SetGraphOption 注入 ge.buildConfig，走 CompileGeneratedCppToSo 触发校验
-static gert::GertModelDataProgramBodies MakeBuildConfigTestArtifacts(const std::string &model_name) {
+static std::vector<gert::GertModelDataFile> MakeBuildConfigTestArtifacts(const std::string &model_name) {
   const std::string interface_name = model_name + "_internal.h";
   const std::string include_line = "#include \"" + interface_name + "\"\n";
-  gert::GertModelDataProgramBodies artifacts;
+  std::vector<gert::GertModelDataFile> artifacts;
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr("om2_model_api.h");
     const std::string data_content = "#pragma once\n";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr(interface_name);
     const std::string data_content = "#pragma once\n#include \"om2_model_api.h\"\n#define BC_TEST_VALUE 1\n";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr(model_name + "_load_and_run.cpp");
     const std::string data_content = include_line + "extern \"C\" int BcTest() { return BC_TEST_VALUE; }\n";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   {
-    gert::GertModelDataProgramBody a;
+    gert::GertModelDataFile a;
     a.file_name = gert::GertMakeStr("Makefile");
     const std::string data_content = R"(CXX := c++
 TARGET := libbc_test_om2.so
@@ -1105,8 +1179,8 @@ all: $(TARGET)
 $(TARGET): $(SRC_FILES)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 )";
-    a.data = gert::GertMakeStr(data_content);
-    a.data_len = data_content.size();
+    a.data = gert::GertMakeFileData(data_content.data(), data_content.size());
+    a.data_size = data_content.size();
     artifacts.push_back(std::move(a));
   }
   return artifacts;
@@ -1116,7 +1190,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_MissingModelApiArtifact_Failed) {
   const std::string model_name = "missing_model_api";
   auto artifacts = MakeBuildConfigTestArtifacts(model_name);
   artifacts.erase(artifacts.begin());
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(artifacts, model_name, so_artifact, false), SUCCESS);
 }
 
@@ -1129,7 +1203,7 @@ std::string GetNativeMachine() {
 }
 
 Status CompileBuildConfigArtifacts(const std::string &model_name) {
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   const Status ret =
       Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false);
   if (ret == SUCCESS) {
@@ -1202,7 +1276,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigInvalidChar_Rejected) {
   (void)ErrorManager::GetInstance().GetErrorMessage();
 
   const std::string model_name = "bc_invalid_char";
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
   const std::string error_message = ErrorManager::GetInstance().GetErrorMessage();
@@ -1217,7 +1291,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigNonWhitelisted_Rejected)
   GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s SHELL=/bin/bash"}});
 
   const std::string model_name = "bc_invalid_var";
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
 }
@@ -1229,7 +1303,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigUnbalancedQuote_Rejected
   GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s CXXFLAGS='-O2"}});
 
   const std::string model_name = "bc_invalid_quote";
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
 }
@@ -1241,7 +1315,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigNotMakeCommand_Rejected)
   GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "gcc -o out main.c"}});
 
   const std::string model_name = "bc_not_make";
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
 }
@@ -1253,7 +1327,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigUseStubLib_Rejected) {
   GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", "make -s USE_STUB_LIB=0"}});
 
   const std::string model_name = "bc_stub_lib";
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   EXPECT_NE(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
 }
@@ -1290,7 +1364,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigQuotedMakePath_Ok) {
       {{"ge.buildConfig", "  /usr/bin/make -s CXX=c++ CXXFLAGS='-std=c++17 -fPIC'"}});
 
   const std::string model_name = "bc_quoted_make_path";
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
   EXPECT_TRUE(so_artifact.data);
@@ -1308,7 +1382,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_BuildConfigMakefileOptionRejected) 
   for (size_t i = 0U; i < invalid_build_configs.size(); ++i) {
     GetThreadLocalContext().SetGraphOption({{"ge.buildConfig", invalid_build_configs[i]}});
     const std::string model_name = "bc_makefile_option_" + std::to_string(i);
-    gert::GertModelDataProgramBody so_artifact;
+    gert::GertModelDataFile so_artifact;
     EXPECT_NE(
         Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
         SUCCESS)
@@ -1404,7 +1478,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNativeArmAlias_Ok) {
   GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "arm64"}});
 
   const std::string model_name = "host_env_arm64_alias";
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
   EXPECT_TRUE(so_artifact.data);
@@ -1433,7 +1507,7 @@ TEST_F(Om2CodegenUt, CompileGeneratedCppToSo_HostEnvNonArmTarget_Ok) {
   GetThreadLocalContext().SetGraphOption({{"ge.host_env_os", "linux"}, {"ge.host_env_cpu", "riscv64"}});
 
   const std::string model_name = "host_env_non_arm";
-  gert::GertModelDataProgramBody so_artifact;
+  gert::GertModelDataFile so_artifact;
   ASSERT_EQ(Om2Utils::CompileGeneratedCppToSo(MakeBuildConfigTestArtifacts(model_name), model_name, so_artifact, false),
             SUCCESS);
   EXPECT_TRUE(so_artifact.data);
@@ -2585,34 +2659,6 @@ class RTVarResourceCoverageTest : public testing::Test {
     return entry;
   }
 };
-
-TEST_F(RTVarResourceCoverageTest, GetEntryFound) {
-  std::vector<gert::RTVarEntry> entries;
-  auto entry = MakeEntry("weight1", 1, 0);
-  ASSERT_EQ(gert::RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
-  const auto *result = gert::RTVarFindEntry(entries, "weight11_0");
-  ASSERT_NE(result, nullptr);
-  EXPECT_EQ(std::string(gert::GertGetStr(result->var_name)), "weight1");
-}
-
-TEST_F(RTVarResourceCoverageTest, GetEntryNotFound) {
-  std::vector<gert::RTVarEntry> entries;
-  EXPECT_EQ(gert::RTVarFindEntry(entries, "nonexistent"), nullptr);
-}
-
-TEST_F(RTVarResourceCoverageTest, GetEntryByNameFound) {
-  std::vector<gert::RTVarEntry> entries;
-  auto entry = MakeEntry("weight1", 1, 0);
-  ASSERT_EQ(gert::RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
-  const auto *result = gert::RTVarFindEntryByName(entries, "weight1");
-  ASSERT_NE(result, nullptr);
-  EXPECT_EQ(std::string(gert::GertGetStr(result->var_key)), "weight11_0");
-}
-
-TEST_F(RTVarResourceCoverageTest, GetEntryByNameNotFound) {
-  std::vector<gert::RTVarEntry> entries;
-  EXPECT_EQ(gert::RTVarFindEntryByName(entries, "nonexistent"), nullptr);
-}
 
 TEST_F(RTVarResourceCoverageTest, GetAllVarKeys) {
   std::vector<gert::RTVarEntry> entries;

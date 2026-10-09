@@ -233,7 +233,6 @@ target_include_directories(ge_common PRIVATE
 
 target_link_options(ge_common PRIVATE
     -Wl,-Bsymbolic
-    # 只治理 minizip/zlib 符号泄漏；保留 gert_model_data_serializer 归档符号（Om2ZipSaver 需导出给 ge_compiler）
     -Wl,--exclude-libs,libminizip.a
     -Wl,--exclude-libs,libz.a
 )

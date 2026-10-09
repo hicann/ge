@@ -48,6 +48,8 @@ struct DsaBuildData {
   bool state_from_workspace{false};
   bool has_input2{true};
   uint32_t task_type{0U};
+  uint32_t prof_ge_task_type{0U};
+  uint32_t op_impl_mode{0U};
   std::vector<uint8_t> sqe_raw_data;
 };
 
@@ -72,7 +74,7 @@ class DSATaskCodeBuilder : public TaskCodeBuilder {
   DsaBuildData build_data_;
   Status InitSqe(const domi::DSATaskDef &dsa_task);
   Status InitHbmArgsTable(TaskSemanticContributeContext &context);
-  void InitBuildDataFields(uint32_t task_type);
+  void InitBuildDataFields(uint32_t task_type, uint32_t prof_ge_task_type);
   FunctionDef *RenderKernelDsaTaskDistribute() const;
   Status RenderDispatchFunc(std::vector<DeclNode *> &items);
   Status RenderDispatchFuncSetup(std::vector<BodyItem> &body, const VarRef &ctx, const ExprRef &dsa_data,

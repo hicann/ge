@@ -138,7 +138,10 @@ Status OpTask::OpenDump(aclrtStream const stream) {
 
 Status OpTask::GetTaskIdAndStreamId(aclrtStream const stream) {
   if (ProfilingManager::Instance().ProfilingModelLoadOn()) {
-    GE_CHK_ACL_RET(aclrtGetThreadLastTaskId(&task_id_));
+    // aclrtStreamGetId 保留不改：新接口的 streamId 出参是线程最近一次任务所在流的 id，
+    // 与本处需要的指定执行流（stream）id 语义不同，不可用 acl_stream_id 替代，保持运行行为不变
+    uint32_t acl_stream_id = 0U;
+    GE_CHK_ACL_RET(aclrtGetThreadLastTaskIdAndStreamId(&task_id_, &acl_stream_id));
     GE_CHK_ACL_RET(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id_)));
   }
   return SUCCESS;
@@ -155,7 +158,10 @@ void OpTask::SetTaskTag() const {
 
 Status OpTask::PostProcess(aclrtStream const stream) {
   GE_CHK_STATUS_RET(OpenDump(stream), "[Open][Dump]failed, single op:%s.", GetOpdesc()->GetName().c_str());
-  GE_ASSERT_RT_OK(aclrtGetThreadLastTaskId(&task_id_));
+  // aclrtStreamGetId 保留不改：新接口的 streamId 出参是线程最近一次任务所在流的 id，
+  // 与本处需要的指定执行流（stream）id 语义不同，不可用 acl_stream_id 替代，保持运行行为不变
+  uint32_t acl_stream_id = 0U;
+  GE_ASSERT_RT_OK(aclrtGetThreadLastTaskIdAndStreamId(&task_id_, &acl_stream_id));
   GE_ASSERT_RT_OK(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id_)));
   ErrorTracking::GetInstance().SaveSingleOpTaskOpdescInfo(op_desc_, task_id_, stream_id_);
   GE_CHK_STATUS(SaveExceptionDumpInfo(), "Save Exception dump failed.");

@@ -2448,10 +2448,12 @@ TEST_F(SymbolicShapeComputeUT, test_unpack_get_const_value_failed) {
   ASSERT_NE(ssi.Infer(cg), ge::SUCCESS);
 }
 
-TEST_F(SymbolicShapeComputeUT, test_unpack_GetConstInputDims_failed) {
+// 无IR input定义的op(ir map为空)：值依赖判断①不参与且不打挂；输入无任何符号来源
+// (data不带symbol shape、上游无可传播attr)时kernel/callback以UNSUPPORTED降级，
+// Infer整体成功，输出不写入符号shape
+TEST_F(SymbolicShapeComputeUT, test_unpack_infer_degrade_without_input_symbol) {
   auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data0", nullptr, C_DataType::C_DT_FLOAT, C_Format::C_FORMAT_ND,
                                              nullptr, 0);
-  ASSERT_EQ(EsSetOriginSymbolShape(data0, std::vector<const char *>({"1", "2", "3"}).data(), 3), 0);
   auto graph = std::unique_ptr<Graph>(reinterpret_cast<Graph *>(EsBuildGraphAndReset(graph_)));
 
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
@@ -2473,7 +2475,10 @@ TEST_F(SymbolicShapeComputeUT, test_unpack_GetConstInputDims_failed) {
   ASSERT_NE(input_const_node, nullptr);
   ASSERT_EQ(GraphUtils::AddEdge(input_const_node->GetOutDataAnchor(0), unpack_node->GetInDataAnchor(0)), SUCCESS);
   SymbolicShapeInference ssi;
-  ASSERT_NE(ssi.Infer(cg), ge::SUCCESS);
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  // shape推导降级：输出不写入符号shape(dtype符号化可能已创建attr，其shape部分须为空)
+  const auto out_attr = unpack_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_TRUE((out_attr == nullptr) || out_attr->symbolic_tensor.GetOriginSymbolShape().GetDims().empty());
 }
 
 // ┌────────┐  (0,0)   ┌──────────┐ (0,0)    ┌─────────────┐

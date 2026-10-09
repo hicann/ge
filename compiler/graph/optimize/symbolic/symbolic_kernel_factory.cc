@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "graph/optimize/symbolic/symbolic_kernel_factory.h"
+#include "common/checker.h"
 
 namespace ge {
 InferSymbolComputeKernelFunc SymbolicKernelFactory::Create(const std::string &op_type) const {

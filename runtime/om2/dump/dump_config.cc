@@ -398,7 +398,18 @@ void DumpConfig::CheckUnsupportedConfigs(const nlohmann::json &jsDumpConfig) {
           GELOGW(
               "[OM2 Dump] opname_range in dump_list is not supported in OM2 dump mode, configuration will be ignored");
         }
+        if (modelJson.contains(GE_DUMP_WATCHER_NODES)) {
+          GELOGW(
+              "[OM2 Dump] watcher_nodes in dump_list is not supported in OM2 dump mode, configuration will be "
+              "ignored");
+        }
       }
+    }
+  }
+  if (jsDumpConfig.contains(GE_DUMP_SCENE)) {
+    const auto &dumpScene = jsDumpConfig[GE_DUMP_SCENE].get<std::string>();
+    if (dumpScene == GE_DUMP_SCENE_WATCHER) {
+      GELOGW("[OM2 Dump] dump_scene watcher is not supported in OM2 dump mode, configuration will be  ignored");
     }
   }
 }

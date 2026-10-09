@@ -20,7 +20,7 @@ onnx_plugin(*, source: str, domain: str, opsets: Collection[int], target: str) -
 | :--- | :--- | :--- |
 | source | 输入 | ONNX原始算子类型，例如`Elu`。类型为非空字符串，不允许包含`:`（`:`是origin type的字段分隔符，origin type按`<domain>::<opset>::<source>`格式拼接）。 |
 | domain | 输入 | ONNX domain，标准ONNX算子使用`ai.onnx`。插件注册时必须显式声明，类型为非空字符串，不允许包含`:`（原因同`source`）。 |
-| opsets | 输入 | 支持的ONNX opset版本集合。支持`list`、`tuple`、`set`、`range`等集合类型，不支持字符串；元素必须为正整数，注册时自动去重并升序排列。 |
+| opsets | 输入 | 插件支持的ONNX opset版本。支持`list`、`tuple`、`set`、`range`等类型，`str`、`bytes`不支持。每个元素代表一个opset版本：`(1, 15)`即版本1和15，`range(1, 15)`即版本1至14（前闭后开）。元素必须为正整数，注册时自动去重并升序排列。 |
 | target | 输入 | GE目标算子类型。类型为非空字符串，对应的算子原型必须已经安装并注册。 |
 
 ## 返回值说明
@@ -32,7 +32,7 @@ onnx_plugin(*, source: str, domain: str, opsets: Collection[int], target: str) -
 - 参数校验在调用时立即执行。
 - `source`、`domain`或`target`不是非空字符串时，抛出`TypeError`。
 - `source`或`domain`包含`:`时，抛出`TypeError`（`:`是origin type的字段分隔符，出现会导致origin type无法按`<domain>::<opset>::<source>`切分）。
-- `opsets`不是集合类型（或为字符串）时，抛出`TypeError`。
+- `opsets`类型不受支持（如`int`、生成器），或为`str`、`bytes`时，抛出`TypeError`。
 - `opsets`包含非整数元素（含`bool`）时，抛出`TypeError`。
 - `opsets`为空或包含非正整数元素时，抛出`ValueError`。
 - descriptor会将`source`、`domain`和`opsets`展开为完整的origin type集合（`domain::opset::source`，例如`ai.onnx::11::Elu`）。同一origin type只能由一个C++或Python插件提供。

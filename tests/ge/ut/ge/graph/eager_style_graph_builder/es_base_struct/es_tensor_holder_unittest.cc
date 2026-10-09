@@ -15,6 +15,7 @@
 #include "graph/utils/node_adapter.h"
 #include "graph/symbolizer/symbolic.h"
 #include "attribute_group/attr_group_symbolic_desc.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 using namespace ge::es;
 class EsTensorHolderLLT : public ::testing::Test {
  protected:

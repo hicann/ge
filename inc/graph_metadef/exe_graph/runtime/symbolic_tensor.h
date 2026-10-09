@@ -17,8 +17,9 @@
 #include <cstring>
 #include <type_traits>
 #include <limits>
+#include <memory>
+#include <new>
 #include "utils/extern_math_util.h"
-#include "graph_metadef/graph/debug/ge_util.h"
 #include "symbolic_shape.h"
 
 namespace gert {
@@ -31,13 +32,15 @@ class SymbolTensor {
   SymbolTensor(const std::initializer_list<ge::Expression> &origin_symbol_shape,
                const std::initializer_list<ge::Expression> &symbolic_values)
       : origin_symbol_shape_(origin_symbol_shape),
-        symbolic_values_(ge::ComGraphMakeUnique<std::vector<ge::Expression>>(symbolic_values)) {}
+        symbolic_values_(std::unique_ptr<std::vector<ge::Expression>>(
+            new (std::nothrow) std::vector<ge::Expression>(symbolic_values))) {}
 
   // 拷贝构造函数
   SymbolTensor(const SymbolTensor &other)
       : origin_symbol_shape_(other.origin_symbol_shape_),
         symbolic_values_(other.symbolic_values_
-                             ? ge::ComGraphMakeUnique<std::vector<ge::Expression>>(*other.symbolic_values_)
+                             ? std::unique_ptr<std::vector<ge::Expression>>(
+                                   new (std::nothrow) std::vector<ge::Expression>(*other.symbolic_values_))
                              : nullptr) {}
 
   // 拷贝赋值运算符
@@ -45,7 +48,8 @@ class SymbolTensor {
     if (this != &other) {
       origin_symbol_shape_ = other.origin_symbol_shape_;
       if (other.symbolic_values_) {
-        symbolic_values_ = ge::ComGraphMakeUnique<std::vector<ge::Expression>>(*other.symbolic_values_);
+        symbolic_values_ = std::unique_ptr<std::vector<ge::Expression>>(
+            new (std::nothrow) std::vector<ge::Expression>(*other.symbolic_values_));
       } else {
         symbolic_values_.reset();
       }
@@ -112,7 +116,7 @@ class SymbolTensor {
    */
   std::vector<ge::Expression> *MutableSymbolicValue() {
     if (!symbolic_values_) {
-      symbolic_values_ = ge::ComGraphMakeUnique<std::vector<ge::Expression>>();
+      symbolic_values_ = std::unique_ptr<std::vector<ge::Expression>>(new (std::nothrow) std::vector<ge::Expression>());
     }
 
     if (!symbolic_values_) {

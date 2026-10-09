@@ -272,6 +272,9 @@ BodyItem KernelExTaskCodeBuilder::RenderAssembleTfAicpuExTaskInfo(const VarRef &
                                                      ast_.UInt(0U),
                                                      ast_.UInt(0U),
                                                      ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(0U),
+                                                     ast_.UInt(MSPROF_GE_TASK_TYPE_AI_CPU),
                                                      ast_.UInt(0U)}));
 }
 
@@ -377,6 +380,11 @@ Status KernelExTaskCodeBuilder::Contribute(TaskSemanticContributeContext &contex
   GE_ASSERT_NOTNULL(context.next_host_args_offset);
   GE_ASSERT_NOTNULL(context.op_desc);
   build_data_.semantic.task_type = context.task_type;
+  build_data_.semantic.prof_ge_task_type =
+      TaskCodeBuilderUtil::ConvertToProfilingTaskType(context.op_desc, context.task_def);
+  build_data_.semantic.op_impl_mode = TaskCodeBuilderUtil::GetOpImplMode(context.op_desc);
+  build_data_.semantic.launch.prof_block_dim =
+      TaskCodeBuilderUtil::GetProfilingBlockDim(context.op_desc, context.task_def);
   GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, build_data_.semantic.input_addrs));
   GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, false, build_data_.semantic.output_addrs));
   GE_ASSERT_SUCCESS(InitArgsTableInfo(context));
@@ -614,7 +622,15 @@ Status KernelExTaskCodeBuilder::RenderDispatchFuncTaskInfo(std::vector<BodyItem>
                                                   kex.Attr("task_type"),
                                                   stream,
                                                   ast_.UInt(0U),
-                                                  ast_.UInt(0U)})));
+                                                  ast_.UInt(0U),
+                                                  Arg(nullptr),
+                                                  ast_.ULong(0U),
+                                                  ast_.ULong(0U),
+                                                  ast_.ULong(0U),
+                                                  ast_.ULong(0U),
+                                                  kex.Attr("op_impl_mode"),
+                                                  kex.Attr("prof_ge_task_type"),
+                                                  kex.Attr("prof_block_dim")})));
   (void)body.emplace_back(ChkStatus(
       ast_.Call("aclrtStreamGetId",
                 {task_info.Attr("stream"), ast_.ReinterpretCast("int32_t *", task_info.Attr("stream_id").Addr())})));
@@ -641,6 +657,7 @@ Status KernelExTaskCodeBuilder::RenderOpDefTableFields(std::vector<std::pair<std
       {"args_info_num", static_cast<int64_t>(build_data_.args_info_num)},
       {"op_type", Arg::StringLiteral(header_.op_type)},
       {"block_dim", build_data_.semantic.launch.block_dim},
+      {"prof_block_dim", static_cast<int64_t>(build_data_.semantic.launch.prof_block_dim)},
       {"stream_id", build_data_.semantic.launch.stream_id},
       {"func_idx", static_cast<int64_t>(build_data_.semantic.launch.func_handle_index)},
       {"tf_session_func_idx", static_cast<int64_t>(build_data_.semantic.launch.tf_session_func_handle_index)},
@@ -662,6 +679,8 @@ Status KernelExTaskCodeBuilder::RenderOpDefTableFields(std::vector<std::pair<std
       {"ext_info_blob_len", static_cast<int64_t>(build_data_.ext_info_blob_len)},
       {"launch", ast_.InitList(launch_values)},
       {"task_type", static_cast<int64_t>(build_data_.semantic.task_type)},
+      {"prof_ge_task_type", static_cast<int64_t>(build_data_.semantic.prof_ge_task_type)},
+      {"op_impl_mode", static_cast<int64_t>(build_data_.semantic.op_impl_mode)},
   };
   fields.push_back(
       {"dispatch_info", ast_.DesignatedInit({{"kernel_ex", ast_.DesignatedInit(kernel_ex_fields, true)}})});

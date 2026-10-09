@@ -30,7 +30,7 @@ struct MemoryFile {
   int32_t release_from_outside;  // 0 means zipClose releases buffer, 1 means external release.
 };
 
-class GERT_MODEL_DATA_API ZipArchiveWriter {
+class ZipArchiveWriter {
  public:
   explicit ZipArchiveWriter(const std::string &archive_path);
   ~ZipArchiveWriter();

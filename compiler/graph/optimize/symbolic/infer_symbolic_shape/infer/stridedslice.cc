@@ -832,30 +832,19 @@ Expression CalculateEndValue(const Expression &end_input, const Expression &cur_
                                                                    : normalized_end;
 }
 
-struct StridedSliceV3Step {
-  bool negative_step{false};
-  bool direction_known{false};
-};
-
-// Validates that the stride is non-zero and resolves whether its direction is
-// statically decidable.
-Status ResolveV3Step(const Expression &step_value, const size_t i, StridedSliceV3Step &step) {
-  int64_t step_const = 0L;
-  if (step_value.GetConstValue(step_const)) {
-    GE_ASSERT_TRUE(step_const != 0L, "StridedSliceV3 stride[%zu] must not be zero.", i);
-  } else {
-    const auto nonzero = SymbolicUtils::StaticCheckNe(step_value, kSymbolZero);
-    if (nonzero == TriBool::kFalse) {
-      return PARAM_INVALID;
-    }
+// CalculateBeginValue/CalculateEndValue select the sign/clipping branch from the
+// index hint, so a symbolic index without a hint is an internal invariant
+// violation: assert instead of silently emitting an unguarded shape.
+Status ResolveV3IndexValue(const Expression &index, const Expression &cur_axis_input_size, const bool negative_step,
+                           const bool is_begin, Expression &value) {
+  int64_t index_const = 0L;
+  if (!index.GetConstValue(index_const)) {
+    bool hint = false;
+    GE_ASSERT_TRUE(ge::sym::Lt(index, kSymbolZero).GetHint(hint),
+                   "StridedSliceV3 symbolic index hint is unavailable, index=%s.", index.Serialize().get());
   }
-  const auto step_sign = SymbolicUtils::StaticCheckLt(step_value, kSymbolZero);
-  const bool symbolic_step = !step_value.GetConstValue(step_const);
-  // A hint is only a representative value in dynamic mode.  It cannot by
-  // itself prove the runtime stride direction, so do not select a branch
-  // from the hint without an explicit symbolic relation.
-  step.direction_known = !symbolic_step || step_sign != TriBool::kUnknown;
-  step.negative_step = (step_sign == TriBool::kTrue);
+  value = is_begin ? CalculateBeginValue(index, cur_axis_input_size, negative_step)
+                   : CalculateEndValue(index, cur_axis_input_size, negative_step);
   return SUCCESS;
 }
 
@@ -866,31 +855,33 @@ Status CalculateOutputDimsForV3(const std::vector<int64_t> &axes, const std::vec
     GE_ASSERT_TRUE(axis_value >= 0L && axis_value < static_cast<int64_t>(input_x_dims.size()),
                    "StridedSliceV3 axis[%zu]=%lld is out of range.", i, axis_value);
     const Expression step_value = i < index_input.strides_indexes.size() ? index_input.strides_indexes[i] : Symbol(1);
-    StridedSliceV3Step step;
-    GE_ASSERT_SUCCESS(ResolveV3Step(step_value, i, step));
     int64_t step_const = 0L;
-    const bool symbolic_step = !step_value.GetConstValue(step_const);
-    Expression begin_value;
-    Expression end_value;
-    int64_t begin_const = 0L;
-    int64_t end_const = 0L;
-    const bool symbolic_index =
-        (i < index_input.start_indexes.size() && !index_input.start_indexes[i].GetConstValue(begin_const)) ||
-        (i < index_input.end_indexes.size() && !index_input.end_indexes[i].GetConstValue(end_const));
-    if (symbolic_index || (symbolic_step && !step.direction_known)) {
-      // The sign and clipping branch cannot be selected for a runtime index
-      // value. Propagating the raw symbolic index would emit wrong shapes and
-      // guards that pollute downstream inference, so fall back instead.
-      GELOGW("StridedSliceV3 symbolic begin/end index or unknown stride direction is unsupported.");
+    if (!step_value.GetConstValue(step_const)) {
+      // A runtime stride cannot fix the output dim, matching
+      // StridedSlice/StridedSliceV2 which require a constant stride.
+      GELOGW("StridedSliceV3 symbolic stride is unsupported, fall back.");
       return UNSUPPORTED;
     }
-    begin_value = i < index_input.start_indexes.size()
-                      ? CalculateBeginValue(index_input.start_indexes[i], input_x_dims[axis_value], step.negative_step)
-                      : Symbol(0);
-    end_value = i < index_input.end_indexes.size()
-                    ? CalculateEndValue(index_input.end_indexes[i], input_x_dims[axis_value], step.negative_step)
-                    : input_x_dims[axis_value];
-    Expression cur_out_size = sym::Ceiling((end_value - begin_value) / step_value);
+    GE_ASSERT_TRUE(step_const != 0L, "StridedSliceV3 stride[%zu] must not be zero.", i);
+    const bool negative_step = step_const < 0L;
+    Expression begin_value = Symbol(0);
+    Expression end_value = input_x_dims[axis_value];
+    if (i < index_input.start_indexes.size()) {
+      GE_ASSERT_SUCCESS(ResolveV3IndexValue(index_input.start_indexes[i], input_x_dims[axis_value], negative_step, true,
+                                            begin_value));
+    }
+    if (i < index_input.end_indexes.size()) {
+      GE_ASSERT_SUCCESS(
+          ResolveV3IndexValue(index_input.end_indexes[i], input_x_dims[axis_value], negative_step, false, end_value));
+    }
+    Expression cur_out_size;
+    if (step_const == 1L) {
+      cur_out_size = end_value - begin_value;
+    } else if (step_const == -1L) {
+      cur_out_size = begin_value - end_value;
+    } else {
+      cur_out_size = sym::Ceiling((end_value - begin_value) / step_value);
+    }
     if (SymbolicUtils::StaticCheckLt(cur_out_size, kSymbolZero) == TriBool::kTrue) {
       cur_out_size = kSymbolZero;
     }

@@ -39,9 +39,12 @@ class RecordingAclRuntime : public AclRuntimeStub {
     return launch_ret;
   }
 
-  aclError aclrtGetThreadLastTaskId(uint32_t *id) override {
+  aclError aclrtGetThreadLastTaskIdAndStreamId(uint32_t *id, uint32_t *stream_id) override {
     if (task_id_ret == ACL_SUCCESS && id != nullptr) {
       *id = task_id;
+    }
+    if (task_id_ret == ACL_SUCCESS && stream_id != nullptr) {
+      *stream_id = 0U;
     }
     return task_id_ret;
   }

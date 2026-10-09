@@ -2298,9 +2298,8 @@ TEST_F(SymbolicShapeComputeST, test_unpack_get_const_value_failed) {
   ASSERT_NE(ssi.Infer(cg), ge::SUCCESS);
 }
 
-TEST_F(SymbolicShapeComputeST, test_unpack_GetConstInputDims_failed) {
+TEST_F(SymbolicShapeComputeST, test_unpack_infer_degrade_without_input_symbol) {
   auto data0 = builder_->CreateInput(0, "data_0");
-  data0.SetOriginSymbolShape(std::vector<const char *>({"1", "2", "3"}));
   auto graph = builder_->BuildAndReset();
 
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
@@ -2309,6 +2308,7 @@ TEST_F(SymbolicShapeComputeST, test_unpack_GetConstInputDims_failed) {
   auto unpack_op_desc = std::make_shared<OpDesc>("unpack_0", UNPACK);
   unpack_op_desc->AddRequiredAttr("num");
   AttrUtils::SetInt(unpack_op_desc, "num", 3);
+  unpack_op_desc->AppendIrAttrName("num");
   unpack_op_desc->AppendIrAttrName("axis");
   AttrUtils::SetInt(unpack_op_desc, "axis", 0);
   unpack_op_desc->AddInputDesc(unpack_input_desc);
@@ -2321,7 +2321,10 @@ TEST_F(SymbolicShapeComputeST, test_unpack_GetConstInputDims_failed) {
   ASSERT_NE(input_const_node, nullptr);
   ASSERT_EQ(GraphUtils::AddEdge(input_const_node->GetOutDataAnchor(0), unpack_node->GetInDataAnchor(0)), SUCCESS);
   SymbolicShapeInference ssi;
-  ASSERT_NE(ssi.Infer(cg), ge::SUCCESS);
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  // shape推导降级：输出不写入符号shape(dtype符号化可能已创建attr，其shape部分须为空)
+  const auto out_attr = unpack_node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_TRUE((out_attr == nullptr) || out_attr->symbolic_tensor.GetOriginSymbolShape().GetDims().empty());
 }
 
 // ┌────────┐  (0,0)   ┌──────────┐ (0,0)    ┌─────────────┐

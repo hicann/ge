@@ -98,18 +98,18 @@ bool OpDebugConfigParser::GetOpdebugValue(const std::string &line, std::vector<s
                                           const std::string &file_path) {
   size_t pos_of_equal = line.find('=');
   if (pos_of_equal == string::npos) {
+    FE_LOGE("[Configuration][ParseOpDebugConfig]Config [%s] format is error.", line.c_str());
     ErrorMessageDetail err_msg(EM_INVALID_CONTENT,
                                {kOpDebugConfig, file_path, "Line:\"" + line + "\" not contain \"=\"."});
     ReportErrorMessage(err_msg);
-    REPORT_FE_ERROR("[Configuration][ParseOpDebugConfig]Config [%s] format is error.", line.c_str());
     return false;
   }
   std::string value = line.substr(pos_of_equal + 1);
   if (value.empty()) {
+    FE_LOGE("[Configuration][ParseOpDebugConfig]Config value [%s] is empty.", line.c_str());
     ErrorMessageDetail err_msg(EM_INVALID_CONTENT,
                                {kOpDebugConfig, file_path, "Line:\"" + line + "\", value is empty."});
     ReportErrorMessage(err_msg);
-    REPORT_FE_ERROR("[Configuration][ParseOpDebugConfig]Config value [%s] is empty.", line.c_str());
     return false;
   }
   res = StringUtils::Split(value, ',');

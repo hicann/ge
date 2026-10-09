@@ -262,8 +262,7 @@ Status FusionConfigParser::GetKeyAndValueFromJson(const std::string &line, const
                                                   std::string &key, std::string &value) const {
   size_t pos_of_equal = line.find(":");
   if (pos_of_equal == std::string::npos) {
-    REPORT_FE_ERROR("[GraphOpt][FusionConfig][GetKeyValFmJs] The content of [%s] delimiter must be colon.",
-                    line.c_str());
+    FE_LOGE("[GraphOpt][FusionConfig][GetKeyValFmJs] The content of [%s] delimiter must be colon.", line.c_str());
     ErrorMessageDetail err_msg(EM_INVALID_CONTENT, {line, custom_fusion_config_json_file,
                                                     "This line " + line + " does not have the delimiter :"});
     ReportErrorMessage(err_msg);
@@ -274,8 +273,7 @@ Status FusionConfigParser::GetKeyAndValueFromJson(const std::string &line, const
   key = StringUtils::Trim(key);
   value = StringUtils::Trim(value);
   if (value != kSwitchOn && value != kSwitchOff) {
-    REPORT_FE_ERROR("[GraphOpt][FusionConfig][GetKeyValFmJs] The pass switch value: [%s] is not on or off.",
-                    value.c_str());
+    FE_LOGE("[GraphOpt][FusionConfig][GetKeyValFmJs] The pass switch value: [%s] is not on or off.", value.c_str());
     std::ostringstream oss;
     oss << "The switch value of pass " << key;
     oss << " must be on or off, instead of " << value << "";
@@ -290,8 +288,8 @@ Status FusionConfigParser::LoadOldFormatFusionSwitchFile(const string &custom_fu
                                                          std::map<string, bool> &old_fusion_switch_map) const {
   std::ifstream ifs(custom_fusion_config_json_file);
   if (!ifs.is_open()) {
-    REPORT_FE_ERROR("[GraphOpt][FusionConfig][LdOldFmtFusSwtFile] The file [%s] does not exist or has been opened.",
-                    custom_fusion_config_json_file.c_str());
+    FE_LOGE("[GraphOpt][FusionConfig][LdOldFmtFusSwtFile] The file [%s] does not exist or has been opened.",
+            custom_fusion_config_json_file.c_str());
     ErrorMessageDetail err_msg(EM_OPEN_FILE_FAILED, {custom_fusion_config_json_file});
     ReportErrorMessage(err_msg);
     return FILE_NOT_EXIST;
@@ -313,8 +311,8 @@ Status FusionConfigParser::LoadOldFormatFusionSwitchFile(const string &custom_fu
 
     if (!key.empty()) {
       if (value != kSwitchOn && value != kSwitchOff) {
-        REPORT_FE_ERROR("[GraphOpt][FusionConfig][LdOldFmtFusSwtFile] Pass switch[%s, %s] is not correct.", key.c_str(),
-                        value.c_str());
+        FE_LOGE("[GraphOpt][FusionConfig][LdOldFmtFusSwtFile] Pass switch[%s, %s] is not correct.", key.c_str(),
+                value.c_str());
         ifs.close();
         ErrorMessageDetail err_msg(EM_INVALID_CONTENT,
                                    {key, custom_fusion_config_json_file, "pass name " + key + " is duplicate"});
@@ -323,8 +321,7 @@ Status FusionConfigParser::LoadOldFormatFusionSwitchFile(const string &custom_fu
       }
       const std::map<std::string, bool>::const_iterator iter_switch = old_fusion_switch_map.find(key);
       if (iter_switch != old_fusion_switch_map.end()) {
-        REPORT_FE_ERROR("[GraphOpt][FusionConfig][LdOldFmtFusSwtFile] Pass[%s] is repetitive, please check it.",
-                        key.c_str());
+        FE_LOGE("[GraphOpt][FusionConfig][LdOldFmtFusSwtFile] Pass[%s] is repetitive, please check it.", key.c_str());
         ifs.close();
         ErrorMessageDetail err_msg(EM_INVALID_CONTENT,
                                    {key, custom_fusion_config_json_file, "pass name " + key + " is duplicate"});
@@ -344,15 +341,15 @@ Status FusionConfigParser::VerifyAndParserCustomFile(const string &custom_fusion
   // Check custom file(path) is legal or not.
   if (!custom_fusion_config_json_file.empty()) {
     if (GetRealPath(custom_fusion_config_json_file).empty()) {
-      REPORT_FE_ERROR("[GraphOpt][Init][VerifyAndParserCustomFile] The file path: [%s] is not legal.",
-                      custom_fusion_config_json_file.c_str());
+      FE_LOGE("[GraphOpt][Init][VerifyAndParserCustomFile] The file path: [%s] is not legal.",
+              custom_fusion_config_json_file.c_str());
       ErrorMessageDetail err_msg(EM_OPEN_FILE_FAILED, {custom_fusion_config_json_file});
       ReportErrorMessage(err_msg);
       return FAILED;
     }
     if (CheckFileEmpty(custom_fusion_config_json_file)) {
-      REPORT_FE_ERROR("[GraphOpt][Init][VerifyAndParserCustomFile] The file [%s] is empty.",
-                      custom_fusion_config_json_file.c_str());
+      FE_LOGE("[GraphOpt][Init][VerifyAndParserCustomFile] The file [%s] is empty.",
+              custom_fusion_config_json_file.c_str());
       ErrorMessageDetail err_msg(EM_OPEN_FILE_FAILED, {custom_fusion_config_json_file});
       ReportErrorMessage(err_msg);
       return FAILED;
@@ -377,9 +374,8 @@ Status FusionConfigParser::CheckConfigFileFormat(const nlohmann::json &custom_fu
                                                  const string &custom_fusion_config_json_file) const {
   // Judge built-in and custom file(if have) 's top form is or not json object.
   if (custom_fusion_config_json != nullptr && !custom_fusion_config_json.is_object()) {
-    REPORT_FE_ERROR(
-        "[GraphOpt][Init][CheckCfgFileFormat] Top level of fusion config file is [%s], which should be object.",
-        GetJsonType(custom_fusion_config_json).c_str());
+    FE_LOGE("[GraphOpt][Init][CheckCfgFileFormat] Top level of fusion config file is [%s], which should be object.",
+            GetJsonType(custom_fusion_config_json).c_str());
     ErrorMessageDetail err_msg(EM_OPEN_FILE_FAILED, {custom_fusion_config_json_file});
     ReportErrorMessage(err_msg);
     return ILLEGAL_JSON;
@@ -394,9 +390,8 @@ Status FusionConfigParser::CheckConfigFileFormat(const nlohmann::json &custom_fu
 
   // Do some judge about form, key and value.
   if (CheckFusionConfigJsonFormat(custom_fusion_config_json, kCustomType) != SUCCESS) {
-    REPORT_FE_ERROR(
-        "[GraphOpt][Init][CheckCfgFileFormat] Fail to check custom fusion config file format. The file path is %s",
-        custom_fusion_config_json_file.c_str());
+    FE_LOGE("[GraphOpt][Init][CheckCfgFileFormat] Fail to check custom fusion config file format. The file path is %s",
+            custom_fusion_config_json_file.c_str());
     ErrorMessageDetail err_msg(
         EM_READ_FILE_FAILED, {custom_fusion_config_json_file, "Failed to check custom fusion config json file format"});
     ReportErrorMessage(err_msg);

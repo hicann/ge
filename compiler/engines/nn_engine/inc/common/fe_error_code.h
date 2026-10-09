@@ -56,88 +56,45 @@ const std::string EM_INPUT_PARAM_EMPTY = "E10004";
 const std::string EM_INNER_ERROR = "E29999";
 const std::string EM_INNER_WARN = "W29999";
 
-/* Failed to compile Op [%s]. (optype: [%s])
+/* Operator %s compilation failed. Optype is %s.
  * parameter0,parameter1
  * */
 const std::string EM_COMPILE_FAILED = "E20001";
 
-/* Value [%s] for environment variable [%s] is invalid when %s.
+/* Value %s for environment variable %s is invalid. Reason: %s.
  * parameter0,parameter1,parameter2
  * */
 const std::string EM_ENVIRONMENT_VARIABLE_FAILED = "E20002";
 
-/* Configuration file [%s] for parameter [%s] has invalid content. Reason: [%s]
+/* Configuration item %s in configuration file %s is invalid. Reason: %s.
  * parameter0,parameter1,parameter2
  * */
 const std::string EM_INVALID_CONTENT = "E20003";
 
-/*
- * Failed to run graph fusion pass [%s]. The pass type is [%s]
+/* Graph fusion pass %s failed. The pass type is %s.
  * parameter0,parameter1
  * */
 const std::string EM_RUN_PASS_FAILED = "E20007";
 
-/* Value [%s] for parameter [%s] is invalid. Reason: %s.
+/* Value %s for parameter %s is invalid. Reason: %s.
  * parameter0,parameter1,parameter2
  * */
 const std::string EM_INPUT_OPTION_INVALID = "E20101";
 
-/* Value [%s] for parameter [aicore_num] is invalid. The value must be in the range of (0, %s]
+/* Value %s for parameter %s is invalid. The value must be in the range of (0, %s].
  * parameter0,parameter1
  * */
 const std::string EM_AICORENUM_OUT_OF_RANGE = "E20103";
 
-/* Failed to open file [%s].
+/* Failed to open file %s.
  * parameter0
  * */
 const std::string EM_OPEN_FILE_FAILED = "E21001";
 
-/* Failed to read file [%s]. Reason: %s.
+/* Failed to parse file %s. Reason: %s.
  * parameter0,parameter1
  * */
 const std::string EM_READ_FILE_FAILED = "E21002";
-
-const std::string EM_FAILED_TO_TOPO_SORTING = "E2100C";
-
-const std::string EM_GRAPH_FUSION_FAILED = "E2100D";
-
-const std::string EM_GRAPH_PASS_OWNER_INVALID = "E2100E";
-
-const std::string EM_TAG_NO_CONST_FOLDING_FAILED = "E2100F";
-
-const std::string EM_COMMON_NULL_PTR = "E21010";
-
-const std::string EM_INVALID_IMPLEMENTATION = "E21011";
-
-const std::string EM_INNER_ERROR_1 = "E21012";
-
-const std::string EM_INVALID_OUTPUT_NAME_INDEX = "E21013";
-
-const std::string EM_INVALID_TENSOR_NAME_INDEX = "E21014";
-
-const std::string EM_FAILED_TO_ASSEMBLE_TBE_INFO = "E21015";
-
-const std::string EM_FAILED_TO_ASSEMBLE_INPUT_INFO = "E21016";
-
-const std::string EM_FAILED_TO_ASSEMBLE_OUTPUT_INFO = "E21017";
-
-const std::string EM_INVALID_TENSOR_DATA_TYPE = "E21018";
-
-const std::string EM_INVALID_ATTR_DATA_TYPE = "E21019";
-
-const std::string EM_SELECT_OP_FORMAT = "E21019";
-
-const std::string EM_FAILED_TO_PARSE_FORMAT_JSON = "E2101A";
-
-const std::string EM_FAILED_TO_CONVERT_FORMAT_FROM_JSON = "E2101B";
-
-const std::string EM_FORMAT_VECTOR_SIZE_INVALID = "E2101C";
-
-const std::string EM_INVALID_FORMAT_IN_JSON = "E2101D";
-
-const std::string EM_INVALID_DTYPE_IN_JSON = "E2101E";
-
-const std::string EM_ORIGINAL_DATATYPE_IS_NOT_SUPPORTED = "E21020";
 }  // namespace fe
 
 #endif  // FUSION_ENGINE_INC_COMMON_FE_ERROR_CODE_H_

@@ -56,7 +56,7 @@ class AclMockAnnotatedLaunch : public AclRuntimeStub {
   MOCK_METHOD3(aclrtBinaryGetFunction, aclError(const aclrtBinHandle, const char *, aclrtFuncHandle *));
   MOCK_METHOD6(aclrtLaunchKernelV2,
                aclError(aclrtFuncHandle, uint32_t, const void *, size_t, aclrtLaunchKernelCfg *, aclrtStream));
-  MOCK_METHOD1(aclrtGetThreadLastTaskId, aclError(uint32_t *));
+  MOCK_METHOD2(aclrtGetThreadLastTaskIdAndStreamId, aclError(uint32_t *, uint32_t *));
   MOCK_METHOD2(aclrtStreamGetId, aclError(aclrtStream, int32_t *));
 };
 }  // namespace
@@ -2147,10 +2147,12 @@ TEST_F(UtestCustomTaskInfoE2E, Distribute_AnnotatedArgs_LaunchesTaskDefKernel) {
   EXPECT_CALL(*acl_runtime_stub, aclrtLaunchKernelV2(reinterpret_cast<aclrtFuncHandle>(0x5678), 1U, testing::_,
                                                      3U * sizeof(uint64_t), testing::_, testing::_))
       .WillOnce(testing::Return(ACL_SUCCESS));
-  EXPECT_CALL(*acl_runtime_stub, aclrtGetThreadLastTaskId(testing::_)).WillOnce(testing::Invoke([](uint32_t *task_id) {
-    *task_id = 123U;
-    return ACL_SUCCESS;
-  }));
+  EXPECT_CALL(*acl_runtime_stub, aclrtGetThreadLastTaskIdAndStreamId(testing::_, testing::_))
+      .WillOnce(testing::Invoke([](uint32_t *task_id, uint32_t *stream_id) {
+        *task_id = 123U;
+        *stream_id = 0U;
+        return ACL_SUCCESS;
+      }));
   uint32_t stream_get_id_count = 0U;
   EXPECT_CALL(*acl_runtime_stub, aclrtStreamGetId(testing::_, testing::_))
       .WillRepeatedly(testing::Invoke([&stream_get_id_count](aclrtStream, int32_t *stream_id) {

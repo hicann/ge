@@ -171,18 +171,79 @@ Status GetAllCondInputData(const ComputeGraphPtr &graph, std::set<size_t> &data_
   return SUCCESS;
 }
 
+// 输入准备(唯一收口)：对"需要值符号化的输入"(SymbolicInferUtil::NeedSymbolizeValueDataNode 唯一判据)，
+// 非host时统一 D2H 到 host(guard匹配/符号化/静态图随路拷贝都要求 host)；
+// 处理完成后对处于host的输入Data节点统一打 ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT，
+// 下游只读该属性，不再重复判断 placement
+Status PrepareGraphInputs(const ComputeGraphPtr &graph, std::vector<gert::Tensor> &inputs) {
+  GE_ASSERT_NOTNULL(graph);
+  std::set<size_t> need_symbolize_value_idxs;
+  GE_ASSERT_SUCCESS(SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(graph, need_symbolize_value_idxs));
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node == nullptr || !OpTypeUtils::IsDataNode(node->GetType())) {
+      continue;
+    }
+    const auto &op_desc = node->GetOpDesc();
+    GE_ASSERT_NOTNULL(op_desc);
+    int32_t data_index = -1;
+    (void)AttrUtils::GetInt(op_desc, ATTR_NAME_INDEX, data_index);
+    if (data_index < 0 || static_cast<size_t>(data_index) >= inputs.size()) {
+      continue;
+    }
+    auto &tensor = inputs[static_cast<size_t>(data_index)];
+    if (need_symbolize_value_idxs.count(static_cast<size_t>(data_index)) > 0U &&
+        !gert::TensorPlacementUtils::IsOnHost(tensor.GetPlacement())) {
+      GELOGI("input[%d] need copy data to host.", data_index);
+      gert::Tensor host_tensor;
+      GE_ASSERT_SUCCESS(TensorTransUtils::TransGertTensorToHost(tensor, host_tensor));
+      tensor = std::move(host_tensor);
+    }
+    if (gert::TensorPlacementUtils::IsOnHost(tensor.GetPlacement())) {
+      (void)AttrUtils::SetBool(op_desc, ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT, true);
+      GELOGI("mark data node input index %d as host tensor.", data_index);
+    }
+  }
+  return SUCCESS;
+}
+
+// 快速路径(TryExecuteWithoutProcess)直接透传用户输入给guard匹配与执行：guard在host侧解引用数据，
+// 故cond输入与需要值符号化的输入必须位于host，校验不过回退完整路径
+bool FastPathInputsOnHost(const ComputeGraphPtr &graph, const std::vector<gert::Tensor> &inputs,
+                          std::map<ComputeGraph *, std::set<size_t>> &cond_input_cache, std::mutex &cache_mutex) {
+  if (graph == nullptr) {
+    return false;
+  }
+  std::set<size_t> need_host_idxs;
+  {
+    std::lock_guard<std::mutex> locker(cache_mutex);
+    if (GetAllCondInputData(graph, need_host_idxs, cond_input_cache) != SUCCESS) {
+      return false;
+    }
+  }
+  if (SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(graph, need_host_idxs) != SUCCESS) {
+    return false;
+  }
+  for (const auto data_idx : need_host_idxs) {
+    if (data_idx >= inputs.size() || gert::TensorPlacementUtils::IsOnHost(inputs[data_idx].GetPlacement())) {
+      continue;
+    }
+    GELOGI("Input[%zu] need on host in fast path but placement is device, fallback to full process.", data_idx);
+    return false;
+  }
+  return true;
+}
+
 Status BuildCompileInputs(const std::vector<gert::Tensor> &ori_inputs, const ComputeGraphPtr &graph,
                           std::vector<gert::Tensor> &compile_inputs,
                           std::map<ComputeGraph *, std::set<size_t>> &cond_input_cache, std::mutex &cache_mutex) {
-  std::set<size_t> need_host_data_idx;
+  compile_inputs = TensorTransUtils::ShareFromGertTenosrs(ori_inputs);
+  // cond输入机制不变：强制置于host
+  std::set<size_t> cond_input_idxs;
   {
     std::lock_guard<std::mutex> locker(cache_mutex);
-    GE_ASSERT_SUCCESS(GetAllCondInputData(graph, need_host_data_idx, cond_input_cache));
-    GE_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(graph, need_host_data_idx));
+    GE_ASSERT_SUCCESS(GetAllCondInputData(graph, cond_input_idxs, cond_input_cache));
   }
-
-  compile_inputs = TensorTransUtils::ShareFromGertTenosrs(ori_inputs);
-  for (size_t data_idx : need_host_data_idx) {
+  for (size_t data_idx : cond_input_idxs) {
     GE_ASSERT_TRUE(data_idx < compile_inputs.size());
     if (gert::TensorPlacementUtils::IsOnHost(compile_inputs[data_idx].GetPlacement())) {
       GELOGI("input[%zu] already on host, skip copy.", data_idx);
@@ -193,6 +254,8 @@ Status BuildCompileInputs(const std::vector<gert::Tensor> &ori_inputs, const Com
     GE_ASSERT_SUCCESS(TensorTransUtils::TransGertTensorToHost(compile_inputs[data_idx], host_tensor));
     compile_inputs[data_idx] = std::move(host_tensor);
   }
+  // 需要值符号化的输入：非host统一D2H到host；并对处于host的输入统一打标
+  GE_ASSERT_SUCCESS(PrepareGraphInputs(graph, compile_inputs));
   return SUCCESS;
 }
 
@@ -207,44 +270,6 @@ JitExecutor::JitExecutor(GraphManager &graph_manager, UserGraphExecutionQueue &t
       cmc_(cmc),
       mutex_(mutex),
       fixed_feature_memory_settings_(fixed_feature_memory_settings) {}
-
-std::vector<JitExecutor::DataNodeInfo> JitExecutor::GetOrCreateDataNodeInfos(const ComputeGraphPtr &graph) {
-  std::lock_guard<std::mutex> locker(guarded_execution_cache_mutex_);
-  auto [it, inserted] = data_node_cache_.try_emplace(graph.get());
-  if (!inserted) {
-    return it->second;
-  }
-  for (const auto &node : graph->GetDirectNode()) {
-    if (!OpTypeUtils::IsDataNode(node->GetType())) {
-      continue;
-    }
-    int32_t data_index = -1;
-    (void)AttrUtils::GetInt(node->GetOpDesc(), ATTR_NAME_INDEX, data_index);
-    if (data_index < 0) {
-      continue;
-    }
-    it->second.push_back({node->GetOpDesc(), data_index});
-  }
-  return it->second;
-}
-
-void JitExecutor::MarkHostTensorOnDataNodes(const std::vector<gert::Tensor> &inputs, const ComputeGraphPtr &graph) {
-  if (graph == nullptr) {
-    return;
-  }
-  const auto data_nodes = GetOrCreateDataNodeInfos(graph);
-  for (const auto &data_node : data_nodes) {
-    const int32_t data_index = data_node.input_index;
-    if (static_cast<size_t>(data_index) >= inputs.size()) {
-      continue;
-    }
-    if (!gert::TensorPlacementUtils::IsOnHost(inputs[data_index].GetPlacement())) {
-      continue;
-    }
-    (void)AttrUtils::SetBool(data_node.op_desc, ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT, true);
-    GELOGI("mark data node input index %d as host tensor.", data_index);
-  }
-}
 
 std::unique_ptr<JitExecutor> JitExecutor::Create(
     GraphManager &graph_manager, UserGraphExecutionQueue &task_queue, ExecutionOrder &order,
@@ -281,7 +306,6 @@ Status JitExecutor::Finalize() {
     std::lock_guard<std::mutex> locker(guarded_execution_cache_mutex_);
     guarded_execution_cache_.clear();
     cond_input_data_cache_.clear();
-    data_node_cache_.clear();
   }
   auto sorted_geps_to_inner_graph_id = SortMapByValue(geps_to_inner_ge_graph_id_, false);
   for (const auto &gep_2_id : sorted_geps_to_inner_graph_id) {
@@ -363,12 +387,10 @@ Status JitExecutor::RunWithCallback(UserGraphExecution &&task) {
   std::set<size_t> keep_on_host_idxs;
   if (ep != nullptr && ep->GetSlicedGraph() != nullptr) {
     std::lock_guard<std::mutex> locker(guarded_execution_cache_mutex_);
-    JIT_ASSERT_SUCCESS(SymbolicInferUtil::GetValueDependentInputIdxs(ep->GetSlicedGraph(), keep_on_host_idxs), task);
+    JIT_ASSERT_SUCCESS(SymbolicInferUtil::GetNeedSymbolizeValueInputIdxs(ep->GetSlicedGraph(), keep_on_host_idxs),
+                       task);
   }
   JIT_ASSERT_SUCCESS(CopyHostInputsToDevice(task, device_allocator_.get(), tensors0, keep_on_host_idxs), task);
-  if (ep != nullptr && ep->GetSlicedGraph() != nullptr) {
-    MarkHostTensorOnDataNodes(tensors0, ep->GetSlicedGraph());
-  }
 
   std::vector<gert::Tensor> tensors1;
   auto inputs = &tensors0;
@@ -386,7 +408,6 @@ Status JitExecutor::RunWithCallback(UserGraphExecution &&task) {
     JIT_ASSERT_SUCCESS(order_.NextPoint(*ep, ge_tensors, ep), task);
     if (ep != nullptr) {
       std::swap(inputs, outputs);
-      MarkHostTensorOnDataNodes(*inputs, ep->GetSlicedGraph());
     }
   }
   JIT_ASSERT_RT_OK(aclrtSynchronizeStream(stream_), task);
@@ -504,14 +525,12 @@ Status JitExecutor::ProcessAndExecuteGraphAsync(UserGraphExecution &task, const 
                                                 const std::vector<gert::Tensor> &inputs,
                                                 std::vector<gert::Tensor> &outputs, ExecutionPoint *ep,
                                                 bool need_malloc_output) {
+  // BuildCompileInputs 内部完成：cond 与需要值符号化的输入非 host 时统一 D2H 到 host，
+  // 并统一打 ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT；下游编译/执行/静态图随路拷贝只读该属性，
+  // 不再重复判断 placement
   std::vector<gert::Tensor> compile_inputs;
   GE_ASSERT_SUCCESS(BuildCompileInputs(inputs, ep->GetSlicedGraph(), compile_inputs, cond_input_data_cache_,
                                        guarded_execution_cache_mutex_));
-  // 标记必须与编译/执行同用一份 compile_inputs：value-dependent/cond 输入经 D2H 后为 host placement，
-  // 其 Data 节点的 ATTR_NAME_HOST_TENSOR_AS_MODEL_INPUT 标记随 sliced graph 进入 GEP 编译，
-  // 供静态图(DavinciModel)加载时将对应 input index 并入随路拷贝集合；
-  // 标记基于原始 inputs 时看不到 D2H 生成的 host 副本，静态场景会退化为零拷贝校验失败
-  MarkHostTensorOnDataNodes(compile_inputs, ep->GetSlicedGraph());
   GuardedExecutionInfo execution_info;
   GE_ASSERT_SUCCESS(GetOrCompileGuardedExecutionPoint(task, compile_inputs, ep, stream, execution_info));
   GELOGD("ExecuteGraphWithStreamAsync GEP[ins_id:%u] of EP[%ld] USER_GRAPH[%u].", execution_info.instance_id,
@@ -534,6 +553,10 @@ Status JitExecutor::ProcessAndExecuteGraphAsync(UserGraphExecution &task, const 
 Status JitExecutor::TryExecuteWithoutProcess(UserGraphExecution &task) {
   const auto first_ep = order_.GetFirstPoint();
   if (first_ep == nullptr || !first_ep->IsLast()) {
+    return ge::UNSUPPORTED;
+  }
+  if (!FastPathInputsOnHost(first_ep->GetSlicedGraph(), *task.external_rt_inputs, cond_input_data_cache_,
+                            guarded_execution_cache_mutex_)) {
     return ge::UNSUPPORTED;
   }
   GELOGD("Get EP[%ld] of USER_GRAPH[%u] for LoadGraph", first_ep->GetId(), task.user_graph_id);

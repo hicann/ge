@@ -19,7 +19,7 @@
 
 namespace fe {
 std::map<std::string, std::vector<std::string>> kFeErrorParamMap = {
-    {EM_COMPILE_FAILED, {"pass_name", "pass_type"}},
+    {EM_COMPILE_FAILED, {"opname", "optype"}},
     {EM_ENVIRONMENT_VARIABLE_FAILED, {"value", "env", "reason"}},
     {EM_INVALID_CONTENT, {"parameter", "filepath", "reason"}},
     {EM_RUN_PASS_FAILED, {"pass_name", "pass_type"}},

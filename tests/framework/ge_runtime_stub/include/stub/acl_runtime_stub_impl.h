@@ -89,6 +89,8 @@ class AclRuntimeStubImpl : public ge::AclRuntimeStub {
 
   aclError aclrtGetThreadLastTaskId(uint32_t *taskId) override;
 
+  aclError aclrtGetThreadLastTaskIdAndStreamId(uint32_t *taskId, uint32_t *streamId) override;
+
   aclError aclrtPersistentTaskClean(aclrtStream stream) override;
 
   aclError aclrtCreateStream(aclrtStream *stream) override;

@@ -55,22 +55,25 @@ int32_t MsprofSetConfig(uint32_t configType, const char *config, size_t configLe
 }
 
 int32_t MsprofReportApi(uint32_t agingFlag, const MsprofApi *api) {
-  return ge::ProfilingTestUtil::Instance().RunProfFunc(0, ge::InfoType::kApi, const_cast<MsprofApi *>(api),
+  return ge::ProfilingTestUtil::Instance().RunProfFunc(agingFlag, ge::InfoType::kApi, const_cast<MsprofApi *>(api),
                                                        sizeof(api));
 }
 
 int32_t MsprofReportAdditionalInfo(uint32_t agingFlag, const VOID_PTR data, uint32_t length) {
-  return ge::ProfilingTestUtil::Instance().RunProfFunc(0, ge::InfoType::kInfo, const_cast<void *>(data), length);
+  return ge::ProfilingTestUtil::Instance().RunProfFunc(agingFlag, ge::InfoType::kInfo, const_cast<void *>(data),
+                                                       length);
 }
 int32_t MsprofReportCompactInfo(uint32_t agingFlag, const VOID_PTR data, uint32_t length) {
-  return ge::ProfilingTestUtil::Instance().RunProfFunc(0, ge::InfoType::kCompactInfo, const_cast<void *>(data), length);
+  return ge::ProfilingTestUtil::Instance().RunProfFunc(agingFlag, ge::InfoType::kCompactInfo, const_cast<void *>(data),
+                                                       length);
 }
 int32_t MsprofRegisterCallback(uint32_t moduleId, ProfCommandHandle handle) {
   return 0;
 }
 
 int32_t MsprofReportEvent(uint32_t agingFlag, const MsprofEvent *event) {
-  return ge::ProfilingTestUtil::Instance().RunProfFunc(0, ge::InfoType::kEvent, const_cast<MsprofEvent *>(event), 1);
+  return ge::ProfilingTestUtil::Instance().RunProfFunc(agingFlag, ge::InfoType::kEvent,
+                                                       const_cast<MsprofEvent *>(event), 1);
 }
 
 int32_t MsprofReportData(uint32_t moduleId, uint32_t type, VOID_PTR data, uint32_t len) {

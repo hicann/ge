@@ -315,7 +315,8 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
                                uint32_t model_id, void *instance_handle,
                                uint32_t is_raw_address = 0U) {
   uint32_t task_id = 0U;
-  OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
+  uint32_t acl_stream_id = 0U;
+  OM2_CHK_RT(aclrtGetThreadLastTaskIdAndStreamId(&task_id, &acl_stream_id));
 
   uint32_t stream_id = 0U;
   OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
@@ -1420,7 +1421,7 @@ ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model, bool has_
     return ProgramGenerator(ast, {}, Om2CodegenModel(), has_custom_kernel);
   }
   Om2CodegenModelBuilder builder;
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   if (builder.Build(ge_model, task_code_builders, codegen_model, const_metas) != SUCCESS) {
     ADD_FAILURE() << "[OM2] Failed to build om2 codegen model";
     return ProgramGenerator(ast, {}, Om2CodegenModel(), has_custom_kernel);
@@ -1438,14 +1439,14 @@ const std::map<GeneratedFileIndex, std::string> kGeneratedFileNames = {
     {GeneratedFileIndex::kCMakeListsFile, "Makefile"},
 };
 
-Status ReadGeneratedArtifact(const gert::GertModelDataProgramBodies &artifacts, const GeneratedFileIndex file_index,
+Status ReadGeneratedArtifact(const std::vector<gert::GertModelDataFile> &artifacts, const GeneratedFileIndex file_index,
                              std::string &output) {
   const auto iter = kGeneratedFileNames.find(file_index);
   GE_ASSERT_TRUE(iter != kGeneratedFileNames.end(), "[OM2] unknown generated file index: %zu",
                  static_cast<size_t>(file_index));
   for (const auto &artifact : artifacts) {
     if (std::string(gert::GertGetStr(artifact.file_name)) == iter->second) {
-      output = gert::GertGetStr(artifact.data);
+      output.assign(reinterpret_cast<const char *>(artifact.data.get()), artifact.data_size);
       return SUCCESS;
     }
   }
@@ -1456,7 +1457,7 @@ Status ReadGeneratedArtifact(const gert::GertModelDataProgramBodies &artifacts, 
 Status GenerateProgramFiles(ProgramGenerator &generator, std::map<GeneratedFileIndex, std::string> &outputs) {
   Om2CodePrinter code_printer("g1");
   GE_ASSERT_SUCCESS(generator.GenerateProgram(code_printer));
-  gert::GertModelDataProgramBodies artifacts;
+  std::vector<gert::GertModelDataFile> artifacts;
   code_printer.GetOutputFiles(artifacts);
   outputs.clear();
   for (const auto file_index : {GeneratedFileIndex::kModelApiHeaderFile, GeneratedFileIndex::kKernelRegistryFile,
@@ -2205,9 +2206,12 @@ struct AicoreDispatchInfo {
   const char *op_type;        // 算子类型名，用于 Report 上报
   uint32_t args_idx;          // 参数表索引，用于 GetArgsInfo 查找
   uint32_t block_dim;        // Block 维度
+  uint32_t prof_block_dim;   // profiling 上报口径的 Block Dim(未归一/mix 编码/tiling_sink 占位)
   uint32_t func_idx;         // 函数句柄索引，用于查找 func_handles
   uint32_t stream_id;        // 执行流索引
-  uint32_t task_type;
+  uint32_t task_type;         // 任务类型(ModelTaskType)，executor/dump 消费
+  uint32_t prof_ge_task_type; // profiling 上报任务类型(MsprofGeTaskType)
+  uint64_t op_impl_mode;     // 算子实现模式(_op_impl_mode_enum 原值)，0 表示默认模式
   uint32_t kernel_type;
   struct {                    // Launch 配置，构建 LaunchKernelConfig → AssembleLaunchConfig
     uint8_t schedule_mode;    // 调度模式
@@ -2238,6 +2242,7 @@ struct AicpuDispatchInfo {
   uint32_t args_idx;
   uint32_t func_idx;
   uint32_t block_dim;
+  uint32_t prof_block_dim;   // profiling 上报口径的 Block Dim
   uint32_t stream_id;        // 执行流索引
   const uint8_t *args_blob;  // AICPU 参数 blob 数据
   uint32_t args_blob_len;    // 参数 blob 长度
@@ -2253,7 +2258,9 @@ struct AicpuDispatchInfo {
   } launch;
   int32_t session_info_offset;
   uint32_t aicpu_task_index;
-  uint32_t task_type;
+  uint32_t task_type;         // 任务类型(ModelTaskType)，executor/dump 消费
+  uint32_t prof_ge_task_type; // profiling 上报任务类型(MsprofGeTaskType)
+  uint64_t op_impl_mode;     // 算子实现模式(_op_impl_mode_enum 原值)，0 表示默认模式
   uint32_t kernel_type;
 };
 
@@ -2263,7 +2270,9 @@ struct CustomDispatchInfo {
   const char *op_type;         // 算子类型名，用于 Report 上报
   uint32_t args_idx;           // 参数表索引，用于 GetArgsInfo 查找
   uint32_t stream_id;          // 执行流索引
-  uint32_t task_type;
+  uint32_t task_type;          // 任务类型(ModelTaskType)，executor/dump 消费
+  uint32_t prof_ge_task_type;  // profiling 上报任务类型(MsprofGeTaskType)
+  uint64_t op_impl_mode;       // 算子实现模式(_op_impl_mode_enum 原值)，0 表示默认模式
 };
 
 struct DsaDispatchInfo {
@@ -2283,7 +2292,8 @@ struct DsaDispatchInfo {
   uint32_t idx_seed; uint32_t idx_count;
   uint32_t idx_input1; uint32_t idx_input2;
   uint32_t num_iov_entries;
-  uint32_t has_input2; uint32_t task_type;
+  uint32_t has_input2; uint32_t task_type; uint32_t prof_ge_task_type;
+  uint64_t op_impl_mode; // 算子实现模式(_op_impl_mode_enum 原值)，0 表示默认模式
 };
 
 struct KernelExDispatchInfo {
@@ -2291,6 +2301,7 @@ struct KernelExDispatchInfo {
   uint32_t args_info_num;
   const char *op_type;         // 算子类型名，用于 Report 上报
   uint32_t block_dim;
+  uint32_t prof_block_dim;   // profiling 上报口径的 Block Dim
   uint32_t stream_id;
   uint32_t func_idx;
   uint32_t tf_session_func_idx;
@@ -2308,7 +2319,9 @@ struct KernelExDispatchInfo {
     uint16_t time_out;        // 超时时间
     uint32_t engine_type;     // aclrtEngineType 枚举值
   } launch;
-  uint32_t task_type;
+  uint32_t task_type;         // 任务类型(ModelTaskType)，executor/dump 消费
+  uint32_t prof_ge_task_type; // profiling 上报任务类型(MsprofGeTaskType)
+  uint64_t op_impl_mode; // 算子实现模式(_op_impl_mode_enum 原值)，0 表示默认模式
 };
 
 struct CmoDispatchInfo {
@@ -2720,7 +2733,10 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
                              uint64_t input_mem_size = 0U,
                              uint64_t output_mem_size = 0U,
                              uint64_t workspace_mem_size = 0U,
-                             uint64_t weight_mem_size = 0U) {
+                             uint64_t weight_mem_size = 0U,
+                             uint64_t op_impl_mode = 0U,
+                             uint32_t prof_ge_task_type = 0U,
+                             uint32_t prof_block_dim = 0U) {
   task_info->struct_size = sizeof(GertModelTaskDesc);
   task_info->op_name = op_name;
   task_info->op_type = op_type;
@@ -2749,6 +2765,9 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
   task_info->output_mem_size = output_mem_size;
   task_info->workspace_mem_size = workspace_mem_size;
   task_info->weight_mem_size = weight_mem_size;
+  task_info->op_impl_mode = op_impl_mode;
+  task_info->prof_ge_task_type = prof_ge_task_type;
+  task_info->prof_block_dim = prof_block_dim;
   return ACL_SUCCESS;
 }
 constexpr uint16_t GE_MODULE_NAME_U16 = 45;
@@ -2982,7 +3001,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   }
   GertModelTaskRawInfo task_raw_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   GertModelTaskDesc task_info;
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size, op->dispatch_info.aicore.op_impl_mode, op->dispatch_info.aicore.prof_ge_task_type, op->dispatch_info.aicore.prof_block_dim));
   OM2_CHK_STATUS(aclrtStreamGetId(task_info.stream, reinterpret_cast<int32_t *>(&task_info.stream_id)));
   task_info.kernel_type = op->dispatch_info.aicore.kernel_type;
   task_info.task_raw_info = &task_raw_info;
@@ -3042,7 +3061,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   OM2_CHK_STATUS(AssembleAicpuArgs(args_blob, args_blob_len, ctx.dev_ext_info_mem_ptrs[op->dispatch_info.aicpu.aicpu_task_index], ext_info_blob_len, iow_addr, aicpu_args_var.data()));
   ArgsInfo *aicpu_args_info = ctx.args_table.GetArgsInfo(aicpu_args_idx);
   GertModelTaskDesc aicpu_task_info;
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U));
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U, nullptr, 0UL, 0UL, 0UL, 0UL, op->dispatch_info.aicpu.op_impl_mode, op->dispatch_info.aicpu.prof_ge_task_type, op->dispatch_info.aicpu.prof_block_dim));
   OM2_CHK_STATUS(aclrtStreamGetId(aicpu_task_info.stream, reinterpret_cast<int32_t *>(&aicpu_task_info.stream_id)));
   aicpu_task_info.kernel_type = op->dispatch_info.aicpu.kernel_type;
   GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {};
@@ -3087,18 +3106,21 @@ const TaskDispatchInfo kOpDefs[] = {{
   .dispatch_info = {
     .aicore = {
       .args_info = (const OpArgInfo[]){
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 0, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 0, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 0, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
         {.type = OP_ARG_WORKSPACE, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.tensor = {.size = 64}}},
       },
       .args_info_num = 4,
       .op_type = "Add",
       .args_idx = 0,
       .block_dim = 8,
+      .prof_block_dim = 8,
       .func_idx = 0,
       .stream_id = 0,
       .task_type = 0,
+      .prof_ge_task_type = 0,
+      .op_impl_mode = 0,
       .kernel_type = 2,
       .launch = {0, 0, 0, false, 0, 0},
       .slot_args = {0, 4, (const GertModelArgSlotInfo[]){{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
@@ -3423,7 +3445,10 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
                              uint64_t input_mem_size = 0U,
                              uint64_t output_mem_size = 0U,
                              uint64_t workspace_mem_size = 0U,
-                             uint64_t weight_mem_size = 0U) {
+                             uint64_t weight_mem_size = 0U,
+                             uint64_t op_impl_mode = 0U,
+                             uint32_t prof_ge_task_type = 0U,
+                             uint32_t prof_block_dim = 0U) {
   task_info->struct_size = sizeof(GertModelTaskDesc);
   task_info->op_name = op_name;
   task_info->op_type = op_type;
@@ -3452,6 +3477,9 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
   task_info->output_mem_size = output_mem_size;
   task_info->workspace_mem_size = workspace_mem_size;
   task_info->weight_mem_size = weight_mem_size;
+  task_info->op_impl_mode = op_impl_mode;
+  task_info->prof_ge_task_type = prof_ge_task_type;
+  task_info->prof_block_dim = prof_block_dim;
   return ACL_SUCCESS;
 }
 constexpr uint16_t GE_MODULE_NAME_U16 = 45;
@@ -3685,7 +3713,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   }
   GertModelTaskRawInfo task_raw_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   GertModelTaskDesc task_info;
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size, op->dispatch_info.aicore.op_impl_mode, op->dispatch_info.aicore.prof_ge_task_type, op->dispatch_info.aicore.prof_block_dim));
   OM2_CHK_STATUS(aclrtStreamGetId(task_info.stream, reinterpret_cast<int32_t *>(&task_info.stream_id)));
   task_info.kernel_type = op->dispatch_info.aicore.kernel_type;
   task_info.task_raw_info = &task_raw_info;
@@ -3745,7 +3773,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   OM2_CHK_STATUS(AssembleAicpuArgs(args_blob, args_blob_len, ctx.dev_ext_info_mem_ptrs[op->dispatch_info.aicpu.aicpu_task_index], ext_info_blob_len, iow_addr, aicpu_args_var.data()));
   ArgsInfo *aicpu_args_info = ctx.args_table.GetArgsInfo(aicpu_args_idx);
   GertModelTaskDesc aicpu_task_info;
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U));
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U, nullptr, 0UL, 0UL, 0UL, 0UL, op->dispatch_info.aicpu.op_impl_mode, op->dispatch_info.aicpu.prof_ge_task_type, op->dispatch_info.aicpu.prof_block_dim));
   OM2_CHK_STATUS(aclrtStreamGetId(aicpu_task_info.stream, reinterpret_cast<int32_t *>(&aicpu_task_info.stream_id)));
   aicpu_task_info.kernel_type = op->dispatch_info.aicpu.kernel_type;
   GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {};
@@ -3790,18 +3818,21 @@ const TaskDispatchInfo kOpDefs[] = {{
   .dispatch_info = {
     .aicore = {
       .args_info = (const OpArgInfo[]){
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 0, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 0, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 0, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
         {.type = OP_ARG_WORKSPACE, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.tensor = {.size = 64}}},
       },
       .args_info_num = 4,
       .op_type = "Add",
       .args_idx = 0,
       .block_dim = 8,
+      .prof_block_dim = 8,
       .func_idx = 0,
       .stream_id = 0,
       .task_type = 0,
+      .prof_ge_task_type = 0,
+      .op_impl_mode = 0,
       .kernel_type = 2,
       .launch = {0, 0, 0, false, 0, 0},
       .slot_args = {0, 4, (const GertModelArgSlotInfo[]){{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}}},
@@ -4159,7 +4190,10 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
                              uint64_t input_mem_size = 0U,
                              uint64_t output_mem_size = 0U,
                              uint64_t workspace_mem_size = 0U,
-                             uint64_t weight_mem_size = 0U) {
+                             uint64_t weight_mem_size = 0U,
+                             uint64_t op_impl_mode = 0U,
+                             uint32_t prof_ge_task_type = 0U,
+                             uint32_t prof_block_dim = 0U) {
   task_info->struct_size = sizeof(GertModelTaskDesc);
   task_info->op_name = op_name;
   task_info->op_type = op_type;
@@ -4188,6 +4222,9 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
   task_info->output_mem_size = output_mem_size;
   task_info->workspace_mem_size = workspace_mem_size;
   task_info->weight_mem_size = weight_mem_size;
+  task_info->op_impl_mode = op_impl_mode;
+  task_info->prof_ge_task_type = prof_ge_task_type;
+  task_info->prof_block_dim = prof_block_dim;
   return ACL_SUCCESS;
 }
 constexpr uint16_t GE_MODULE_NAME_U16 = 45;
@@ -4421,7 +4458,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   }
   GertModelTaskRawInfo task_raw_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   GertModelTaskDesc task_info;
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size, op->dispatch_info.aicore.op_impl_mode, op->dispatch_info.aicore.prof_ge_task_type, op->dispatch_info.aicore.prof_block_dim));
   OM2_CHK_STATUS(aclrtStreamGetId(task_info.stream, reinterpret_cast<int32_t *>(&task_info.stream_id)));
   task_info.kernel_type = op->dispatch_info.aicore.kernel_type;
   task_info.task_raw_info = &task_raw_info;
@@ -4481,7 +4518,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   OM2_CHK_STATUS(AssembleAicpuArgs(args_blob, args_blob_len, ctx.dev_ext_info_mem_ptrs[op->dispatch_info.aicpu.aicpu_task_index], ext_info_blob_len, iow_addr, aicpu_args_var.data()));
   ArgsInfo *aicpu_args_info = ctx.args_table.GetArgsInfo(aicpu_args_idx);
   GertModelTaskDesc aicpu_task_info;
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U));
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U, nullptr, 0UL, 0UL, 0UL, 0UL, op->dispatch_info.aicpu.op_impl_mode, op->dispatch_info.aicpu.prof_ge_task_type, op->dispatch_info.aicpu.prof_block_dim));
   OM2_CHK_STATUS(aclrtStreamGetId(aicpu_task_info.stream, reinterpret_cast<int32_t *>(&aicpu_task_info.stream_id)));
   aicpu_task_info.kernel_type = op->dispatch_info.aicpu.kernel_type;
   GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {};
@@ -4526,15 +4563,16 @@ const TaskDispatchInfo kOpDefs[] = {{
   .dispatch_info = {
     .aicpu = {
       .args_info = (const OpArgInfo[]){
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 0, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 0, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 0, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
       },
       .args_info_num = 3,
       .op_type = "Add",
       .args_idx = 0,
       .func_idx = 0,
       .block_dim = 8,
+      .prof_block_dim = 8,
       .stream_id = 0,
       .args_blob = reinterpret_cast<const uint8_t *>("\104\000\000\000\003\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"),
       .args_blob_len = 68,
@@ -4544,6 +4582,8 @@ const TaskDispatchInfo kOpDefs[] = {{
       .session_info_offset = 228,
       .aicpu_task_index = 0,
       .task_type = 0,
+      .prof_ge_task_type = 1,
+      .op_impl_mode = 0,
       .kernel_type = 6,
     },
   },
@@ -4553,15 +4593,16 @@ const TaskDispatchInfo kOpDefs[] = {{
   .dispatch_info = {
     .aicpu = {
       .args_info = (const OpArgInfo[]){
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 1, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 0, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 0U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 0, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 8U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 0, .data_type = 0, .format = 2, .shape = {-1, -1, -1, -1, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 16U}}},
       },
       .args_info_num = 3,
       .op_type = "Add",
       .args_idx = 1,
       .func_idx = 0,
       .block_dim = 8,
+      .prof_block_dim = 8,
       .stream_id = 0,
       .args_blob = reinterpret_cast<const uint8_t *>("\104\000\000\000\003\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"),
       .args_blob_len = 68,
@@ -4571,6 +4612,8 @@ const TaskDispatchInfo kOpDefs[] = {{
       .session_info_offset = 228,
       .aicpu_task_index = 1,
       .task_type = 0,
+      .prof_ge_task_type = 1,
+      .op_impl_mode = 0,
       .kernel_type = 6,
     },
   },
@@ -4894,7 +4937,10 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
                              uint64_t input_mem_size = 0U,
                              uint64_t output_mem_size = 0U,
                              uint64_t workspace_mem_size = 0U,
-                             uint64_t weight_mem_size = 0U) {
+                             uint64_t weight_mem_size = 0U,
+                             uint64_t op_impl_mode = 0U,
+                             uint32_t prof_ge_task_type = 0U,
+                             uint32_t prof_block_dim = 0U) {
   task_info->struct_size = sizeof(GertModelTaskDesc);
   task_info->op_name = op_name;
   task_info->op_type = op_type;
@@ -4923,6 +4969,9 @@ aclError AssembleOm2TaskInfo(GertModelTaskDesc *task_info, const char *op_name, 
   task_info->output_mem_size = output_mem_size;
   task_info->workspace_mem_size = workspace_mem_size;
   task_info->weight_mem_size = weight_mem_size;
+  task_info->op_impl_mode = op_impl_mode;
+  task_info->prof_ge_task_type = prof_ge_task_type;
+  task_info->prof_block_dim = prof_block_dim;
   return ACL_SUCCESS;
 }
 constexpr uint16_t GE_MODULE_NAME_U16 = 45;
@@ -5156,7 +5205,7 @@ aclError DispatchKernelAicore(const TaskDispatchInfo *op, const DispatchOpContex
   }
   GertModelTaskRawInfo task_raw_info = {1U, op->dispatch_info.aicore.slot_args.need_assert_or_printf, static_cast<uint64_t>(op->dispatch_info.aicore.slot_args.slots_num), op->dispatch_info.aicore.slot_args.slot_info};
   GertModelTaskDesc task_info;
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size));
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op->op_name, op->dispatch_info.aicore.op_type, 0U, op->dispatch_info.aicore.stream_id, op->dispatch_info.aicore.block_dim, 0U, reinterpret_cast<uintptr_t>(args_info->dev_addr), args_info->size, report_inputs.data(), static_cast<uint64_t>(report_inputs.size()), report_outputs.data(), static_cast<uint32_t>(report_outputs.size()), report_workspace_addrs.data(), report_workspace_sizes.data(), static_cast<uint32_t>(report_workspace_addrs.size()), op->dispatch_info.aicore.task_type, ctx.stream_list[op->dispatch_info.aicore.stream_id], 0U, 0U, op->dispatch_info.aicore.fusion_op.original_op_names, op->dispatch_info.aicore.fusion_op.input_mem_size, op->dispatch_info.aicore.fusion_op.output_mem_size, op->dispatch_info.aicore.fusion_op.workspace_mem_size, op->dispatch_info.aicore.fusion_op.weight_mem_size, op->dispatch_info.aicore.op_impl_mode, op->dispatch_info.aicore.prof_ge_task_type, op->dispatch_info.aicore.prof_block_dim));
   OM2_CHK_STATUS(aclrtStreamGetId(task_info.stream, reinterpret_cast<int32_t *>(&task_info.stream_id)));
   task_info.kernel_type = op->dispatch_info.aicore.kernel_type;
   task_info.task_raw_info = &task_raw_info;
@@ -5216,7 +5265,7 @@ aclError DispatchKernelAicpu(const TaskDispatchInfo *op, const DispatchOpContext
   OM2_CHK_STATUS(AssembleAicpuArgs(args_blob, args_blob_len, ctx.dev_ext_info_mem_ptrs[op->dispatch_info.aicpu.aicpu_task_index], ext_info_blob_len, iow_addr, aicpu_args_var.data()));
   ArgsInfo *aicpu_args_info = ctx.args_table.GetArgsInfo(aicpu_args_idx);
   GertModelTaskDesc aicpu_task_info;
-  OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U));
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&aicpu_task_info, op->op_name, op->dispatch_info.aicpu.op_type, 0U, op->dispatch_info.aicpu.stream_id, op->dispatch_info.aicpu.block_dim, 0U, reinterpret_cast<uintptr_t>(aicpu_args_info->dev_addr), aicpu_args_info->size, aicpu_report_inputs.data(), static_cast<uint64_t>(aicpu_report_inputs.size()), aicpu_report_outputs.data(), static_cast<uint32_t>(aicpu_report_outputs.size()), nullptr, nullptr, 0U, op->dispatch_info.aicpu.task_type, ctx.stream_list[op->dispatch_info.aicpu.stream_id], 0U, 0U, nullptr, 0UL, 0UL, 0UL, 0UL, op->dispatch_info.aicpu.op_impl_mode, op->dispatch_info.aicpu.prof_ge_task_type, op->dispatch_info.aicpu.prof_block_dim));
   OM2_CHK_STATUS(aclrtStreamGetId(aicpu_task_info.stream, reinterpret_cast<int32_t *>(&aicpu_task_info.stream_id)));
   aicpu_task_info.kernel_type = op->dispatch_info.aicpu.kernel_type;
   GertModelLaunchKernelV2Params aicpu_launch_kernel_v2_params = {};
@@ -5270,29 +5319,32 @@ const TaskDispatchInfo kOpDefs[] = {{
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 72U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 0, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 72U}}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 48}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 4294967300}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
-        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 128U}}},
+        {.type = OP_ARG_INPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 0, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 128U}}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 48}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 4294967300}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 1}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
         {.type = OP_ARG_SHAPE_INFO, .addr = {.mem_src = 0, .index = 0, .offset = 0}, .data = {.custom_value = 224}},
-        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 1, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 184U}}},
+        {.type = OP_ARG_OUTPUT, .addr = {.mem_src = 0, .index = 0, .offset = 1024}, .data = {.tensor = {.size = 200704, .data_type = 0, .format = 0, .shape = {1, 1, 224, 224, 0, 0, 0, 0}, .shape_dims = 4, .args_offset = 184U}}},
       },
       .args_info_num = 24,
       .op_type = "Add",
       .args_idx = 0,
       .block_dim = 8,
+      .prof_block_dim = 8,
       .func_idx = 0,
       .stream_id = 0,
       .task_type = 0,
+      .prof_ge_task_type = 0,
+      .op_impl_mode = 0,
       .kernel_type = 2,
       .launch = {0, 0, 0, false, 0, 0},
       .slot_args = {0, 9, (const GertModelArgSlotInfo[]){{sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_LEVEL1_DESC, 0U, 0U, 0UL, 0U, 0U, 24U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_LEVEL1_DESC, 0U, 8U, 0UL, 0U, 0U, 80U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_LEVEL1_DESC, 0U, 16U, 0UL, 0U, 0U, 136U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_SHAPE_INFO, 0U, 24U, 6UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 72U, 0UL, 9U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_SHAPE_INFO, 0U, 80U, 6UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_INPUT, 0U, 128U, 0UL, 16U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_SHAPE_INFO, 0U, 136U, 6UL, 0U, 0U, 0U}, {sizeof(GertModelArgSlotInfo), GERT_MODEL_ARG_OUTPUT, 0U, 184U, 0UL, 23U, 0U, 0U}}},
@@ -5861,7 +5913,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoBarrierTask_LogicIdNumM
   Om2CodegenModel codegen_model;
   ASSERT_EQ(Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model), SUCCESS);
   Om2CodegenModelBuilder builder;
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   EXPECT_NE(builder.Build(ge_model, task_code_builders, codegen_model, const_metas), SUCCESS);
 }
 
@@ -6870,6 +6922,11 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForKernelExTask_Ok) {
             std::string::npos);
   EXPECT_NE(load_run_code.find("AssembleOm2TaskInfo(&task_info, \"TfSessionTask\", \"TfSessionTask\""),
             std::string::npos);
+  // task_type 槽保持 ModelTaskType 语义(0U)；尾部追加 prof_ge_task_type(AI_CPU=1U) 与 prof_block_dim(0U)
+  EXPECT_NE(load_run_code.find("AssembleOm2TaskInfo(&task_info, \"TfSessionTask\", \"TfSessionTask\", "
+                               "0U, 0U, 0U, 0U, 0U, 0U, nullptr, 0U, nullptr, 0U, nullptr, nullptr, 0U, 0U,"),
+            std::string::npos);
+  EXPECT_NE(load_run_code.find("nullptr, 0U, 0U, 0U, 0U, 0U, 1U, 0U)"), std::string::npos);
   EXPECT_NE(load_run_code.find(
                 "TfAicpuKernelTaskDistribute(iow_addrs, nullptr, device_base, op_kernel_size, func_handle, block_dim, "
                 "stream, config, ctx.launch_func, ctx.instance_handle, &task_info)"),
@@ -7227,9 +7284,10 @@ TEST_F(ProgramGeneratorUt, GenerateProgram_AllKernel_Ok) {
   EXPECT_NE(kernel_reg_source.find("ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE"), std::string::npos);
 }
 
-// 验证生成代码中 AicoreDispatchInfo 的 task_type 为真实的非零 ModelTaskType 值。
-// 本次修复将 profiling 上报类型从 dispatch_type 切换为 task_type，
-// 若未来回归为恒 0，此用例可以兜住。
+// 验证生成代码中 AicoreDispatchInfo 的 prof_ge_task_type 为预转换后的 MsprofGeTaskType 值。
+// task_type 保持 ModelTaskType 语义，profiling 上报类型由尾部新增的 prof_ge_task_type 承载
+// （ALL_KERNEL 的 ModelTaskType 值与预转换后的 MsprofGeTaskType AI_CORE=0 数值不同源），
+// 若未来字段被合并/改名/未转换，此用例可以兜住。
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_AllKernel_NonZeroTaskType) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithAllKernelOp();
   ASSERT_NE(ge_root_model, nullptr);
@@ -7238,8 +7296,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_AllKernel_NonZeroTaskType) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   const auto &load_and_run_source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
-  const auto expected_task_type = std::to_string(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_ALL_KERNEL));
-  EXPECT_NE(load_and_run_source.find(".task_type = " + expected_task_type + ","), std::string::npos);
+  EXPECT_NE(load_and_run_source.find(".prof_ge_task_type = 0,"), std::string::npos);
+  EXPECT_NE(load_and_run_source.find(".task_type = "), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_UsesUnifiedLaunchCallbacks) {

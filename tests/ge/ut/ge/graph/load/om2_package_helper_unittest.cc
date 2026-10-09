@@ -571,7 +571,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
@@ -632,15 +632,15 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   EXPECT_EQ(model_meta_json.Raw().at("zero_copy_size"), JsonFile::json(0));
 
   const JsonFile::json expected_inputs = JsonFile::json::array({
-      {{"data_type", "DT_FLOAT"},
-       {"format", "ND"},
+      {{"data_type", 0},
+       {"format", 2},
        {"index", 0},
        {"name", "data1"},
        {"shape", JsonFile::json::array({1, 2, 3, 4})},
        {"shape_range", JsonFile::json::array()},
        {"size", 0}},
-      {{"data_type", "DT_FLOAT"},
-       {"format", "NCHW"},
+      {{"data_type", 0},
+       {"format", 0},
        {"index", 1},
        {"name", "data2"},
        {"shape", JsonFile::json::array({1, 1, 224, 224})},
@@ -650,8 +650,8 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   EXPECT_EQ(model_meta_json.Raw().at("inputs"), expected_inputs);
 
   const JsonFile::json expected_outputs = JsonFile::json::array({
-      {{"data_type", "DT_FLOAT"},
-       {"format", "ND"},
+      {{"data_type", 0},
+       {"format", 2},
        {"index", 0},
        {"name", "output_0_reshape1_0"},
        {"shape", JsonFile::json::array()},
@@ -662,7 +662,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
 
   size_t constants_config_size = 0;
   const auto constants_config_buf =
-      archive.ExtractToMem("fake_test/data/model_0/model_0_constants_config.json", constants_config_size);
+      archive.ExtractToMem("fake_test/data/model_0/constants_config.json", constants_config_size);
   ASSERT_NE(constants_config_buf, nullptr);
   const JsonFile constants_json(reinterpret_cast<const uint8_t *>(constants_config_buf.get()), constants_config_size);
   ASSERT_TRUE(constants_json.IsValid());
@@ -737,7 +737,7 @@ TEST_F(Om2PackageHelperUt, SaveToOmModel_SaveModeFalse_ReturnsModelBuffer) {
       "g1/data/model_0/runtime/csrc/Makefile",
       "g1/data/model_0/runtime/libg1_om2.so",
       "g1/data/constants/constant_0",
-      "g1/data/model_0/model_0_constants_config.json",
+      "g1/data/model_0/constants_config.json",
       "g1/data/kernels/te_Add_12345_AicoreKernel.o",
       "g1/data/model_0/model_meta.json",
       "g1/data/model_0/op_attr.json",
@@ -835,7 +835,7 @@ TEST_F(Om2PackageHelperUt, Om2CodegenAndCompile_Fail_DoesNotDumpGeneratedFiles) 
   model_data.constants->constants_data.emplace_back();
   model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
   model_data.models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
-  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataFile>();
   Om2Codegen codegen;
   ASSERT_NE(codegen.Om2CodegenAndCompile(ge_model, model_data, *model_data.models[0]), SUCCESS);
 
@@ -865,7 +865,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
 
   size_t constants_config_size = 0;
   const auto constants_config_buf =
-      archive.ExtractToMem("fake_fileconst/data/model_0/model_0_constants_config.json", constants_config_size);
+      archive.ExtractToMem("fake_fileconst/data/model_0/constants_config.json", constants_config_size);
   ASSERT_NE(constants_config_buf, nullptr);
   const JsonFile constants_json(reinterpret_cast<const uint8_t *>(constants_config_buf.get()), constants_config_size);
   ASSERT_TRUE(constants_json.IsValid());
@@ -933,13 +933,13 @@ TEST_F(Om2PackageHelperUt, RelocateExternalWeights_SkipInvalidConstItemsAndCompr
     JsonFile constants_config;
     constants_config.Set("internal_weight_size", 0U).Set("consts", consts);
     const std::string constants_config_str = constants_config.Dump();
-    ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config_str.data(),
+    ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/constants_config.json", constants_config_str.data(),
                                       constants_config_str.size(), false));
     const std::string no_consts_config = R"({"internal_weight_size":0})";
-    ASSERT_TRUE(zip_writer.WriteBytes("data/model_1/model_1_constants_config.json", no_consts_config.data(),
+    ASSERT_TRUE(zip_writer.WriteBytes("data/model_1/constants_config.json", no_consts_config.data(),
                                       no_consts_config.size(), false));
     const std::string skipped_consts_config = R"({"consts":{"internal":{"type":"INTERNAL"}}})";
-    ASSERT_TRUE(zip_writer.WriteBytes("data/model_2/model_2_constants_config.json", skipped_consts_config.data(),
+    ASSERT_TRUE(zip_writer.WriteBytes("data/model_2/constants_config.json", skipped_consts_config.data(),
                                       skipped_consts_config.size(), false));
     const std::string runtime_entry = "runtime";
     ASSERT_TRUE(
@@ -967,14 +967,14 @@ TEST_F(Om2PackageHelperUt, RelocateExternalWeights_SkipInvalidConstItemsAndCompr
   const auto file_names = archive.ListFiles();
   EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_0/runtime/libfake.so"),
             file_names.end());
-  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_1/model_1_constants_config.json"),
+  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_1/constants_config.json"),
             file_names.end());
-  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_2/model_2_constants_config.json"),
+  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_2/constants_config.json"),
             file_names.end());
 
   size_t constants_config_size = 0;
   const auto constants_config_buf =
-      archive.ExtractToMem("saved_model/data/model_0/model_0_constants_config.json", constants_config_size);
+      archive.ExtractToMem("saved_model/data/model_0/constants_config.json", constants_config_size);
   ASSERT_NE(constants_config_buf, nullptr);
   const JsonFile constants_json(reinterpret_cast<const uint8_t *>(constants_config_buf.get()), constants_config_size);
   ASSERT_TRUE(constants_json.IsValid());
@@ -1326,7 +1326,7 @@ TEST_F(Om2PackageHelperUt, BuildManifest_NullRootModel) {
 
   model_data.models.emplace_back(std::make_unique<gert::GertModelDataModel>());
   model_data.constants->constants_data.emplace_back();
-  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataFile>();
   model_data.models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
   gert::GertModelDataConstMeta const_meta;
   const_meta.index = 0U;
@@ -1342,8 +1342,8 @@ TEST_F(Om2PackageHelperUt, BuildManifest_NullRootModel) {
   model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
   model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest.so");
   const std::string so_data = "fake_so_content";
-  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(so_data);
-  model_data.models[0]->runtime->so_artifact.data_len = so_data.size();
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeFileData(so_data.data(), so_data.size());
+  model_data.models[0]->runtime->so_artifact.data_size = so_data.size();
 
   model_data.models[0]->debug = std::make_unique<gert::GertModelDataDebug>();
   model_data.models[0]->debug->visual_json =
@@ -1408,7 +1408,7 @@ TEST_F(Om2PackageHelperUt, Om2CodegenAndCompile_InvalidModel_Fail) {
   model_data.constants->constants_data.emplace_back();
   model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
   model_data.models[0]->constants_config = std::make_unique<gert::GertModelDataConstantsConfig>();
-  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataConstantsData>();
+  model_data.constants->constants_data[0] = std::make_unique<gert::GertModelDataFile>();
   Om2Codegen codegen;
   EXPECT_NE(codegen.Om2CodegenAndCompile(ge_model, model_data, *model_data.models[0]), SUCCESS);
 }
@@ -1677,8 +1677,8 @@ TEST_F(Om2PackageHelperUt, SerializeVarResource_WithEntriesAndInitData) {
   model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
   model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest.so");
   const std::string so_data = "fake_so";
-  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(so_data);
-  model_data.models[0]->runtime->so_artifact.data_len = so_data.size();
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeFileData(so_data.data(), so_data.size());
+  model_data.models[0]->runtime->so_artifact.data_size = so_data.size();
   model_data.models[0]->debug = std::make_unique<gert::GertModelDataDebug>();
   model_data.models[0]->debug->visual_json =
       gert::GertMakeStr(R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})");
@@ -1699,7 +1699,7 @@ TEST_F(Om2PackageHelperUt, SerializeVarResource_WithEntriesAndInitData) {
     if (name.find("model_0/variables_config.json") != std::string::npos) {
       var_entry_path = name;
     }
-    if (name.find("model_0/var_weight_data") != std::string::npos) {
+    if (name.find("variables/var_weight_data_0") != std::string::npos) {
       var_weight_path = name;
     }
   }
@@ -1728,8 +1728,8 @@ TEST_F(Om2PackageHelperUt, SerializeVarResource_NullAndEmpty) {
   model_data.models[0]->runtime = std::make_unique<gert::GertModelDataRuntime>();
   model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest.so");
   const std::string so_data = "fake_so";
-  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(so_data);
-  model_data.models[0]->runtime->so_artifact.data_len = so_data.size();
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeFileData(so_data.data(), so_data.size());
+  model_data.models[0]->runtime->so_artifact.data_size = so_data.size();
   model_data.models[0]->debug = std::make_unique<gert::GertModelDataDebug>();
   model_data.models[0]->debug->visual_json =
       gert::GertMakeStr(R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})");
@@ -1775,14 +1775,14 @@ TEST_F(Om2PackageHelperUt, BuildKernelBinaries_WithAtomicKernel_Ok) {
   ASSERT_EQ(Om2PackageHelper::BuildKernelBinaries(ge_model, model_data), SUCCESS);
 
   ASSERT_EQ(model_data.kernels->binaries.size(), 2U);
-  EXPECT_EQ(std::string(gert::GertGetStr(model_data.kernels->binaries[0]->name)), "normal_kernel.o");
+  EXPECT_EQ(std::string(gert::GertGetStr(model_data.kernels->binaries[0]->file_name)), "normal_kernel.o");
   EXPECT_NE(model_data.kernels->binaries[0]->data, nullptr);
   EXPECT_EQ(model_data.kernels->binaries[0]->data_size, strlen(normal_kernel_data));
   EXPECT_EQ(memcmp(model_data.kernels->binaries[0]->data.get(), normal_kernel_data,
                    model_data.kernels->binaries[0]->data_size),
             0);
 
-  EXPECT_EQ(std::string(gert::GertGetStr(model_data.kernels->binaries[1]->name)), "atomic_kernel.o");
+  EXPECT_EQ(std::string(gert::GertGetStr(model_data.kernels->binaries[1]->file_name)), "atomic_kernel.o");
   EXPECT_NE(model_data.kernels->binaries[1]->data, nullptr);
   EXPECT_EQ(model_data.kernels->binaries[1]->data_size, strlen(atomic_kernel_data));
   EXPECT_EQ(memcmp(model_data.kernels->binaries[1]->data.get(), atomic_kernel_data,
@@ -1846,7 +1846,7 @@ TEST_F(Om2PackageHelperUt, BuildKernelBinaries_WithCustAicpuKernel_Success) {
   ASSERT_EQ(om2_packager.BuildKernelBinaries(ge_model, model_data), SUCCESS);
   bool found_cust = false;
   for (const auto &kb : model_data.kernels->binaries) {
-    if (std::string(gert::GertGetStr(kb->name)).find("_CustAicpuKernel.o") != std::string::npos) {
+    if (std::string(gert::GertGetStr(kb->file_name)).find("_CustAicpuKernel.o") != std::string::npos) {
       found_cust = true;
       break;
     }
@@ -1964,8 +1964,8 @@ TEST_F(Om2PackageHelperUt, SerializeModelMeta_WithDynamicBatchInfo_WritesDynamic
 
   model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest.so");
   const std::string so_content = "fake_so_content";
-  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(so_content);
-  model_data.models[0]->runtime->so_artifact.data_len = so_content.size();
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeFileData(so_content.data(), so_content.size());
+  model_data.models[0]->runtime->so_artifact.data_size = so_content.size();
   model_data.models[0]->debug->visual_json =
       gert::GertMakeStr(R"({"format":"ge_visual_json","format_version":1,"model":{"graph":[]}})");
 
@@ -2050,8 +2050,8 @@ TEST_F(Om2PackageHelperUt, SerializeModelMeta_WithMultipleOutputsPerGear_WritesA
 
   model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest.so");
   const std::string so_content = "fake";
-  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(so_content);
-  model_data.models[0]->runtime->so_artifact.data_len = so_content.size();
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeFileData(so_content.data(), so_content.size());
+  model_data.models[0]->runtime->so_artifact.data_size = so_content.size();
   model_data.models[0]->debug->visual_json = gert::GertMakeStr(R"({"format":"ge_visual_json"})");
 
   const std::string writer_path = PathUtils::Join({test_work_dir, "multi_output.om2"});
@@ -2103,8 +2103,8 @@ TEST_F(Om2PackageHelperUt, SerializeManifest_CompatibilityStructure) {
 
   model_data.models[0]->runtime->so_artifact.file_name = gert::GertMakeStr("libtest.so");
   const std::string so_content = "fake";
-  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeStr(so_content);
-  model_data.models[0]->runtime->so_artifact.data_len = so_content.size();
+  model_data.models[0]->runtime->so_artifact.data = gert::GertMakeFileData(so_content.data(), so_content.size());
+  model_data.models[0]->runtime->so_artifact.data_size = so_content.size();
   model_data.models[0]->debug->visual_json = gert::GertMakeStr(R"({"format":"ge_visual_json"})");
 
   const std::string writer_path = PathUtils::Join({test_work_dir, "compatibility_manifest.om2"});
@@ -2150,7 +2150,7 @@ TEST_F(Om2PackageHelperUt, ReadCustomOpSoFiles) {
   std::string text = "fake custom op so content";
   EXPECT_EQ(WriteBinFile(so_file.c_str(), text), 0);
   std::unordered_set<std::string> ops_so_set = {so_file};
-  std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> shared_lib_binaries;
+  std::vector<std::unique_ptr<gert::GertModelDataFile>> shared_lib_binaries;
   EXPECT_EQ(Om2PackageHelper::ReadCustomOpSoToBuffer(ops_so_set, shared_lib_binaries), 0);
   EXPECT_EQ(ops_so_set.size(), shared_lib_binaries.size());
   EXPECT_EQ(text.size(), shared_lib_binaries[0]->data_size);

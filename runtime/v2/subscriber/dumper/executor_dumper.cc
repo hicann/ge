@@ -239,8 +239,11 @@ ge::Status NormalProcessor(const ge::OpDescPtr &op_desc, ge::ExceptionDumper *du
       UpdateAddrsForExceptionDump(dump_unit, false, extra_dump_unit.output_addrs) == ge::SUCCESS) {
     uint32_t task_id = 0U;
     uint32_t stream_id = 0U;
+    // aclrtStreamGetId 保留不改：新接口的 streamId 出参是线程最近一次任务所在流的 id，
+    // 与本处需要的指定执行流（stream）id 语义不同，不可用 acl_stream_id 替代，保持运行行为不变
+    uint32_t acl_stream_id = 0U;
     int32_t device_id = 0;
-    GE_CHK_ACL_RET(aclrtGetThreadLastTaskId(&task_id));
+    GE_CHK_ACL_RET(aclrtGetThreadLastTaskIdAndStreamId(&task_id, &acl_stream_id));
     GE_CHK_ACL_RET(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
     GE_CHK_ACL_RET(aclrtGetDevice(&device_id));
     ge::OpDescInfoId id(task_id, stream_id, device_id);

@@ -50,7 +50,7 @@ Python文件，而导出器和执行器依赖PyTorch、NumPy或ACL，不应作�
 | onnx | `torch.onnx.export`导出过程内部使用 | 1.21.0已实测 |
 | NumPy | 构造输入与结果比对 | 无特殊要求 |
 
-`acl`Python接口由CANN toolkit自带。安装命令：
+`acl`Python接口由CANN toolkit自带，无需单独安装。其余依赖安装命令：
 
 ```bash
 pip3 install torch numpy onnx
@@ -162,8 +162,9 @@ DUMP_GE_GRAPH=3 DUMP_GRAPH_PATH="$(pwd)/graph_dump" atc \
 | `parse_operator` | 整体解析属性（少数情况，见4.2） | `my_elu_plugin.py` |
 | `decompose` | 用已有算子拼子图替换原节点 | `thresholded_relu_plugin.py` |
 
-同一个`source`只能注册一个插件，且不同插件的`opsets`不能重叠（例如`opsets=(1,)`与
-`opsets=(1,2)`同时存在会被拒绝）——冲突会在编译开始时报错退出。
+同一个origin type（`domain::opset::source`）只能注册一个插件，即同一`source`（同`domain`）下
+不同插件的`opsets`不能重叠（例如`opsets=(1,)`与`opsets=(1,2)`同时存在会被拒绝）——
+冲突会在编译开始时报错退出。
 
 ### 4.1、parse_node：按名字取属性
 
@@ -257,8 +258,9 @@ Conv依次是X、W、B，B可选），模型里节点照此顺序填数据名—
 }
 ```
 
-  标量属性（`f`/`i`/`s`）的值是字符串形式，取用时转成数值；列表属性（`floats`/`ints`/
-  `strings`）直接是JSON数组；tensor（`t`）与子图（`g`）属性则是完整的结构体字典——
+  标量属性中`f`的值是字符串形式（`%g`格式化，约6位有效数字），取用时转成数值；`i`和`s`
+  分别是数字和字符串。列表属性（`floats`/`ints`/`strings`）直接是JSON
+  数组；tensor（`t`）与子图（`g`）属性则是完整的结构体字典——
   tensor属性指属性值本身是一个张量，例如Constant算子的`value`属性；子图属性指属性值
   本身是一个子图，例如控制流算子If的`then_branch`/`else_branch`、Loop的`body`属性，
   一般不需要逐字段解析它们的值。

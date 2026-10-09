@@ -1029,8 +1029,7 @@ TEST_F(SymbolicShapeInferenceUT, test_stridedslicev3_infershape_no_optinal_input
   ge::Tensor tensor0{td0};
   input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor0));
 
-  const std::vector<Expression> expect_output_shape = {Symbol(5), Symbol(4), Symbol(3), Symbol(2),
-                                                       sym::Ceiling(Symbol("s4"))};
+  const std::vector<Expression> expect_output_shape = {Symbol(5), Symbol(4), Symbol(3), Symbol(2), Symbol("s4")};
   ExpectNodeInfo expect_node(STRIDEDSLICEV3, expect_output_shape, {}, {}, {});
   std::vector<ExpectNodeInfo> expect_node_vec;
   expect_node_vec.push_back(expect_node);

@@ -1010,7 +1010,7 @@ GeRootModelPtr CreateGeRootModelWithTwoNetOutputs() {
 
 Status BuildCodegenModel(const GeRootModelPtr &ge_root_model, Om2CodegenModel &doc,
                          std::vector<TaskCodeBuilderPtr> *task_generators_out = nullptr,
-                         gert::GertModelDataConstMetas *const_metas_out = nullptr) {
+                         std::vector<gert::GertModelDataConstMeta> *const_metas_out = nullptr) {
   GE_ASSERT_NOTNULL(ge_root_model);
   SyncKernelNameForAllModels(ge_root_model);
   const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
@@ -1023,7 +1023,7 @@ Status BuildCodegenModel(const GeRootModelPtr &ge_root_model, Om2CodegenModel &d
       Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, GetOm2CodegenModelBuilderUtAst(), task_builders, doc));
 
   Om2CodegenModelBuilder builder;
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   GE_CHK_STATUS_RET(builder.Build(ge_model, task_builders, doc, const_metas));
   if (task_generators_out != nullptr) {
     *task_generators_out = task_builders;
@@ -1036,7 +1036,7 @@ Status BuildCodegenModel(const GeRootModelPtr &ge_root_model, Om2CodegenModel &d
 
 Status BuildCodegenModel(const GeModelPtr &ge_model, Om2CodegenModel &doc,
                          std::vector<TaskCodeBuilderPtr> *task_generators_out = nullptr,
-                         gert::GertModelDataConstMetas *const_metas_out = nullptr) {
+                         std::vector<gert::GertModelDataConstMeta> *const_metas_out = nullptr) {
   GE_ASSERT_NOTNULL(ge_model);
   SyncKernelNameFromOpDesc(ge_model);
   std::vector<TaskCodeBuilderPtr> task_builders;
@@ -1044,7 +1044,7 @@ Status BuildCodegenModel(const GeModelPtr &ge_model, Om2CodegenModel &doc,
       Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, GetOm2CodegenModelBuilderUtAst(), task_builders, doc));
 
   Om2CodegenModelBuilder builder;
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   GE_CHK_STATUS_RET(builder.Build(ge_model, task_builders, doc, const_metas));
   if (task_generators_out != nullptr) {
     *task_generators_out = task_builders;
@@ -1064,7 +1064,7 @@ Status BuildCodegenModelWithTaskGenerators(const GeRootModelPtr &ge_root_model,
   const auto &ge_model = name_to_ge_model.begin()->second;
   GE_ASSERT_NOTNULL(ge_model);
   Om2CodegenModelBuilder builder;
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   return builder.Build(ge_model, task_builders, doc, const_metas);
 }
 
@@ -1238,7 +1238,7 @@ TEST_F(Om2CodegenModelBuilderUt, BuildConstInputs_FollowsTaskOrder_Ok) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithConstInputsInTaskOrder();
   ASSERT_NE(ge_root_model, nullptr);
   Om2CodegenModel doc;
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   ASSERT_EQ(BuildCodegenModel(ge_root_model, doc, nullptr, &const_metas), SUCCESS);
 
   ASSERT_EQ(doc.const_inputs.size(), 2U);
@@ -1284,7 +1284,7 @@ TEST_F(Om2CodegenModelBuilderUt, BuildKernelRegistryAndLaunch_AicoreAtomic_Ok) {
       Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, GetOm2CodegenModelBuilderUtAst(), task_builders, doc),
       SUCCESS);
   Om2CodegenModelBuilder builder;
-  gert::GertModelDataConstMetas const_metas;
+  std::vector<gert::GertModelDataConstMeta> const_metas;
   ASSERT_EQ(builder.Build(ge_model, task_builders, doc, const_metas), SUCCESS);
 
   const std::string kernel_name = "te_Add_12345_AicoreKernel";

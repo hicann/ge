@@ -229,6 +229,7 @@ target_link_libraries(st_om2_test
     ge_runner
     ge_runner_v2
     om2_executor
+    gert_model_data_serializer
     ge_common_base
     davinci_executor
     custom_op_runtime

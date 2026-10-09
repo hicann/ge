@@ -16,28 +16,29 @@
 #include "securec.h"
 
 namespace gert {
-#define FORALL_OM2_CONSTANTS(DO)                                                        \
-  DO(OM2_MODEL_NUM, "model_num");                                                       \
-  DO(OM2_ATC_COMMAND, "atc_command");                                                   \
-  DO(OM2_MANIFEST_PATH, "manifest.json");                                               \
-  DO(OM2_MANIFEST_KEY_COMPATIBILITY, "compatibility");                                  \
-  DO(OM2_MANIFEST_KEY_COMPILER_VERSION, "compiler_version");                            \
-  DO(OM2_MANIFEST_KEY_REQUIRED_EXECUTOR_VERSION, "required_executor_version");          \
-  DO(OM2_MANIFEST_KEY_USED_FEATURES, "used_features");                                  \
-  DO(OM2_DATA_DIR, "data/");                                                            \
-  DO(OM2_MODEL_DIR_FORMAT, "data/model_%s/");                                           \
-  DO(OM2_MODEL_META_PATH_FORMAT, "data/model_%s/model_meta.json");                      \
-  DO(OM2_RUNTIME_DIR_FORMAT, "data/model_%s/runtime/");                                 \
-  DO(OM2_RUNTIME_CSRC_DIR_FORMAT, "data/model_%s/runtime/csrc/");                       \
-  DO(OM2_DEBUG_DIR_FORMAT, "data/model_%s/debug/");                                     \
-  DO(OM2_OP_ATTR_PATH_FORMAT, "data/model_%s/op_attr.json");                            \
-  DO(OM2_CUSTOM_KERNELS_DIR_FORMAT, "data/custom_ops/%s/");                             \
-  DO(OM2_KERNELS_DIR, "data/kernels/");                                                 \
-  DO(OM2_CONSTANTS_DIR, "data/constants/");                                             \
-  DO(OM2_CONSTANTS_FILE_PREFIX, "constant_");                                           \
-  DO(OM2_CONSTANTS_CONFIG_PATH_FORMAT, "data/model_%s/model_%s_constants_config.json"); \
-  DO(OM2_VARIABLES_CONFIG_PATH_FORMAT, "data/model_%s/variables_config.json");          \
-  DO(OM2_VAR_WEIGHT_FILE_FORMAT, "data/model_%s/var_weight_data");                      \
+#define FORALL_OM2_CONSTANTS(DO)                                               \
+  DO(OM2_MODEL_NUM, "model_num");                                              \
+  DO(OM2_ATC_COMMAND, "atc_command");                                          \
+  DO(OM2_MANIFEST_PATH, "manifest.json");                                      \
+  DO(OM2_MANIFEST_KEY_COMPATIBILITY, "compatibility");                         \
+  DO(OM2_MANIFEST_KEY_COMPILER_VERSION, "compiler_version");                   \
+  DO(OM2_MANIFEST_KEY_REQUIRED_EXECUTOR_VERSION, "required_executor_version"); \
+  DO(OM2_MANIFEST_KEY_USED_FEATURES, "used_features");                         \
+  DO(OM2_DATA_DIR, "data/");                                                   \
+  DO(OM2_MODEL_DIR_FORMAT, "data/model_%s/");                                  \
+  DO(OM2_MODEL_META_PATH_FORMAT, "data/model_%s/model_meta.json");             \
+  DO(OM2_RUNTIME_DIR_FORMAT, "data/model_%s/runtime/");                        \
+  DO(OM2_RUNTIME_CSRC_DIR_FORMAT, "data/model_%s/runtime/csrc/");              \
+  DO(OM2_DEBUG_DIR_FORMAT, "data/model_%s/debug/");                            \
+  DO(OM2_OP_ATTR_PATH_FORMAT, "data/model_%s/op_attr.json");                   \
+  DO(OM2_CUSTOM_KERNELS_DIR_FORMAT, "data/custom_ops/%s/");                    \
+  DO(OM2_KERNELS_DIR, "data/kernels/");                                        \
+  DO(OM2_CONSTANTS_DIR, "data/constants/");                                    \
+  DO(OM2_CONSTANTS_FILE_PREFIX, "constant_");                                  \
+  DO(OM2_CONSTANTS_CONFIG_PATH_FORMAT, "data/model_%s/constants_config.json"); \
+  DO(OM2_VARIABLES_CONFIG_PATH_FORMAT, "data/model_%s/variables_config.json"); \
+  DO(OM2_VARIABLES_DIR, "data/variables/");                                    \
+  DO(OM2_VAR_WEIGHT_FILE_FORMAT, "data/variables/var_weight_data_%s");         \
   DO(OM2_VISUAL_JSON_PATH_FORMAT, "data/model_%s/debug/ge_visual_00000000_graph_0.json")
 
 #define DEFINE_OM2_CONST(name, value) inline constexpr const char *name = (value)

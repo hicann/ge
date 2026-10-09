@@ -24,6 +24,7 @@
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_shape_symbolizer.h"
 #include <common_error_codes.h>
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 namespace {
@@ -4711,6 +4712,40 @@ TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceV3OnlyAxes) {
   auto infer_context = builder.Build();
   ASSERT_EQ(func.first(infer_context), SUCCESS);
   ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{Symbol(4), Symbol(8)}));
+}
+
+/**
+ * 测试场景：StridedSliceV3 的 begin 为运行期符号值（带 hint），end 为 INT64_MAX、stride=1。
+ * 测试输入：x=[D]、begin=[b]（b 为符号值，hint=2）、end=[INT64_MAX]、axes=[0]、strides=[1]。
+ * 期望输出：y=[D-b]。
+ */
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceV3SymbolicBegin) {
+  ShapeEnvAttr shape_env;
+  ShapeEnvGuarder guarder(&shape_env);
+  const auto dim = shape_env.CreateSymbol(412, MakeShared<InputShapeSource>(0, 0));
+  const auto begin = shape_env.CreateSymbol(2, MakeShared<InputShapeSource>(1, 0));
+
+  auto func = GetInferFunc("StridedSliceV3");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSliceV3", "stridedslice_v3_symbolic_begin");
+  BuildStridedSliceV3InferContext(builder, {dim}, {begin}, {Symbol(static_cast<int64_t>(9223372036854775807LL))},
+                                  {Symbol(0)}, {Symbol(1)});
+
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), SUCCESS);
+  ASSERT_EQ(infer_context->GetOutputSymbolShape(0)->GetDims(), (std::vector<Expression>{dim - begin}));
+}
+
+// begin 为无 hint 的裸符号：无法选择符号/clip 分支，断言 PARAM_INVALID
+TEST_F(SymbolicShapeInferFuncUT, InferSymbolicShapeForStridedSliceV3SymbolicBeginWithoutHint) {
+  auto func = GetInferFunc("StridedSliceV3");
+  ASSERT_NE(func.first, nullptr);
+  InferSymbolShapeContextTestBuilder builder("StridedSliceV3", "stridedslice_v3_symbolic_begin_no_hint");
+  BuildStridedSliceV3InferContext(builder, {Symbol(412)}, {Symbol("dynamic_begin")},
+                                  {Symbol(static_cast<int64_t>(9223372036854775807LL))}, {Symbol(0)}, {Symbol(1)});
+
+  auto infer_context = builder.Build();
+  ASSERT_EQ(func.first(infer_context), PARAM_INVALID);
 }
 
 void EXPECT_BatchMatMulV2TestCommon(const gert::SymbolShape &x1, const gert::SymbolShape &x2, bool adj_x1, bool adj_x2,

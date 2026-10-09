@@ -35,6 +35,17 @@ class Om2VarResourceBuilderTest : public testing::Test {
   }
 };
 
+// 测试本地辅助：按 var_name 查找条目（返回最后一个匹配）
+const gert::RTVarEntry *FindEntryByName(const std::vector<gert::RTVarEntry> &entries, const std::string &var_name) {
+  const gert::RTVarEntry *found = nullptr;
+  for (const auto &entry : entries) {
+    if (std::string(gert::GertGetStr(entry.var_name)) == var_name) {
+      found = &entry;
+    }
+  }
+  return found;
+}
+
 TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_WithVariableNode) {
   constexpr uint64_t kSessionId = 200U;
   auto var_manager = ge::VarManager::Instance(kSessionId);
@@ -68,7 +79,7 @@ TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_WithVariableNode) {
   ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
   EXPECT_FALSE(entries.empty());
 
-  const auto *entry = gert::RTVarFindEntryByName(entries, "test_var");
+  const auto *entry = FindEntryByName(entries, "test_var");
   ASSERT_NE(entry, nullptr);
   EXPECT_EQ(std::string(gert::GertGetStr(entry->op_type)), ge::VARIABLE);
   EXPECT_FALSE(entry->init_data.empty());
@@ -106,7 +117,7 @@ TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_WithConstantOpNode) {
   std::vector<gert::RTVarEntry> entries;
   ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
 
-  const auto *entry = gert::RTVarFindEntryByName(entries, "test_const");
+  const auto *entry = FindEntryByName(entries, "test_const");
   ASSERT_NE(entry, nullptr);
   EXPECT_EQ(std::string(gert::GertGetStr(entry->op_type)), "Constant");
   EXPECT_FALSE(entry->init_data.empty());
@@ -147,7 +158,7 @@ TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_WithTransRoad) {
   std::vector<gert::RTVarEntry> entries;
   ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, var_metas, entries), ge::SUCCESS);
 
-  const auto *entry = gert::RTVarFindEntryByName(entries, "trans_var");
+  const auto *entry = FindEntryByName(entries, "trans_var");
   ASSERT_NE(entry, nullptr);
   EXPECT_FALSE(entry->trans_road.empty());
   EXPECT_EQ(std::string(gert::GertGetStr(entry->trans_road[0].node_type)), "TransData");
@@ -195,30 +206,6 @@ TEST_F(Om2VarResourceBuilderTest, BuildRTVarResource_NoVariables) {
   std::vector<gert::RTVarEntry> entries;
   ASSERT_EQ(gert::BuildRTVarResource(*var_manager, graph, {}, entries), ge::SUCCESS);
   EXPECT_TRUE(entries.empty());
-}
-
-TEST_F(Om2VarResourceBuilderTest, RTVarResource_GetEntryAndGetEntryByName) {
-  std::vector<gert::RTVarEntry> entries;
-  gert::RTVarEntry entry;
-  entry.var_name = gert::GertMakeStr("weight1");
-  gert::GertTensorDesc desc;
-  desc.format = ge::FORMAT_NHWC;
-  desc.data_type = ge::DT_FLOAT;
-  entry.var_key = gert::GertMakeStr(gert::RTVarBuildKey("weight1", desc));
-  entry.tensor_desc = std::move(desc);
-  const std::string saved_key = gert::GertGetStr(entry.var_key);
-  ASSERT_EQ(gert::RTVarAddEntry(entries, std::move(entry)), ge::SUCCESS);
-
-  const auto *found = gert::RTVarFindEntry(entries, saved_key);
-  ASSERT_NE(found, nullptr);
-  EXPECT_EQ(std::string(gert::GertGetStr(found->var_name)), "weight1");
-
-  const auto *by_name = gert::RTVarFindEntryByName(entries, "weight1");
-  ASSERT_NE(by_name, nullptr);
-  EXPECT_EQ(std::string(gert::GertGetStr(by_name->var_key)), saved_key);
-
-  EXPECT_EQ(gert::RTVarFindEntry(entries, "nonexistent"), nullptr);
-  EXPECT_EQ(gert::RTVarFindEntryByName(entries, "nonexistent"), nullptr);
 }
 
 TEST_F(Om2VarResourceBuilderTest, RTVarResource_GetAllVarKeys) {

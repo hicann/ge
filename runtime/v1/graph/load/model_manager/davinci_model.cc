@@ -10,9 +10,14 @@
 
 #include "graph/load/model_manager/davinci_model.h"
 
+#include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <numeric>
 #include <regex>
 #include <sstream>
+#include <type_traits>
+#include "graph/load/model_manager/davinci_model_input_h2d_overlap_plan.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "common/omg_util/omg_util.h"
 #include "common/profiling/profiling_manager.h"
@@ -159,6 +164,29 @@ const char *GetModelProfStageStr(ModelProfStage stage_name) {
   }
   return kModelProfStageStr[stage_name];
 }
+
+Status CheckHostPlacementZeroCopyMemory(const bool is_input, const uint32_t io_idx, const size_t mem_base_size,
+                                        const uint64_t total_mem_size) {
+  if (mem_base_size >= total_mem_size) {
+    return SUCCESS;
+  }
+  const std::string reason =
+      "Zero-copy memory reuse mode is enabled, requiring all I/O tensors to be allocated in "
+      "device memory, but " +
+      std::string(is_input ? "input " : "output ") + std::to_string(io_idx) +
+      " is located in host memory, and the model's reusable device memory is insufficient"
+      "(available: " +
+      std::to_string(mem_base_size) + ", required: " + std::to_string(total_mem_size) + ")";
+
+  REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
+                            std::vector<const char_t *>({reason.c_str()}));
+  GELOGE(ACL_ERROR_GE_PARAM_INVALID,
+         "[Check][Param] %s[%u] placement is host when ge.exec.reuseZeroCopyMemory=1, "
+         "no enough memory for zero copy, mem_size:%zu while required total_size:%" PRIu64 ".",
+         is_input ? "input " : "output ", io_idx, mem_base_size, total_mem_size);
+  return ACL_ERROR_GE_PARAM_INVALID;
+}
+
 const std::map<rtFftsPlusContextType_t, MsprofGeTaskType> ctx_type_to_task_types{
     {RT_CTX_TYPE_AICORE, MSPROF_GE_TASK_TYPE_AI_CORE},
     {RT_CTX_TYPE_AIV, MSPROF_GE_TASK_TYPE_AIV},
@@ -366,7 +394,10 @@ Status TransStrToMap(const std::string map_str, std::map<int64_t, int64_t> &resu
 }  // namespace
 
 DavinciModel::DavinciModel(const int32_t priority, const std::shared_ptr<ModelListener> &listener)
-    : listener_(listener), priority_(priority), data_dumper_(&runtime_param_) {
+    : listener_(listener),
+      priority_(priority),
+      data_dumper_(&runtime_param_),
+      input_h2d_overlap_plan_(MakeUnique<InputH2DOverlapRuntimePlan>()) {
   op_list_.clear();
   operator_list_.clear();
   support_extend_memory_full_ = VarManager::IsGeUseExtendSizeMemoryFull();
@@ -827,7 +858,8 @@ Status DavinciModel::InitCopyHostInputInfos() {
   std::vector<uint32_t> copy_host_input_indexes_vec(copy_host_input_indexes_.begin(), copy_host_input_indexes_.end());
   std::sort(copy_host_input_indexes_vec.begin(), copy_host_input_indexes_vec.end());
   for (const auto &index : copy_host_input_indexes_vec) {
-    if (input_indexes_to_copy_info_.find(index) != input_indexes_to_copy_info_.end()) {
+    if ((input_indexes_to_copy_info_.find(index) != input_indexes_to_copy_info_.end()) ||
+        input_h2d_overlap_plan_->IsPlannedInput(index)) {
       continue;
     }
     auto &copy_info = copy_host_input_infos_.at(index);
@@ -1225,6 +1257,8 @@ Status DavinciModel::Init(const ModelParam &param, void *outer_fm_mem) {
 
   GE_CHK_STATUS_RET(PreProcessFileConstants(compute_graph, param), "[PreProcess][FileConstant] failed, graph: %s.",
                     compute_graph->GetName().c_str());
+  GE_ASSERT_SUCCESS(input_h2d_overlap_plan_->LoadInputIndexes(ge_model_.get(), model_id_),
+                    "[Load][InputH2DOverlapInputIndexes] failed, model_id:%u.", model_id_);
 
   std::vector<NodePtr> variable_nodes;
   GetStageTimestampStart(kInitIoNodes);
@@ -1235,6 +1269,13 @@ Status DavinciModel::Init(const ModelParam &param, void *outer_fm_mem) {
   GetStageTimestampEnd(kInitIoNodes);
 
   GE_ASSERT_SUCCESS(InitStreamInfoOfTask(compute_graph));
+  const auto &model_task_def = ge_model_->GetModelTaskDefPtr();
+  GE_CHECK_NOTNULL(model_task_def);
+  GE_CHK_STATUS_RET(
+      input_h2d_overlap_plan_->Init(ge_model_.get(), *model_task_def, is_online_infer_dynamic_, has_no_tiling_input_,
+                                    model_id_, runtime_param_, stream_to_first_task_id_, logical_mem_allocations_,
+                                    input_indexes_to_copy_info_, input_index_to_allocation_ids_),
+      "[Init][InputH2DOverlapPlan] failed, model_id:%u.", model_id_);
   GE_CHK_STATUS_RET_NOLOG(InitRuntimeResource());
   GE_CHK_STATUS_RET_NOLOG(InitSupplyResource());
 
@@ -1490,6 +1531,11 @@ Status DavinciModel::InitRuntimeResource() {
   GE_CHECK_NOTNULL(reusable_stream_allocator_);
   for (uint32_t i = 0U; i < runtime_param_.stream_num; ++i) {
     uint32_t stream_flags = RT_STREAM_PERSISTENT;
+    if (input_h2d_overlap_plan_->Enabled() && (i == input_h2d_overlap_plan_->GetCopyStreamId())) {
+      stream_flags = RT_STREAM_DEFAULT;
+      GELOGI("[InputH2DOverlap] create copy stream without RT_STREAM_PERSISTENT, model_id:%u, copy_stream_id:%u.",
+             model_id_, i);
+    }
     if (huge_streams.count(static_cast<int32_t>(i)) > 0U) {
       GELOGI("model_id=%u, Stream %u is huge stream.", model_id_, i);
       stream_flags |= RT_STREAM_HUGE;
@@ -2463,13 +2509,104 @@ void DavinciModel::PrintNoFrozenInputIndexes() {
          refreshable_ids_nofrozen_str.c_str());
 }
 
+Status DavinciModel::AllocateSingleInputMem(const std::pair<const uint32_t, OpDescPtr> &item,
+                                            const uint32_t input_index) {
+  std::vector<uint64_t> mem_types;
+  const auto virtual_addr_list = ModelUtils::GetOutputAddrsValue(runtime_param_, item.second, mem_types);
+  const auto output_size_list = ModelUtils::GetOutputSize(item.second);
+
+  GELOGD("Data node is: %s, output size is %zu, virtual_addr size is %zu.", item.second->GetName().c_str(),
+         output_size_list.size(), virtual_addr_list.size());
+  GE_ASSERT_EQ(output_size_list.size(), virtual_addr_list.size());
+  GE_ASSERT_EQ(virtual_addr_list.size(), mem_types.size());
+  if (virtual_addr_list.empty() || output_size_list.empty()) {
+    GELOGE(PARAM_INVALID, "[Check][Param] Data[%s] failed: output size is %zu, virtual_addr size is %zu.",
+           item.second->GetName().c_str(), output_size_list.size(), virtual_addr_list.size());
+    return PARAM_INVALID;
+  }
+
+  const uint64_t logical_addr = virtual_addr_list[kDataIndex];
+  const uint64_t data_size = static_cast<uint64_t>(output_size_list[kDataIndex]);
+  MemAllocationAndOffset mem_allocation_and_offset{};
+  if (GetMemAllocationByLogicAddr(logical_addr, mem_allocation_and_offset) == SUCCESS) {
+    // id 0 indicates that the input address is within the feature map address range
+    input_indexes_to_copy_info_[input_index] = {static_cast<uint32_t>(mem_allocation_and_offset.id),
+                                                mem_allocation_and_offset.offset, data_size};
+    GELOGW(
+        "[mem allocation][input] model_id %u, input_index %u, op_name %s op_type %s does not support zero copy, "
+        "%s.",
+        model_id_, input_index, item.second->GetName().c_str(), item.second->GetType().c_str(),
+        input_indexes_to_copy_info_[input_index].ToString().c_str());
+    // RefData 被识别不能零拷贝的可定位手段
+    GE_ASSERT_TRUE((item.second->GetType() != REFDATA),
+                   "model_id %u, input_index %u, op_name %s op_type %s does not support zero copy", model_id_,
+                   input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
+
+    // host input index随路拷贝只支持零拷贝场景
+    if (copy_host_input_indexes_.count(input_index) != 0U) {
+      GELOGW("model_id %u, host_input_index %u, op_name %s op_type %s does not support zero copy", model_id_,
+             input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
+    }
+    return SUCCESS;
+  }
+
+  refreshable_input_index_and_allocation_ids_.emplace_back(
+      std::make_pair(input_index, static_cast<uint32_t>(logical_mem_allocations_.size())));
+
+  uint64_t tensor_size = data_size;
+  int64_t size = 0L;
+  const OpDescPtr &op_desc = item.second;
+  const auto tensor_desc = op_desc->GetOutputDescPtr(kDataIndex);
+  if ((tensor_desc != nullptr) && (TensorUtils::GetTensorSizeInBytes(*tensor_desc, size) == GRAPH_SUCCESS)) {
+    tensor_size = static_cast<uint64_t>(size);
+  }
+
+  MemAllocation mem_allocation = {static_cast<uint32_t>(logical_mem_allocations_.size()),
+                                  logical_addr,
+                                  data_size,
+                                  ge::MemAllocation::Type::INPUT,
+                                  input_index,
+                                  mem_types[kDataIndex],
+                                  0UL,
+                                  0UL};
+  mem_allocation.tensor_size = tensor_size;
+  GELOGI("[mem allocation][input] model_id %u, input_index %u, op_name %s op_type %s, %s, tensor_size %" PRIu64,
+         model_id_, input_index, item.second->GetName().c_str(), item.second->GetType().c_str(),
+         mem_allocation.ToString().c_str(), tensor_size);
+  logical_mem_allocations_.emplace_back(mem_allocation);
+  input_index_to_allocation_ids_[input_index] = mem_allocation.id;
+  zero_copy_input_indexes_.push_back(input_index);
+  // 保存随路拷贝的io的索引以及长度，预留保存device地址的成员，只有支持零拷贝的走该流程
+  if (copy_host_input_indexes_.count(input_index) > 0U) {
+    GE_ASSERT_TRUE((item.second->GetType() != REFDATA),
+                   "model_id %u, input_index %u, op_name %s op_type %s does not support host input index ", model_id_,
+                   input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
+    if (input_h2d_overlap_plan_->IsPlannedInput(input_index)) {
+      GELOGI("[InputH2DOverlap] skip legacy hostInputIndexes allocation for planned input:%u, model_id:%u.",
+             input_index, model_id_);
+    } else {
+      CopyHostInputInfo copy_host_input = {};
+      copy_host_input.input_index = input_index;
+      copy_host_input.tensor_size = tensor_size;
+      copy_host_input_infos_[input_index] = std::move(copy_host_input);
+      host_input_size_ += tensor_size;
+    }
+  }
+
+  if (frozen_input_indexes_.count(input_index) == 0) {
+    refreshable_input_index_no_frozen_and_allocation_ids_.push_back(std::make_pair(input_index, mem_allocation.id));
+    zero_copy_input_indexes_no_frozen_.push_back(input_index);
+  }
+  return SUCCESS;
+}
+
 Status DavinciModel::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> &index_to_data) {
   GE_ASSERT_SUCCESS(GenHostInputIndexes(index_to_data));
   copy_host_input_infos_.clear();
   copy_host_input_infos_.resize(index_to_data.size());
 
   input_index_to_allocation_ids_.resize(index_to_data.size(), UINT32_MAX);
-  uint32_t input_base_allocation_id = logical_mem_allocations_.size();
+  const uint32_t input_base_allocation_id = static_cast<uint32_t>(logical_mem_allocations_.size());
   // 两次轮询，先放frozen index部分，后续排放no frozen部分
   for (size_t construct_input_logical_allcation_loop = 0;
        construct_input_logical_allcation_loop < kConstructInputLogicalAllcationLoop;
@@ -2481,89 +2618,7 @@ Status DavinciModel::GenInputMemAllocations(const std::map<uint32_t, OpDescPtr> 
         input_index++;
         continue;
       }
-      std::vector<uint64_t> mem_types;
-      const auto virtual_addr_list = ModelUtils::GetOutputAddrsValue(runtime_param_, item.second, mem_types);
-      const auto output_size_list = ModelUtils::GetOutputSize(item.second);
-
-      GELOGD("Data node is: %s, output size is %zu, virtual_addr size is %zu.", item.second->GetName().c_str(),
-             output_size_list.size(), virtual_addr_list.size());
-      GE_ASSERT_EQ(output_size_list.size(), virtual_addr_list.size());
-      GE_ASSERT_EQ(virtual_addr_list.size(), mem_types.size());
-      if (virtual_addr_list.empty() || output_size_list.empty()) {
-        GELOGE(PARAM_INVALID, "[Check][Param] Data[%s] failed: output size is %zu, virtual_addr size is %zu.",
-               item.second->GetName().c_str(), output_size_list.size(), virtual_addr_list.size());
-        return PARAM_INVALID;
-      }
-
-      const uint64_t logical_addr = virtual_addr_list[kDataIndex];
-      const uint64_t data_size = static_cast<uint64_t>(output_size_list[kDataIndex]);
-      MemAllocationAndOffset mem_allocation_and_offset{};
-      if (GetMemAllocationByLogicAddr(logical_addr, mem_allocation_and_offset) == SUCCESS) {
-        // id 0 indicates that the input address is within the feature map address range
-        input_indexes_to_copy_info_[input_index] = {static_cast<uint32_t>(mem_allocation_and_offset.id),
-                                                    mem_allocation_and_offset.offset, data_size};
-        GELOGW(
-            "[mem allocation][input] model_id %u, input_index %u, op_name %s op_type %s does not support zero copy, "
-            "%s.",
-            model_id_, input_index, item.second->GetName().c_str(), item.second->GetType().c_str(),
-            input_indexes_to_copy_info_[input_index].ToString().c_str());
-        // RefData 被识别不能零拷贝的可定位手段
-        GE_ASSERT_TRUE((item.second->GetType() != REFDATA),
-                       "model_id %u, input_index %u, op_name %s op_type %s does not support zero copy", model_id_,
-                       input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
-
-        // host input index随路拷贝只支持零拷贝场景
-        if (copy_host_input_indexes_.count(input_index) != 0U) {
-          GELOGW("model_id %u, host_input_index %u, op_name %s op_type %s does not support zero copy", model_id_,
-                 input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
-        }
-
-        input_index++;
-        continue;
-      }
-
-      refreshable_input_index_and_allocation_ids_.emplace_back(
-          std::make_pair(input_index, static_cast<uint32_t>(logical_mem_allocations_.size())));
-
-      uint64_t tensor_size = data_size;
-      int64_t size = 0L;
-      const OpDescPtr &op_desc = item.second;
-      const auto tensor_desc = op_desc->GetOutputDescPtr(kDataIndex);
-      if ((tensor_desc != nullptr) && (TensorUtils::GetTensorSizeInBytes(*tensor_desc, size) == GRAPH_SUCCESS)) {
-        tensor_size = static_cast<uint64_t>(size);
-      }
-
-      MemAllocation mem_allocation = {static_cast<uint32_t>(logical_mem_allocations_.size()),
-                                      logical_addr,
-                                      data_size,
-                                      ge::MemAllocation::Type::INPUT,
-                                      input_index,
-                                      mem_types[kDataIndex],
-                                      0UL,
-                                      0UL};
-      mem_allocation.tensor_size = tensor_size;
-      GELOGI("[mem allocation][input] model_id %u, input_index %u, op_name %s op_type %s, %s, tensor_size %" PRIu64,
-             model_id_, input_index, item.second->GetName().c_str(), item.second->GetType().c_str(),
-             mem_allocation.ToString().c_str(), tensor_size);
-      logical_mem_allocations_.emplace_back(mem_allocation);
-      input_index_to_allocation_ids_[input_index] = mem_allocation.id;
-      zero_copy_input_indexes_.push_back(input_index);
-      // 保存随路拷贝的io的索引以及长度，预留保存device地址的成员，只有支持零拷贝的走该流程
-      if (copy_host_input_indexes_.count(input_index) > 0U) {
-        GE_ASSERT_TRUE((item.second->GetType() != REFDATA),
-                       "model_id %u, input_index %u, op_name %s op_type %s does not support host input index ",
-                       model_id_, input_index, item.second->GetName().c_str(), item.second->GetType().c_str());
-        CopyHostInputInfo copy_host_input = {};
-        copy_host_input.input_index = input_index;
-        copy_host_input.tensor_size = tensor_size;
-        copy_host_input_infos_[input_index] = std::move(copy_host_input);
-        host_input_size_ += tensor_size;
-      }
-
-      if (frozen_input_indexes_.count(input_index) == 0) {
-        refreshable_input_index_no_frozen_and_allocation_ids_.push_back(std::make_pair(input_index, mem_allocation.id));
-        zero_copy_input_indexes_no_frozen_.push_back(input_index);
-      }
+      GE_ASSERT_SUCCESS(AllocateSingleInputMem(item, input_index));
       input_index++;
     }
   }
@@ -4560,7 +4615,37 @@ static Status CopyInputForNoTiling(const InputData &input_data, const size_t dat
   return SUCCESS;
 }
 
+Status DavinciModel::GetValidatedInputBuffer(const std::vector<DataBuffer> &blobs, const size_t data_idx,
+                                             const ZeroCopyOffset &input_info, bool &skip_input,
+                                             const DataBuffer *&data_buf, uint64_t &data_size) const {
+  skip_input = false;
+  data_buf = nullptr;
+  if (data_idx >= blobs.size()) {
+    const std::string reason = "The required input " + std::to_string(data_idx) +
+                               " is not provided by user, while the total input data num is " +
+                               std::to_string(blobs.size());
+    REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
+                              std::vector<const char_t *>({reason.c_str()}));
+    GELOGE(FAILED, "[Check][Param] Blobs do not match: blobs=%zu, model input num=%zu, required index=%zu, op_name(%s)",
+           blobs.size(), input_data_info_.size(), data_idx, input_info.GetOpName().c_str());
+    return FAILED;
+  }
+  data_buf = &blobs.at(data_idx);
+  if (data_buf->length == 0U) {
+    GELOGW("No data need to copy, index=%zu", data_idx);
+    skip_input = true;
+    return SUCCESS;
+  }
+  data_size = static_cast<uint64_t>(input_info.GetDataSize());
+  GE_CHK_BOOL_RET_STATUS(data_size >= data_buf->length, PARAM_INVALID,
+                         "[Check][Param] input data size(%" PRIu64 ") is bigger than model required size(%" PRIu64
+                         "), index: %zu, op_name(%s)",
+                         data_buf->length, data_size, data_idx, input_info.GetOpName().c_str());
+  return SUCCESS;
+}
+
 Status DavinciModel::CopyInputData(const InputData &input_data) {
+  input_h2d_overlap_legacy_prepared_inputs_.clear();
   const std::vector<DataBuffer> &blobs = input_data.blobs;
 
   int32_t cur_device_id = -1;
@@ -4577,29 +4662,18 @@ Status DavinciModel::CopyInputData(const InputData &input_data) {
 
   for (const auto &data_info : input_data_info_) {
     const size_t data_idx = data_info.first;
-    if (data_idx >= blobs.size()) {
-      const std::string reason = "The required input " + std::to_string(data_idx) +
-                                 " is not provided by user, while the total input data num is " +
-                                 std::to_string(blobs.size());
-      REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
-                                std::vector<const char_t *>({reason.c_str()}));
-      GELOGE(FAILED,
-             "[Check][Param] Blobs do not match: blobs=%zu, model input num=%zu, required index=%u, op_name(%s)",
-             blobs.size(), input_data_info_.size(), data_idx, data_info.second.GetOpName().c_str());
-      return FAILED;
-    }
-
-    const DataBuffer &data_buf = blobs.at(data_idx);
-    if (data_buf.length == 0U) {
-      GELOGW("No data need to copy, index=%u", data_idx);
+    if (input_h2d_overlap_plan_->IsPlannedInput(static_cast<uint32_t>(data_idx))) {
+      GELOGD("[InputH2DOverlap] skip legacy input copy path for planned input:%zu, model_id:%u.", data_idx, model_id_);
       continue;
     }
-
-    const uint64_t data_size = static_cast<uint64_t>(data_info.second.GetDataSize());
-    GE_CHK_BOOL_RET_STATUS(data_size >= data_buf.length, PARAM_INVALID,
-                           "[Check][Param] input data size(%" PRIu64 ") is bigger than model required size(%" PRIu64
-                           "), op_name(%s)",
-                           data_buf.length, data_size, data_info.second.GetOpName().c_str());
+    bool skip_input = false;
+    const DataBuffer *data_buf_ptr = nullptr;
+    uint64_t data_size = 0U;
+    GE_CHK_STATUS_RET(GetValidatedInputBuffer(blobs, data_idx, data_info.second, skip_input, data_buf_ptr, data_size));
+    if (skip_input) {
+      continue;
+    }
+    const DataBuffer &data_buf = *data_buf_ptr;
     void *mem_addr = data_info.second.GetBasicAddr();
     bool is_no_tiling = false;
     if (data_idx < input_no_tiling_flag_.size()) {
@@ -4633,45 +4707,47 @@ Status DavinciModel::CopyInputData(const InputData &input_data) {
   return TensorTransUtils::TryBatchMemcpy(memcpy_batch_params_);
 }
 
-Status DavinciModel::CopyInputDataWithMergeH2D(const InputData &input_data) {
-  const std::vector<DataBuffer> &blobs = input_data.blobs;
-  std::vector<size_t> non_merge_copy_indexs;
-  void *input_merge_copy_device_addr = nullptr;
-
+Status DavinciModel::CollectMergeInputData(const std::vector<DataBuffer> &blobs, MergeInputCollectResult &collect) {
   for (const auto &data_info : input_data_info_) {
     const size_t data_idx = data_info.first;
-    if (data_idx >= blobs.size()) {
-      const std::string reason = "The required input " + std::to_string(data_idx) +
-                                 " is not provided by user, while the total input data num is " +
-                                 std::to_string(blobs.size());
-      REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
-                                std::vector<const char_t *>({reason.c_str()}));
-      GELOGE(FAILED,
-             "[Check][Param] Blobs do not match: blobs=%zu, model input num=%zu, required index=%zu, op_name(%s)",
-             blobs.size(), input_data_info_.size(), data_idx, data_info.second.GetOpName().c_str());
-      return FAILED;
-    }
     // find device addr for merge copy
-    input_merge_copy_device_addr =
-        (data_idx == fisrt_input_index_of_merge_copy_) ? data_info.second.GetBasicAddr() : input_merge_copy_device_addr;
-
-    const DataBuffer &data_buf = blobs.at(data_idx);
-    if (data_buf.length == 0U) {
-      GELOGW("No data need to copy, index=%u", data_idx);
+    collect.input_merge_copy_device_addr = (data_idx == fisrt_input_index_of_merge_copy_)
+                                               ? data_info.second.GetBasicAddr()
+                                               : collect.input_merge_copy_device_addr;
+    const bool is_planned_input = input_h2d_overlap_plan_->IsPlannedInput(static_cast<uint32_t>(data_idx));
+    const auto &merge_copy_offset = input_index_to_merge_copy_offset_.find(data_idx);
+    const bool is_merge_input = (merge_copy_offset != input_index_to_merge_copy_offset_.end());
+    if (is_planned_input && !is_merge_input) {
+      GELOGD("[InputH2DOverlap] skip legacy non-merge copy path for planned input:%zu, model_id:%u.", data_idx,
+             model_id_);
       continue;
     }
-    const uint64_t data_size = static_cast<uint64_t>(data_info.second.GetDataSize());
-    GE_CHK_BOOL_RET_STATUS(data_size >= data_buf.length, PARAM_INVALID,
-                           "[Check][Param] input data size(%" PRIu64 ") is bigger than model required size(%" PRIu64
-                           "), index: %zu, op_name(%s)",
-                           data_buf.length, data_size, data_idx, data_info.second.GetOpName().c_str());
+    if (is_planned_input) {
+      collect.has_planned_merge_input = true;
+      ++collect.planned_merge_input_count;
+      collect.planned_merge_prepared_bytes += static_cast<uint64_t>(data_info.second.GetDataSize());
+      GELOGD("[InputH2DOverlap] keep original merge copy for planned merge input:%zu, model_id:%u.", data_idx,
+             model_id_);
+    }
+    bool skip_input = false;
+    const DataBuffer *data_buf_ptr = nullptr;
+    uint64_t data_size = 0U;
+    GE_CHK_STATUS_RET(GetValidatedInputBuffer(blobs, data_idx, data_info.second, skip_input, data_buf_ptr, data_size));
+    if (skip_input) {
+      continue;
+    }
+    const DataBuffer &data_buf = *data_buf_ptr;
 
     const auto kind = GetRtMemcpyKindByPlacement(data_buf.placement, true);
-    const auto &merge_copy_offset = input_index_to_merge_copy_offset_.find(data_idx);
+    if (is_planned_input && (kind != ACL_MEMCPY_HOST_TO_DEVICE)) {
+      GELOGD("[InputH2DOverlap] skip legacy merge copy for invalid planned input placement:%zu, model_id:%u.", data_idx,
+             model_id_);
+      continue;
+    }
 
-    if ((kind != ACL_MEMCPY_HOST_TO_DEVICE) || (merge_copy_offset == input_index_to_merge_copy_offset_.end())) {
+    if ((kind != ACL_MEMCPY_HOST_TO_DEVICE) || !is_merge_input) {
       GELOGD("index[%zu] push back to non_merge_copy_indexs", data_idx);
-      non_merge_copy_indexs.push_back(data_idx);
+      collect.non_merge_copy_indexs.push_back(data_idx);
       continue;
     }
 
@@ -4688,16 +4764,63 @@ Status DavinciModel::CopyInputDataWithMergeH2D(const InputData &input_data) {
                            "memcpy fail, graph %u, index %zu, data len:%" PRIu64 ", buffer size:%" PRIu64
                            ", offset:%" PRIu64,
                            runtime_param_.graph_id, data_idx, data_buf.length, input_merge_copy_mem_size_, host_offset);
+    GE_CHK_BOOL_RET_STATUS(input_merge_copy_mem_size_ >= host_offset, INTERNAL_ERROR,
+                           "merge copy offset overflow, graph %u, index %zu, buffer size:%" PRIu64 ", offset:%" PRIu64,
+                           runtime_param_.graph_id, data_idx, input_merge_copy_mem_size_, host_offset);
+    const uint64_t remain_size = input_merge_copy_mem_size_ - host_offset;
+    GE_CHK_BOOL_RET_STATUS(remain_size >= data_size, INTERNAL_ERROR,
+                           "merge copy data size overflow, graph %u, index %zu, data data size:%" PRIu64
+                           ", buffer size:%" PRIu64 ", offset:%" PRIu64,
+                           runtime_param_.graph_id, data_idx, data_size, input_merge_copy_mem_size_, host_offset);
+    if (!is_planned_input) {
+      ++collect.legacy_merge_input_count;
+    } else {
+      (void)input_h2d_overlap_legacy_prepared_inputs_.insert(static_cast<uint32_t>(data_idx));
+    }
+    collect.has_merge_input = true;
   }
+  return SUCCESS;
+}
 
+Status DavinciModel::CopyInputDataWithMergeH2D(const InputData &input_data) {
+  input_h2d_overlap_legacy_prepared_inputs_.clear();
+  const std::vector<DataBuffer> &blobs = input_data.blobs;
+  MergeInputCollectResult collect;
+  GE_CHK_STATUS_RET(CollectMergeInputData(blobs, collect));
+
+  uint64_t legacy_merge_copy_bytes = 0U;
+  size_t legacy_merge_range_count = 0U;
   // merge copy input to device buffer, h2d
-  GELOGI("[InputMergeCopy]CopyPlainData graph_%u type[F] dst[%p] src[%p] mem_size[%" PRIu64 "].",
-         runtime_param_.graph_id, input_merge_copy_device_addr, input_merge_copy_mem_base_.get(),
-         input_merge_copy_mem_size_);
-  GE_CHECK_NOTNULL(input_merge_copy_device_addr,
-                   "invalid input_merge_copy_device_addr value, input_merge_copy_device_addr is nullptr");
-  GE_CHK_ACL_RET(aclrtMemcpy(input_merge_copy_device_addr, input_merge_copy_mem_size_, input_merge_copy_mem_base_.get(),
-                             input_merge_copy_mem_size_, ACL_MEMCPY_HOST_TO_DEVICE));
+  if (collect.has_merge_input) {
+    GE_CHECK_NOTNULL(collect.input_merge_copy_device_addr,
+                     "invalid input_merge_copy_device_addr value, input_merge_copy_device_addr is nullptr");
+    GELOGI("[InputMergeCopy]CopyPlainData graph_%u type[F] dst[%p] src[%p] mem_size[%" PRIu64 "].",
+           runtime_param_.graph_id, collect.input_merge_copy_device_addr, input_merge_copy_mem_base_.get(),
+           input_merge_copy_mem_size_);
+    legacy_merge_range_count = 1U;
+    legacy_merge_copy_bytes = input_merge_copy_mem_size_;
+    GE_CHK_ACL_RET(aclrtMemcpy(collect.input_merge_copy_device_addr, input_merge_copy_mem_size_,
+                               input_merge_copy_mem_base_.get(), input_merge_copy_mem_size_,
+                               ACL_MEMCPY_HOST_TO_DEVICE));
+  }
+  if (collect.has_planned_merge_input || input_h2d_overlap_plan_->Enabled()) {
+    GELOGD(
+        "[InputH2DOverlap] merge H2D legacy summary, model_id:%u, graph_id:%u, "
+        "merge_input_count:%zu, planned_merge_input_count:%zu, legacy_merge_input_count:%zu, "
+        "legacy_range_count:%zu, full_merge_bytes:%" PRIu64 ", legacy_range_bytes:%" PRIu64
+        ", planned_prepared_bytes:%" PRIu64
+        ", non_merge_copy_count:%zu, has_merge_input:%d, "
+        "has_planned_merge_input:%d.",
+        model_id_, runtime_param_.graph_id, input_index_to_merge_copy_offset_.size(), collect.planned_merge_input_count,
+        collect.legacy_merge_input_count, legacy_merge_range_count, input_merge_copy_mem_size_, legacy_merge_copy_bytes,
+        collect.planned_merge_prepared_bytes, collect.non_merge_copy_indexs.size(), collect.has_merge_input,
+        collect.has_planned_merge_input);
+  }
+  return CopyNonMergedInputData(blobs, collect.non_merge_copy_indexs);
+}
+
+Status DavinciModel::CopyNonMergedInputData(const std::vector<DataBuffer> &blobs,
+                                            const std::vector<size_t> &non_merge_copy_indexs) {
   // copy non merge copy input
 
   int32_t cur_device_id = -1;
@@ -5714,6 +5837,14 @@ void DavinciModel::Run() {
     if (ret != SUCCESS) {
       GELOGE(FAILED, "[Call][HandleInputData] handle input data failed, model_id:%u.", model_id_);
       OnComputeDoneWithResultCallback(args, 0U, INTERNAL_ERROR, outputs);
+      continue;
+    }
+    ret = input_h2d_overlap_plan_->Launch(
+        model_id_, stream_list_, event_list_, logical_mem_allocations_, allocation_ids_to_active_base_addr_, inputs,
+        input_h2d_overlap_legacy_prepared_inputs_, is_dynamic_, is_dynamic_aipp_, logLevel_);
+    if (ret != SUCCESS) {
+      GELOGE(ret, "[Launch][InputH2DOverlap] failed, model_id:%u.", model_id_);
+      OnComputeDoneWithResultCallback(args, 0U, ret, outputs);
       continue;
     }
     GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_PRE_PROC_END));
@@ -6741,13 +6872,26 @@ void DavinciModel::GetGeTensorBlobs(InputData &input_data, const std::vector<ger
 
 Status DavinciModel::CopyModelData(const std::vector<gert::Tensor> &input_tensor,
                                    const std::vector<gert::Tensor> &output_tensor) {
-  const bool dynamic_shape_data = is_online_infer_dynamic_ && (!is_getnext_sink_dynamic_);
   InputData input_data;
   OutputData output_data;
+  GE_ASSERT_SUCCESS(PrepareModelData(input_data, output_data, input_tensor, output_tensor));
+  GE_ASSERT_SUCCESS(CopyLegacyInputData(input_data, input_tensor));
+  return SUCCESS;
+}
+
+template <typename T>
+Status DavinciModel::UpdateDynamicShapeAndArgs(InputData &input_data, OutputData &output_data,
+                                               const std::vector<T> &input_tensor,
+                                               const std::vector<T> &output_tensor) {
+  const bool dynamic_shape_data = is_online_infer_dynamic_ && (!is_getnext_sink_dynamic_);
   if (dynamic_shape_data) {
     cur_dynamic_dims_.clear();
     for (size_t i = 0U; i < input_tensor.size(); i++) {
-      input_data.shapes.emplace_back(GetTensorDims(input_tensor[i].GetStorageShape()));
+      if constexpr (std::is_same_v<T, gert::Tensor>) {
+        input_data.shapes.emplace_back(GetTensorDims(input_tensor[i].GetStorageShape()));
+      } else {
+        input_data.shapes.emplace_back(input_tensor[i].GetTensorDesc().GetShape().GetDims());
+      }
     }
     if (GetCurDynamicDims(input_data.shapes, cur_dynamic_dims_) != SUCCESS) {
       return INTERNAL_ERROR;
@@ -6763,6 +6907,17 @@ Status DavinciModel::CopyModelData(const std::vector<gert::Tensor> &input_tensor
   GE_ASSERT_SUCCESS(UpdateAllNodeArgs(input_data, output_data, input_tensor, output_tensor));
   args_manager_.InitDfxStatsticsEnd();
 
+  return SUCCESS;
+}
+
+Status DavinciModel::PrepareModelData(InputData &input_data, OutputData &output_data,
+                                      const std::vector<gert::Tensor> &input_tensor,
+                                      const std::vector<gert::Tensor> &output_tensor) {
+  return UpdateDynamicShapeAndArgs(input_data, output_data, input_tensor, output_tensor);
+}
+
+Status DavinciModel::CopyLegacyInputData(const InputData &input_data, const std::vector<gert::Tensor> &input_tensor) {
+  input_h2d_overlap_legacy_prepared_inputs_.clear();
   GE_ASSERT_SUCCESS(CopyInputForNoZeroCopy(input_data.blobs, input_indexes_to_copy_info_, input_tensor));
   if (host_pls_input_indexes_to_copy_info_.size() != 0U) {
     GE_ASSERT_SUCCESS(CopyInputForNoZeroCopy(input_data.blobs, host_pls_input_indexes_to_copy_info_, input_tensor));
@@ -6775,34 +6930,26 @@ Status DavinciModel::CopyModelData(const std::vector<gert::Tensor> &input_tensor
 Status DavinciModel::CopyModelData(InputData &input_data, OutputData &output_data,
                                    const std::vector<GeTensor> &input_tensor,
                                    const std::vector<GeTensor> &output_tensor) {
-  const bool dynamic_shape_data = is_online_infer_dynamic_ && (!is_getnext_sink_dynamic_);
-  if (dynamic_shape_data) {
-    cur_dynamic_dims_.clear();
-    for (size_t i = 0U; i < input_tensor.size(); i++) {
-      input_data.shapes.emplace_back(input_tensor[i].GetTensorDesc().GetShape().GetDims());
-    }
-    if (GetCurDynamicDims(input_data.shapes, cur_dynamic_dims_) != SUCCESS) {
-      return INTERNAL_ERROR;
-    }
-
-    GetGeTensorBlobs(input_data, input_tensor);
-
-    // 整图分档会多生成一个data用来命中挡位，此处需要为他构造数据
-    CreateMultiBatchDataBuffer(input_data.blobs);
+  GE_ASSERT_SUCCESS(PrepareModelData(input_data, output_data, input_tensor, output_tensor));
+  GE_ASSERT_SUCCESS(CopyLegacyInputData(input_data, input_tensor));
+  if (is_online_infer_dynamic_ && (!is_getnext_sink_dynamic_)) {
+    input_data.blobs.pop_back();
   }
+  return SUCCESS;
+}
 
-  args_manager_.InitDfxStage1Begin();
-  GE_ASSERT_SUCCESS(UpdateAllNodeArgs(input_data, output_data, input_tensor, output_tensor));
-  args_manager_.InitDfxStatsticsEnd();
+Status DavinciModel::PrepareModelData(InputData &input_data, OutputData &output_data,
+                                      const std::vector<GeTensor> &input_tensor,
+                                      const std::vector<GeTensor> &output_tensor) {
+  return UpdateDynamicShapeAndArgs(input_data, output_data, input_tensor, output_tensor);
+}
 
+Status DavinciModel::CopyLegacyInputData(const InputData &input_data, const std::vector<GeTensor> &input_tensor) {
+  input_h2d_overlap_legacy_prepared_inputs_.clear();
   GE_ASSERT_SUCCESS(CopyInputForNoZeroCopy(input_data.blobs, input_indexes_to_copy_info_, input_tensor));
   if (host_pls_input_indexes_to_copy_info_.size() != 0U) {
     GE_ASSERT_SUCCESS(CopyInputForNoZeroCopy(input_data.blobs, host_pls_input_indexes_to_copy_info_, input_tensor));
     host_pls_input_indexes_to_copy_info_.clear();
-  }
-
-  if (dynamic_shape_data) {
-    input_data.blobs.pop_back();
   }
   return SUCCESS;
 }
@@ -6816,6 +6963,11 @@ Status DavinciModel::CopyInputForNoZeroCopy(const std::vector<DataBuffer> &blobs
     isBlobsEmpty = true;
   }
   for (auto &item : copy_infos) {
+    if (input_h2d_overlap_plan_->IsPlannedInput(item.first)) {
+      GELOGD("[InputH2DOverlap] skip original copy-only path for planned input:%u, model_id:%u.", item.first,
+             model_id_);
+      continue;
+    }
     const size_t input_idx = static_cast<size_t>(item.first);
     const size_t id = static_cast<size_t>(item.second.id);
     const uint64_t offset = item.second.offset;
@@ -6875,6 +7027,11 @@ Status DavinciModel::CopyInputForNoZeroCopy(const std::vector<DataBuffer> &blobs
     isBlobsEmpty = true;
   }
   for (auto &item : copy_infos) {
+    if (input_h2d_overlap_plan_->IsPlannedInput(item.first)) {
+      GELOGD("[InputH2DOverlap] skip original copy-only path for planned input:%u, model_id:%u.", item.first,
+             model_id_);
+      continue;
+    }
     const size_t input_idx = static_cast<size_t>(item.first);
     const size_t id = static_cast<size_t>(item.second.id);
     const uint64_t offset = item.second.offset;
@@ -6961,10 +7118,19 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(
                                          is_input ? K_INPUT : K_OUTPUT),
                    "Check %s size failed, index %u, user size %llu, op size %llu.", (is_input ? "input" : "output"),
                    io_idx, buffer_length, logical_mem_allocations_[id].data_size);
+    const bool is_copy_host_input = is_input && (copy_host_input_indexes_.count(io_idx) > 0U);
+    const bool is_planned_host_input = is_copy_host_input && input_h2d_overlap_plan_->IsPlannedInput(io_idx);
     if (pls == kPlaceHostData) {
-      // 如果是随路拷贝的内存，做h2h的拷贝, 并设置更新策略
-      // 随路拷贝不会更新args table表中input地址，不会触发io段的更新
-      if (is_input && (copy_host_input_indexes_.count(io_idx) > 0)) {
+      if (is_planned_host_input) {
+        GE_ASSERT_SUCCESS(CheckHostPlacementZeroCopyMemory(is_input, io_idx, mem_base_size_, TotalMemSize()));
+        if (allocation_ids_to_active_base_addr_[id] != logical_mem_allocations_[id].logical_addr) {
+          allocation_ids_to_active_base_addr_[id] = logical_mem_allocations_[id].logical_addr;
+          ret_up = std::max(ret_up, id_to_plicy[id]);
+        }
+        GELOGD("[InputH2DOverlap] skip hostInputIndexes staging for planned input:%u, model_id:%u.", io_idx, model_id_);
+      } else if (is_copy_host_input) {
+        // 如果是随路拷贝的内存，做h2h的拷贝, 并设置更新策略
+        // 随路拷贝不会更新args table表中input地址，不会触发io段的更新
         GE_ASSERT_TRUE(copy_host_input_infos_[io_idx].host_addr != nullptr);
         GE_ASSERT_SUCCESS(GeMemcpy(reinterpret_cast<uint8_t *>(copy_host_input_infos_[io_idx].host_addr),
                                    copy_host_input_infos_[io_idx].tensor_size, reinterpret_cast<const uint8_t *>(data),
@@ -6977,22 +7143,7 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(
         ret_up = std::max(ret_up, static_cast<uint32_t>(ModelArgsManager::KUpdateHostInput));
       } else {
         // 支持零拷贝，但用户给的host内存，要校验fm内存有没有申请零拷贝段
-        if (mem_base_size_ < TotalMemSize()) {
-          const std::string reason =
-              "Zero-copy memory reuse mode is enabled, requiring all I/O tensors to be allocated in device memory, "
-              "but " +
-              std::string(is_input ? "input " : "output ") + std::to_string(io_idx) +
-              " is located in host memory, and the model's reusable device memory is insufficient(available: " +
-              std::to_string(mem_base_size_) + ", required: " + std::to_string(TotalMemSize()) + ")";
-
-          REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
-                                    std::vector<const char_t *>({reason.c_str()}));
-          GELOGE(ACL_ERROR_GE_PARAM_INVALID,
-                 "[Check][Param] %s[%u] placement is host when ge.exec.reuseZeroCopyMemory=1, "
-                 "no enough memory for zero copy, mem_size:%u while required total_size:%u.",
-                 is_input ? "input " : " output", io_idx, mem_base_size_, TotalMemSize());
-          return ACL_ERROR_GE_PARAM_INVALID;
-        }
+        GE_ASSERT_SUCCESS(CheckHostPlacementZeroCopyMemory(is_input, io_idx, mem_base_size_, TotalMemSize()));
         if (is_input) {
           host_pls_input_indexes_to_copy_info_[io_idx] = {id, 0U, logical_mem_allocations_[id].data_size};
         } else {
@@ -7012,10 +7163,11 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(
     }
 
     if (logLevel_ <= DLOG_INFO) {
-      GELOGI("[%s] index:%u, user_addr:0x%" PRIx64 ", active_base_addr:0x%" PRIx64 ", pls:%s, is copy host:%zu.",
+      GELOGI("[%s] index:%u, user_addr:0x%" PRIx64 ", active_base_addr:0x%" PRIx64
+             ", pls:%s, is copy host:%u, input_h2d_overlap_planned:%d.",
              (is_input ? "Input" : "Output"), io_idx, ge::PtrToValue(data), allocation_ids_to_active_base_addr_[id],
-             ((pls == kPlaceHostData) ? "host" : "device"),
-             ((pls == kPlaceHostData) ? copy_host_input_indexes_.count(io_idx) : 0u));
+             ((pls == kPlaceHostData) ? "host" : "device"), ((pls == kPlaceHostData) && is_copy_host_input) ? 1U : 0U,
+             static_cast<int32_t>(is_planned_host_input));
     }
   }
 
@@ -7056,10 +7208,19 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(
                    "Check %s size failed, index %u, user size %llu, op size %llu.", (is_input ? "input" : "output"),
                    io_idx, buffer_length, logical_mem_allocations_[id].data_size);
 
+    const bool is_copy_host_input = is_input && (copy_host_input_indexes_.count(io_idx) > 0U);
+    const bool is_planned_host_input = is_copy_host_input && input_h2d_overlap_plan_->IsPlannedInput(io_idx);
     if (pls == kPlaceHostData) {
-      // 如果时随路拷贝的内存，做h2h的拷贝, 并设置更新策略
-      // 随路拷贝不会更新args table表中input地址，不会触发io段的更新
-      if (is_input && (copy_host_input_indexes_.count(io_idx) > 0)) {
+      if (is_planned_host_input) {
+        GE_ASSERT_SUCCESS(CheckHostPlacementZeroCopyMemory(is_input, io_idx, mem_base_size_, TotalMemSize()));
+        if (allocation_ids_to_active_base_addr_[id] != logical_mem_allocations_[id].logical_addr) {
+          allocation_ids_to_active_base_addr_[id] = logical_mem_allocations_[id].logical_addr;
+          ret_up = std::max(ret_up, id_to_plicy[id]);
+        }
+        GELOGD("[InputH2DOverlap] skip hostInputIndexes staging for planned input:%u, model_id:%u.", io_idx, model_id_);
+      } else if (is_copy_host_input) {
+        // 如果时随路拷贝的内存，做h2h的拷贝, 并设置更新策略
+        // 随路拷贝不会更新args table表中input地址，不会触发io段的更新
         GE_ASSERT_TRUE(copy_host_input_infos_[io_idx].host_addr != nullptr);
         GE_ASSERT_SUCCESS(GeMemcpy(reinterpret_cast<uint8_t *>(copy_host_input_infos_[io_idx].host_addr),
                                    copy_host_input_infos_[io_idx].tensor_size, reinterpret_cast<const uint8_t *>(data),
@@ -7072,21 +7233,7 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(
         ret_up = std::max(ret_up, static_cast<uint32_t>(ModelArgsManager::KUpdateHostInput));
       } else {
         // 支持零拷贝，但用户给的host内存，要校验fm内存有没有申请零拷贝段
-        if (mem_base_size_ < TotalMemSize()) {
-          const std::string reason =
-              "Zero-copy memory reuse mode is enabled, requiring all I/O tensors to be allocated in device memory, "
-              "but " +
-              std::string(is_input ? "input " : "output ") + std::to_string(io_idx) +
-              " is located in host memory, and the model's reusable device memory is insufficient(available: " +
-              std::to_string(mem_base_size_) + ", required: " + std::to_string(TotalMemSize()) + ")";
-          REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
-                                    std::vector<const char_t *>({reason.c_str()}));
-          GELOGE(ACL_ERROR_GE_PARAM_INVALID,
-                 "[Check][Param] %s[%u] placement is host when ge.exec.reuseZeroCopyMemory=1, "
-                 "no enough memory for zero copy, mem_size:%u while required total_size:%u.",
-                 is_input ? "input " : " output", io_idx, mem_base_size_, TotalMemSize());
-          return ACL_ERROR_GE_PARAM_INVALID;
-        }
+        GE_ASSERT_SUCCESS(CheckHostPlacementZeroCopyMemory(is_input, io_idx, mem_base_size_, TotalMemSize()));
         if (is_input) {
           host_pls_input_indexes_to_copy_info_[io_idx] = {id, 0U, logical_mem_allocations_[id].data_size};
         } else {
@@ -7104,10 +7251,11 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(
       }
     }
     if (logLevel_ <= DLOG_INFO) {
-      GELOGI("[%s] index:%u, user_addr:0x%" PRIx64 ", active_base_addr:0x%" PRIx64 ", pls:%s, is copy host:%zu.",
+      GELOGI("[%s] index:%u, user_addr:0x%" PRIx64 ", active_base_addr:0x%" PRIx64
+             ", pls:%s, is copy host:%u, input_h2d_overlap_planned:%d.",
              (is_input ? "Input" : "Output"), io_idx, ge::PtrToValue(data), allocation_ids_to_active_base_addr_[id],
-             ((pls == kPlaceHostData) ? "host" : "device"),
-             ((pls == kPlaceHostData) ? copy_host_input_indexes_.count(io_idx) : 0u));
+             ((pls == kPlaceHostData) ? "host" : "device"), ((pls == kPlaceHostData) && is_copy_host_input) ? 1U : 0U,
+             static_cast<int32_t>(is_planned_host_input));
     }
   }
 
@@ -7826,10 +7974,24 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode,
                   davinci_model_stage_time_[kStageBeforeH2D] = std::chrono::system_clock::now());
 
   GetStageTimestampStart(kCopyMdlData);
-  Status ret = CopyModelData(input_tensor, output_tensor);
-  GetStageTimestampEnd(kCopyMdlData);
+  InputData input_data;
+  OutputData output_data;
+  Status ret = PrepareModelData(input_data, output_data, input_tensor, output_tensor);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Prepare][ModelData] failed. model id: %u", model_id_);
+    return ret;
+  }
+  ret = CopyLegacyInputData(input_data, input_tensor);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Copy][ModelData] failed. model id: %u", model_id_);
+    return ret;
+  }
+  ret = input_h2d_overlap_plan_->Launch(
+      model_id_, stream_list_, event_list_, logical_mem_allocations_, allocation_ids_to_active_base_addr_, input_tensor,
+      input_h2d_overlap_legacy_prepared_inputs_, is_dynamic_, is_dynamic_aipp_, logLevel_);
+  GetStageTimestampEnd(kCopyMdlData);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Launch][InputH2DOverlap] failed. model id: %u", model_id_);
     return ret;
   }
 
@@ -7839,6 +8001,7 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode,
   // 自动多流寻优打点：口径为「任务下发 -> 流同步完成」，不含 H2D / D2H 拷贝
   multistream_tune::StepScope step(multistream_tune::kSiteNnExecute, auto_multistream_tuning_mode_, model_id_,
                                    rt_model_stream_);
+  bool model_execute_profile_started = false;
   if (!task_list_.empty()) {
     // used for debug resource manager
     if (GetDumpProperties().IsDumpOpen() || GetDumpProperties().IsOpDebugOpen()) {
@@ -7846,7 +8009,10 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode,
       GE_CHK_STATUS_RET(UpdateStepInfoWithStream(), "UpdateStepInfoWithStream failed");
     }
 
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_INFER_START));
+    if (is_prof_enabled) {
+      SetProfileTime(ModelProcStage::MODEL_INFER_START);
+      model_execute_profile_started = true;
+    }
     CANN_PROFILING_STEP_TRACE(model_id_, iterator_count_, 0U, rt_model_stream_);
     GetStageTimestampStart(kMdlExecute);
     aclError rt_ret;
@@ -7863,7 +8029,6 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode,
     CANN_PROFILING_STEP_TRACE(model_id_, iterator_count_, 1U, rt_model_stream_);
     GE_CHK_RT_EXEC(rt_ret, return RT_ERROR_TO_GE_STATUS(rt_ret));
 
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_INFER_END));
     iterator_count_++;
   }
   if (is_inner_model_stream_ &&
@@ -7887,6 +8052,9 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode,
   step.Stop(SUCCESS);
   GE_IF_BOOL_EXEC(is_dump_to_std_enable_,
                   davinci_model_stage_time_[kStageAfterRtExecute] = std::chrono::system_clock::now());
+  if (is_prof_enabled && model_execute_profile_started) {
+    SetProfileTime(ModelProcStage::MODEL_INFER_END);
+  }
   GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_AFTER_PROC_START));
   GetStageTimestampStart(kCopyOutputData);
   ret = CopyOutputData(output_tensor);
@@ -7937,10 +8105,35 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode, 
   const bool is_prof_enabled = gert::GlobalProfilingWrapper::GetInstance()->IsEnabled(gert::ProfilingType::kTaskTime);
   GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_PRE_PROC_START));
   GetStageTimestampStart(kCopyMdlData);
-  Status ret = CopyModelData(const_cast<InputData &>(input_data), output_data, input_tensor, output_tensor);
-  GetStageTimestampEnd(kCopyMdlData);
+  InputData &mutable_input_data = const_cast<InputData &>(input_data);
+  const bool dynamic_shape_data = is_online_infer_dynamic_ && (!is_getnext_sink_dynamic_);
+  const size_t input_blobs_size_before = mutable_input_data.blobs.size();
+  const auto pop_multi_batch_data_buffer = [&mutable_input_data, dynamic_shape_data, input_blobs_size_before]() {
+    // 仅当PrepareModelData构造了整图分档的额外blob时才弹出，失败发生在构造前时不误弹用户输入
+    if (dynamic_shape_data && (mutable_input_data.blobs.size() > input_blobs_size_before)) {
+      mutable_input_data.blobs.pop_back();
+    }
+  };
+  Status ret = PrepareModelData(mutable_input_data, output_data, input_tensor, output_tensor);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Prepare][ModelData] failed. model id: %u", model_id_);
+    pop_multi_batch_data_buffer();
+    return ret;
+  }
+  ret = CopyLegacyInputData(mutable_input_data, input_tensor);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Copy][ModelData] failed. model id: %u", model_id_);
+    pop_multi_batch_data_buffer();
+    return ret;
+  }
+  ret = input_h2d_overlap_plan_->Launch(model_id_, stream_list_, event_list_, logical_mem_allocations_,
+                                        allocation_ids_to_active_base_addr_, input_data, input_tensor,
+                                        input_h2d_overlap_legacy_prepared_inputs_, !copy_host_input_indexes_.empty(),
+                                        is_dynamic_, is_dynamic_aipp_, logLevel_);
+  pop_multi_batch_data_buffer();
+  GetStageTimestampEnd(kCopyMdlData);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Launch][InputH2DOverlap] failed. model id: %u", model_id_);
     return ret;
   }
 
@@ -7949,6 +8142,7 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode, 
   // 自动多流寻优打点：口径为「任务下发 -> 流同步完成」，不含 H2D / D2H 拷贝
   multistream_tune::StepScope step(multistream_tune::kSiteNnExecute, auto_multistream_tuning_mode_, model_id_,
                                    rt_model_stream_);
+  bool model_execute_profile_started = false;
   if (!task_list_.empty()) {
     // used for debug resource manager
     if (GetDumpProperties().IsDumpOpen() || GetDumpProperties().IsOpDebugOpen()) {
@@ -7958,7 +8152,10 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode, 
       GE_CHK_STATUS_RET(UpdateStepInfoWithStream(), "UpdateStepInfoWithStream failed");
     }
     // tag_id 0 means step begin, 1 meas step end.
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_INFER_START));
+    if (is_prof_enabled) {
+      SetProfileTime(ModelProcStage::MODEL_INFER_START);
+      model_execute_profile_started = true;
+    }
     CANN_PROFILING_STEP_TRACE(model_id_, iterator_count_, 0U, rt_model_stream_);
 
     if (is_forbidden_stream_ && is_inner_model_stream_) {
@@ -7976,7 +8173,6 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode, 
       CANN_PROFILING_STEP_TRACE(model_id_, iterator_count_, 1U, rt_model_stream_);
       GE_CHK_RT_EXEC(rt_ret, return RT_ERROR_TO_GE_STATUS(rt_ret));
     }
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_INFER_END));
     iterator_count_++;
   }
   if ((is_prof_enabled || (ProfilingManager::Instance().ProfilingSubscribeOn()) || (!is_forbidden_stream_)) &&
@@ -7999,6 +8195,9 @@ Status DavinciModel::NnExecute(aclrtStream const stream, const bool async_mode, 
   }
 
   step.Stop(SUCCESS);
+  if (is_prof_enabled && model_execute_profile_started) {
+    SetProfileTime(ModelProcStage::MODEL_INFER_END);
+  }
   GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_AFTER_PROC_START));
   output_data.index = input_data.index;
   output_data.model_id = model_id_;

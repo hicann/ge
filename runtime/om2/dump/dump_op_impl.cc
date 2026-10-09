@@ -10,6 +10,7 @@
 
 #include "framework/runtime/dump/dump_op_impl.h"
 #include "framework/common/debug/ge_log.h"
+#include "common/plugin/datatype_util.h"
 #include "rt_external.h"
 #include "acl/acl_rt.h"
 #include "aicpu_task_struct.h"
@@ -153,7 +154,7 @@ Status DumpOp::BuildTaskInputs(const GertModelTaskDesc &task_desc) {
 
     GELOGD("BuildTaskInputs: task_id=%u, input[%zu], device_address=0x%lx, size=%lu", task_desc.task_id, i,
            device_address, tensor.GetSize());
-    input_tensor->set_data_type(tensor.GetDataType());
+    input_tensor->set_data_type(DataTypeUtil::GetIrDataType(tensor.GetDataType()));
     input_tensor->set_format(tensor.GetStorageFormat());
     input_tensor->set_address(device_address);
     input_tensor->set_size(tensor.GetSize());
@@ -194,7 +195,7 @@ Status DumpOp::BuildTaskOutputs(const GertModelTaskDesc &task_desc) {
 
     GELOGD("BuildTaskOutputs: task_id=%u, input[%zu], device_address=0x%lx, size=%lu", task_desc.task_id, i,
            device_address, tensor.GetSize());
-    output_tensor->set_data_type(tensor.GetDataType());
+    output_tensor->set_data_type(DataTypeUtil::GetIrDataType(tensor.GetDataType()));
     output_tensor->set_format(tensor.GetStorageFormat());
     output_tensor->set_address(device_address);
     output_tensor->set_size(tensor.GetSize());

@@ -21,12 +21,9 @@
 namespace gert {
 struct GertModelDataConstMeta;
 struct GertModelDataVarMeta;
-using GertModelDataConstMetas = std::vector<GertModelDataConstMeta>;
 struct GertModelData;
-struct GertModelDataProgramBody;
-struct GertModelDataKernelBinary;
+struct GertModelDataFile;
 struct GertModelDataModelMeta;
-struct GertModelDataConstantsData;
 struct GertModelDataDebug;
 struct GertModelDataManifest;
 }  // namespace gert
@@ -52,9 +49,8 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
 
   static Status RelocateExternalWeights(const std::string &output_file_name, const ModelBufferData &model,
                                         ModelBufferData &relocated_model, bool &relocated);
-  static Status ReadCustomOpSoToBuffer(
-      const std::unordered_set<std::string> &ops_so_set,
-      std::vector<std::unique_ptr<gert::GertModelDataKernelBinary>> &shared_lib_binaries);
+  static Status ReadCustomOpSoToBuffer(const std::unordered_set<std::string> &ops_so_set,
+                                       std::vector<std::unique_ptr<gert::GertModelDataFile>> &shared_lib_binaries);
 
   /// @brief 从 OM2 ZIP 模型内提取 visual JSON 内容。
   /// @param model_data  OM2 ZIP 数据内存地址。
@@ -68,7 +64,7 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
   static Status BuildKernelBinaries(const GeModelPtr &ge_model, gert::GertModelData &model_data);
   static Status BuildModelMeta(const GeModelPtr &ge_model, gert::GertModelDataModel &unit);
   static Status BuildConstantsData(const GeModelPtr &ge_model, gert::GertModelDataModel &unit,
-                                   std::unique_ptr<gert::GertModelDataConstantsData> &weight_slot);
+                                   std::unique_ptr<gert::GertModelDataFile> &weight_slot, const size_t model_index);
   static Status BuildDebugInfo(const GeModelPtr &ge_model, gert::GertModelDataModel &unit);
   static Status BuildManifest(gert::GertModelData &model_data);
   static Status CollectUsedCustomOpTypes(const GeRootModelPtr &ge_root_model,

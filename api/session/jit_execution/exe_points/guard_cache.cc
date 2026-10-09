@@ -62,13 +62,6 @@ GuardedExecutionPoint *GuardCheckCache::FindOrCreateGuarded(const std::vector<ge
     return gep;
   }
 
-  if (owner_point_) {
-    gep = FindGuardedExecutionPoint(inputs);
-    if (gep) {
-      return gep;
-    }
-    // 第一个GEP依然是Guard Miss，走下面及CompileAndLoad流程进行编译
-  }
   REPORT_INNER_ERR_MSG("W18888", "There is no hint GEP, cache size(%" PRIu64 "). Guard miss reason in info log",
                        cache_models_.size());
   gep = new GuardedExecutionPoint(owner_point_);

@@ -841,14 +841,14 @@ std::string MakeFakeOm2ManifestJson() {
 std::string MakeFakeOm2ModelMetaJson() {
   return R"({
     "inputs": [
-      {"data_type": "DT_FLOAT", "format": "NCHW", "index": 0, "name": "data1",
+      {"data_type": 0, "format": 0, "index": 0, "name": "data1",
        "shape": [1, 1, 224, 224], "shape_range": [], "size": 0},
-      {"data_type": "DT_FLOAT", "format": "NCHW", "index": 1, "name": "data2",
+      {"data_type": 0, "format": 0, "index": 1, "name": "data2",
        "shape": [1, 1, 224, 224], "shape_range": [], "size": 0}
     ],
     "name": "g1",
     "outputs": [
-      {"data_type": "DT_FLOAT", "format": "NCHW", "index": 0, "name": "output",
+      {"data_type": 0, "format": 0, "index": 0, "name": "output",
        "shape": [1, 1, 224, 224], "shape_range": [], "size": 0}
     ],
     "work_size": 2048,
@@ -1054,7 +1054,7 @@ void CreateFakeOm2File(const std::string &work_dir, const std::string &output_fi
   const std::string build_dir = PathUtils::Join({runtime_dir, "build"});
   const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
   const std::string constant_path = PathUtils::Join({work_dir, "constant_0"});
-  const std::string constants_config_path = PathUtils::Join({work_dir, "model_0_constants_config.json"});
+  const std::string constants_config_path = PathUtils::Join({work_dir, "constants_config.json"});
 
   RemoveTestDir(runtime_dir);
   ASSERT_EQ(CreateDir(runtime_dir), 0);
@@ -1082,7 +1082,7 @@ void CreateFakeOm2File(const std::string &work_dir, const std::string &output_fi
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
   ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
   ASSERT_TRUE(zip_writer.WriteFile("data/constants/constant_0", constant_path, false));
-  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/model_0_constants_config.json", constants_config_path, false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/constants_config.json", constants_config_path, false));
   ASSERT_TRUE(zip_writer.SaveModelDataToFile());
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 }
@@ -1203,7 +1203,7 @@ void ExpectGeneratedMakefileSupportsEnvCompiler(const gert::ZipArchiveReader &ar
 ge::JsonFile ExtractConstantsConfig(const gert::ZipArchiveReader &archive, const std::string &zip_base_name) {
   size_t constants_config_size = 0U;
   const auto constants_config_buf =
-      archive.ExtractToMem(zip_base_name + "/data/model_0/model_0_constants_config.json", constants_config_size);
+      archive.ExtractToMem(zip_base_name + "/data/model_0/constants_config.json", constants_config_size);
   EXPECT_NE(constants_config_buf, nullptr);
   if (constants_config_buf == nullptr) {
     return JsonFile(nullptr, 0U);
@@ -2282,7 +2282,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
       "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
@@ -2710,7 +2710,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAtomicAicoreNode) {
       "fake_test_atomic/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test_atomic/data/model_0/runtime/csrc/Makefile",
       "fake_test_atomic/data/model_0/runtime/libg1_om2.so",
-      "fake_test_atomic/data/model_0/model_0_constants_config.json",
+      "fake_test_atomic/data/model_0/constants_config.json",
       "fake_test_atomic/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test_atomic/data/kernels/te_Add_12345_atomic_AicoreKernel.o",
       "fake_test_atomic/data/model_0/model_meta.json",
@@ -2744,7 +2744,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithInternalConst) {
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
@@ -2784,7 +2784,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
       "fake_test/data/constants/constant_0",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
@@ -2851,13 +2851,13 @@ void BuildRelocateExternalWeightOm2(const std::string &work_dir, const std::stri
   JsonFile constants_config;
   constants_config.Set("internal_weight_size", 0U).Set("consts", BuildRelocateExternalWeightConsts(old_weight_path));
   const std::string constants_config_str = constants_config.Dump();
-  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config_str.data(),
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/constants_config.json", constants_config_str.data(),
                                     constants_config_str.size(), false));
   const std::string no_consts_config = R"({"internal_weight_size":0})";
-  ASSERT_TRUE(zip_writer.WriteBytes("data/model_1/model_1_constants_config.json", no_consts_config.data(),
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_1/constants_config.json", no_consts_config.data(),
                                     no_consts_config.size(), false));
   const std::string skipped_consts_config = R"({"consts":{"internal":{"type":"INTERNAL"}}})";
-  ASSERT_TRUE(zip_writer.WriteBytes("data/model_2/model_2_constants_config.json", skipped_consts_config.data(),
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_2/constants_config.json", skipped_consts_config.data(),
                                     skipped_consts_config.size(), false));
   const std::string runtime_entry = "runtime";
   ASSERT_TRUE(
@@ -2878,9 +2878,9 @@ void ExpectRelocatedExternalWeightArchive(const std::string &output_file, const 
   const auto file_names = archive.ListFiles();
   EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_0/runtime/libfake.so"),
             file_names.end());
-  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_1/model_1_constants_config.json"),
+  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_1/constants_config.json"),
             file_names.end());
-  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_2/model_2_constants_config.json"),
+  EXPECT_NE(std::find(file_names.begin(), file_names.end(), "saved_model/data/model_2/constants_config.json"),
             file_names.end());
   const JsonFile constants_json = ExtractConstantsConfig(archive, "saved_model");
   ASSERT_TRUE(constants_json.IsValid());
@@ -2929,7 +2929,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOp2) {
       "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
@@ -2955,7 +2955,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOpOfDynamicIo) {
       "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
@@ -2981,7 +2981,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicpuOp) {
       "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
       "fake_test/manifest.json",
@@ -3006,7 +3006,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
       "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
       "fake_test/manifest.json",
@@ -3051,7 +3051,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithTfAicpuOp) {
       "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
       "fake_test/manifest.json",
@@ -3197,7 +3197,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoTask) {
       "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
@@ -3223,7 +3223,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithBarrierTask) {
       "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test/data/model_0/model_meta.json",
       "fake_test/data/model_0/op_attr.json",
@@ -3355,7 +3355,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithSeparatelyCleanTask) {
       "fake_test/data/model_0/runtime/csrc/g1_internal.h",
       "fake_test/data/model_0/runtime/csrc/Makefile",
       "fake_test/data/model_0/runtime/libg1_om2.so",
-      "fake_test/data/model_0/model_0_constants_config.json",
+      "fake_test/data/model_0/constants_config.json",
       "fake_test/data/kernels/te_Add_12345_AicoreKernel.o",
       "fake_test/data/kernels/te_Add_12345_atomic_AicoreKernel.o",
       "fake_test/data/model_0/model_meta.json",
@@ -3905,7 +3905,7 @@ TEST_F(Om2VarSt, GenOm2WithMixedVarNodes_TransRoadAndCopyInfoSerialized) {
 
   bool found_var_weight = false;
   for (const auto &f : archive.ListFiles()) {
-    if (f.find("data/model_0/var_weight_data") != std::string::npos) {
+    if (f.find("data/variables/var_weight_data_0") != std::string::npos) {
       found_var_weight = true;
     }
   }

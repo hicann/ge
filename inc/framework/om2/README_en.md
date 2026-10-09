@@ -1,6 +1,6 @@
-# OM2 SO-to-Executor C ABI Compatibility Rules
+# OM2 Compatibility Rules
 
-This document defines backward- and forward-compatibility rules for APIs, data structures, and their use between the Executor and SO in OM2. The Executor obtains SO capabilities by API symbol name through `dlopen + dlsym`; the JSON file accompanying the SO separately records the ABI compatibility version and the build/release version.
+This document defines the OM2 compatibility contract: the C ABI between the Executor and the SO (Sections 1–8), and the OM2 on-disk package format (Section 9). The Executor obtains SO capabilities by API symbol name through `dlopen + dlsym`; the JSON file accompanying the SO separately records the ABI compatibility version and the build/release version.
 
 ## 1. APIs Use the C Interface
 
@@ -73,3 +73,11 @@ This document defines backward- and forward-compatibility rules for APIs, data s
 - A published `abi_pad_N` must not be enabled, reused, removed, shortened, have its type changed, be moved, or be renamed. New fields must be appended after it.
 - If new padding is required after appending a field, add a new `abi_pad_N`; do not use padding from an older version.
 - The packing/alignment strategy of a public ABI structure must not change or drift because of `#pragma pack`, compiler options, or local attributes.
+
+## 9. OM2 On-Disk Format Compatibility
+
+This section applies to the on-disk format of OM2 packages (ZIP archives and the JSON configurations they contain).
+
+- Paths and file names within a package are public identifiers of the format: once published, they must not be renamed, moved, or reused. New file categories may only be introduced through new paths.
+- The field names, value types, and value semantics of each configuration file are frozen once published. Any change makes old and new packages mutually incompatible and must be released together with a version-negotiation mechanism; it must not be changed silently.
+- A package must declare the compiler-side version and the required executor version. The executor rejects incompatible packages according to established rules (the compiler-side major version must not be higher than the executor version, and the required executor version must not be higher than the executor version); the validation rules are frozen once published.

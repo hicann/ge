@@ -116,7 +116,7 @@ Status DSATaskCodeBuilder::InitHbmArgsTable(TaskSemanticContributeContext &conte
   return SUCCESS;
 }
 
-void DSATaskCodeBuilder::InitBuildDataFields(const uint32_t task_type) {
+void DSATaskCodeBuilder::InitBuildDataFields(const uint32_t task_type, const uint32_t prof_ge_task_type) {
   const uint32_t num_inputs = static_cast<uint32_t>(input_addrs_.size());
   const uint32_t num_outputs = static_cast<uint32_t>(output_addrs_.size());
   const uint32_t ws_base = num_inputs + num_outputs;
@@ -140,6 +140,7 @@ void DSATaskCodeBuilder::InitBuildDataFields(const uint32_t task_type) {
   build_data_.state_from_workspace = (state_from_ws != 0U);
   build_data_.has_input2 = has_input2;
   build_data_.task_type = task_type;
+  build_data_.prof_ge_task_type = prof_ge_task_type;
 }
 
 Status DSATaskCodeBuilder::Contribute(TaskSemanticContributeContext &context) {
@@ -149,6 +150,7 @@ Status DSATaskCodeBuilder::Contribute(TaskSemanticContributeContext &context) {
 
   const domi::DSATaskDef &dsa_task = context.task_def.dsa_task();
 
+  build_data_.op_impl_mode = TaskCodeBuilderUtil::GetOpImplMode(context.op_desc);
   GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, input_addrs_));
   GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, false, output_addrs_));
   GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveWorkspaceAddrs(context, workspace_addrs_));
@@ -180,7 +182,8 @@ Status DSATaskCodeBuilder::Contribute(TaskSemanticContributeContext &context) {
   add_addr_entries(input_addrs_);
   add_addr_entries(output_addrs_);
   add_addr_entries(workspace_addrs_);
-  InitBuildDataFields(static_cast<uint32_t>(context.task_type));
+  InitBuildDataFields(static_cast<uint32_t>(context.task_type),
+                      TaskCodeBuilderUtil::ConvertToProfilingTaskType(context.op_desc, context.task_def));
   return SUCCESS;
 }
 
@@ -400,6 +403,14 @@ Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body,
                                                   dsa_data.Attr("task_type"),
                                                   ctx.Attr("stream_list")[dsa_data.Attr("stream_id")],
                                                   ast_.UInt(1U),
+                                                  ast_.UInt(0U),
+                                                  Arg(nullptr),
+                                                  ast_.ULong(0U),
+                                                  ast_.ULong(0U),
+                                                  ast_.ULong(0U),
+                                                  ast_.ULong(0U),
+                                                  dsa_data.Attr("op_impl_mode"),
+                                                  dsa_data.Attr("prof_ge_task_type"),
                                                   ast_.UInt(0U)})));
   (void)body.push_back(ChkStatus(
       ast_.Call("aclrtStreamGetId",
@@ -501,7 +512,9 @@ Status DSATaskCodeBuilder::RenderOpDefTableFields(std::vector<std::pair<std::str
                                                    data.idx_input2,
                                                    data.num_iov_entries,
                                                    static_cast<int64_t>(data.has_input2),
-                                                   static_cast<int64_t>(data.task_type)})}})});
+                                                   static_cast<int64_t>(data.task_type),
+                                                   static_cast<int64_t>(data.prof_ge_task_type),
+                                                   static_cast<int64_t>(data.op_impl_mode)})}})});
   return SUCCESS;
 }
 

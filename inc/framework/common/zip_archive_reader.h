@@ -27,7 +27,7 @@ struct MemoryFileReadonly {
   uint64_t position;      // Current position.
 };
 
-class GERT_MODEL_DATA_API ZipArchiveReader {
+class ZipArchiveReader {
  public:
   /**
    * Constructs a ZipArchiveReader object using a ZIP archive that already
