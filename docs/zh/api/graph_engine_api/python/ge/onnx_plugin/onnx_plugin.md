@@ -38,6 +38,7 @@ onnx_plugin(*, source: str, domain: str, opsets: Collection[int], target: str) -
 - descriptor会将`source`、`domain`和`opsets`展开为完整的origin type集合（`domain::opset::source`，例如`ai.onnx::11::Elu`）。同一origin type只能由一个C++或Python插件提供。
 - 这里的`domain`是插件作者注册时的声明，与ONNX模型文件中节点的domain字段无关：模型文件里节点的domain允许为空（ONNX标准规定为空即标准域`ai.onnx`），节点侧的显示规则参见[origin_type](OnnxNode/origin_type.md)。
 - origin type冲突在解析器初始化阶段报告：Python插件与C++插件冲突时保留C++插件、拒绝Python插件；多个Python插件之间冲突时解析器初始化失败。
+- `domain`与`opsets`必须与模型导出侧的声明一致（symbolic中的域、`custom_opsets`登记的版本；自定义域的版本惯例恒为`1`）。标准域`ai.onnx`的版本由`opset_version`自动登记，自定义算子应使用自定义域（占用标准域会使版本声明互相覆盖）。声明与模型不一致时编译报错，报错后附带的E19999诊断会指明差异，完整对接约定与排查方法参见[插件样例README](../../../../../../../examples/onnx_plugin/README.md)第3.6节。
 
 ## 调用示例
 

@@ -135,6 +135,10 @@ When the node carries composite attributes such as tensors (for example the `val
 
 The origin type used for matching is constructed by the parser from the model file: `<node domain>::<model opset_import version>::<node op_type>`. The node's `domain` field can be empty; per the ONNX standard, empty means the standard domain `ai.onnx`. The domain and opset here come from the model file, while the `domain` registered by the plugin is a mapping key explicitly declared by the author; the two match only when their values are identical.
 
+When reading `opset_import`, the parser normalizes the empty domain to `ai.onnx`. If one normalized domain is declared with multiple different versions (the typical case: the export side configures `ai.onnx` in `custom_opsets` with a version different from `opset_version`), the parser prints a WARNING naming the conflicting versions and the effective one; the matching behavior is unchanged (the later declaration wins).
+
+When an origin type misses all registrations, the parser appends an E19999 diagnosis besides the original errors (E13010 in the pre-check stage and E16002 in the parsing stage): if the domain has a version conflict, the diagnosis references the conflict and probes registrations under the other declared versions — for example, if the model resolves to `ai.onnx::2::Relu` while `ai.onnx::13::Relu` is registered under another declared version, the diagnosis points to the export-side version override; without a conflict, a generic hint is given (check that the plugin's declared domain/opsets cover the origin and that the plugin file is discoverable via `ASCEND_CUSTOM_OPP_PATH`). The diagnosis only adds information and never changes parsing behavior.
+
 After a node hits a registration, the dispatch rules are:
 
 - `parse_node` and `parse_operator` belong to the same parameter parsing stage; bind only one of them. When both are bound to the same descriptor, the parser calls only the callback bound by `parse_operator`, and the callback bound by `parse_node` is ignored without an error;

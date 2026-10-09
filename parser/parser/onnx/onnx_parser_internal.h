@@ -25,7 +25,9 @@
 #endif
 #endif
 
+#include <deque>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 #include "omg/parser/model_parser.h"
@@ -36,6 +38,13 @@
 #include "proto/onnx/ge_onnx.pb.h"
 
 namespace ge {
+struct ParseArg {
+  ge::onnx::GraphProto *onnx_graph;
+  ge::NodePtr parent_node;
+  std::string graph_name;
+  uint32_t subgraph_index;
+};
+
 class PARSER_FUNC_VISIBILITY OnnxModelParser : public domi::ModelParser {
  public:
   OnnxModelParser() {}
@@ -131,6 +140,17 @@ class PARSER_FUNC_VISIBILITY OnnxModelParser : public domi::ModelParser {
 
   Status ModelParseToGraph(const ge::onnx::ModelProto &onnx_model, ge::Graph &root_graph);
 
+  Status ProcessGraphParseTasks(std::deque<ParseArg> &tasks,
+                                const std::map<std::string, ge::onnx::GraphProto *> &name_to_onnx_graph,
+                                ge::Graph &root_graph, bool &parse_finished);
+
+  Status ParseSingleGraphTask(const ParseArg &arg, ge::Graph &root_graph, std::deque<ParseArg> &tasks,
+                              bool &parse_finished);
+
+  void BuildDomainVersionMap(const ge::onnx::ModelProto &onnx_model);
+
+  std::string BuildOriginMissDiagnosis(const std::string &node_name, const std::string &ori_type) const;
+
   Status ModelParseToGraphImpl(bool is_subgraph, ge::onnx::GraphProto &onnx_graph, ge::Graph &graph);
 
   void UpdateDataFormat(ge::Graph &graph) const;
@@ -149,6 +169,10 @@ class PARSER_FUNC_VISIBILITY OnnxModelParser : public domi::ModelParser {
   std::map<std::string, std::string> ori_to_om_type_;
 
   std::map<std::string, int64_t> domain_verseion_;
+
+  std::map<std::string, std::set<int64_t>> domain_version_conflicts_;
+
+  int64_t default_domain_version_ = -1;
 
   std::map<std::string, ge::Operator> name_operator_;
 

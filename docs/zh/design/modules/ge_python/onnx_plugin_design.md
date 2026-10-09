@@ -135,6 +135,10 @@ onnx_plugin(*, source: str, domain: str, opsets: Collection[int], target: str) -
 
 匹配使用的 origin type 由解析器从模型文件构造：`<节点domain>::<模型opset_import版本>::<节点op_type>`。节点的 `domain` 字段允许为空，按 ONNX 标准规定为空即标准域 `ai.onnx`；这里的 domain 与 opset 来自模型文件，而插件注册的 `domain` 是作者显式声明的映射键，两者只有取值相同时才匹配。
 
+解析器读入 `opset_import` 时把空 domain 归一化为 `ai.onnx`。同一归一化域被声明多个不同版本时（典型场景：导出侧通过 `custom_opsets` 给 `ai.onnx` 配置了与 `opset_version` 不同的版本号），解析器打印 WARNING 指明冲突版本与生效版本，匹配行为不变（后声明的版本生效）。
+
+origin type 未命中注册项时，解析器在原有报错（预检查阶段 E13010、解析阶段 E16002）之外追加一条 E19999 诊断：该域存在版本冲突时，诊断引用冲突信息并探测其它声明版本下的注册情况——例如模型解析为 `ai.onnx::2::Relu` 而其它声明版本下 `ai.onnx::13::Relu` 已注册，则指明是导出侧版本覆盖所致；无冲突时给出通用提示（检查插件声明的 domain/opsets 是否覆盖该 origin、`ASCEND_CUSTOM_OPP_PATH` 能否发现插件文件）。诊断只做信息补充，不改变解析行为。
+
 节点命中注册项后的分发规则：
 
 - `parse_node` 与 `parse_operator` 同属参数解析阶段，二者选其一绑定。对同一描述符同时绑定时，解析器只调用 `parse_operator` 绑定的回调，`parse_node` 绑定的回调被忽略且不报错；
