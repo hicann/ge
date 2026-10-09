@@ -98,15 +98,28 @@ bool PassOptionUtils::IsPassEnable(const std::map<std::string, bool> &pass_name_
   static const std::string kPassSwitchAll = "ALL";
   bool is_enable_by_option = false;
   if (CheckIsPassEnabledByOption(pass_name, is_enable_by_option) == SUCCESS) {
+    if (!is_enable_by_option) {
+      GELOGI("[PassSwitch] Pass [%s] is disabled by graph option (--optimization_switch).", pass_name.c_str());
+    }
     return is_enable_by_option;
   }
   const auto iter = pass_name_2_switches.find(pass_name);
   if (iter != pass_name_2_switches.cend()) {
+    if (!iter->second) {
+      GELOGI("[PassSwitch] Pass [%s] is disabled by fusion switch file: entry [%s] is off.", pass_name.c_str(),
+             pass_name.c_str());
+    }
     return iter->second;
   }
   const auto all_iter = pass_name_2_switches.find(kPassSwitchAll);
   if (all_iter != pass_name_2_switches.end()) {
+    if (!all_iter->second) {
+      GELOGI("[PassSwitch] Pass [%s] is disabled by fusion switch file: entry [ALL] is off.", pass_name.c_str());
+    }
     return all_iter->second;
+  }
+  if (default_switch == PassSwitch::kOff) {
+    GELOGI("[PassSwitch] Pass [%s] is disabled by registration default (DefaultSwitch kOff).", pass_name.c_str());
   }
   return default_switch == PassSwitch::kOn;
 }
