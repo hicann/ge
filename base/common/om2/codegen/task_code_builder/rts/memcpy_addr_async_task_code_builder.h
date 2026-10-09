@@ -56,7 +56,7 @@ class MemcpyAddrAsyncTaskCodeBuilder : public TaskCodeBuilder {
                           const AddrSemantic &dst_addr_node);
   void PopulateBuildData();
   Status RenderKernelDistributeFunc(std::vector<DeclNode *> &items) const;
-  Status RenderDispatchFunc(std::vector<DeclNode *> &items);
+  Status RenderDispatchFunc(std::vector<DeclNode *> &items) const;
   std::vector<BodyItem> RenderIoAddrResolveLoop(const VarRef &ctx, const ExprRef &memcpy_addr) const;
   Status RenderCustomValueWriteback(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
                                     const ExprRef &args_table_idx) const;

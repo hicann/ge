@@ -180,7 +180,7 @@ Status MemcpyAddrAsyncTaskCodeBuilder::RenderKernelDistributeFunc(std::vector<De
   return SUCCESS;
 }
 
-Status MemcpyAddrAsyncTaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &items) {
+Status MemcpyAddrAsyncTaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &items) const {
   std::vector<BodyItem> body;
   auto op = ast_.Var("const TaskDispatchInfo *", "op");
   auto ctx = ast_.Var("const DispatchOpContext &", "ctx");

@@ -23,7 +23,7 @@ using OpExtGenTaskFunc = ge::Status (*)(const ge::Node &node, ge::RunContext &co
 using SKExtGenTaskFunc = ge::Status (*)(const ge::Node &node, std::vector<std::vector<domi::TaskDef>> &subTasks,
                                         const std::vector<ge::Node *> &sub_nodes, std::vector<domi::TaskDef> &tasks);
 
-enum class ExtTaskType { kFftsPlusTask, kAicoreTask };
+enum class ExtTaskType : uint32_t { kFftsPlusTask, kAicoreTask };
 
 class OpExtGenTaskRegistry {
  public:
@@ -80,8 +80,8 @@ class ExtTaskTypeRegister {
 
 #define REGISTER_EXT_TASK_TYPE_COUNTER2(type, task_type, counter)                      \
   static const fe::ExtTaskTypeRegister g_reg_op_ext_gentask_##counter ATTRIBUTE_USED = \
-      fe::ExtTaskTypeRegister(#type, task_type)
+      fe::ExtTaskTypeRegister(#type, (task_type))
 #define REGISTER_EXT_TASK_TYPE_COUNTER(type, task_type, counter) \
-  REGISTER_EXT_TASK_TYPE_COUNTER2(type, task_type, counter)
+  REGISTER_EXT_TASK_TYPE_COUNTER2(type, (task_type), counter)
 #define REGISTER_EXT_TASK_TYPE(type, task_type) REGISTER_EXT_TASK_TYPE_COUNTER(type, (task_type), __COUNTER__)
 #endif  // INC_GRAPH_METADEF_REGISTER_OP_EXT_GENTASK_REGISTRY_H

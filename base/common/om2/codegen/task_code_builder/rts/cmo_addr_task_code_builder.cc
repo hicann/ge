@@ -175,7 +175,7 @@ Status CmoAddrTaskCodeBuilder::RenderKernelLaunch(std::vector<BodyItem> &body, c
 }
 
 Status CmoAddrTaskCodeBuilder::RenderArgsWriteback(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                                   const VarRef &iow_addr, const ExprRef &args_table_idx) {
+                                                   const VarRef &iow_addr, const ExprRef &args_table_idx) const {
   (void)body.push_back(ChkStatus(MemcpyS(
       ast_.Call(
           "ValueToPtr",

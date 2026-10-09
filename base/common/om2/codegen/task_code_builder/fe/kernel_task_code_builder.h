@@ -176,9 +176,9 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
 
   // ── Dispatch helpers ──
   Status RenderDispatchAicore(const VarRef &op, const VarRef &ctx, std::vector<DeclNode *> &items);
-  Status RenderDispatchAicpu(const VarRef &op, const VarRef &ctx, std::vector<DeclNode *> &items);
+  Status RenderDispatchAicpu(const VarRef &op, const VarRef &ctx, std::vector<DeclNode *> &items) const;
   std::vector<BodyItem> RenderDispatchSetup(const VarRef &op, const VarRef &ctx) const;
-  BodyItem RenderDispatchLoop(const VarRef &op, const VarRef &ctx);
+  BodyItem RenderDispatchLoop(const VarRef &op, const VarRef &ctx) const;
   std::vector<BodyItem> RenderDistribution(const VarRef &op, const VarRef &ctx) const;
   std::vector<BodyItem> RenderAicpuDispatchSetup(const VarRef &op, const VarRef &ctx) const;
   std::vector<BodyItem> RenderAicpuLaunchAndAssemble(const VarRef &op, const VarRef &ctx) const;

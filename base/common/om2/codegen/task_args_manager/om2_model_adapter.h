@@ -151,7 +151,7 @@ class ModelAdapter {
   std::vector<std::vector<uint64_t>> output_addrs_list_;
   std::vector<int64_t> output_buffer_size_;
   std::vector<GeShape> output_shape_info_;
-  std::vector<bool> output_no_tiling_flag_;
+  vector_bit_t output_no_tiling_flag_;
   bool has_no_tiling_output_ = false;
   std::vector<InputOutputDescInfo> origin_input_descs_;
   std::vector<InputOutputDescInfo> input_descs_;

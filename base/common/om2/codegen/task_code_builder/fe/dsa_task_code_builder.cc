@@ -363,7 +363,7 @@ Status DSATaskCodeBuilder::RenderDispatchFuncLaunch(std::vector<BodyItem> &body,
 }
 
 Status DSATaskCodeBuilder::RenderDispatchFuncReport(std::vector<BodyItem> &body, const VarRef &op, const VarRef &ctx,
-                                                    const ExprRef &dsa_data, const VarRef &addrs) {
+                                                    const ExprRef &dsa_data, const VarRef &addrs) const {
   auto dsa_io_tensors = ast_.Var("std::vector<gert::Tensor>", "dsa_io_tensors");
   (void)body.push_back(ast_.VarDecl(dsa_io_tensors));
   (void)body.push_back(ast_.Call("", {dsa_io_tensors.Attr("reserve")(dsa_data.Attr("num_args"))}));

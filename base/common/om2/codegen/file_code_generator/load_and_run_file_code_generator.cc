@@ -293,7 +293,7 @@ void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseModelExecute(std::vector<Body
 
 void LoadAndRunFileCodeGenerator::BuildRunBodyPhaseOutputCopy(std::vector<BodyItem> &body,
                                                               const std::vector<ModelIoEntry> &entries,
-                                                              VarRef exe_stream, bool is_async) {
+                                                              VarRef exe_stream, bool is_async) const {
   BuildRunBodyCopyOutputs(body, entries, exe_stream, is_async);
 }
 
