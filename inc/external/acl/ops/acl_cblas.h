@@ -211,7 +211,6 @@ ACL_FUNC_VISIBILITY aclError aclblasGemmEx(aclTransType transA, aclTransType tra
  * @param dataTypeC [IN]   datatype of matrix C
  * @param type [IN]        computation type
  * @param handle [OUT]     pointer to the pointer to the handle
- * @param type [IN]        computation type
  *
  * @retval ACL_SUCCESS The function is successfully executed.
  * @retval OtherValues Failure
