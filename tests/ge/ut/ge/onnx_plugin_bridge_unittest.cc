@@ -10,8 +10,13 @@
 
 #include <dlfcn.h>
 #include <gtest/gtest.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <cstdarg>
+#include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -80,6 +85,72 @@ bool HasReportedErrorContaining(const std::string &needle) {
   }
   return false;
 }
+
+class ScopedTempTree {
+ public:
+  ScopedTempTree() {
+    char dir_template[] = "/tmp/ge_onnx_plugin_entry_ut_XXXXXX";
+    const auto *created_dir = mkdtemp(dir_template);
+    root_ = (created_dir == nullptr) ? std::string() : std::string(created_dir);
+  }
+
+  ~ScopedTempTree() {
+    for (auto file_iter = files_.rbegin(); file_iter != files_.rend(); ++file_iter) {
+      (void)remove(file_iter->c_str());
+    }
+    for (auto dir_iter = dirs_.rbegin(); dir_iter != dirs_.rend(); ++dir_iter) {
+      (void)rmdir(dir_iter->c_str());
+    }
+    if (!root_.empty()) {
+      (void)rmdir(root_.c_str());
+    }
+  }
+
+  const std::string &Root() const {
+    return root_;
+  }
+
+  std::string Path(const std::string &relative_path) const {
+    return root_ + "/" + relative_path;
+  }
+
+  std::string MakeDir(const std::string &relative_path) {
+    std::string current = root_;
+    size_t start = 0U;
+    while (start < relative_path.size()) {
+      const auto end = relative_path.find('/', start);
+      const auto part = relative_path.substr(start, end == std::string::npos ? end : end - start);
+      if (!part.empty()) {
+        current = current + "/" + part;
+        if (mkdir(current.c_str(), 0700) == 0) {
+          dirs_.push_back(current);
+        }
+      }
+      if (end == std::string::npos) {
+        break;
+      }
+      start = end + 1U;
+    }
+    return current;
+  }
+
+  std::string WriteFile(const std::string &relative_path, const std::string &content) {
+    const auto slash_pos = relative_path.find('/');
+    if (slash_pos != std::string::npos) {
+      (void)MakeDir(relative_path.substr(0U, slash_pos));
+    }
+    const auto file_path = Path(relative_path);
+    std::ofstream output(file_path);
+    output << content;
+    files_.push_back(file_path);
+    return file_path;
+  }
+
+ private:
+  std::string root_;
+  std::vector<std::string> dirs_;
+  std::vector<std::string> files_;
+};
 
 namespace py = pybind11;
 
@@ -337,6 +408,40 @@ TEST(OnnxPythonPluginBridge, ParseGraphCallbacks) {
   unsetenv("ASCEND_CUSTOM_OPP_PATH");
 }
 
+TEST(OnnxPythonPluginBridge, HasPythonOnnxPluginEntryInEnv) {
+  EXPECT_FALSE(HasPythonOnnxPluginEntryInEnv(nullptr));
+  EXPECT_FALSE(HasPythonOnnxPluginEntryInEnv(""));
+  EXPECT_FALSE(HasPythonOnnxPluginEntryInEnv(":: :"));
+
+  ScopedTempTree tree;
+  tree.MakeDir("op_impl");
+  tree.MakeDir("op_proto");
+  tree.WriteFile("op_impl/libmy_op.so", "");
+  tree.WriteFile("op_proto/my_op.ini", "");
+  EXPECT_FALSE(HasPythonOnnxPluginEntryInEnv(tree.Root().c_str()));
+
+  tree.WriteFile("plugin_entry.py", "");
+  EXPECT_TRUE(HasPythonOnnxPluginEntryInEnv(tree.Root().c_str()));
+  EXPECT_TRUE(HasPythonOnnxPluginEntryInEnv(tree.Path("plugin_entry.py").c_str()));
+  EXPECT_FALSE(HasPythonOnnxPluginEntryInEnv(tree.Path("op_proto/my_op.ini").c_str()));
+
+  {
+    ScopedTempTree hidden_tree;
+    hidden_tree.WriteFile("_private.py", "");
+    EXPECT_FALSE(HasPythonOnnxPluginEntryInEnv(hidden_tree.Root().c_str()));
+  }
+
+  {
+    ScopedTempTree pkg_tree;
+    pkg_tree.WriteFile("mypkg/__init__.py", "");
+    EXPECT_TRUE(HasPythonOnnxPluginEntryInEnv(pkg_tree.Root().c_str()));
+  }
+
+  EXPECT_FALSE(HasPythonOnnxPluginEntryInEnv("/tmp/__ge_onnx_plugin_not_exist_dir__"));
+  EXPECT_TRUE(HasPythonOnnxPluginEntryInEnv(("/tmp/__ge_onnx_plugin_not_exist_dir__:" + tree.Root()).c_str()));
+  EXPECT_TRUE(HasPythonOnnxPluginEntryInEnv(("  " + tree.Root() + " : ").c_str()));
+}
+
 TEST(OnnxPythonPluginBridge, LoadThroughCommonLoader) {
   const char *old_plugin_path = std::getenv("ASCEND_CUSTOM_OPP_PATH");
   const std::string old_plugin_path_value = old_plugin_path == nullptr ? "" : old_plugin_path;
@@ -347,9 +452,24 @@ TEST(OnnxPythonPluginBridge, LoadThroughCommonLoader) {
 
   ASSERT_EQ(unsetenv("ASCEND_CUSTOM_OPP_PATH"), 0);
   EXPECT_EQ(LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()), SUCCESS);
-  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__ge_py_onnx_plugin_in_memory__", 1), 0);
+
+  {
+    // ASCEND_CUSTOM_OPP_PATH 指向纯 C++ 自定义算子目录（无 python 插件入口）时不加载桥接，
+    // 避免环境不满足 Python 插件要求时阻断所有 ONNX 模型编译。
+    ScopedTempTree cpp_only_dir;
+    ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", cpp_only_dir.Root().c_str(), 1), 0);
+    ASSERT_EQ(setenv("PYTHONPATH", "", 1), 0);
+    EXPECT_EQ(LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()), SUCCESS);
+  }
+
+  // 目录含 python 插件入口但无匹配桥接产物：失败并上报可定位详情。
+  ScopedTempTree entry_dir;
+  entry_dir.WriteFile("plugin_entry.py", "");
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", entry_dir.Root().c_str(), 1), 0);
   ASSERT_EQ(setenv("PYTHONPATH", "", 1), 0);
+  ClearReportedErrors();
   EXPECT_EQ(LoadOnnxPythonPluginBridge(GetOnnxPluginBridgeRegistrar()), FAILED);
+  EXPECT_TRUE(HasReportedErrorContaining("No compatible ONNX Python plugin bridge artifact found"));
 
   if (had_python_path) {
     ASSERT_EQ(setenv("PYTHONPATH", old_python_path_value.c_str(), 1), 0);

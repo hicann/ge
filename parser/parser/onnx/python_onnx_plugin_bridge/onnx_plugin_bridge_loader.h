@@ -21,6 +21,9 @@ struct PythonOnnxPluginRegistrar;
 __attribute__((visibility("default"))) Status
 LoadOnnxPythonPluginBridge(const onnx_plugin_bridge::PythonOnnxPluginRegistrar *registrar);
 __attribute__((visibility("default"))) void UnloadOnnxPythonPluginBridge();
+// 检查 ASCEND_CUSTOM_OPP_PATH 取值中是否存在可加载的 Python ONNX 插件入口：
+// 冒号分隔的各路径段为 .py 文件，或目录下存在非下划线开头的 .py 文件 / 含 __init__.py 的子目录。
+__attribute__((visibility("default"))) bool HasPythonOnnxPluginEntryInEnv(const char *env_value);
 
 }  // namespace ge
 

@@ -9,6 +9,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <unistd.h>
+
+#include <cstdlib>
 #include <iostream>
 #include "parser/common/op_parser_factory.h"
 #include "graph/operator_reg.h"
@@ -914,6 +917,63 @@ TEST_F(UtestOnnxParser, onnx_test_ModelParseToGraph) {
 
   Status ret = modelParser.ModelParseToGraph(model_proto, root_graph);
   EXPECT_EQ(ret, FAILED);
+}
+
+TEST_F(UtestOnnxParser, onnx_model_parse_with_cpp_only_custom_opp_path) {
+  // ASCEND_CUSTOM_OPP_PATH 指向纯 C++ 自定义算子目录（无 python 插件入口）时，
+  // ONNX Python 插件桥接应被跳过，模型解析不因环境不满足 Python 插件要求而失败。
+  char dir_template[] = "/tmp/ge_onnx_cpp_opp_ut_XXXXXX";
+  const auto *cpp_opp_dir = mkdtemp(dir_template);
+  ASSERT_NE(cpp_opp_dir, nullptr);
+  const char *old_opp_path = std::getenv("ASCEND_CUSTOM_OPP_PATH");
+  const std::string old_opp_path_value = old_opp_path == nullptr ? "" : old_opp_path;
+  const bool had_opp_path = old_opp_path != nullptr;
+  const char *old_python_path = std::getenv("PYTHONPATH");
+  const std::string old_python_path_value = old_python_path == nullptr ? "" : old_python_path;
+  const bool had_python_path = old_python_path != nullptr;
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", cpp_opp_dir, 1), 0);
+  ASSERT_EQ(setenv("PYTHONPATH", "", 1), 0);
+
+  ge::onnx::ModelProto model_proto;
+  ge::onnx::OperatorSetIdProto *op_st = model_proto.add_opset_import();
+  op_st->set_domain("ai.onnx");
+  op_st->set_version(11);
+  ge::onnx::GraphProto *graph = model_proto.mutable_graph();
+  ge::onnx::ValueInfoProto *input_x = graph->add_input();
+  input_x->set_name("X");
+  auto tensor_type_x = input_x->mutable_type()->mutable_tensor_type();
+  tensor_type_x->set_elem_type(1);
+  auto shape_x = tensor_type_x->mutable_shape();
+  shape_x->add_dim()->set_dim_value(2);
+  shape_x->add_dim()->set_dim_value(8);
+  ge::onnx::ValueInfoProto *output_y = graph->add_output();
+  output_y->set_name("Y");
+  auto tensor_type_y = output_y->mutable_type()->mutable_tensor_type();
+  tensor_type_y->set_elem_type(1);
+  ge::onnx::NodeProto *node = graph->add_node();
+  node->set_name("RandomNormal_0");
+  node->set_op_type("RandomNormal");
+  node->add_output("Y");
+
+  OnnxModelParser model_parser;
+  ge::Graph root_graph("test_cpp_only_custom_opp_path");
+  Status ret = model_parser.ModelParseToGraph(model_proto, root_graph);
+  EXPECT_EQ(ret, SUCCESS);
+  auto compute_graph = ge::GraphUtilsEx::GetComputeGraph(root_graph);
+  ASSERT_NE(compute_graph, nullptr);
+  EXPECT_NE(compute_graph->FindNode("RandomNormal_0"), nullptr);
+
+  (void)rmdir(cpp_opp_dir);
+  if (had_opp_path) {
+    ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", old_opp_path_value.c_str(), 1), 0);
+  } else {
+    ASSERT_EQ(unsetenv("ASCEND_CUSTOM_OPP_PATH"), 0);
+  }
+  if (had_python_path) {
+    ASSERT_EQ(setenv("PYTHONPATH", old_python_path_value.c_str(), 1), 0);
+  } else {
+    ASSERT_EQ(unsetenv("PYTHONPATH"), 0);
+  }
 }
 
 TEST_F(UtestOnnxParser, onnx_test_SetExternalPath) {

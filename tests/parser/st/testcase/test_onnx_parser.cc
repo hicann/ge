@@ -42,6 +42,7 @@ REG_OP(BridgeDecomposeTarget)
     .OP_END_FACTORY_REG(BridgeDecomposeTarget);
 
 using onnx_plugin_test::ScopedInMemoryPlugin;
+using onnx_plugin_test::ScopedPluginEntryDir;
 
 class STestOnnxParser : public testing::Test {
  protected:
@@ -533,7 +534,8 @@ TEST_F(STestOnnxParser, onnx_python_plugin_bridge_parse) {
   ASSERT_EQ(setenv("PYTHONPATH", ONNX_PLUGIN_PY_INSTALL_DIR, 1), 0);
   ASSERT_EQ(GePythonRuntimeManager::Instance().EnsureReady(), SUCCESS);
   ScopedInMemoryPlugin in_memory_plugin;
-  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__ge_py_onnx_plugin_in_memory__", 1), 0);
+  ScopedPluginEntryDir entry_dir;
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", entry_dir.Path().c_str(), 1), 0);
   std::string case_dir = __FILE__;
   case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::map<ge::AscendString, ge::AscendString> parser_params;
@@ -559,7 +561,8 @@ TEST_F(STestOnnxParser, onnx_python_plugin_bridge_parse_without_explicit_load) {
   // the bridge and register the python plugin before parsing.
   ASSERT_EQ(setenv("PYTHONPATH", ONNX_PLUGIN_PY_INSTALL_DIR, 1), 0);
   ScopedInMemoryPlugin in_memory_plugin;
-  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", "__ge_py_onnx_plugin_in_memory__", 1), 0);
+  ScopedPluginEntryDir entry_dir;
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", entry_dir.Path().c_str(), 1), 0);
 
   auto model_parser = domi::ModelParserFactory::Instance()->CreateModelParser(domi::ONNX);
   ASSERT_NE(model_parser, nullptr);
