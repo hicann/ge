@@ -11,6 +11,7 @@
 #ifndef AIR_CXX_RUNTIME_V2_CORE_OM2_MODEL_EXECUTOR_H_
 #define AIR_CXX_RUNTIME_V2_CORE_OM2_MODEL_EXECUTOR_H_
 #include <memory>
+#include <utility>
 #include <vector>
 #include "common/ge_visibility.h"
 #include "common/ge_common/ge_types.h"
@@ -109,8 +110,14 @@ VISIBILITY_EXPORT ge::Status GetOm2ModelMetadata(const void *model_data, size_t 
 VISIBILITY_EXPORT std::unique_ptr<Om2ModelExecutor> LoadOm2ExecutorFromData(ge::ModelData &model_data,
                                                                             const Om2ModelLoadArg &load_arg,
                                                                             ge::graphStatus &error_code);
+VISIBILITY_EXPORT std::unique_ptr<Om2ModelExecutor> LoadOm2ExecutorFromBundleData(const void *model_data,
+                                                                                  size_t model_size, size_t model_index,
+                                                                                  const Om2ModelLoadArg &load_arg,
+                                                                                  ge::graphStatus &error_code);
 VISIBILITY_EXPORT ge::Status IsOm2Model(const void *data, size_t size, bool &is_support);
 VISIBILITY_EXPORT ge::Status IsOm2Model(const char *file_path, bool &is_support);
+VISIBILITY_EXPORT ge::Status GetOm2BundleInfo(const void *data, size_t size,
+                                              std::vector<std::pair<size_t, size_t>> &model_sizes, size_t &var_size);
 }  // namespace gert
 
 #endif  // AIR_CXX_RUNTIME_V2_CORE_OM2_MODEL_EXECUTOR_H_

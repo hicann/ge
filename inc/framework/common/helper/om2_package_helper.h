@@ -45,6 +45,17 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
   Status BuildOm2ModelData(const GeModelPtr &ge_model, gert::GertModelData &model_data,
                            const GeRootModelPtr &ge_root_model = nullptr);
 
+  /// @brief 确保 ge_root_model 上已挂载 GertModelData（幂等：已挂载则直接返回）。
+  /// @param ge_root_model  编译产出的根模型。
+  static Status EnsureGertModelData(const GeRootModelPtr &ge_root_model);
+
+  /// @brief 将各子模型 GertModelData 组装为 Bundle 结构（移动语义：子模型的 models/constants 槽被移出）。
+  /// @param sub_models  各子模型编译产物（每个须为单模型、非 Bundle、无 custom op so）。
+  /// @param global_shared_var_size  全局共享变量 HBM 总大小，写入各子模型 variables_config。
+  /// @param bundle_data 输出的 Bundle 结构（models/constants/kernels/custom_ops/manifest 齐备）。
+  static Status AssembleBundleModelData(std::vector<std::shared_ptr<gert::GertModelData>> &sub_models,
+                                        const uint64_t global_shared_var_size, gert::GertModelData &bundle_data);
+
   void SetSaveMode(const bool val) override;
 
   static Status RelocateExternalWeights(const std::string &output_file_name, const ModelBufferData &model,

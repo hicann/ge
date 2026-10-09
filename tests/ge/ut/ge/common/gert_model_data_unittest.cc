@@ -251,6 +251,28 @@ TEST_F(Om2ModelDataTest, PopulateManifest) {
   EXPECT_EQ(std::string(gert::GertGetStr(model_data.manifest->atc_command)), "");
 }
 
+TEST_F(Om2ModelDataTest, Manifest_BundleFields_Defaults) {
+  GertModelDataManifest manifest;
+  EXPECT_EQ(manifest.model_num, 0U);
+  EXPECT_EQ(manifest.atc_command, nullptr);
+}
+
+TEST_F(Om2ModelDataTest, Manifest_PopulateBundleFields) {
+  GertModelDataManifest manifest;
+  manifest.model_num = 2U;
+  manifest.compatibility.compiler_version = gert::GertMakeStr("1.0");
+
+  EXPECT_EQ(manifest.model_num, 2U);
+  EXPECT_EQ(std::string(gert::GertGetStr(manifest.compatibility.compiler_version)), "1.0");
+}
+
+TEST_F(Om2ModelDataTest, VariablesConfig_GlobalSharedVarSize_DefaultAndPopulate) {
+  GertModelDataVariablesConfig config;
+  EXPECT_EQ(config.global_shared_var_size, 0U);
+  config.global_shared_var_size = 4096U;
+  EXPECT_EQ(config.global_shared_var_size, 4096U);
+}
+
 // Test move semantics
 TEST_F(Om2ModelDataTest, MoveSemantics) {
   GertModelData model_data1;

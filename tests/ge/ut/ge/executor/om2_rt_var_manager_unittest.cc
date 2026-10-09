@@ -9,12 +9,38 @@
  */
 
 #include <gtest/gtest.h>
+#include <vector>
 #include "runtime/om2/om2_rt_var_manager.h"
 #include "framework/common/gert_model_data_utils.h"
 #include "rt_external_mem.h"
+#include "common/ge_common/error_codes_define.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 
 namespace gert {
 namespace {
+
+class FreeRecordingAclRuntimeStub : public ge::AclRuntimeStub {
+ public:
+  aclError aclrtFree(void *devPtr) override {
+    freed_ptrs.push_back(devPtr);
+    return ge::AclRuntimeStub::aclrtFree(devPtr);
+  }
+
+  std::vector<void *> freed_ptrs;
+};
+
+class AclRuntimeStubGuard {
+ public:
+  explicit AclRuntimeStubGuard(ge::AclRuntimeStub *stub) : stub_(stub) {
+    ge::AclRuntimeStub::Install(stub_);
+  }
+  ~AclRuntimeStubGuard() {
+    ge::AclRuntimeStub::UnInstall(stub_);
+  }
+
+ private:
+  ge::AclRuntimeStub *stub_;
+};
 
 class Om2RTVarManagerTest : public testing::Test {
  protected:
@@ -163,6 +189,130 @@ TEST_F(Om2RTVarManagerTest, CopyVarDataSkipsNoCopyInfo) {
   auto resource = MakeEntries(std::move(entry));
   ASSERT_EQ(mgr.Init(resource), ge::SUCCESS);
   ASSERT_EQ(mgr.CopyVarData({"v1"}, 0), ge::SUCCESS);
+}
+
+TEST_F(Om2RTVarManagerTest, InitRejectsInconsistentSharedVarSize) {
+  Om2RTVarManager mgr;
+  auto e1 = MakeVarEntry("v1", "VARIABLE", 1024);
+  auto r1 = MakeEntries(std::move(e1));
+  ASSERT_EQ(mgr.Init(r1), ge::SUCCESS);
+
+  // 同 var_key（name + tensor_desc 一致）但 size 不一致，Bundle 共享变量校验必须拒绝
+  auto e2 = MakeVarEntry("v1", "VARIABLE", 2048);
+  auto r2 = MakeEntries(std::move(e2));
+  EXPECT_EQ(mgr.Init(r2), ge::PARAM_INVALID);
+  EXPECT_EQ(mgr.GetVarResource().GetAllEntries().size(), 1U);
+}
+
+TEST_F(Om2RTVarManagerTest, InitRejectsInconsistentSharedVarLogicAddr) {
+  Om2RTVarManager mgr;
+  auto e1 = MakeVarEntry("v1", "VARIABLE", 1024);
+  e1.logic_addr = kMemoryVarLogicBase + 0x1000U;
+  auto r1 = MakeEntries(std::move(e1));
+  ASSERT_EQ(mgr.Init(r1), ge::SUCCESS);
+
+  // 同 var_key 但逻辑地址不一致，跨子模型共享语义被破坏，必须拒绝
+  auto e2 = MakeVarEntry("v1", "VARIABLE", 1024);
+  e2.logic_addr = kMemoryVarLogicBase + 0x2000U;
+  auto r2 = MakeEntries(std::move(e2));
+  EXPECT_EQ(mgr.Init(r2), ge::PARAM_INVALID);
+}
+
+TEST_F(Om2RTVarManagerTest, InitAcceptsConsistentSharedVar) {
+  Om2RTVarManager mgr;
+  auto e1 = MakeVarEntry("v1", "VARIABLE", 1024);
+  e1.logic_addr = kMemoryVarLogicBase + 0x1000U;
+  auto r1 = MakeEntries(std::move(e1));
+  ASSERT_EQ(mgr.Init(r1), ge::SUCCESS);
+
+  // 各字段一致的共享变量重复 Init 幂等（Bundle 多子模型共享场景）
+  auto e2 = MakeVarEntry("v1", "VARIABLE", 1024);
+  e2.logic_addr = kMemoryVarLogicBase + 0x1000U;
+  auto r2 = MakeEntries(std::move(e2));
+  EXPECT_EQ(mgr.Init(r2), ge::SUCCESS);
+  EXPECT_EQ(mgr.GetVarResource().GetAllEntries().size(), 1U);
+}
+
+TEST_F(Om2RTVarManagerTest, GetVarDevAddrUsesExternalArena) {
+  Om2RTVarManager mgr;
+  auto entry = MakeVarEntry("v1", "VARIABLE", 512);
+  entry.logic_addr = kMemoryVarLogicBase + 64U;
+  auto resource = MakeEntries(std::move(entry));
+  std::vector<uint8_t> arena(4096U, 0U);
+  ASSERT_EQ(mgr.Init(resource, arena.data(), arena.size()), ge::SUCCESS);
+
+  void *addr = nullptr;
+  ASSERT_EQ(mgr.GetVarDevAddr("v1", 0, addr), ge::SUCCESS);
+  EXPECT_EQ(addr, static_cast<void *>(arena.data() + 64U));
+
+  void *addr_again = nullptr;
+  ASSERT_EQ(mgr.GetVarDevAddr("v1", 0, addr_again), ge::SUCCESS);
+  EXPECT_EQ(addr_again, addr);
+}
+
+TEST_F(Om2RTVarManagerTest, GetVarDevAddrExternalArenaInvalidLogicAddrFails) {
+  std::vector<uint8_t> arena(1024U, 0U);
+  {
+    // offset + size 超出 arena 范围
+    Om2RTVarManager mgr;
+    auto entry = MakeVarEntry("v1", "VARIABLE", 512);
+    entry.logic_addr = kMemoryVarLogicBase + 600U;
+    auto resource = MakeEntries(std::move(entry));
+    ASSERT_EQ(mgr.Init(resource, arena.data(), arena.size()), ge::SUCCESS);
+    void *addr = nullptr;
+    EXPECT_EQ(mgr.GetVarDevAddr("v1", 0, addr), ge::FAILED);
+  }
+  {
+    // logic_addr 低于逻辑基址
+    Om2RTVarManager mgr;
+    auto entry = MakeVarEntry("v2", "VARIABLE", 512);
+    entry.logic_addr = kMemoryVarLogicBase - 1U;
+    auto resource = MakeEntries(std::move(entry));
+    ASSERT_EQ(mgr.Init(resource, arena.data(), arena.size()), ge::SUCCESS);
+    void *addr = nullptr;
+    EXPECT_EQ(mgr.GetVarDevAddr("v2", 0, addr), ge::FAILED);
+  }
+}
+
+TEST_F(Om2RTVarManagerTest, GetVarDevAddrInitDataOversizeFails) {
+  Om2RTVarManager mgr;
+  auto entry = MakeVarEntry("v1", "VARIABLE", 4);
+  entry.init_data = std::vector<uint8_t>(8U, 0xFFU);
+  auto resource = MakeEntries(std::move(entry));
+  ASSERT_EQ(mgr.Init(resource), ge::SUCCESS);
+
+  void *addr = nullptr;
+  EXPECT_EQ(mgr.GetVarDevAddr("v1", 0, addr), ge::FAILED);
+}
+
+TEST_F(Om2RTVarManagerTest, FinalizeSkipsExternalArenaAddrs) {
+  FreeRecordingAclRuntimeStub runtime_stub;
+  AclRuntimeStubGuard runtime_stub_guard(&runtime_stub);
+  std::vector<uint8_t> arena(4096U, 0U);
+  uint8_t extern_addr[16] = {0};
+  {
+    Om2RTVarManager mgr;
+    auto arena_entry = MakeVarEntry("arena_var", "VARIABLE", 512);
+    arena_entry.logic_addr = kMemoryVarLogicBase + 128U;
+    auto extern_entry = MakeVarEntry("extern_var", "CONSTPLACEHOLDER", 16);
+    extern_entry.extern_dev_addr = extern_addr;
+    std::vector<RTVarEntry> resource;
+    RTVarAddEntry(resource, std::move(arena_entry));
+    RTVarAddEntry(resource, std::move(extern_entry));
+    ASSERT_EQ(mgr.Init(resource, arena.data(), arena.size()), ge::SUCCESS);
+
+    void *arena_mapped_addr = nullptr;
+    void *extern_mapped_addr = nullptr;
+    ASSERT_EQ(mgr.GetVarDevAddr("arena_var", 0, arena_mapped_addr), ge::SUCCESS);
+    ASSERT_EQ(mgr.GetVarDevAddr("extern_var", 0, extern_mapped_addr), ge::SUCCESS);
+    EXPECT_EQ(arena_mapped_addr, static_cast<void *>(arena.data() + 128U));
+    EXPECT_EQ(extern_mapped_addr, static_cast<void *>(extern_addr));
+  }
+  // 外部 arena 借用内存与 extern_dev_addr 均不归 GE 所有，Finalize 不得释放
+  for (const auto freed : runtime_stub.freed_ptrs) {
+    EXPECT_NE(freed, static_cast<void *>(arena.data() + 128U));
+    EXPECT_NE(freed, static_cast<void *>(extern_addr));
+  }
 }
 
 }  // namespace

@@ -1875,6 +1875,67 @@ TEST(UtestIrBuild, aclgrphSaveModelOm2ExternalWeightRelocateTest) {
   system(("rm -rf " + work_dir).c_str());
 }
 
+TEST(UtestIrBuild, aclgrphBundleSaveModelOm2BufferTest) {
+  constexpr size_t kZipBufferLen = 8U;
+  auto buffer = std::unique_ptr<uint8_t[]>(new uint8_t[kZipBufferLen]{0x50, 0x4B, 0x03, 0x04, 0, 0, 0, 0});
+  ModelBufferData model;
+  model.length = kZipBufferLen;
+  model.data.reset(buffer.release(), std::default_delete<uint8_t[]>());
+
+  EXPECT_NE(aclgrphBundleSaveModel(nullptr, model), SUCCESS);
+
+  // OM2 zip buffer 走 OM2 分支：原样落盘为 .om2，不生成 .om
+  const std::string output_file = "./graph_om2_bundle_magic_test";
+  EXPECT_EQ(aclgrphBundleSaveModel(output_file.c_str(), model), SUCCESS);
+  EXPECT_EQ(mmAccess2((output_file + ".om2").c_str(), M_F_OK), EN_OK);
+  EXPECT_NE(mmAccess2((output_file + ".om").c_str(), M_F_OK), EN_OK);
+  system("rm ./graph_om2_bundle_magic_test.om2");
+}
+
+TEST(UtestIrBuild, aclgrphBundleSaveModelOm2RealZipRoundTrip) {
+  const std::string work_dir = "./graph_om2_bundle_round_trip";
+  system(("rm -rf " + work_dir).c_str());
+  system(("mkdir -p " + work_dir).c_str());
+
+  ModelBufferData model;
+  {
+    gert::GertBuffer om2_buf;
+    gert::ZipArchiveWriter zip_writer(work_dir + "/build_bundle.om2");
+    ASSERT_TRUE(zip_writer.IsMemFileOpened());
+    const std::string manifest = R"({"model_num":2})";
+    ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+    const std::string model_meta = R"({"name":"sub0","work_size":1024})";
+    ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+    ASSERT_TRUE(zip_writer.WriteBytes("data/model_1/model_meta.json", model_meta.data(), model_meta.size(), false));
+    ASSERT_TRUE(zip_writer.SaveModelData(om2_buf, false));
+    model.data = om2_buf.data;
+    model.length = om2_buf.length;
+  }
+
+  const std::string output_file = work_dir + "/saved_om2_bundle";
+  ASSERT_EQ(aclgrphBundleSaveModel(output_file.c_str(), model), SUCCESS);
+  ASSERT_EQ(mmAccess2((output_file + ".om2").c_str(), M_F_OK), EN_OK);
+
+  // 读回一致：OM2 Bundle 分支不重打包，字节原样写入
+  const auto saved_model = ReadFileToVector(output_file + ".om2");
+  ASSERT_EQ(saved_model.size(), model.length);
+  EXPECT_EQ(memcmp(saved_model.data(), model.data.get(), model.length), 0);
+
+  gert::ZipArchiveReader archive(saved_model.data(), saved_model.size());
+  ASSERT_TRUE(archive.IsGood());
+  const std::string manifest_entry = archive.FindEntry("manifest.json");
+  ASSERT_FALSE(manifest_entry.empty());
+  size_t manifest_size = 0U;
+  const auto manifest_buf = archive.ExtractToMem(manifest_entry, manifest_size);
+  ASSERT_NE(manifest_buf, nullptr);
+  const JsonFile manifest_json(reinterpret_cast<const uint8_t *>(manifest_buf.get()), manifest_size);
+  ASSERT_TRUE(manifest_json.IsValid());
+  EXPECT_EQ(manifest_json.Raw().at("model_num"), 2U);
+  EXPECT_FALSE(manifest_json.Raw().contains("global_shared_var_size"));
+
+  system(("rm -rf " + work_dir).c_str());
+}
+
 TEST(UtestIrBuild, aclgrphBuildModelOfflineModeInvalidTest) {
   Graph graph = BuildIrGraph1();
   ModelBufferData model;

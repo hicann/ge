@@ -6266,39 +6266,494 @@ TEST_F(UTEST_ACL_Model, aclmdlSetAIPPByInputIndex_Om2ModelId_Success) {
 // OM2 Interface Test Cases - Bundle Interfaces
 // ============================================================================
 
-TEST_F(UTEST_ACL_Model, aclmdlBundleLoadFromFile_Om2Bundle_ReturnsNotSupported) {
-  // Test that aclmdlBundleLoadFromFile returns not supported for OM2 bundle
+TEST_F(UTEST_ACL_Model, aclmdlBundleLoadFromFile_Om2Bundle_LoadFileFail_ReturnsError) {
+  // OM2 bundle 路由生效后：Init 阶段读取文件失败，返回错误且不残留 Bundle 资源
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_))
       .WillRepeatedly(Invoke(IsOm2ModelFromFile));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2DataFromFile(testing::_, testing::_))
+      .WillRepeatedly(Invoke(LoadOm2DataFromFileFail));
 
   uint32_t bundleId = 0;
-  // Try to load OM2 bundle from file - should return not supported
   aclError ret = aclmdlBundleLoadFromFile("test_om2_bundle.om2", &bundleId);
 
-  // Verify that the function returns not supported error
-  EXPECT_EQ(ret, ACL_ERROR_API_NOT_SUPPORT);
+  EXPECT_NE(ret, ACL_SUCCESS);
+  EXPECT_FALSE(acl::AclResourceManagerOm2::GetInstance().IsOm2BundleById(bundleId));
 }
 
-TEST_F(UTEST_ACL_Model, aclmdlBundleGetModelNum_Om2BundleId_ReturnsNotSupported) {
-  // Test that aclmdlBundleGetModelNum returns not supported for OM2 bundle
-  // First load an OM2 model to get a valid OM2 model ID
+TEST_F(UTEST_ACL_Model, aclmdlBundleGetModelNum_Om2BundleId_ReturnsSubModelNum) {
+  // 注册 OM2 Bundle 信息后，GetModelNum 走 OM2 实现返回子模型数
+  acl::BundleModelInfo bundleInfo;
+  bundleInfo.isInit = true;
+  bundleInfo.subModelInfos.push_back({1024U, 16U, 0U, 0U});
+  bundleInfo.subModelInfos.push_back({2048U, 32U, 0U, 0U});
+  const uint32_t bundleId = std::numeric_limits<uint32_t>::max() / 2U + 90U;
+  ASSERT_EQ(acl::AclResourceManagerOm2::GetInstance().SetBundleInfo(bundleId, bundleInfo), ACL_SUCCESS);
+
+  size_t modelNum = 0;
+  EXPECT_EQ(aclmdlBundleGetModelNum(bundleId, &modelNum), ACL_SUCCESS);
+  EXPECT_EQ(modelNum, 2U);
+  EXPECT_NE(aclmdlBundleGetModelNum(bundleId, nullptr), ACL_SUCCESS);
+
+  acl::AclResourceManagerOm2::GetInstance().DeleteBundleInfo(bundleId);
+}
+
+// ==== OM2 Bundle 生命周期 mock helper ====
+std::vector<std::pair<size_t, size_t>> g_om2_bundle_sizes;
+size_t g_om2_bundle_var_size = 0U;
+ge::Status g_om2_bundle_info_ret = ge::SUCCESS;
+std::vector<size_t> g_om2_bundle_load_indexes;
+std::vector<uint32_t> g_om2_bundle_load_model_ids;
+gert::Om2ModelLoadArg g_last_om2_bundle_load_arg;
+size_t g_om2_bundle_load_fail_index = std::numeric_limits<size_t>::max();
+
+void SetExpectedOm2BundleInfo(const std::vector<std::pair<size_t, size_t>> &sizes, const size_t var_size,
+                              const ge::Status ret = ge::SUCCESS) {
+  g_om2_bundle_sizes = sizes;
+  g_om2_bundle_var_size = var_size;
+  g_om2_bundle_info_ret = ret;
+}
+
+void ResetOm2BundleLoadRecords() {
+  g_om2_bundle_load_indexes.clear();
+  g_om2_bundle_load_model_ids.clear();
+  g_last_om2_bundle_load_arg = {};
+  g_om2_bundle_load_fail_index = std::numeric_limits<size_t>::max();
+}
+
+ge::Status GetOm2BundleInfoInvoke(const void *data, size_t size, std::vector<std::pair<size_t, size_t>> &model_sizes,
+                                  size_t &var_size) {
+  (void)data;
+  (void)size;
+  model_sizes = g_om2_bundle_sizes;
+  var_size = g_om2_bundle_var_size;
+  return g_om2_bundle_info_ret;
+}
+
+std::unique_ptr<gert::Om2ModelExecutor> LoadOm2ExecutorFromBundleDataInvoke(const void *model_data,
+                                                                            const size_t model_size,
+                                                                            const size_t model_index,
+                                                                            const gert::Om2ModelLoadArg &load_arg,
+                                                                            ge::graphStatus &error_code) {
+  (void)model_data;
+  (void)model_size;
+  g_om2_bundle_load_indexes.push_back(model_index);
+  g_last_om2_bundle_load_arg = load_arg;
+  if (model_index == g_om2_bundle_load_fail_index) {
+    error_code = ge::GRAPH_FAILED;
+    return nullptr;
+  }
+  g_om2_bundle_load_model_ids.push_back(load_arg.model_id);
+  error_code = ge::GRAPH_SUCCESS;
+  return std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleInitFromMem_Om2_Success) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  SetExpectedOm2BundleInfo({{1024U, 16U}, {2048U, 32U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+
+  void *var_ptr = reinterpret_cast<void *>(0x1000);
+  uint32_t bundleId = 0U;
+  ASSERT_EQ(aclmdlBundleInitFromMem(om2_bundle_data, sizeof(om2_bundle_data), var_ptr, 4096U, &bundleId), ACL_SUCCESS);
+
+  acl::BundleModelInfo info;
+  ASSERT_EQ(acl::AclResourceManagerOm2::GetInstance().GetBundleInfo(bundleId, info), ACL_SUCCESS);
+  EXPECT_TRUE(info.isInit);
+  EXPECT_EQ(info.varSize, 4096U);
+  EXPECT_TRUE(info.fromFilePath.empty());
+  EXPECT_NE(info.bundleModelData, nullptr);
+  EXPECT_EQ(info.bundleModelSize, sizeof(om2_bundle_data));
+  EXPECT_TRUE(info.loadedSubModelId.empty());
+  ASSERT_NE(info.rtSession, nullptr);
+  EXPECT_EQ(info.rtSession->GetSessionId(), bundleId);
+  void *external_addr = nullptr;
+  uint64_t external_size = 0U;
+  info.rtSession->GetExternalVar(external_addr, external_size);
+  EXPECT_EQ(external_addr, var_ptr);
+  EXPECT_EQ(external_size, 4096U);
+  ASSERT_EQ(info.subModelInfos.size(), 2U);
+  EXPECT_EQ(info.subModelInfos[0].workSize, 1024U);
+  EXPECT_EQ(info.subModelInfos[0].weightSize, 16U);
+  EXPECT_EQ(info.subModelInfos[0].offset, 0U);
+  EXPECT_EQ(info.subModelInfos[0].modelSize, 0U);
+  EXPECT_EQ(info.subModelInfos[1].workSize, 2048U);
+  EXPECT_EQ(info.subModelInfos[1].weightSize, 32U);
+
+  EXPECT_EQ(aclmdlBundleUnload(bundleId), ACL_SUCCESS);
+  EXPECT_NE(acl::AclResourceManagerOm2::GetInstance().GetBundleInfo(bundleId, info), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleInitFromMem_Om2_InvalidParams) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  uint32_t bundleId = 0U;
+  EXPECT_NE(aclmdlBundleInitFromMem(nullptr, sizeof(om2_bundle_data), nullptr, 0U, &bundleId), ACL_SUCCESS);
+  EXPECT_NE(aclmdlBundleInitFromMem(om2_bundle_data, 0U, nullptr, 0U, &bundleId), ACL_SUCCESS);
+  EXPECT_NE(aclmdlBundleInitFromMem(om2_bundle_data, sizeof(om2_bundle_data), nullptr, 0U, nullptr), ACL_SUCCESS);
+  EXPECT_NE(aclmdlBundleLoadFromMem(om2_bundle_data, sizeof(om2_bundle_data), nullptr), ACL_SUCCESS);
+  EXPECT_NE(aclmdlBundleLoadFromFile(nullptr, &bundleId), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleInitFromMem_Om2_VarWeightSizeTooSmall) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  SetExpectedOm2BundleInfo({{1024U, 16U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+
+  void *var_ptr = reinterpret_cast<void *>(0x1000);
+  uint32_t bundleId = 0U;
+  // 用户提供的外部变量内存小于 manifest 要求，必须拒绝
+  EXPECT_EQ(aclmdlBundleInitFromMem(om2_bundle_data, sizeof(om2_bundle_data), var_ptr, 1024U, &bundleId),
+            ACL_ERROR_INVALID_PARAM);
+  EXPECT_FALSE(acl::AclResourceManagerOm2::GetInstance().IsOm2BundleById(bundleId));
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleInitFromMem_Om2_QueryInfoFail) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  SetExpectedOm2BundleInfo({}, 0U, ge::FAILED);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+
+  uint32_t bundleId = 0U;
+  EXPECT_NE(aclmdlBundleInitFromMem(om2_bundle_data, sizeof(om2_bundle_data), nullptr, 0U, &bundleId), ACL_SUCCESS);
+  EXPECT_FALSE(acl::AclResourceManagerOm2::GetInstance().IsOm2BundleById(bundleId));
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleInitFromFile_Om2_SuccessAndFileFail) {
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_))
       .WillRepeatedly(Invoke(IsOm2ModelFromFile));
+  SetExpectedOm2BundleInfo({{1024U, 16U}}, 2048U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
 
-  uint32_t modelId = 0;
-  aclError load_ret = aclmdlLoadFromFile("test_om2_model.om2", &modelId);
+  uint32_t bundleId = 0U;
+  // 文件读取失败
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2DataFromFile(testing::_, testing::_))
+      .WillOnce(Invoke(LoadOm2DataFromFileFail));
+  EXPECT_NE(aclmdlBundleInitFromFile("/fake/om2_bundle.om2", nullptr, 0U, &bundleId), ACL_SUCCESS);
 
-  if (load_ret == ACL_SUCCESS && modelId >= std::numeric_limits<uint32_t>::max() / 2U) {
-    // Try to get model number - should return not supported
-    size_t modelNum = 0;
-    aclError ret = aclmdlBundleGetModelNum(modelId, &modelNum);
+  // 成功：保存文件快照并记录来源路径
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2DataFromFile(testing::_, testing::_))
+      .WillOnce(Invoke(LoadOm2DataFromFileSuccess));
+  ASSERT_EQ(aclmdlBundleInitFromFile("/fake/om2_bundle.om2", nullptr, 0U, &bundleId), ACL_SUCCESS);
+  acl::BundleModelInfo info;
+  ASSERT_EQ(acl::AclResourceManagerOm2::GetInstance().GetBundleInfo(bundleId, info), ACL_SUCCESS);
+  EXPECT_TRUE(info.isInit);
+  EXPECT_EQ(info.fromFilePath, "/fake/om2_bundle.om2");
+  EXPECT_NE(info.bundleModelData, nullptr);
+  EXPECT_EQ(info.bundleModelSize, 100U);
+  EXPECT_EQ(aclmdlBundleUnload(bundleId), ACL_SUCCESS);
+}
 
-    // Verify that the function returns not supported error
-    EXPECT_EQ(ret, ACL_ERROR_FEATURE_UNSUPPORTED);
+TEST_F(UTEST_ACL_Model, aclmdlBundleLoadFromMem_Om2_Success) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  SetExpectedOm2BundleInfo({{1024U, 16U}, {2048U, 32U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+              LoadOm2ExecutorFromBundleData(testing::_, testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(LoadOm2ExecutorFromBundleDataInvoke));
+  ExpectAclrtGetDeviceOk();
+  ResetOm2BundleLoadRecords();
 
-    // Cleanup
-    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(modelId);
-  }
+  uint32_t bundleId = 0U;
+  ASSERT_EQ(aclmdlBundleLoadFromMem(om2_bundle_data, sizeof(om2_bundle_data), &bundleId), ACL_SUCCESS);
+  // eager：按 index 顺序加载全部子模型
+  ASSERT_EQ(g_om2_bundle_load_indexes.size(), 2U);
+  EXPECT_EQ(g_om2_bundle_load_indexes[0], 0U);
+  EXPECT_EQ(g_om2_bundle_load_indexes[1], 1U);
+
+  size_t modelNum = 0U;
+  EXPECT_EQ(aclmdlBundleGetModelNum(bundleId, &modelNum), ACL_SUCCESS);
+  EXPECT_EQ(modelNum, 2U);
+
+  uint32_t modelId0 = 0U;
+  uint32_t modelId1 = 0U;
+  EXPECT_EQ(aclmdlBundleGetModelId(bundleId, 0U, &modelId0), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlBundleGetModelId(bundleId, 1U, &modelId1), ACL_SUCCESS);
+  EXPECT_NE(modelId0, modelId1);
+  ASSERT_EQ(g_om2_bundle_load_model_ids.size(), 2U);
+  EXPECT_EQ(modelId0, g_om2_bundle_load_model_ids[0]);
+  EXPECT_EQ(modelId1, g_om2_bundle_load_model_ids[1]);
+  EXPECT_NE(acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId0), nullptr);
+  EXPECT_NE(acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId1), nullptr);
+
+  uint32_t modelIdOutOfRange = 0U;
+  EXPECT_EQ(aclmdlBundleGetModelId(bundleId, 2U, &modelIdOutOfRange), ACL_ERROR_INVALID_PARAM);
+
+  acl::BundleModelInfo info;
+  ASSERT_EQ(acl::AclResourceManagerOm2::GetInstance().GetBundleInfo(bundleId, info), ACL_SUCCESS);
+  EXPECT_FALSE(info.isInit);
+
+  // Bundle 卸载：子模型 executor、Bundle 信息全部清理，重复卸载失败
+  EXPECT_EQ(aclmdlBundleUnload(bundleId), ACL_SUCCESS);
+  EXPECT_EQ(acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId0), nullptr);
+  EXPECT_EQ(acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId1), nullptr);
+  EXPECT_FALSE(acl::AclResourceManagerOm2::GetInstance().IsOm2BundleById(bundleId));
+  EXPECT_NE(aclmdlBundleUnload(bundleId), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleLoadFromMem_Om2_SubModelFail_Rollback) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  SetExpectedOm2BundleInfo({{1024U, 16U}, {2048U, 32U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+              LoadOm2ExecutorFromBundleData(testing::_, testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(LoadOm2ExecutorFromBundleDataInvoke));
+  ExpectAclrtGetDeviceOk();
+  ResetOm2BundleLoadRecords();
+  g_om2_bundle_load_fail_index = 1U;
+
+  uint32_t bundleId = 0U;
+  EXPECT_NE(aclmdlBundleLoadFromMem(om2_bundle_data, sizeof(om2_bundle_data), &bundleId), ACL_SUCCESS);
+  // 事务回滚：不保留半成品 Bundle，index 0 已建 executor 被清理
+  acl::BundleModelInfo info;
+  EXPECT_EQ(acl::AclResourceManagerOm2::GetInstance().GetBundleInfo(bundleId, info), ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
+  ASSERT_EQ(g_om2_bundle_load_model_ids.size(), 1U);
+  EXPECT_EQ(acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(g_om2_bundle_load_model_ids[0]), nullptr);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleLoadFromFile_Om2_ReleasesSnapshotAndReloads) {
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromFile));
+  SetExpectedOm2BundleInfo({{1024U, 16U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+              LoadOm2ExecutorFromBundleData(testing::_, testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(LoadOm2ExecutorFromBundleDataInvoke));
+  // Init 读文件一次；eager 加载后快照释放，按需 LoadModel 时从文件重读一次
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2DataFromFile(testing::_, testing::_))
+      .Times(2)
+      .WillRepeatedly(Invoke(LoadOm2DataFromFileSuccess));
+  ExpectAclrtGetDeviceOk();
+  ResetOm2BundleLoadRecords();
+
+  uint32_t bundleId = 0U;
+  ASSERT_EQ(aclmdlBundleLoadFromFile("/fake/om2_bundle.om2", &bundleId), ACL_SUCCESS);
+  acl::BundleModelInfo info;
+  ASSERT_EQ(acl::AclResourceManagerOm2::GetInstance().GetBundleInfo(bundleId, info), ACL_SUCCESS);
+  EXPECT_EQ(info.bundleModelData, nullptr);
+  EXPECT_EQ(info.bundleModelSize, 0U);
+  EXPECT_EQ(info.fromFilePath, "/fake/om2_bundle.om2");
+  ASSERT_EQ(info.loadedSubModelId.size(), 1U);
+
+  // 快照释放后的 lazy LoadModel：从文件重载快照，同 index 产生新的独立 modelId（多实例）
+  uint32_t modelId = 0U;
+  ASSERT_EQ(aclmdlBundleLoadModel(bundleId, 0U, &modelId), ACL_SUCCESS);
+  EXPECT_NE(modelId, info.loadedSubModelId[0]);
+  EXPECT_EQ(aclmdlBundleUnloadModel(bundleId, modelId), ACL_SUCCESS);
+  EXPECT_EQ(acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId), nullptr);
+  EXPECT_EQ(aclmdlBundleUnload(bundleId), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleLoadModel_Om2_IndexOutOfRangeAndMultiInstance) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  SetExpectedOm2BundleInfo({{1024U, 16U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+              LoadOm2ExecutorFromBundleData(testing::_, testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(LoadOm2ExecutorFromBundleDataInvoke));
+  ExpectAclrtGetDeviceOk();
+  ResetOm2BundleLoadRecords();
+
+  uint32_t bundleId = 0U;
+  ASSERT_EQ(aclmdlBundleInitFromMem(om2_bundle_data, sizeof(om2_bundle_data), nullptr, 0U, &bundleId), ACL_SUCCESS);
+
+  // index 越界 / 空出参
+  uint32_t modelId = 0U;
+  EXPECT_EQ(aclmdlBundleLoadModel(bundleId, 1U, &modelId), ACL_ERROR_INVALID_PARAM);
+  EXPECT_NE(aclmdlBundleLoadModel(bundleId, 0U, nullptr), ACL_SUCCESS);
+
+  // 同 index 重复加载产生多实例
+  uint32_t modelId1 = 0U;
+  uint32_t modelId2 = 0U;
+  ASSERT_EQ(aclmdlBundleLoadModel(bundleId, 0U, &modelId1), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlBundleLoadModel(bundleId, 0U, &modelId2), ACL_SUCCESS);
+  EXPECT_NE(modelId1, modelId2);
+
+  // 卸载归属校验：单个卸载不影响另一实例；重复卸载 / 非子模型 id 拒绝
+  EXPECT_EQ(aclmdlBundleUnloadModel(bundleId, modelId1), ACL_SUCCESS);
+  EXPECT_EQ(acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId1), nullptr);
+  EXPECT_NE(acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId2), nullptr);
+  EXPECT_EQ(aclmdlBundleUnloadModel(bundleId, modelId1), ACL_ERROR_INVALID_PARAM);
+  EXPECT_EQ(aclmdlBundleUnloadModel(bundleId, 12345U), ACL_ERROR_INVALID_PARAM);
+
+  EXPECT_EQ(aclmdlBundleUnload(bundleId), ACL_SUCCESS);
+  EXPECT_EQ(acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId2), nullptr);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleLoadModelWithMem_Om2_PassesArgs) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  SetExpectedOm2BundleInfo({{1024U, 16U}, {2048U, 32U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+              LoadOm2ExecutorFromBundleData(testing::_, testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(LoadOm2ExecutorFromBundleDataInvoke));
+  ExpectAclrtGetDeviceOk();
+  ResetOm2BundleLoadRecords();
+
+  uint32_t bundleId = 0U;
+  ASSERT_EQ(aclmdlBundleInitFromMem(om2_bundle_data, sizeof(om2_bundle_data), nullptr, 0U, &bundleId), ACL_SUCCESS);
+
+  void *work_ptr = reinterpret_cast<void *>(0x10);
+  void *weight_ptr = reinterpret_cast<void *>(0x20);
+  uint32_t modelId = 0U;
+  ASSERT_EQ(aclmdlBundleLoadModelWithMem(bundleId, 1U, work_ptr, 1024U, weight_ptr, 2048U, &modelId), ACL_SUCCESS);
+  ASSERT_EQ(g_om2_bundle_load_indexes.size(), 1U);
+  EXPECT_EQ(g_om2_bundle_load_indexes[0], 1U);
+  EXPECT_EQ(g_last_om2_bundle_load_arg.work_ptr, work_ptr);
+  EXPECT_EQ(g_last_om2_bundle_load_arg.work_size, 1024U);
+  EXPECT_EQ(g_last_om2_bundle_load_arg.weight_ptr, weight_ptr);
+  EXPECT_EQ(g_last_om2_bundle_load_arg.weight_size, 2048U);
+  EXPECT_EQ(g_last_om2_bundle_load_arg.model_id, modelId);
+  EXPECT_EQ(g_last_om2_bundle_load_arg.device_id, 0);
+  EXPECT_TRUE(g_last_om2_bundle_load_arg.om_path.empty());
+  acl::BundleModelInfo info;
+  ASSERT_EQ(acl::AclResourceManagerOm2::GetInstance().GetBundleInfo(bundleId, info), ACL_SUCCESS);
+  // 子模型加载参数携带 Bundle 共享 Session
+  EXPECT_EQ(g_last_om2_bundle_load_arg.rt_session, info.rtSession.get());
+
+  EXPECT_EQ(aclmdlBundleUnload(bundleId), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleLoadModelWithConfig_Om2_PassesConfig) {
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromFile));
+  SetExpectedOm2BundleInfo({{1024U, 16U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+              LoadOm2ExecutorFromBundleData(testing::_, testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(LoadOm2ExecutorFromBundleDataInvoke));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2DataFromFile(testing::_, testing::_))
+      .WillRepeatedly(Invoke(LoadOm2DataFromFileSuccess));
+  ExpectAclrtGetDeviceOk();
+  ResetOm2BundleLoadRecords();
+
+  uint32_t bundleId = 0U;
+  ASSERT_EQ(aclmdlBundleInitFromFile("/fake/om2_bundle.om2", nullptr, 0U, &bundleId), ACL_SUCCESS);
+
+  aclmdlConfigHandle *handle = aclmdlCreateConfigHandle();
+  ASSERT_NE(handle, nullptr);
+  const char *weight_path = "/fake/weight_dir";
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_WEIGHT_PATH_PTR, &weight_path, sizeof(weight_path)), ACL_SUCCESS);
+  int32_t priority = 3;
+  ASSERT_EQ(aclmdlSetConfigOpt(handle, ACL_MDL_PRIORITY_INT32, &priority, sizeof(priority)), ACL_SUCCESS);
+  ASSERT_EQ(aclmdlSetExternalWeightAddress(handle, "fc.bin", reinterpret_cast<void *>(0x30), 512U), ACL_SUCCESS);
+
+  uint32_t modelId = 0U;
+  ASSERT_EQ(aclmdlBundleLoadModelWithConfig(bundleId, 0U, handle, &modelId), ACL_SUCCESS);
+  EXPECT_EQ(g_last_om2_bundle_load_arg.weight_path, "/fake/weight_dir");
+  EXPECT_EQ(g_last_om2_bundle_load_arg.priority, 3);
+  EXPECT_EQ(g_last_om2_bundle_load_arg.om_path, "/fake/om2_bundle.om2");
+  ASSERT_EQ(g_last_om2_bundle_load_arg.file_constant_mems.size(), 1U);
+  EXPECT_EQ(g_last_om2_bundle_load_arg.file_constant_mems[0].file_name, "fc.bin");
+  EXPECT_EQ(g_last_om2_bundle_load_arg.file_constant_mems[0].device_mem, reinterpret_cast<void *>(0x30));
+  EXPECT_EQ(g_last_om2_bundle_load_arg.file_constant_mems[0].mem_size, 512U);
+
+  // 空 handle 拒绝
+  uint32_t modelId2 = 0U;
+  EXPECT_NE(aclmdlBundleLoadModelWithConfig(bundleId, 0U, nullptr, &modelId2), ACL_SUCCESS);
+
+  EXPECT_EQ(aclmdlDestroyConfigHandle(handle), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlBundleUnload(bundleId), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleGetModelId_Om2_LazyInit_NotSupported) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  SetExpectedOm2BundleInfo({{1024U, 16U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+
+  uint32_t bundleId = 0U;
+  ASSERT_EQ(aclmdlBundleInitFromMem(om2_bundle_data, sizeof(om2_bundle_data), nullptr, 0U, &bundleId), ACL_SUCCESS);
+
+  // GetModelId 仅对 eager Load 场景有效
+  uint32_t modelId = 0U;
+  EXPECT_EQ(aclmdlBundleGetModelId(bundleId, 0U, &modelId), ACL_ERROR_API_NOT_SUPPORT);
+  EXPECT_NE(aclmdlBundleGetModelId(bundleId, 0U, nullptr), ACL_SUCCESS);
+  // GetModelNum 与 eager/lazy 无关
+  size_t modelNum = 0U;
+  EXPECT_EQ(aclmdlBundleGetModelNum(bundleId, &modelNum), ACL_SUCCESS);
+  EXPECT_EQ(modelNum, 1U);
+
+  EXPECT_EQ(aclmdlBundleUnload(bundleId), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleQueryInfo_Om2_Success) {
+  uint8_t om2_bundle_data[] = {0x50, 0x4B, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00};
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromData));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsOm2Model(testing::_, testing::_))
+      .WillRepeatedly(Invoke(IsOm2ModelFromFile));
+  SetExpectedOm2BundleInfo({{1024U, 16U}, {2048U, 32U}}, 4096U);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOm2BundleInfo(testing::_, testing::_, testing::_, testing::_))
+      .WillRepeatedly(Invoke(GetOm2BundleInfoInvoke));
+
+  aclmdlBundleQueryInfo *queryInfo = aclmdlBundleCreateQueryInfo();
+  ASSERT_NE(queryInfo, nullptr);
+  ASSERT_EQ(aclmdlBundleQueryInfoFromMem(om2_bundle_data, sizeof(om2_bundle_data), queryInfo), ACL_SUCCESS);
+
+  size_t modelNum = 0U;
+  EXPECT_EQ(aclmdlBundleGetQueryModelNum(queryInfo, &modelNum), ACL_SUCCESS);
+  EXPECT_EQ(modelNum, 2U);
+  size_t varSize = 0U;
+  EXPECT_EQ(aclmdlBundleGetVarWeightSize(queryInfo, &varSize), ACL_SUCCESS);
+  EXPECT_EQ(varSize, 4096U);
+  size_t workSize = 0U;
+  size_t weightSize = 0U;
+  EXPECT_EQ(aclmdlBundleGetSize(queryInfo, 0U, &workSize, &weightSize), ACL_SUCCESS);
+  EXPECT_EQ(workSize, 1024U);
+  EXPECT_EQ(weightSize, 16U);
+  EXPECT_EQ(aclmdlBundleGetSize(queryInfo, 1U, &workSize, &weightSize), ACL_SUCCESS);
+  EXPECT_EQ(workSize, 2048U);
+  EXPECT_EQ(weightSize, 32U);
+  EXPECT_EQ(aclmdlBundleGetSize(queryInfo, 2U, &workSize, &weightSize), ACL_ERROR_INVALID_PARAM);
+
+  // 文件入口
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadOm2DataFromFile(testing::_, testing::_))
+      .WillOnce(Invoke(LoadOm2DataFromFileSuccess));
+  EXPECT_EQ(aclmdlBundleQueryInfoFromFile("/fake/om2_bundle.om2", queryInfo), ACL_SUCCESS);
+
+  // 查询失败透传与空指针入参
+  SetExpectedOm2BundleInfo({}, 0U, ge::FAILED);
+  EXPECT_NE(aclmdlBundleQueryInfoFromMem(om2_bundle_data, sizeof(om2_bundle_data), queryInfo), ACL_SUCCESS);
+  SetExpectedOm2BundleInfo({{1024U, 16U}}, 4096U);
+  EXPECT_NE(aclmdlBundleQueryInfoFromMem(nullptr, sizeof(om2_bundle_data), queryInfo), ACL_SUCCESS);
+  EXPECT_NE(aclmdlBundleQueryInfoFromMem(om2_bundle_data, sizeof(om2_bundle_data), nullptr), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlBundleDestroyQueryInfo(queryInfo), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlBundleUnload_Om2_InvalidBundleId) {
+  const uint32_t invalidBundleId = 4000000000U;
+  EXPECT_NE(aclmdlBundleUnload(invalidBundleId), ACL_SUCCESS);
+  size_t modelNum = 0U;
+  EXPECT_NE(aclmdlBundleGetModelNum(invalidBundleId, &modelNum), ACL_SUCCESS);
+  uint32_t modelId = 0U;
+  EXPECT_NE(aclmdlBundleGetModelId(invalidBundleId, 0U, &modelId), ACL_SUCCESS);
+  EXPECT_NE(aclmdlBundleUnloadModel(invalidBundleId, modelId), ACL_SUCCESS);
 }
 
 // ============================================================================

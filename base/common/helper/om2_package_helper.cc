@@ -8,6 +8,10 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <cinttypes>
+#include <cstring>
+#include <unordered_map>
+
 #include "common/ge_common/string_util.h"
 #include "base/err_msg.h"
 #include "framework/common/helper/om2_package_helper.h"
@@ -964,6 +968,123 @@ Status Om2PackageHelper::BuildOm2ModelData(const GeModelPtr &ge_model, gert::Ger
   GE_ASSERT_SUCCESS(BuildManifest(model_data));
 
   GELOGI("[OM2] Successfully built GertModelData");
+  return SUCCESS;
+}
+
+Status Om2PackageHelper::EnsureGertModelData(const GeRootModelPtr &ge_root_model) {
+  GE_ASSERT_NOTNULL(ge_root_model, "[OM2] ge_root_model is nullptr");
+  if (ge_root_model->GetOm2ModelData() != nullptr) {
+    GELOGI("[OM2] GertModelData already attached, skip rebuilding.");
+    return SUCCESS;
+  }
+  const auto &root_graph = ge_root_model->GetRootGraph();
+  GE_ASSERT_NOTNULL(root_graph, "[OM2] root graph is nullptr");
+  const auto &name_to_model = ge_root_model->GetSubgraphInstanceNameToModel();
+  const auto it = name_to_model.find(root_graph->GetName());
+  GE_CHK_BOOL_EXEC(it != name_to_model.end(), return FAILED, "[OM2] Cannot find GeModel for root graph %s",
+                   root_graph->GetName().c_str());
+  auto model_data = std::make_shared<gert::GertModelData>();
+  Om2PackageHelper package_helper;
+  GE_ASSERT_SUCCESS(package_helper.BuildOm2ModelData(it->second, *model_data, ge_root_model));
+  ge_root_model->SetOm2ModelData(std::move(model_data));
+  GELOGI("[OM2] GertModelData built and attached for root graph %s", root_graph->GetName().c_str());
+  return SUCCESS;
+}
+
+namespace {
+struct MergedKernelRecord {
+  const uint8_t *data = nullptr;
+  uint64_t size = 0U;
+};
+
+// Bundle 子模型间共享 kernel 池：按名去重，同名 kernel 内容必须一致
+Status MergeBundleKernels(gert::GertModelData &bundle_data, gert::GertModelData &sub_data,
+                          std::unordered_map<std::string, MergedKernelRecord> &merged_kernels) {
+  for (auto &kernel : sub_data.kernels->binaries) {
+    GE_ASSERT_NOTNULL(kernel);
+    const std::string name(gert::GertGetStr(kernel->file_name));
+    GE_CHK_BOOL_EXEC(!name.empty(), return PARAM_INVALID, "[OM2][Bundle] kernel name is empty.");
+    const auto iter = merged_kernels.find(name);
+    if (iter != merged_kernels.end()) {
+      GE_CHK_BOOL_EXEC(iter->second.size == kernel->data_size, return PARAM_INVALID,
+                       "[OM2][Bundle] conflicting shared kernel size, entry %s.", name.c_str());
+      GE_CHK_BOOL_EXEC(
+          (kernel->data_size == 0U) || (std::memcmp(iter->second.data, kernel->data.get(), kernel->data_size) == 0),
+          return PARAM_INVALID, "[OM2][Bundle] conflicting shared kernel entry %s.", name.c_str());
+      continue;
+    }
+    (void)merged_kernels.emplace(name, MergedKernelRecord{kernel->data.get(), kernel->data_size});
+    (void)bundle_data.kernels->binaries.emplace_back(std::move(kernel));
+  }
+  return SUCCESS;
+}
+
+Status BuildBundleManifest(gert::GertModelData &bundle_data, const gert::GertModelDataManifest &sub_manifest) {
+  auto manifest = std::make_unique<gert::GertModelDataManifest>();
+  GE_ASSERT_NOTNULL(manifest);
+  manifest->compatibility.compiler_version = gert::GertMakeStr(sub_manifest.compatibility.compiler_version);
+  manifest->compatibility.required_executor_version =
+      gert::GertMakeStr(sub_manifest.compatibility.required_executor_version);
+  for (const auto &[feature_name, feature_version] : sub_manifest.compatibility.used_features) {
+    manifest->compatibility.used_features[gert::GertMakeStr(feature_name)] = gert::GertMakeStr(feature_version);
+  }
+  manifest->atc_command = gert::GertMakeStr(sub_manifest.atc_command);
+  manifest->model_num = bundle_data.models.size();
+  bundle_data.manifest = std::move(manifest);
+  return SUCCESS;
+}
+
+// 子模型编译期 INTERNAL 常量 file_name 固定为 constant_0，Bundle 序列化后第 i 个子模型权重文件为
+// data/constants/constant_<i>，且执行器按 INTERNAL file_name 匹配数据源，组装时须重写为 Bundle 级名称
+Status RewriteInternalConstFileName(const std::unique_ptr<gert::GertModelDataModel> &unit, const size_t bundle_index) {
+  if ((unit == nullptr) || (unit->constants_config == nullptr)) {
+    return SUCCESS;
+  }
+  const auto bundle_file_name = gert::FormatOm2Path("%s%zu", gert::OM2_CONSTANTS_FILE_PREFIX, bundle_index);
+  for (const auto &const_meta : unit->constants_config->consts) {
+    if ((const_meta != nullptr) && (std::string(gert::GertGetStr(const_meta->type)) == "INTERNAL")) {
+      const_meta->file_name = gert::GertMakeStr(bundle_file_name);
+    }
+  }
+  return SUCCESS;
+}
+}  // namespace
+
+Status Om2PackageHelper::AssembleBundleModelData(std::vector<std::shared_ptr<gert::GertModelData>> &sub_models,
+                                                 const uint64_t global_shared_var_size,
+                                                 gert::GertModelData &bundle_data) {
+  GE_CHK_BOOL_EXEC(sub_models.size() > 1U, return PARAM_INVALID,
+                   "[OM2][Bundle] sub_models size[%zu] should be larger than 1.", sub_models.size());
+  gert::InitGertModelData(bundle_data);
+  bundle_data.models.reserve(sub_models.size());
+  bundle_data.constants->constants_data.reserve(sub_models.size());
+  std::unordered_map<std::string, MergedKernelRecord> merged_kernels;
+  for (size_t i = 0UL; i < sub_models.size(); ++i) {
+    const auto &model_data = sub_models[i];
+    GE_CHK_BOOL_EXEC(model_data != nullptr, return PARAM_INVALID, "[OM2][Bundle] sub model[%zu] is null.", i);
+    GE_CHK_BOOL_EXEC(model_data->manifest != nullptr, return PARAM_INVALID,
+                     "[OM2][Bundle] sub model[%zu] "
+                     "manifest is null.",
+                     i);
+    GE_CHK_BOOL_EXEC(model_data->manifest->model_num <= 1U, return PARAM_INVALID,
+                     "[OM2][Bundle] sub model[%zu] is not a single model.", i);
+    GE_CHK_BOOL_EXEC(model_data->models.size() == 1U, return PARAM_INVALID,
+                     "[OM2][Bundle] sub model[%zu] model unit num[%zu] != 1.", i, model_data->models.size());
+    GE_CHK_BOOL_EXEC(model_data->custom_ops->binaries.empty() && model_data->custom_ops->libraries.empty(),
+                     return FAILED, "[OM2][Bundle] custom op binaries and shared libraries are not supported.");
+    GE_ASSERT_SUCCESS(MergeBundleKernels(bundle_data, *model_data, merged_kernels));
+    (void)bundle_data.models.emplace_back(std::move(model_data->models[0]));
+    GE_ASSERT_SUCCESS(RewriteInternalConstFileName(bundle_data.models.back(), i));
+    (void)bundle_data.constants->constants_data.emplace_back(std::move(model_data->constants->constants_data[0]));
+  }
+  GE_ASSERT_SUCCESS(BuildBundleManifest(bundle_data, *sub_models.front()->manifest));
+  for (const auto &unit : bundle_data.models) {
+    if (unit->variables_config != nullptr) {
+      unit->variables_config->global_shared_var_size = global_shared_var_size;
+    }
+  }
+  GELOGI("[OM2][Bundle] Assemble bundle model data success, model_num:%zu, global_shared_var_size:%" PRIu64 ".",
+         bundle_data.models.size(), global_shared_var_size);
   return SUCCESS;
 }
 

@@ -34,6 +34,11 @@ GERT_MODEL_DATA_API uint32_t DeserializeGertConstantsConfig(const uint8_t *data,
 GERT_MODEL_DATA_API uint32_t DeserializeGertVisualJson(const uint8_t *data, uint64_t data_size,
                                                        GertModelData *model_data, uint32_t model_index = 0U);
 
+// 仅反序列化 data/model_<index>/variables_config.json 的配置部分（graph_id/var_metas/global_shared_var_size），
+// 不解析 entries 与权重数据
+GERT_MODEL_DATA_API uint32_t DeserializeGertVariablesConfig(const uint8_t *data, uint64_t data_size,
+                                                            GertModelData *model_data, uint32_t model_index = 0U);
+
 }  // namespace gert
 
 #endif  // INC_FRAMEWORK_COMMON_GERT_MODEL_DATA_DESERIALIZE_H_

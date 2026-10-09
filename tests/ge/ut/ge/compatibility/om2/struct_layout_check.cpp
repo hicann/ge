@@ -453,12 +453,13 @@ TEST(Om2ModelDataStructCompatibility, VariablesConfigLayoutsAreFrozen) {
   EXPECT_MEMBER_LAYOUT(gert::GertModelDataVarMeta, tensor_desc, gert::GertTensorDesc, 32U);
   EXPECT_MEMBER_LAYOUT(gert::GertModelDataVarMeta, op_name, std::unique_ptr<char[]>, 136U);
 
-  EXPECT_STRUCT_LAYOUT(gert::GertModelDataVariablesConfig, 64U, 8U);
+  EXPECT_STRUCT_LAYOUT(gert::GertModelDataVariablesConfig, 72U, 8U);
   EXPECT_MEMBER_LAYOUT(gert::GertModelDataVariablesConfig, struct_size, uint64_t, 0U);
   EXPECT_MEMBER_LAYOUT(gert::GertModelDataVariablesConfig, graph_id, uint64_t, 8U);
   EXPECT_MEMBER_LAYOUT(gert::GertModelDataVariablesConfig, entries, std::vector<gert::RTVarEntry>, 16U);
   EXPECT_MEMBER_LAYOUT(gert::GertModelDataVariablesConfig, var_metas,
                        std::vector<std::unique_ptr<gert::GertModelDataVarMeta>>, 40U);
+  EXPECT_MEMBER_LAYOUT(gert::GertModelDataVariablesConfig, global_shared_var_size, uint64_t, 64U);
 }
 
 TEST(Om2ModelDataStructCompatibility, ModelLayoutIsFrozen) {

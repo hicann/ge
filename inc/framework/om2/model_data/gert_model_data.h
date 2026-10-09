@@ -68,8 +68,9 @@ struct GertModelDataCompatibility {
 struct GertModelDataManifest {
   uint64_t struct_size = sizeof(GertModelDataManifest);
   GertModelDataCompatibility compatibility;  // "compatibility"
-  uint64_t model_num = 0U;                   // model_num
-  std::unique_ptr<char[]> atc_command;       // atc_command
+  // "model_num"；模型数量，单模型为 1，Bundle 为子模型数（> 1），以此区分 Bundle
+  uint64_t model_num = 0U;
+  std::unique_ptr<char[]> atc_command;  // atc_command
 };
 
 // ==================== data/model_N/model_meta.json ====================
@@ -207,6 +208,8 @@ struct GertModelDataVariablesConfig {
   uint64_t graph_id = 0U;
   std::vector<RTVarEntry> entries;                               // "entries"（合并自 var_resource.json）
   std::vector<std::unique_ptr<GertModelDataVarMeta>> var_metas;  // "var_metas"
+  // 全局共享变量 HBM 总大小（bundle 工作区按各子模型最大值分配）
+  uint64_t global_shared_var_size = 0U;
 };
 
 // ========= data/model_N/（单个模型目录的全部文件，对应 manifest.model_num）=========
