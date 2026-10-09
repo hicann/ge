@@ -122,7 +122,7 @@ bash scripts/run.sh
 [INFO] load model ../model/resnet50.om success
 [INFO] start to process file:../data/dog1_1024_683.bin
 [INFO] model execute success
-[INFO] top 1: index[161] value[xxxxxx]
+[INFO] top 1: index[162] value[xxxxxx]
 [INFO] top 2: index[xxx] value[xxxxxx]
 ...
 [INFO] top 5: index[xxx] value[xxxxxx]
@@ -137,7 +137,7 @@ bash scripts/run.sh
 
 | Class ID | Class (ImageNet) |
 |----------|------------------|
-| 161 | basset, basset hound |
+| 162 | beagle |
 | 267 | standard poodle |
 
 > Exact values may vary by version and environment. Label-to-class mapping is based on the ImageNet dataset.

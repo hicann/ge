@@ -122,7 +122,7 @@ bash scripts/run.sh
 [INFO] load model ../model/resnet50.om success
 [INFO] start to process file:../data/dog1_1024_683.bin
 [INFO] model execute success
-[INFO] top 1: index[161] value[xxxxxx]
+[INFO] top 1: index[162] value[xxxxxx]
 [INFO] top 2: index[xxx] value[xxxxxx]
 ...
 [INFO] top 5: index[xxx] value[xxxxxx]
@@ -137,7 +137,7 @@ bash scripts/run.sh
 
 | 类别标识 | 对应类别（ImageNet） |
 |---------|---------------------|
-| 161 | basset, basset hound |
+| 162 | beagle |
 | 267 | standard poodle |
 
 > 具体数值可能因版本和环境不同而有差异。标签与类别的对应关系基于 ImageNet 数据集。
