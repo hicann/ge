@@ -324,7 +324,7 @@ Python 层会自动创建 ES `GraphBuilder`、图输入、图输出和 pattern c
 - `ReportFuse(nodes_before_fuse, nodes_after_fuse, ctx)`：在改图后且释放旧节点前调用，使用 `ctx` 中的 `pass_name` 标记新节点融合来源，更新成环检测器并记录融合维测；当 `nodes_after_fuse` 为空时表示仅删除节点。
 - `ReportMatch(matched_nodes, ctx)`：在图遍历中发现目标子图结构后调用（无论融合条件是否通过均计入），内部累加 `match_time`；与 `ReportFuse` 记录的 `effect_time` 配合可统计结构匹配命中率，`match_time - effect_time` 反映因条件过滤而放弃融合的数量。
 
-在 `SubgraphRewriter` 中新增了 `Replace(subgraph, replacement, ctx)` 重载，将 `CanFuse` 和 `ReportFuse` 串联到统一改图流程中：改图前检查可融合性，改图后上报融合结果，再删除旧节点。
+在 `SubgraphRewriter` 中新增了 `Replace(subgraph, replacement, ctx)` 重载，将 `ReportMatch`、`CanFuse` 和 `ReportFuse` 串联到统一改图流程中：改图前先上报结构匹配（累加 `match_time`，无论融合条件是否通过均计入），再检查可融合性，改图后上报融合结果，再删除旧节点，从而保证 `match_time >= effect_time` 的统计规律；调用方无需再手动调用 `ReportMatch`/`ReportFuse`，否则统计会重复累计。
 
 ### 3.4 自动融合（AutofuseOptimize）
 

@@ -30,6 +30,7 @@ __all__: list[str] = [
     "SubgraphRewriter",
     "can_fuse",
     "report_fuse",
+    "report_match",
     "infer_shape",
 ]
 
@@ -45,6 +46,14 @@ def report_fuse(
     context: PassContext,
 ) -> None:
     """Report a completed graph fusion rewrite."""
+    ...
+
+
+def report_match(
+    matched_nodes: typing.Iterable[Node],
+    context: PassContext,
+) -> None:
+    """Report one structure match regardless of whether fusion conditions pass."""
     ...
 
 

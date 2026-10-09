@@ -42,3 +42,5 @@ static Status ReportFuse(const std::vector<GNode> &nodes_before_fuse, const std:
 ## 约束说明
 
 该接口必须在改图后且释放删除节点前调用。
+
+注意：带ctx的 [SubgraphRewriter::Replace](../SubgraphRewriter/Replace.md) 重载内部已自动调用该接口上报融合结果，调用方使用该重载时无需（不应）再手动调用，否则effect_time会重复累计。手动改图（不走SubgraphRewriter）的场景仍需按上述约束手动调用。

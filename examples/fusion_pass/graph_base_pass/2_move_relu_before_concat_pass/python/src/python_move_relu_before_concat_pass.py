@@ -124,6 +124,7 @@ class PythonMoveReluBeforeConcatPass(FusionBasePass):
         for concat_node in concat_nodes:
             replacement = _build_replacement_graph(concat_node)
             boundary = _build_boundary(concat_node)
+            # replace with context reports structure match, runs fusion checks and reports fusion result automatically
             SubgraphRewriter.replace(boundary, replacement, context=context)
             print("Replacement of PythonMoveReluBeforeConcatPass succeeded")
         return True

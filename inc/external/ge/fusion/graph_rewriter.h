@@ -43,7 +43,8 @@ class SubgraphRewriter {
 
   /**
    * 给定SubgraphBoundary，将边界内算子替换为replacement。
-   * 在替换过程中会自动执行可融合检查与融合结果上报。
+   * 在替换过程中会自动执行结构匹配上报、可融合检查与融合结果上报，
+   * 调用方无需（不应）再手动调用ReportMatch/ReportFuse，否则统计会重复累计。
    * @param subgraph
    * @param replacement
    * @param ctx 用于获取pass name并执行融合上报
@@ -54,7 +55,8 @@ class SubgraphRewriter {
 
   /**
    * 给定SubgraphBoundary，将边界内算子替换为replacement。
-   * 在替换过程中会自动执行可融合检查与融合结果上报。
+   * 在替换过程中会自动执行结构匹配上报、可融合检查与融合结果上报，
+   * 调用方无需（不应）再手动调用ReportMatch/ReportFuse，否则统计会重复累计。
    * @param subgraph
    * @param replacement
    * @param ctx 用于获取pass name并执行融合上报

@@ -20,6 +20,13 @@ from ge.passes import (
     register_decompose_pass,
     create_pattern,
     create_replacement,
+    SubgraphRewriter,
+    SubgraphBoundary,
+    SubgraphInput,
+    SubgraphOutput,
+    can_fuse,
+    report_fuse,
+    report_match,
 )
 ```
 
@@ -856,6 +863,158 @@ def get_registered_pass_by_descriptor_key(descriptor_key: str) -> Optional[PassD
 | 类型 | 说明 |
 | :--- | :--- |
 | `Optional[PassDescriptor]` | 返回匹配的 `PassDescriptor` 对象；若未找到则返回 `None`。 |
+
+---
+
+## 融合维测与图重写
+
+Passes 模块提供融合维测接口（`can_fuse`、`report_match`、`report_fuse`）与图重写接口（`SubgraphRewriter.replace`），用于结构匹配命中率与融合生效次数的统计（落盘至 `fusion_result.json`），统计规律为 `match_time >= effect_time`。
+
+两条上报路径互斥，调用方按改图方式二选一：
+
+- 自动路径：使用 `SubgraphRewriter.replace(..., context=context)` 托管替换，框架自动完成结构匹配上报、可融合检查、替换与融合结果上报，调用方无需（不应）再手动调用 `report_match`/`report_fuse`，否则统计会重复累计。
+- 手动路径：直接使用 `Graph`/`Node` 的改图接口（如 `remove_edge`、`add_data_edge`、`remove_node`、`set_attr`）时，调用方需自行调用 `can_fuse`、`report_match` 与 `report_fuse` 完成检查与上报。
+
+---
+
+## SubgraphRewriter 类
+
+子图替换器，将以 `SubgraphBoundary` 描述的子图整体替换为 replacement 图。
+
+### 函数原型
+
+```python
+class SubgraphRewriter:
+    @staticmethod
+    def replace(boundary: SubgraphBoundary, replacement: Graph) -> int:
+        ...
+
+    @staticmethod
+    def replace(boundary: SubgraphBoundary, replacement: Graph, *, context: PassContext) -> None:
+        ...
+```
+
+### 参数说明
+
+| 参数名 | 输入/输出 | 说明 |
+| :------------- | :-------- | :---- |
+| boundary | 输入 | 待替换子图的边界，`SubgraphBoundary` 类型。 |
+| replacement | 输入 | 替换图，`Graph` 类型。 |
+| context | 输入 | Pass 上下文，`PassContext` 类型。传入该参数时启用托管模式，替换失败时抛出 `RuntimeError`。 |
+
+### 返回值说明
+
+| 类型 | 说明 |
+| :--- | :--- |
+| `int` | 不带 `context` 的重载返回替换结果状态码。 |
+| `None` | 带 `context` 的重载无返回值，替换失败时抛出 `RuntimeError`。 |
+
+### 约束说明
+
+- 不带 `context`：仅执行子图替换，不执行可融合检查与维测上报，由调用方自行管理检查与统计。
+- 带 `context`：自动完成结构匹配上报（`report_match`）、可融合检查（`can_fuse`）、子图替换、融合结果上报（`report_fuse`）与旧节点清理。调用方无需（不应）再手动调用 `report_match`/`report_fuse`，否则统计会重复累计。
+
+### 示例
+
+```python
+boundary = SubgraphBoundary()
+subgraph_input = SubgraphInput()
+subgraph_input.add_input(producer_node, 0)
+boundary.add_input(0, subgraph_input)
+boundary.add_output(0, SubgraphOutput(consumer_node, 0))
+
+SubgraphRewriter.replace(boundary, replacement_graph, context=context)
+```
+
+---
+
+## can_fuse 函数
+
+检查一组节点是否可安全融合（属性一致性 + 成环检测）。
+
+### 函数原型
+
+```python
+def can_fuse(nodes: Iterable[Node]) -> FuseCheckResult:
+    ...
+```
+
+### 参数说明
+
+| 参数名 | 输入/输出 | 说明 |
+| :------------- | :-------- | :---- |
+| nodes | 输入 | 待检查的节点列表，列表内所有节点需连通。 |
+
+### 返回值说明
+
+| 类型 | 说明 |
+| :--- | :--- |
+| `FuseCheckResult` | 检查结果，`ok`（bool）表示是否可融合，`reason`（str）为不可融合时的失败原因。 |
+
+### 约束说明
+
+该接口应在发现目标结构后调用，检查不通过时调用方应放弃本次融合。
+
+---
+
+## report_match 函数
+
+上报一次结构匹配，无论融合条件是否通过均计入 `match_time`。
+
+### 函数原型
+
+```python
+def report_match(matched_nodes: Iterable[Node], context: PassContext) -> None:
+    ...
+```
+
+### 参数说明
+
+| 参数名 | 输入/输出 | 说明 |
+| :------------- | :-------- | :---- |
+| matched_nodes | 输入 | 结构匹配命中的节点列表，列表内所有节点需连通。 |
+| context | 输入 | Pass 上下文，用于记录 pass name。 |
+
+### 返回值说明
+
+无返回值。上报失败时抛出 `RuntimeError`，处置权交还调用方。
+
+### 约束说明
+
+- 该接口应在发现目标结构后、`can_fuse` 之前调用。
+- 带 `context` 的 `SubgraphRewriter.replace` 内部已自动调用该接口，调用方使用该重载时无需（不应）再手动调用，否则 `match_time` 会重复累计。
+- 手动改图（不走 `SubgraphRewriter`）的场景必须手动调用本接口。
+
+---
+
+## report_fuse 函数
+
+上报一次融合生效，计入 `effect_time`。
+
+### 函数原型
+
+```python
+def report_fuse(nodes_before: Iterable[Node], nodes_after: Iterable[Node], context: PassContext) -> None:
+    ...
+```
+
+### 参数说明
+
+| 参数名 | 输入/输出 | 说明 |
+| :------------- | :-------- | :---- |
+| nodes_before | 输入 | 融合前节点列表，列表内所有节点需连通。 |
+| nodes_after | 输入 | 融合后新节点列表。传空列表表示仅删除节点、不新增节点的场景。 |
+| context | 输入 | Pass 上下文，用于记录 pass name 与标记新节点融合来源。 |
+
+### 返回值说明
+
+无返回值。上报失败时抛出 `RuntimeError`，处置权交还调用方。
+
+### 约束说明
+
+- 该接口必须在改图后且删除旧节点前调用。
+- 带 `context` 的 `SubgraphRewriter.replace` 内部已自动调用该接口，调用方使用该重载时无需（不应）再手动调用，否则 `effect_time` 会重复累计。
+- 手动改图（不走 `SubgraphRewriter`）的场景必须手动调用本接口。
 
 ---
 

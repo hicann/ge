@@ -40,6 +40,7 @@ __all__ = [
     "register_decompose_pass",
     "register_fusion_pass",
     "report_fuse",
+    "report_match",
 ]
 
 from .pattern import pattern
@@ -71,6 +72,7 @@ _LAZY_EXPORTS = {
     "register_decompose_pass": ".registry",
     "register_fusion_pass": ".registry",
     "report_fuse": ".fuse_inspector",
+    "report_match": ".fuse_inspector",
 }
 
 

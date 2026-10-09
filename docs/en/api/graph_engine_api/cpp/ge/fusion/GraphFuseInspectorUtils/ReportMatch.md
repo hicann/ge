@@ -37,3 +37,5 @@ static Status ReportMatch(const std::vector<GNode> &matched_nodes, CustomPassCon
 ## Constraints
 
 This API should be called after discovering the target structure and before [CanFuse](CanFuse.md).
+
+Note: The `SubgraphRewriter::Replace` overload with ctx internally calls this API automatically to report the structure match. Callers using that overload do not need to (and should not) call this API manually, otherwise match_time will be double-counted. For manual graph modification scenarios (not going through SubgraphRewriter), this API still needs to be called manually as described above.
