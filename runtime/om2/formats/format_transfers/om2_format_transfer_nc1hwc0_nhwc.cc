@@ -27,9 +27,7 @@ bool CheckDataTypeForNc1hwc0ToNhwc(const DataType &data_type) {
   return GetSizeByDataType(data_type) > 0;
 }
 
-Status CheckArgsForNc1hwc0ToNhwc(const TransArgs &args) {
-  auto src_shape = args.src_shape;
-  auto dst_shape = args.dst_shape;
+Status CheckFormatAndDataTypeForNc1hwc0ToNhwc(const TransArgs &args) {
   if ((args.src_primary_format != FORMAT_NC1HWC0) || (args.dst_primary_format != FORMAT_NHWC)) {
     const std::string error = "Does not support trans format from " +
                               FmtToStr(TypeUtilsInner::FormatToSerialString(args.src_primary_format)) + " to " +
@@ -42,30 +40,48 @@ Status CheckArgsForNc1hwc0ToNhwc(const TransArgs &args) {
            "[Check][DataType]Failed, shape from NC1HWC0 to NHWC, "
            "invalid data type %s",
            TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to trans shape from NC1HWC0 to NHWC, invalid data type %s",
-                         TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"datatype", TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str(),
+                                   "Transfer shape from NC1HWC0 to NHWC failed because the data type is invalid."}));
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }
+  return SUCCESS;
+}
+
+Status CheckShapeForNc1hwc0ToNhwc(const TransArgs &args) {
   if (!CheckShapeValid(args.src_shape, kNc1hwc0DimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, src shape %s",
            ShapeToString(args.src_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Src shape %s check invalid", ShapeToString(args.src_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(args.src_shape).c_str(), "Source shape checks invalid."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   if (!CheckShapeValid(args.dst_shape, kNhwcDimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, dst shape %s",
            ShapeToString(args.dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Dst shape %s check invalid", ShapeToString(args.dst_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"shape", ShapeToString(args.dst_shape).c_str(),
+                                                         "Destination shape checks invalid."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
+  return SUCCESS;
+}
+
+Status CheckShapeRelationForNc1hwc0ToNhwc(const TransArgs &args) {
   const int64_t c0 = GetC0Value(static_cast<int32_t>(args.src_format));
   if (c0 <= 0) {
     GELOGE(ACL_ERROR_GE_DATATYPE_INVALID, "[Get][Cube]Failed, the data type %s is invalid",
            TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to get cube size, the data type %s is invalid",
-                         TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"datatype", TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str(),
+                                   "Get cube size failed because the data type is invalid."}));
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }
+  const auto &src_shape = args.src_shape;
+  const auto &dst_shape = args.dst_shape;
   if ((src_shape.at(kNc1hwc0H) != dst_shape.at(kNhwcH)) || (src_shape.at(kNc1hwc0W) != dst_shape.at(kNhwcW)) ||
       (src_shape.at(kNc1hwc0N) != dst_shape.at(kNhwcN)) || (src_shape.at(kNc1hwc0C0) != c0) ||
       (src_shape.at(kNc1hwc0C1) != (Ceil(dst_shape.at(kNhwcC), c0)))) {
@@ -79,7 +95,22 @@ Status CheckArgsForNc1hwc0ToNhwc(const TransArgs &args) {
                          ShapeToString(src_shape).c_str(), ShapeToString(dst_shape).c_str());
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
+  return SUCCESS;
+}
 
+Status CheckArgsForNc1hwc0ToNhwc(const TransArgs &args) {
+  Status ret = CheckFormatAndDataTypeForNc1hwc0ToNhwc(args);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  ret = CheckShapeForNc1hwc0ToNhwc(args);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  ret = CheckShapeRelationForNc1hwc0ToNhwc(args);
+  if (ret != SUCCESS) {
+    return ret;
+  }
   return SUCCESS;
 }
 

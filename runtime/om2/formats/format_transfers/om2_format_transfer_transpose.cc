@@ -84,8 +84,10 @@ bool IsTransposeArgValid(const uint8_t *const src, const std::vector<int64_t> &s
   if (GetSizeByDataType(src_data_type) < 0) {
     GELOGE(ACL_ERROR_GE_DATATYPE_INVALID, "[Trans][Param]Failed, the data type %s is not supported",
            TypeUtilsInner::DataTypeToSerialString(src_data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to transpose, the data type %s is not supported",
-                         TypeUtilsInner::DataTypeToSerialString(src_data_type).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"datatype", TypeUtilsInner::DataTypeToSerialString(src_data_type).c_str(),
+                                   "The data type is not supported for the transpose."}));
     return false;
   }
   return IsShapeArgValid(src_shape, perm_arg);

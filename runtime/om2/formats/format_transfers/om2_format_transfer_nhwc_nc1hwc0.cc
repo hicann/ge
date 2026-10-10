@@ -33,8 +33,10 @@ Status TransShapeNhwcToNc1hwc0(const std::vector<int64_t> &src_shape, const Data
   if (c0 <= 0) {
     GELOGE(ACL_ERROR_GE_DATATYPE_INVALID, "[Get][Cube]Failed, the data type %s is invalid",
            TypeUtilsInner::DataTypeToSerialString(data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to get cube size, the data type %s is invalid",
-                         TypeUtilsInner::DataTypeToSerialString(data_type).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"datatype", TypeUtilsInner::DataTypeToSerialString(data_type).c_str(),
+                                   "Get cube size failed because the data type is invalid."}));
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }
   dst_shape.clear();
@@ -46,13 +48,15 @@ Status TransShapeNhwcToNc1hwc0(const std::vector<int64_t> &src_shape, const Data
   if (!CheckShapeValid(dst_shape, kNc1hwc0DimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, dst shape %s",
            ShapeToString(dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Dst shape %s check invalid", ShapeToString(dst_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(dst_shape).c_str(), "Destination shape checks invalid."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   return SUCCESS;
 }
 
-Status CheckArgsForNhwcToNc1hwc0(const TransArgs &args) {
+Status CheckFormatAndDataTypeForNhwcToNc1hwc0(const TransArgs &args) {
   if ((args.src_primary_format != FORMAT_NHWC) || (args.dst_primary_format != FORMAT_NC1HWC0)) {
     const std::string error = "Does not support trans format from " +
                               FmtToStr(TypeUtilsInner::FormatToSerialString(args.src_primary_format)) + " to " +
@@ -65,22 +69,36 @@ Status CheckArgsForNhwcToNc1hwc0(const TransArgs &args) {
            "[Check][DataType]Failed from NHWC to NC1HWC0, "
            "invalid data type %s",
            TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to trans shape from NHWC to NC1HWC0, invalid data type %s",
-                         TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"datatype", TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str(),
+                                   "Transform shape from NHWC to NC1HWC0 failed because the data type is invalid."}));
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }
+  return SUCCESS;
+}
+
+Status CheckShapeForNhwcToNc1hwc0(const TransArgs &args) {
   if (!CheckShapeValid(args.src_shape, kNhwcDimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, src shape %s",
            ShapeToString(args.src_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Src shape %s check invalid", ShapeToString(args.src_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(args.src_shape).c_str(), "Source shape checks invalid."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   if (!CheckShapeValid(args.dst_shape, kNc1hwc0DimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, dst shape %s",
            ShapeToString(args.dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Dst shape %s check valid", ShapeToString(args.dst_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"shape", ShapeToString(args.dst_shape).c_str(),
+                                                         "Destination shape checks invalid."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
+  return SUCCESS;
+}
+
+Status CheckDstShapeMatchForNhwcToNc1hwc0(const TransArgs &args) {
   std::vector<int64_t> expect_dst_shape;
   const int64_t c0 = GetC0Value(static_cast<int32_t>(args.dst_format));
   const auto ret = TransShapeNhwcToNc1hwc0(args.src_shape, args.src_data_type, c0, expect_dst_shape);
@@ -89,18 +107,31 @@ Status CheckArgsForNhwcToNc1hwc0(const TransArgs &args) {
   }
   if (args.dst_shape != expect_dst_shape) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID,
-           "[Trans][Format]Failed , the src shape %s and dst shape %s are not compatible. "
-           "expect dst shape %s",
+           "[Trans][Format]Failed , the src shape %s and dst shape %s are not compatible. expect dst shape %s",
            ShapeToString(args.src_shape).c_str(), ShapeToString(args.dst_shape).c_str(),
            ShapeToString(expect_dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999",
-                         "Failed to trans format, the src shape %s and "
-                         "dst shape %s are not compatible. expect dst shape %s",
-                         ShapeToString(args.src_shape).c_str(), ShapeToString(args.dst_shape).c_str(),
-                         ShapeToString(expect_dst_shape).c_str());
+    REPORT_INNER_ERR_MSG(
+        "E19999", "Failed to trans format, the src shape %s and dst shape %s are not compatible. expect dst shape %s",
+        ShapeToString(args.src_shape).c_str(), ShapeToString(args.dst_shape).c_str(),
+        ShapeToString(expect_dst_shape).c_str());
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
+  return SUCCESS;
+}
 
+Status CheckArgsForNhwcToNc1hwc0(const TransArgs &args) {
+  Status ret = CheckFormatAndDataTypeForNhwcToNc1hwc0(args);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  ret = CheckShapeForNhwcToNc1hwc0(args);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  ret = CheckDstShapeMatchForNhwcToNc1hwc0(args);
+  if (ret != SUCCESS) {
+    return ret;
+  }
   return SUCCESS;
 }
 
@@ -274,7 +305,9 @@ Status FormatTransferNhwcNc1hwc0::TransShape(const Format src_format, const std:
     if (!CheckShapeValid(src_shape, kNhwcDimsNum)) {
       GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, src shape %s",
              ShapeToString(src_shape).c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Src shape %s check invalid", ShapeToString(src_shape).c_str());
+      REPORT_PREDEFINED_ERR_MSG(
+          "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+          std::vector<const char *>({"shape", ShapeToString(src_shape).c_str(), "Source shape checks invalid."}));
       return ACL_ERROR_GE_SHAPE_INVALID;
     }
     return TransShapeNhwcToNc1hwc0(src_shape, data_type, c0, dst_shape);

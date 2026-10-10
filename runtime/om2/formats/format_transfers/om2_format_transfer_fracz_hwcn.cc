@@ -29,9 +29,7 @@ bool CheckDataTypeSupportedForFracZToHwcn(const DataType data_type) {
   return GetSizeByDataType(data_type) > 0;
 }
 
-Status CheckArgsForFracZToHwcn(const TransArgs &args) {
-  const auto src_shape = args.src_shape;
-  const auto dst_shape = args.dst_shape;
+Status CheckFormatAndDataTypeForFracZToHwcn(const TransArgs &args) {
   if ((args.src_primary_format != FORMAT_FRACTAL_Z) || (args.dst_primary_format != FORMAT_HWCN)) {
     const std::string error = "Does not support trans format from " +
                               FmtToStr(TypeUtilsInner::FormatToSerialString(args.src_primary_format)) + " to " +
@@ -44,28 +42,42 @@ Status CheckArgsForFracZToHwcn(const TransArgs &args) {
            "[Check][DataType]Failed, "
            "shape from FORMAT_FRACTAL_Z to HWCN, invalid data type %s",
            TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999",
-                         "Failed to trans shape from FORMAT_FRACTAL_Z to HWCN, "
-                         "invalid data type %s",
-                         TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"datatype", TypeUtilsInner::DataTypeToSerialString(args.src_data_type).c_str(),
+                                   "The data type is unsupported."}));
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }
-  if (!CheckShapeValid(src_shape, kFracZDimsNum)) {
+  return SUCCESS;
+}
+
+Status CheckShapeForFracZToHwcn(const TransArgs &args) {
+  if (!CheckShapeValid(args.src_shape, kFracZDimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, src shape %s",
-           ShapeToString(src_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Src shape %s check invalid", ShapeToString(src_shape).c_str());
+           ShapeToString(args.src_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(args.src_shape).c_str(), "Invalid source shape check"}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
-  if (!CheckShapeValid(dst_shape, kHwcnDimsNum)) {
+  if (!CheckShapeValid(args.dst_shape, kHwcnDimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, dst shape %s",
-           ShapeToString(dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Dst shape %s check invalid", ShapeToString(dst_shape).c_str());
+           ShapeToString(args.dst_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"shape", ShapeToString(args.dst_shape).c_str(),
+                                                         "Invalid destination shape check."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
+  return SUCCESS;
+}
+
+Status CheckShapeRelationForFracZToHwcn(const TransArgs &args) {
   const int64_t c0 = GetC0Value(static_cast<int32_t>(args.src_format));
   if (c0 < 0) {
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }
+  const auto &src_shape = args.src_shape;
+  const auto &dst_shape = args.dst_shape;
   const int64_t c1 = Ceil(dst_shape.at(kHwcnC), c0);
   const int64_t n0 = Ceil(dst_shape.at(kHwcnN), static_cast<int64_t>(kNiSize));
   if ((src_shape.at(kFracZHWC1) != (dst_shape.at(kHwcnH) * dst_shape.at(kHwcnW) * c1)) ||
@@ -75,7 +87,22 @@ Status CheckArgsForFracZToHwcn(const TransArgs &args) {
     GE_ERRORLOG_AND_ERRORMSG(ACL_ERROR_GE_SHAPE_INVALID, error.c_str());
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
+  return SUCCESS;
+}
 
+Status CheckArgsForFracZToHwcn(const TransArgs &args) {
+  Status ret = CheckFormatAndDataTypeForFracZToHwcn(args);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  ret = CheckShapeForFracZToHwcn(args);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  ret = CheckShapeRelationForFracZToHwcn(args);
+  if (ret != SUCCESS) {
+    return ret;
+  }
   return SUCCESS;
 }
 

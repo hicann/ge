@@ -241,7 +241,8 @@ Status DumpConfig::ParseAndValidate(const char *dumpData, int32_t size) {
     js = nlohmann::json::parse(jsonStr);
   } catch (...) {
     GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Parse][DumpConfig]Failed to parse dump json string");
-    REPORT_INNER_ERR_MSG("E19999", "Failed to parse dump json string");
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+                              std::vector<const char *>({"json", "dump_config", "Failed to parse dump json string."}));
     return FAILED;
   }
 
@@ -312,14 +313,17 @@ bool DumpConfig::ValidateNormalDumpConfig(const nlohmann::json &jsDumpConfig) {
 bool DumpConfig::ValidateDumpPath(const nlohmann::json &jsDumpConfig) {
   if (!jsDumpConfig.contains(GE_DUMP_PATH)) {
     GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Check][DumpConfig]dump_path field in dump config does not exist");
-    REPORT_INNER_ERR_MSG("E19999", "dump_path field in dump config does not exist");
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+        std::vector<const char *>({"NULL", "dump_path", "dump_path field in dump config does not exist."}));
     return false;
   }
 
   const std::string dumpPath = jsDumpConfig[GE_DUMP_PATH].get<std::string>();
   if (dumpPath.empty()) {
     GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Check][DumpConfig]dump_path field is null in config");
-    REPORT_INNER_ERR_MSG("E19999", "dump_path field is null in config");
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+                              std::vector<const char *>({"NULL", "dump_path", "dump_path field is null in config."}));
     return false;
   }
 
@@ -337,8 +341,9 @@ bool DumpConfig::ValidateDumpMode(const nlohmann::json &jsDumpConfig) {
   if (std::find(validModes.begin(), validModes.end(), dumpMode) == validModes.end()) {
     GELOGE(ACL_GE_INVALID_DUMP_CONFIG,
            "[Check][DumpConfig]dump_mode value[%s] error in config, only supports input/output/all", dumpMode.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "dump_mode value[%s] error in config, only supports input/output/all",
-                         dumpMode.c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+        std::vector<const char *>({dumpMode.c_str(), "dump_mode", "only supports input/output/all"}));
     return false;
   }
   GELOGD("dump_mode value[%s] is valid", dumpMode.c_str());
@@ -356,8 +361,9 @@ bool DumpConfig::ValidateDumpLevel(const nlohmann::json &jsDumpConfig) {
   if (std::find(validLevels.begin(), validLevels.end(), dumpLevel) == validLevels.end()) {
     GELOGE(ACL_GE_INVALID_DUMP_CONFIG,
            "[Check][DumpConfig]dump_level value[%s] error in config, only supports op/kernel/all", dumpLevel.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "dump_level value[%s] error in config, only supports op/kernel/all",
-                         dumpLevel.c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+        std::vector<const char *>({dumpLevel.c_str(), "dump_level", "only supports op/kernel/all"}));
     return false;
   }
   GELOGD("dump_level value[%s] is valid", dumpLevel.c_str());

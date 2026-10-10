@@ -89,7 +89,9 @@ Status TransShapeToFracZz(const ShapeVector &src_shape, const int64_t c0, ShapeV
     hw_shape.push_back(src_shape[kNdDimIndexN]);
     if (!IsShapeValid(dst_shape)) {
       GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][DSTShape]Failed, dst shape %s", ShapeToString(dst_shape).c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Failed to check dst shape %s", ShapeToString(dst_shape).c_str());
+      REPORT_PREDEFINED_ERR_MSG(
+          "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+          std::vector<const char *>({"shape", ShapeToString(dst_shape).c_str(), "Failed to check destination shape."}));
       return ACL_ERROR_GE_SHAPE_INVALID;
     }
   } else {
@@ -108,7 +110,9 @@ Status TransShapeToFracZz(const ShapeVector &src_shape, const int64_t c0, ShapeV
     hw_shape.push_back(src_shape[size - kNdDimCountBackwardsW]);
     if (!IsShapeValid(dst_shape)) {
       GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][DSTShape]Failed, dst shape %s", ShapeToString(dst_shape).c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Failed to check dst shape %s", ShapeToString(dst_shape).c_str());
+      REPORT_PREDEFINED_ERR_MSG(
+          "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+          std::vector<const char *>({"shape", ShapeToString(dst_shape).c_str(), "Failed to check destination shape."}));
       return ACL_ERROR_GE_SHAPE_INVALID;
     }
   }
@@ -399,12 +403,10 @@ Status FormatTransferFractalZz::TransShape(const Format src_format, const std::v
            TypeUtilsInner::FormatToSerialString(src_format).c_str(),
            TypeUtilsInner::FormatToSerialString(dst_format).c_str(), ShapeToString(src_shape).c_str(),
            TypeUtilsInner::DataTypeToSerialString(data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999",
-                         "Check datatype failed, unsupported format conversion from %s to %s, "
-                         "src shape %s, data type %s",
-                         TypeUtilsInner::FormatToSerialString(src_format).c_str(),
-                         TypeUtilsInner::FormatToSerialString(dst_format).c_str(), ShapeToString(src_shape).c_str(),
-                         TypeUtilsInner::DataTypeToSerialString(data_type).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>(
+            {"datatype", TypeUtilsInner::DataTypeToSerialString(data_type).c_str(), "The data type is unsupported."}));
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }
   const Format src_primary_format = static_cast<Format>(GetPrimaryFormat(static_cast<int32_t>(src_format)));

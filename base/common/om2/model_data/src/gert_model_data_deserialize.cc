@@ -849,7 +849,7 @@ ge::Status PrepareModelUnit(gert::ZipArchiveReader &archive, GertModelData &mode
   model_data.manifest = std::make_unique<GertModelDataManifest>();
   gert::InitGertModelData(model_data);
 
-  GE_ASSERT_SUCCESS(DeserializeManifest(archive, gert::OM2_MANIFEST_PATH, model_data));
+  GE_CHK_STATUS_RET_NOLOG(DeserializeManifest(archive, gert::OM2_MANIFEST_PATH, model_data));
   const uint32_t model_num = static_cast<uint32_t>(model_data.manifest->model_num);
   GE_ASSERT_TRUE(model_num >= 1U, "[OM2] manifest model_num must be at least 1, got %llu.",
                  static_cast<unsigned long long>(model_data.manifest->model_num));
@@ -870,21 +870,23 @@ ge::Status PrepareModelUnit(gert::ZipArchiveReader &archive, GertModelData &mode
 // 全量反序列化（除 visual json）：manifest + data/model_<index>/ 全部类别 + kernels/custom_ops
 ge::Status DeserializeGertModelDataFromArchive(gert::ZipArchiveReader &archive, GertModelData &model_data,
                                                const uint32_t model_index) {
-  GE_ASSERT_SUCCESS(PrepareModelUnit(archive, model_data, model_index));
+  GE_CHK_STATUS_RET_NOLOG(PrepareModelUnit(archive, model_data, model_index));
   auto &unit = *model_data.models[model_index];
   const auto idx = std::to_string(model_index);
   if (model_data.constants->constants_data.size() <= model_index) {
     model_data.constants->constants_data.resize(model_index + 1U);
   }
   auto &weight_slot = model_data.constants->constants_data[model_index];
-  GE_ASSERT_SUCCESS(
+  GE_CHK_STATUS_RET_NOLOG(
       DeserializeModelMeta(archive, gert::FormatOm2Path(gert::OM2_MODEL_META_PATH_FORMAT, idx.c_str()), unit));
-  GE_ASSERT_SUCCESS(DeserializeCodegen(archive, gert::FormatOm2Path(gert::OM2_RUNTIME_DIR_FORMAT, idx.c_str()), unit));
-  GE_ASSERT_SUCCESS(DeserializeConstantsConfig(
+  GE_CHK_STATUS_RET_NOLOG(
+      DeserializeCodegen(archive, gert::FormatOm2Path(gert::OM2_RUNTIME_DIR_FORMAT, idx.c_str()), unit));
+  GE_CHK_STATUS_RET_NOLOG(DeserializeConstantsConfig(
       archive, gert::FormatOm2Path(gert::OM2_CONSTANTS_CONFIG_PATH_FORMAT, idx.c_str()), unit));
-  GE_ASSERT_SUCCESS(DeserializeWeight(
+  GE_CHK_STATUS_RET_NOLOG(DeserializeWeight(
       archive, std::string(gert::OM2_CONSTANTS_DIR) + gert::OM2_CONSTANTS_FILE_PREFIX + idx, unit, weight_slot));
-  GE_ASSERT_SUCCESS(DeserializeOpAttr(archive, gert::FormatOm2Path(gert::OM2_OP_ATTR_PATH_FORMAT, idx.c_str()), unit));
+  GE_CHK_STATUS_RET_NOLOG(
+      DeserializeOpAttr(archive, gert::FormatOm2Path(gert::OM2_OP_ATTR_PATH_FORMAT, idx.c_str()), unit));
   GE_ASSERT_SUCCESS(DeserializeVariablesData(
       archive, gert::FormatOm2Path(gert::OM2_VARIABLES_CONFIG_PATH_FORMAT, idx.c_str()), unit));
   GE_ASSERT_SUCCESS(DeserializeKernels(archive, gert::OM2_KERNELS_DIR, model_data));

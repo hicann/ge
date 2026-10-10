@@ -111,7 +111,9 @@ Status TransShapeNchwToFzC04(const std::vector<int64_t> &src_shape, const DataTy
   if (!IsShapeValid(dst_shape)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, dst shape %s",
            ShapeToString(dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Dst shape %s check invalid", ShapeToString(dst_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(dst_shape).c_str(), "Invalid destination shape check."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   return SUCCESS;

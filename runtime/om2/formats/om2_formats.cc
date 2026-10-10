@@ -42,10 +42,9 @@ Status TransDataFormat(const TransArgs &args, TransResult &result) {
            "[Check][Shape]Failed, input data is null "
            "or shape size not equal to 0, src_shape %s",
            ShapeToString(args.src_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999",
-                         "Failed to check shape, input data is null "
-                         "or shape size not equal to 0, src_shape %s",
-                         ShapeToString(args.src_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"src_shape", ShapeToString(args.src_shape).c_str(),
+                                                         "input data is null or shape size not equal to 0."}));
     return ACL_ERROR_GE_PARAM_INVALID;
   }
 

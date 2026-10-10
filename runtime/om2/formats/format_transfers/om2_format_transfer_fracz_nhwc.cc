@@ -180,8 +180,9 @@ Status FormatTransferFracZNhwc::TransFormat(const TransArgs &args, TransResult &
            " from dst shape %s, "
            "src shape %s",
            total_size, ShapeToString(args.dst_shape).c_str(), ShapeToString(args.src_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to get total size %" PRId64 " from dst shape %s, src shape %s", total_size,
-                         ShapeToString(args.dst_shape).c_str(), ShapeToString(args.src_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(args.dst_shape).c_str(), "Invalid shape for transfer."}));
     return ACL_ERROR_GE_PARAM_INVALID;
   }
   GELOGD("Begin to trans format from FracZ to NHWC, src shape %s, data type %s, dst shape %s, memory size %" PRId64 "",

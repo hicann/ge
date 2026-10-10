@@ -54,7 +54,9 @@ Status TransShapeToFz(const int64_t n, const int64_t c, const int64_t h, const i
   dst_shape.push_back(c0);
   if (!IsShapeValid(dst_shape)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Failed, dst shape %s", ShapeToString(dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to check dst shape %s", ShapeToString(dst_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(dst_shape).c_str(), "Failed to check destination shape."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   return SUCCESS;
@@ -92,7 +94,9 @@ Status TransShapeToFzWithGroups(const int64_t n, const int64_t c, const int64_t 
   dst_shape.push_back(cube_k);
   if (!IsShapeValid(dst_shape)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Failed, dst shape %s", ShapeToString(dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to check dst shape %s", ShapeToString(dst_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(dst_shape).c_str(), "Failed to check destination shape."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   return SUCCESS;

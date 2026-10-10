@@ -45,7 +45,8 @@ namespace ge {
 namespace om2 {
 std::string RealPath(const char_t *path) {
   if (path == nullptr) {
-    REPORT_INNER_ERR_MSG("E18888", "path is nullptr, check invalid");
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"path", "NULL", "path is null."}));
     GELOGE(FAILED, "[OM2][Check][Param] path pointer is NULL.");
     return "";
   }
@@ -82,8 +83,12 @@ void SplitFilePath(const std::string &file_path, std::string &dir_path, std::str
 }
 
 int32_t CreateDir(const std::string &directory_path) {
-  GE_CHK_BOOL_EXEC(!directory_path.empty(), REPORT_INNER_ERR_MSG("E18888", "directory path is empty, check invalid");
-                   return -1, "[OM2][Check][Param] directory path is empty.");
+  if (directory_path.empty()) {
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"directory_path", "NULL", "directory path is empty."}));
+    GELOGE(ge::FAILED, "[OM2][Check][Param] directory path is empty.");
+    return -1;
+  }
   const auto dir_path_len = directory_path.length();
   GE_CHK_BOOL_EXEC(dir_path_len < static_cast<size_t>(MMPA_MAX_PATH), return -1,
                    "[OM2][Util][Mkdir] Path %s len is too long, it must be less than %d", directory_path.c_str(),

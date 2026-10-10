@@ -4445,4 +4445,66 @@ TEST_F(Om2ModelExecutorUt, load_from_bundle_data_external_var_arena) {
   gert::Om2RTVarManagerPool::Instance().RemoveManager(4444U);
 }
 
+TEST_F(Om2ModelExecutorUt, load_failed_when_internal_weight_missing_in_om2) {
+  PrepareOm2File();
+  gert::GertBuffer model_buf;
+  const std::string om2_path = PathUtils::Join({test_work_dir_, "missing_internal_weight.om2"});
+  const std::string so_path = PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"});
+
+  gert::ZipArchiveWriter zip_writer(om2_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  const auto model_meta = MakeModelMetaJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(WriteFileToZip(zip_writer, "data/model_0/runtime/libg1_om2.so", so_path, false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  // constants_config 声明了 INTERNAL 常量，但归档中不写入 data/constants/constant_0
+  const auto constants_config = MakeConstantsConfigJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
+  ASSERT_TRUE(zip_writer.SaveModelData(model_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.data.get();
+  holder.model_data.model_len = model_buf.length;
+  holder.model_data.om_path = om2_path;
+  holder.shared_buffer = model_buf.data;
+
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(Om2ModelExecutorUt, load_om2_data_from_file_multi_scene) {
+  PrepareOm2File();
+
+  // 场景1：路径不存在，RealPath 失败
+  ModelData invalid_data{};
+  EXPECT_EQ(gert::LoadOm2DataFromFile("/non/existent/file.om2", invalid_data), ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID);
+  EXPECT_EQ(invalid_data.model_data, nullptr);
+
+  // 场景2：合法 om2 文件
+  ModelData valid_data{};
+  ASSERT_EQ(gert::LoadOm2DataFromFile(om2_file_path_, valid_data), SUCCESS);
+  ASSERT_NE(valid_data.model_data, nullptr);
+  EXPECT_GT(valid_data.model_len, 0U);
+  EXPECT_FALSE(valid_data.om_path.empty());
+  delete[] static_cast<char *>(valid_data.model_data);
+  valid_data.model_data = nullptr;
+}
+
+TEST_F(Om2ModelExecutorUt, load_om2_executor_from_data_failed_returns_nullptr_and_error_code) {
+  std::vector<uint8_t> garbage_data(64U, 0xAB);
+  ModelData model_data{};
+  model_data.model_data = garbage_data.data();
+  model_data.model_len = garbage_data.size();
+
+  ge::Status error_code = SUCCESS;
+  const auto load_arg = MakeOm2LoadArg();
+  auto executor = gert::LoadOm2ExecutorFromData(model_data, load_arg, error_code);
+  EXPECT_EQ(executor, nullptr);
+  EXPECT_NE(error_code, SUCCESS);
+}
+
 }  // namespace ge

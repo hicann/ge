@@ -311,8 +311,13 @@ ge::Status FindInternalWeightBuf(const gert::GertModelData &om2_data,
                    [&internal_file_name](const std::unique_ptr<gert::GertModelDataFile> &slot) {
                      return (slot != nullptr) && (std::string(gert::GertGetStr(slot->file_name)) == internal_file_name);
                    });
-  GE_ASSERT_TRUE(data_it != constants_data.end(), "[OM2][Check] Constants data [%s] not found.",
-                 internal_file_name.c_str());
+  if (data_it == constants_data.end()) {
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10059", std::vector<const char *>({"stage", "reason"}),
+        std::vector<const char *>({"LoadFromOm2ModelData", "Constants data not found in ZIP archive."}));
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Check] Constants data [%s] not found.", internal_file_name.c_str());
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
   weight_buf = ge::ReadonlyByteBuffer(data_it->get()->data.get(), ge::ConditionalDeleter{false});
   return ge::SUCCESS;
 }
@@ -425,7 +430,7 @@ class Om2ModelExecutor::Impl {
       }
     }
 
-    GE_ASSERT_SUCCESS(FindInternalWeightBuf(om2_data, *unit.constants_config, weight_buf));
+    GE_CHK_STATUS_RET_NOLOG(FindInternalWeightBuf(om2_data, *unit.constants_config, weight_buf));
 
     return ge::SUCCESS;
   }
@@ -554,12 +559,15 @@ class Om2ModelExecutor::Impl {
     constants.resize(classified_items.max_index + 1U, nullptr);
     std::map<std::string, ge::FileConstantMem> user_file_const_mems;
     GE_ASSERT_SUCCESS(BuildUserFileConstMemMap(load_arg.file_constant_mems, user_file_const_mems));
-    GE_ASSERT_SUCCESS(
-        PrepareInternalConsts(weight_buf, load_arg, classified_items.internal_consts, internal_weight_size, constants));
-    GE_ASSERT_SUCCESS(PrepareCombinedConsts(load_arg.weight_path, load_arg.om_path, user_file_const_mems,
-                                            classified_items.combined_consts, constants));
-    GE_ASSERT_SUCCESS(PrepareIndividualConsts(load_arg.weight_path, load_arg.om_path, user_file_const_mems,
-                                              classified_items.individual_consts, constants));
+    GE_CHK_STATUS_RET(
+        PrepareInternalConsts(weight_buf, load_arg, classified_items.internal_consts, internal_weight_size, constants),
+        "[OM2][Call]PrepareInternalConsts failed");
+    GE_CHK_STATUS_RET(PrepareCombinedConsts(load_arg.weight_path, load_arg.om_path, user_file_const_mems,
+                                            classified_items.combined_consts, constants),
+                      "[OM2][Call]PrepareCombinedConsts failed");
+    GE_CHK_STATUS_RET(PrepareIndividualConsts(load_arg.weight_path, load_arg.om_path, user_file_const_mems,
+                                              classified_items.individual_consts, constants),
+                      "[OM2][Call]PrepareIndividualConsts failed");
     return ge::SUCCESS;
   }
 
@@ -627,8 +635,9 @@ class Om2ModelExecutor::Impl {
     }
     session_id_ = session_id;
     GE_ASSERT_TRUE(!model_data.models.empty(), "[OM2] models is empty");
-    GE_ASSERT_SUCCESS(
-        PrepareConstantsFromStruct(*model_data.models[0]->constants_config, weight_buf, load_arg, constants));
+    GE_CHK_STATUS_RET(
+        PrepareConstantsFromStruct(*model_data.models[0]->constants_config, weight_buf, load_arg, constants),
+        "[OM2][Call]PrepareConstantsFromStruct failed.");
     GE_ASSERT_SUCCESS(PrepareVariablesFromStruct(*model_data.models[0], load_arg));
 
     GE_ASSERT_SUCCESS(PrepareVarAddrs(model_data, static_cast<uint32_t>(load_arg.device_id), var_addrs));
@@ -662,8 +671,9 @@ class Om2ModelExecutor::Impl {
     std::vector<void *> var_addrs;
     GE_ASSERT_SUCCESS(InitModelDumpInfo(load_arg));
     ReportModelLoadBegin();
-    GE_ASSERT_SUCCESS(
-        CreateModelFromStruct(model_data, weight_buf, kernel_bin_info, load_arg, session_id, constants, var_addrs));
+    GE_CHK_STATUS_RET(
+        CreateModelFromStruct(model_data, weight_buf, kernel_bin_info, load_arg, session_id, constants, var_addrs),
+        "[OM2][Call][CreateModelFromStruct] failed.");
     ReportModelLoadEnd();
     GE_ASSERT_SUCCESS(DispatchDumpInfo());
     weight_buf.reset(nullptr);
@@ -1083,7 +1093,16 @@ class Om2ModelExecutor::Impl {
     if (const_items.empty()) {
       return ge::SUCCESS;
     }
-    GE_ASSERT_TRUE(weight_buf != nullptr, "[OM2][Check] Missing internal host weight buffer.");
+    if (weight_buf == nullptr) {
+      REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                                std::vector<const char *>({"PrepareInternalConsts",
+                                                           "Internal weight file [data/constants/constant_0] not found "
+                                                           "in OM2 package, please check whether the OM2 model file is "
+                                                           "complete or has been modified."}));
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID,
+             "[OM2][Check] Missing internal host weight buffer, the internal weight file is not found in OM2 file.");
+      return ACL_ERROR_GE_PARAM_INVALID;
+    }
     const void *host_weight_base = weight_buf.get();
     void *device_weight_base = load_arg.weight_ptr;
     if (device_weight_base != nullptr) {
@@ -1212,7 +1231,8 @@ ge::Status Om2ModelExecutor::Load(const gert::GertModelData &model_data, const O
   GE_ASSERT_SUCCESS(impl_->ResolveSymbols());
   GE_ASSERT_SUCCESS(impl_->CreateDumpManager(load_arg));
   impl_->owner_ = const_cast<Om2ModelExecutor *>(this);
-  GE_ASSERT_SUCCESS(impl_->CreateAndLoadModelFromStruct(model_data, weight_buf, kernel_bin_info, load_arg, session_id));
+  GE_CHK_STATUS_RET(impl_->CreateAndLoadModelFromStruct(model_data, weight_buf, kernel_bin_info, load_arg, session_id),
+                    "[OM2][Call][CreateAndLoadModelFromStruct] failed.");
   return ge::SUCCESS;
 }
 
@@ -1337,7 +1357,8 @@ ge::Status LoadOm2DataFromFile(const std::string &model_path, ge::ModelData &mod
     const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStringLen);
     const std::string reason = ge::FormatErrnoReason(mmGetErrorCode(), err_msg);
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID, "[Open][File]Failed, file %s, error %s", model_path.c_str(), err_msg);
-    REPORT_INNER_ERR_MSG("E19999", "Open file %s failed, reason:%s", model_path.c_str(), reason.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({model_path.c_str(), reason.c_str()}));
     return ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID;
   }
 
@@ -1695,7 +1716,8 @@ ge::Status IsOm2Model(const char *file_path, bool &is_support) {
     const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStringLen);
     const std::string reason = ge::FormatErrnoReason(mmGetErrorCode(), err_msg);
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID, "[Open][File]Failed, file %s, error %s", file_path, err_msg);
-    REPORT_INNER_ERR_MSG("E19999", "Open file %s failed, reason:%s", file_path, reason.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({file_path, reason.c_str()}));
     return ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID;
   }
 

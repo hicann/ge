@@ -380,12 +380,10 @@ Status FormatTransferFractalNz::TransShape(const Format src_format, const std::v
            TypeUtilsInner::FormatToSerialString(src_primary_format).c_str(),
            TypeUtilsInner::FormatToSerialString(dst_primary_format).c_str(), ShapeToString(src_shape).c_str(),
            TypeUtilsInner::DataTypeToSerialString(data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999",
-                         "Check datatype failed, trans format from %s to %s, src shape %s, "
-                         "data type %s is not supported",
-                         TypeUtilsInner::FormatToSerialString(src_primary_format).c_str(),
-                         TypeUtilsInner::FormatToSerialString(dst_primary_format).c_str(),
-                         ShapeToString(src_shape).c_str(), TypeUtilsInner::DataTypeToSerialString(data_type).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"datatype", TypeUtilsInner::DataTypeToSerialString(data_type).c_str(),
+                                   "The data type is not supported for the format transfer."}));
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }
   if (!CheckShapeForTransShapeToFracNz(src_primary_format, src_shape)) {

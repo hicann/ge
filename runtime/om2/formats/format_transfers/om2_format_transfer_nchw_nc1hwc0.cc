@@ -29,14 +29,18 @@ Status TransShapeNchwToNc1hwc0(const std::vector<int64_t> &src_shape, const Data
   if (c0 <= 0) {
     GELOGE(ACL_ERROR_GE_DATATYPE_INVALID, "[Get][Cube]Failed, the data type %s is invalid",
            TypeUtilsInner::DataTypeToSerialString(data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to get cube size, the data type %s is invalid",
-                         TypeUtilsInner::DataTypeToSerialString(data_type).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"datatype", TypeUtilsInner::DataTypeToSerialString(data_type).c_str(),
+                                   "The data type is invalid or unsupported."}));
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }
   if (!CheckShapeValid(src_shape, kNchwDimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, src shape %s",
            ShapeToString(src_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Src shape %s check invalid", ShapeToString(src_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(src_shape).c_str(), "Invalid source shape check."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   dst_shape.clear();
@@ -48,7 +52,9 @@ Status TransShapeNchwToNc1hwc0(const std::vector<int64_t> &src_shape, const Data
   if (!CheckShapeValid(dst_shape, kNc1hwc0DimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][Shape]Value is invalid, dst shape %s",
            ShapeToString(dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Dst shape %s check invalid", ShapeToString(dst_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(dst_shape).c_str(), "Invalid destination shape check."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   return SUCCESS;

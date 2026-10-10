@@ -45,12 +45,16 @@ Status CheckArgsForC1hwncoc0ToHwcn(const TransArgs &args) {
   }
   if (!CheckShapeValid(src_shape, kC1hwncoc0DimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][SrcShape]Failed, src shape %s", ShapeToString(src_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to check src shape %s", ShapeToString(src_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(src_shape).c_str(), "Failed to check source shape."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   if (!CheckShapeValid(dst_shape, kHwcnDimsNum)) {
     GELOGE(ACL_ERROR_GE_SHAPE_INVALID, "[Check][DSTShape]Failed, dst shape %s.", ShapeToString(dst_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to check dst shape %s", ShapeToString(dst_shape).c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"shape", ShapeToString(dst_shape).c_str(), "Failed to check destination shape."}));
     return ACL_ERROR_GE_SHAPE_INVALID;
   }
   const auto cube_size = GetC0Value(static_cast<int32_t>(args.src_format));
