@@ -45,6 +45,39 @@ namespace gert {
 FORALL_OM2_CONSTANTS(DEFINE_OM2_CONST);
 #undef DEFINE_OM2_CONST
 
+// OM2 归档文件类型
+enum class GertFileType {
+  kCsrc,             // data/model_%s/runtime/csrc/*
+  kSo,               // data/model_%s/runtime/lib*.so
+  kConstants,        // data/constants/constant_N
+  kConstantsConfig,  // data/model_%s/constants_config.json
+  kVarWeight,        // data/variables/var_weight_data_N
+  kVariablesConfig,  // data/model_%s/variables_config.json
+  kKernels,          // data/kernels/*
+  kCustomKernels,    // data/custom_ops/*（binaries_npu_arch 与 shared_libs）
+  kModelMeta,        // data/model_%s/model_meta.json
+  kOpAttr,           // data/model_%s/op_attr.json
+  kVisualJson,       // data/model_%s/debug/ge_visual_*.json
+  kManifest          // manifest.json
+};
+
+// OM2 归档文件压缩白名单：文件默认不压缩（Stored），仅名单内文件类型启用 DEFLATE 压缩；
+// 新增文件类型不在名单即默认不压缩，需要压缩时加入名单并同步 const_check 看护
+constexpr GertFileType kGertCompressedFileWhitelist[] = {
+    GertFileType::kCsrc,   GertFileType::kSo,         GertFileType::kConstantsConfig,
+    GertFileType::kOpAttr, GertFileType::kVisualJson,
+};
+
+// 文件类型是否在压缩白名单内（constexpr，调用点编译期折叠，零运行时开销）
+constexpr bool IsGertFileCompressed(const GertFileType type) {
+  for (const GertFileType whitelisted : kGertCompressedFileWhitelist) {
+    if (whitelisted == type) {
+      return true;
+    }
+  }
+  return false;
+}
+
 template <typename... Args>
 std::string FormatOm2Path(const char *fmt, Args... args) {
   const int32_t len = snprintf(nullptr, 0, fmt, args...);

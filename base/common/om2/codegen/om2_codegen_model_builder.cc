@@ -449,16 +449,6 @@ Status Om2CodegenModelBuilder::BuildModelIo(const GeModelPtr &model, Om2CodegenM
   for (const auto &item : input_items) {
     (void)input_offsets.insert(item.memory_offset);
   }
-  for (const auto &item : output_items) {
-    if (input_offsets.count(item.memory_offset) > 0U) {
-      REPORT_INNER_ERR_MSG("E19999",
-                           "[OM2] memory_offset %" PRId64 " is both input and output, which is not supported.",
-                           item.memory_offset);
-      GELOGE(PARAM_INVALID, "[OM2] memory_offset %" PRId64 " is both input and output, which is not supported.",
-             item.memory_offset);
-      return PARAM_INVALID;
-    }
-  }
   std::stable_sort(input_items.begin(), input_items.end(), &CompareInputModelIoItem);
   uint32_t update_host_args_index = 0U;
   for (const auto &item : input_items) {

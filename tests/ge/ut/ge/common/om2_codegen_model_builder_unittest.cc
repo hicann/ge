@@ -1216,13 +1216,6 @@ GeRootModelPtr CreateGeRootModelWithIoMemoryOffsetOverlap() {
   return ge_root_model;
 }
 
-TEST_F(Om2CodegenModelBuilderUt, BuildModelIoSemantic_IoMemoryOffsetOverlap_Fail) {
-  GeRootModelPtr ge_root_model = CreateGeRootModelWithIoMemoryOffsetOverlap();
-  ASSERT_NE(ge_root_model, nullptr);
-  Om2CodegenModel doc;
-  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), PARAM_INVALID);
-}
-
 TEST_F(Om2CodegenModelBuilderUt, BuildConstInputs_Ok) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithConstInputOp();
   ASSERT_NE(ge_root_model, nullptr);

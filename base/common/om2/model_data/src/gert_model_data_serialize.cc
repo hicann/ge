@@ -54,13 +54,15 @@ ge::Status SerializeCodegenArtifacts(const gert::GertModelDataModel &unit,
       continue;
     }
     const std::string entry_name = csrc_dir + file_name;
-    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_name, artifact.data.get(), artifact.data_size, true),
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_name, artifact.data.get(), artifact.data_size,
+                                          IsGertFileCompressed(GertFileType::kCsrc)),
                    "Failed to write artifact [%s]", file_name.c_str());
   }
   const auto &so_artifact = unit.runtime->so_artifact;
   if ((so_artifact.data != nullptr) && (gert::GertGetStr(so_artifact.file_name)[0] != '\0')) {
     const std::string so_entry = runtime_dir + gert::GertGetStr(so_artifact.file_name);
-    GE_ASSERT_TRUE(zip_writer->WriteBytes(so_entry, so_artifact.data.get(), so_artifact.data_size, false),
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(so_entry, so_artifact.data.get(), so_artifact.data_size,
+                                          IsGertFileCompressed(GertFileType::kSo)),
                    "Failed to write so artifact [%s]", gert::GertGetStr(so_artifact.file_name));
   }
   return ge::SUCCESS;
@@ -74,7 +76,8 @@ ge::Status SerializeWeightData(const gert::GertModelDataModel &unit, const gert:
     return ge::SUCCESS;
   }
   const auto constant_file_name = FormatOm2Path("%s%s%zu", OM2_CONSTANTS_DIR, OM2_CONSTANTS_FILE_PREFIX, model_index);
-  GE_ASSERT_TRUE(zip_writer->WriteBytes(constant_file_name, weight.data.get(), weight.data_size, false));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(constant_file_name, weight.data.get(), weight.data_size,
+                                        IsGertFileCompressed(GertFileType::kConstants)));
   return ge::SUCCESS;
 }
 
@@ -109,8 +112,8 @@ ge::Status SerializeConstantsConfig(const gert::GertModelDataModel &unit,
   const std::string constants_json_str = json_file.Dump();
   const std::string model_index_str = std::to_string(model_index);
   const auto constants_config_path = FormatOm2Path(OM2_CONSTANTS_CONFIG_PATH_FORMAT, model_index_str.c_str());
-  GE_ASSERT_TRUE(
-      zip_writer->WriteBytes(constants_config_path, constants_json_str.data(), constants_json_str.size(), true));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(constants_config_path, constants_json_str.data(), constants_json_str.size(),
+                                        IsGertFileCompressed(GertFileType::kConstantsConfig)));
   return ge::SUCCESS;
 }
 
@@ -193,13 +196,15 @@ ge::Status SerializeVariablesData(const gert::GertModelDataModel &unit,
     }
     (void)json_file.Set("entries", entries_json);
     if (!weight_buffer.empty()) {
-      GE_ASSERT_TRUE(zip_writer->WriteBytes(weight_file, weight_buffer.data(), weight_buffer.size(), false));
+      GE_ASSERT_TRUE(zip_writer->WriteBytes(weight_file, weight_buffer.data(), weight_buffer.size(),
+                                            IsGertFileCompressed(GertFileType::kVarWeight)));
     }
   }
 
   const std::string json_str = json_file.Dump();
   const auto config_path = FormatOm2Path(OM2_VARIABLES_CONFIG_PATH_FORMAT, std::to_string(model_index).c_str());
-  GE_ASSERT_TRUE(zip_writer->WriteBytes(config_path, json_str.data(), json_str.size(), false));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(config_path, json_str.data(), json_str.size(),
+                                        IsGertFileCompressed(GertFileType::kVariablesConfig)));
   return ge::SUCCESS;
 }
 
@@ -208,7 +213,8 @@ ge::Status SerializeKernelBinaries(const gert::GertModelData &model_data,
   const auto kernel_bin_dir = OM2_KERNELS_DIR;
   for (const auto &kb_ptr : model_data.kernels->binaries) {
     const auto entry_path = kernel_bin_dir + std::string(gert::GertGetStr(kb_ptr->file_name));
-    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb_ptr->data.get(), kb_ptr->data_size, false));
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb_ptr->data.get(), kb_ptr->data_size,
+                                          IsGertFileCompressed(GertFileType::kKernels)));
   }
   return ge::SUCCESS;
 }
@@ -218,7 +224,8 @@ ge::Status SerializeCustomKernelBinaries(const gert::GertModelData &model_data,
   const auto kernel_bin_dir = FormatOm2Path(OM2_CUSTOM_KERNELS_DIR_FORMAT, "binaries_npu_arch");
   for (const auto &kb_ptr : model_data.custom_ops->binaries) {
     const auto entry_path = kernel_bin_dir + std::string(gert::GertGetStr(kb_ptr->file_name));
-    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb_ptr->data.get(), kb_ptr->data_size, false));
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb_ptr->data.get(), kb_ptr->data_size,
+                                          IsGertFileCompressed(GertFileType::kCustomKernels)));
   }
   return ge::SUCCESS;
 }
@@ -228,7 +235,8 @@ ge::Status SerializeCustomKernelSharedLibs(const gert::GertModelData &model_data
   const auto kernel_bin_dir = FormatOm2Path(OM2_CUSTOM_KERNELS_DIR_FORMAT, "shared_libs");
   for (const auto &kb_ptr : model_data.custom_ops->libraries) {
     const auto entry_path = kernel_bin_dir + std::string(gert::GertGetStr(kb_ptr->file_name));
-    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb_ptr->data.get(), kb_ptr->data_size, false));
+    GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kb_ptr->data.get(), kb_ptr->data_size,
+                                          IsGertFileCompressed(GertFileType::kCustomKernels)));
   }
   return ge::SUCCESS;
 }
@@ -451,8 +459,8 @@ ge::Status SerializeModelMeta(const gert::GertModelDataModel &unit, const std::s
 
   const auto model_meta_info_str = model_meta_info.Dump();
   const auto model_meta_entry_path = FormatOm2Path(OM2_MODEL_META_PATH_FORMAT, std::to_string(model_index).c_str());
-  GE_ASSERT_TRUE(
-      zip_writer->WriteBytes(model_meta_entry_path, model_meta_info_str.data(), model_meta_info_str.size(), false));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(model_meta_entry_path, model_meta_info_str.data(), model_meta_info_str.size(),
+                                        IsGertFileCompressed(GertFileType::kModelMeta)));
   return ge::SUCCESS;
 }
 
@@ -461,7 +469,8 @@ ge::Status SerializeDebugInfo(const gert::GertModelDataModel &unit, const std::s
   // op_attr.json：Build 侧生成的 JSON 字符串直通写入
   const char *op_attr_json_str = (unit.op_attr_json != nullptr) ? gert::GertGetStr(unit.op_attr_json) : "{}";
   const auto op_attr_entry_path = FormatOm2Path(OM2_OP_ATTR_PATH_FORMAT, std::to_string(model_index).c_str());
-  GE_ASSERT_TRUE(zip_writer->WriteBytes(op_attr_entry_path, op_attr_json_str, std::strlen(op_attr_json_str), false));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(op_attr_entry_path, op_attr_json_str, std::strlen(op_attr_json_str),
+                                        IsGertFileCompressed(GertFileType::kOpAttr)));
 
   // visual json
   if (unit.debug == nullptr) {
@@ -469,7 +478,8 @@ ge::Status SerializeDebugInfo(const gert::GertModelDataModel &unit, const std::s
   }
   const auto visual_entry_path = FormatOm2Path(OM2_VISUAL_JSON_PATH_FORMAT, std::to_string(model_index).c_str());
   const auto visual_json_str = gert::GertGetStr(unit.debug->visual_json);
-  GE_ASSERT_TRUE(zip_writer->WriteBytes(visual_entry_path, visual_json_str, std::strlen(visual_json_str), true));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(visual_entry_path, visual_json_str, std::strlen(visual_json_str),
+                                        IsGertFileCompressed(GertFileType::kVisualJson)));
   return ge::SUCCESS;
 }
 
@@ -498,7 +508,8 @@ ge::Status SerializeManifest(const gert::GertModelData &model_data,
   (void)manifest_json.Set(OM2_MANIFEST_KEY_COMPATIBILITY, compatibility_json);
 
   const std::string manifest_str = manifest_json.Dump();
-  GE_ASSERT_TRUE(zip_writer->WriteBytes(OM2_MANIFEST_PATH, manifest_str.data(), manifest_str.size(), false));
+  GE_ASSERT_TRUE(zip_writer->WriteBytes(OM2_MANIFEST_PATH, manifest_str.data(), manifest_str.size(),
+                                        IsGertFileCompressed(GertFileType::kManifest)));
   return ge::SUCCESS;
 }
 

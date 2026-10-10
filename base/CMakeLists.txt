@@ -256,11 +256,11 @@ target_link_libraries(ge_common
         -Wl,--as-needed
         json
         minizip_static
+        gert_model_data_serializer
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
         ${AIR_COMMON_LINK_OPTION}
     PUBLIC
-        gert_model_data_serializer
         $<BUILD_INTERFACE:air_headers>
         $<BUILD_INTERFACE:ge_metadef_headers>
 )

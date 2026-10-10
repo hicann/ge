@@ -59,6 +59,46 @@ TEST(Om2ModelDataConstCompatibility, PublicScalarConstantsAreFrozen) {
   EXPECT_EQ(gert::kOm2InvalidAippDataIndex, 0xFFFFFFFFUL);
 }
 
+// 归档文件压缩白名单（kGertCompressedFileWhitelist）：文件默认不压缩，仅名单内文件类型启用 DEFLATE；
+// 名单成员增删属落盘行为策略变更，须同步评审序列化侧与包体积影响
+TEST(Om2ModelDataConstCompatibility, ArchiveCompressionWhitelistIsFrozen) {
+  // 白名单内：启用 DEFLATE 压缩
+  static_assert(gert::IsGertFileCompressed(gert::GertFileType::kCsrc), "kCsrc should be in compression whitelist");
+  EXPECT_TRUE(gert::IsGertFileCompressed(gert::GertFileType::kCsrc));
+  static_assert(gert::IsGertFileCompressed(gert::GertFileType::kSo), "kSo should be in compression whitelist");
+  EXPECT_TRUE(gert::IsGertFileCompressed(gert::GertFileType::kSo));
+  static_assert(gert::IsGertFileCompressed(gert::GertFileType::kConstantsConfig),
+                "kConstantsConfig should be in compression whitelist");
+  EXPECT_TRUE(gert::IsGertFileCompressed(gert::GertFileType::kConstantsConfig));
+  static_assert(gert::IsGertFileCompressed(gert::GertFileType::kOpAttr), "kOpAttr should be in compression whitelist");
+  EXPECT_TRUE(gert::IsGertFileCompressed(gert::GertFileType::kOpAttr));
+  static_assert(gert::IsGertFileCompressed(gert::GertFileType::kVisualJson),
+                "kVisualJson should be in compression whitelist");
+  EXPECT_TRUE(gert::IsGertFileCompressed(gert::GertFileType::kVisualJson));
+  // 白名单外：默认不压缩（Stored）
+  static_assert(!gert::IsGertFileCompressed(gert::GertFileType::kConstants),
+                "kConstants should not be in compression whitelist");
+  EXPECT_FALSE(gert::IsGertFileCompressed(gert::GertFileType::kConstants));
+  static_assert(!gert::IsGertFileCompressed(gert::GertFileType::kVarWeight),
+                "kVarWeight should not be in compression whitelist");
+  EXPECT_FALSE(gert::IsGertFileCompressed(gert::GertFileType::kVarWeight));
+  static_assert(!gert::IsGertFileCompressed(gert::GertFileType::kVariablesConfig),
+                "kVariablesConfig should not be in compression whitelist");
+  EXPECT_FALSE(gert::IsGertFileCompressed(gert::GertFileType::kVariablesConfig));
+  static_assert(!gert::IsGertFileCompressed(gert::GertFileType::kKernels),
+                "kKernels should not be in compression whitelist");
+  EXPECT_FALSE(gert::IsGertFileCompressed(gert::GertFileType::kKernels));
+  static_assert(!gert::IsGertFileCompressed(gert::GertFileType::kCustomKernels),
+                "kCustomKernels should not be in compression whitelist");
+  EXPECT_FALSE(gert::IsGertFileCompressed(gert::GertFileType::kCustomKernels));
+  static_assert(!gert::IsGertFileCompressed(gert::GertFileType::kModelMeta),
+                "kModelMeta should not be in compression whitelist");
+  EXPECT_FALSE(gert::IsGertFileCompressed(gert::GertFileType::kModelMeta));
+  static_assert(!gert::IsGertFileCompressed(gert::GertFileType::kManifest),
+                "kManifest should not be in compression whitelist");
+  EXPECT_FALSE(gert::IsGertFileCompressed(gert::GertFileType::kManifest));
+}
+
 #undef EXPECT_CONST_STR_FROZEN
 
 }  // namespace
