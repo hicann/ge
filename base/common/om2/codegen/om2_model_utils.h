@@ -69,10 +69,11 @@ class Om2ModelUtils {
                                                    AddrSemantic &input_addr, const GeTensorDescPtr &tensor_desc,
                                                    size_t index);
   static Status ConstructAddrSemanticForCommon(const TaskSemanticContributeContext &context, AddrSemantic &input_addr,
-                                               const GeTensorDescPtr &tensor_desc, size_t &input_offset_index,
+                                               const GeTensorDescPtr &tensor_desc, const size_t &input_offset_index,
                                                const std::vector<int64_t> &input_offsets, size_t index);
   static Status ConstructOutputAddrForCommon(const TaskSemanticContributeContext &context, AddrSemantic &output_addr,
-                                             const GeTensorDescPtr &tensor_desc, std::vector<int64_t> &v_memory_type,
+                                             const GeTensorDescPtr &tensor_desc,
+                                             const std::vector<int64_t> &v_memory_type,
                                              const std::vector<int64_t> &v_output_offset, size_t index);
   static Status GetRtInputAddress(const TaskSemanticContributeContext &context, const int64_t logical_offset,
                                   AddrSemantic &addr_node, uint32_t index);

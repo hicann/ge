@@ -30,12 +30,12 @@ class ArgsManagerFileCodeGenerator : public CodeGeneratorBase {
 
  private:
   void BuildInitArgsItems(const Om2CodegenModel &codegen_model, std::vector<Arg> &args_size_items,
-                          std::vector<Arg> &args_type_items, std::vector<Arg> &args_info_items);
+                          std::vector<Arg> &args_type_items, std::vector<Arg> &args_info_items) const;
   void BuildInitAllocationItems(const Om2CodegenModel &codegen_model,
                                 std::vector<Arg> &input_index_to_allocation_ids_items,
                                 std::vector<Arg> &output_index_to_allocation_ids_items,
                                 std::vector<Arg> &refreshable_fm_index_to_allocation_ids_items,
-                                std::vector<Arg> &allocation_ids_to_model_args_refresh_infos_items);
+                                std::vector<Arg> &allocation_ids_to_model_args_refresh_infos_items) const;
   std::vector<BodyItem> BuildInitMethodBody(const Om2CodegenModel &codegen_model,
                                             const std::vector<Arg> &args_size_items,
                                             const std::vector<Arg> &args_type_items,

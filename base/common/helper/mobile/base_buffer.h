@@ -26,7 +26,7 @@ class BaseBuffer {
 
   ~BaseBuffer() = default;
 
-  BaseBuffer(const BaseBuffer &other) : data_(other.data_), size_(other.size_) {}
+  BaseBuffer(const BaseBuffer &other) = default;
 
   BaseBuffer &operator=(const BaseBuffer &other) {
     if (&other != this) {

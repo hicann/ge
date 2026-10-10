@@ -131,7 +131,7 @@ class ModelArgsManager {
                                   size_t task_index) const;
   Status ValidateTaskRunParam(const std::vector<TaskArgsDesc> &args_descs) const;
 
-  Status GenModelArgsRefreshInfosForTask(std::vector<TaskArgsRefreshInfo> &infos, PisToArgs &pls_to_args,
+  Status GenModelArgsRefreshInfosForTask(const std::vector<TaskArgsRefreshInfo> &infos, PisToArgs &pls_to_args,
                                          const NodePtr &node);
 
   void InitForUpdate();

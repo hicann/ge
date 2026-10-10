@@ -141,7 +141,7 @@ Status ModelArgsManager::Init(const GeModelPtr &model, const std::vector<TaskCod
   return InitTaskInfoV2(*model_task_def);
 }
 
-Status ModelArgsManager::GenModelArgsRefreshInfosForTask(std::vector<TaskArgsRefreshInfo> &infos,
+Status ModelArgsManager::GenModelArgsRefreshInfosForTask(const std::vector<TaskArgsRefreshInfo> &infos,
                                                          PisToArgs &pls_to_args, const NodePtr &node) {
   for (const auto &info : infos) {
     ModelArgsRefreshInfo m_info;

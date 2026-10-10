@@ -95,7 +95,7 @@ std::vector<BodyItem> ArgsManagerFileCodeGenerator::BuildInitMethodBody(
 void ArgsManagerFileCodeGenerator::BuildInitArgsItems(const Om2CodegenModel &codegen_model,
                                                       std::vector<Arg> &args_size_items,
                                                       std::vector<Arg> &args_type_items,
-                                                      std::vector<Arg> &args_info_items) {
+                                                      std::vector<Arg> &args_info_items) const {
   args_size_items.reserve(codegen_model.args_table.model_args_semantic.size());
   args_type_items.reserve(codegen_model.args_table.model_args_semantic.size());
   std::vector<Arg> args_size_temp_items;
@@ -124,7 +124,7 @@ void ArgsManagerFileCodeGenerator::BuildInitAllocationItems(
     const Om2CodegenModel &codegen_model, std::vector<Arg> &input_index_to_allocation_ids_items,
     std::vector<Arg> &output_index_to_allocation_ids_items,
     std::vector<Arg> &refreshable_fm_index_to_allocation_ids_items,
-    std::vector<Arg> &allocation_ids_to_model_args_refresh_infos_items) {
+    std::vector<Arg> &allocation_ids_to_model_args_refresh_infos_items) const {
   for (const auto &entry : codegen_model.args_table.input_index_to_allocation_ids) {
     input_index_to_allocation_ids_items.push_back(entry);
   }
@@ -269,8 +269,8 @@ MethodDef *ArgsManagerFileCodeGenerator::BuildCopyArgsToDeviceMethod(const Om2Co
   auto i = ast_.Var("size_t", "i");
   std::vector<BodyItem> copy_body;
   if (!codegen_model.is_need_va2pa) {
-    copy_body.emplace_back(ast_.IgnoreOutput(ast_.Var("(void)", "stream")));
-    copy_body.emplace_back(ast_.IgnoreOutput(ast_.Var("(void)", "is_async")));
+    (void)copy_body.emplace_back(ast_.IgnoreOutput(ast_.Var("(void)", "stream")));
+    (void)copy_body.emplace_back(ast_.IgnoreOutput(ast_.Var("(void)", "is_async")));
   }
 
   std::vector<BodyItem> copy_args_body = {
@@ -278,13 +278,14 @@ MethodDef *ArgsManagerFileCodeGenerator::BuildCopyArgsToDeviceMethod(const Om2Co
           AclrtMemcpy(dev_args_[i], args_sizes_[i], host_args_[i].Data(), args_sizes_[i], "ACL_MEMCPY_HOST_TO_DEVICE")),
   };
   if (codegen_model.is_need_va2pa) {
-    copy_args_body.emplace_back(ChkStatus(RtDevVA2PA(ast_.CCast("uint64_t", dev_args_[i]), args_sizes_[i],
-                                                     ast_.Var("void *", "stream"), ast_.Var("bool", "is_async"))));
+    (void)copy_args_body.emplace_back(
+        ChkStatus(RtDevVA2PA(ast_.CCast("uint64_t", dev_args_[i]), args_sizes_[i], ast_.Var("void *", "stream"),
+                             ast_.Var("bool", "is_async"))));
   }
   const std::vector<BodyItem> empty_body;
-  copy_body.emplace_back(ast_.For(ast_.VarDecl(i, 0), i < args_sizes_.Size(), ast_.PostInc(i),
-                                  {ast_.If(args_sizes_[i] > 0, copy_args_body, empty_body)}));
-  copy_body.emplace_back(ast_.Return("ACL_SUCCESS"));
+  (void)copy_body.emplace_back(ast_.For(ast_.VarDecl(i, 0), i < args_sizes_.Size(), ast_.PostInc(i),
+                                        {ast_.If(args_sizes_[i] > 0, copy_args_body, empty_body)}));
+  (void)copy_body.emplace_back(ast_.Return("ACL_SUCCESS"));
   return ast_.DefineMethod("Om2ArgsTable", "CopyArgsToDevice",
                            {ast_.Var("void *", "stream"), ast_.Var("bool", "is_async")}, "aclError", copy_body);
 }

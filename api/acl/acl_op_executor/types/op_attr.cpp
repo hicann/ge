@@ -122,11 +122,7 @@ aclError aclopSetAttrListListIntImpl(aclopAttr *attr, const char *attrName, int 
   return attr->SetAttr(attrName, valueVec);
 }
 
-aclopAttr::aclopAttr(const aclopAttr &opAttr) {
-  this->attrs_ = opAttr.attrs_;
-  this->digest_ = opAttr.digest_;
-  this->constDataBuf_ = opAttr.constDataBuf_;
-}
+aclopAttr::aclopAttr(const aclopAttr &opAttr) = default;
 
 std::string aclopAttr::DebugString() const {
   return acl::attr_utils::AttrMapToString(attrs_);

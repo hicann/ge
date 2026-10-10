@@ -391,7 +391,7 @@ class PythonCustomOpBridgeLoader {
     return true;
   }
 
-  Status RegisterPythonCustomOpCreator(const PythonCustomOpAdapterDescriptor &desc, const OpBackend backend) {
+  Status RegisterPythonCustomOpCreator(const PythonCustomOpAdapterDescriptor &desc, const OpBackend backend) const {
     const auto ret = CustomOpFactory::RegisterCustomOpCreator(
         AscendString(desc.op_type.c_str()), backend, [registered_desc = desc]() -> std::unique_ptr<BaseCustomOp> {
           auto *adapter = new (std::nothrow) PythonCustomOpAdapter(registered_desc);

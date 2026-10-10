@@ -198,7 +198,7 @@ Status Om2ModelUtils::ConstructAddrSemanticForInputConst(const TaskSemanticContr
 
 Status Om2ModelUtils::ConstructAddrSemanticForCommon(const TaskSemanticContributeContext &context,
                                                      AddrSemantic &input_addr, const GeTensorDescPtr &tensor_desc,
-                                                     size_t &input_offset_index,
+                                                     const size_t &input_offset_index,
                                                      const std::vector<int64_t> &input_offsets, size_t index) {
   uint64_t memory_type = RT_MEMORY_DEFAULT;
   std::vector<int64_t> v_memory_type;
@@ -347,7 +347,7 @@ Status Om2ModelUtils::ResolveInputAddrs(const TaskSemanticContributeContext &con
 
 Status Om2ModelUtils::ConstructOutputAddrForCommon(const TaskSemanticContributeContext &context,
                                                    AddrSemantic &output_addr, const GeTensorDescPtr &tensor_desc,
-                                                   std::vector<int64_t> &v_memory_type,
+                                                   const std::vector<int64_t> &v_memory_type,
                                                    const std::vector<int64_t> &v_output_offset, size_t index) {
   uint64_t memory_type = RT_MEMORY_DEFAULT;
   GE_ASSERT_SUCCESS(GetValidatedTensorMemType(tensor_desc, v_memory_type, index, memory_type));
