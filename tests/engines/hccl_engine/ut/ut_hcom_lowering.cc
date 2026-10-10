@@ -1244,6 +1244,10 @@ TEST_F(HcomLoweringTest, Ut_HcomReduceScatterKernelV2) {
   launchArgs.inputNum = 1;
   launchArgs.inputAddrs = {reinterpret_cast<void *>(0x1000)};
   launchArgs.outputAddrs = {reinterpret_cast<void *>(0x2000)};
+  // ReduceScatterKernelV2/ReduceKernelV2 内部访问 outputShapes[0]/inputShapes[0]，
+  // 未填充时空 vector 越界，开 _GLIBCXX_ASSERTIONS 的编译环境直接 abort
+  launchArgs.inputShapes.resize(1);
+  launchArgs.outputShapes.resize(1);
   launchArgs.opAttr.dataType = HCCL_DATA_TYPE_INT32;
   launchArgs.opAttr.op.reducescatter.reduction = HCCL_REDUCE_SUM;
   launchArgs.stream = nullptr;

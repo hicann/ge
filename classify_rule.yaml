@@ -234,3 +234,15 @@ rts:
   llt:
     ut_check:true
     st_check:true
+hcce:
+  commiter:
+    "xxx"
+  team: "hccl_engine"
+  src:
+    release:
+      - compiler/engines/hccl_engine
+    unrelease:
+      - tests/engines/hccl_engine
+  llt:
+    ut_check:true
+    st_check:true
