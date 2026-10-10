@@ -636,47 +636,6 @@
             "flag":"true"
         }
     },
-    "ReduceSum":{
-        "async":{
-            "flag":"false"
-        },
-        "attr":{
-            "list":"axis,keep_dims"
-        },
-        "attr_axis":{
-            "paramType":"required",
-            "type":"listInt",
-            "value":"all"
-        },
-        "attr_keep_dims":{
-            "paramType":"required",
-            "type":"bool",
-            "value":"all"
-        },
-        "compute":{
-            "cost":"10"
-        },
-        "input0":{
-            "dtype":"float16,float",
-            "format":"ND,ND",
-            "name":"x",
-            "paramType":"required",
-            "shape":"all"
-        },
-        "kernel":{
-            "name":"square"
-        },
-        "output":{
-            "dtype":"float16,float",
-            "format":"NHWC,NHWC",
-            "name":"y",
-            "paramType":"required",
-            "shape":"all"
-        },
-        "partial":{
-            "flag":"true"
-        }
-    },
     "ReluGrad":{
         "async":{
             "flag":"false"
@@ -907,34 +866,6 @@
             "dtype":"float16,float",
             "format":"NCHW,NCHW",
             "name":"activations",
-            "paramType":"required",
-            "shape":"all"
-        },
-        "partial":{
-            "flag":"true"
-        }
-    },
-    "Square":{
-        "async":{
-            "flag":"false"
-        },
-        "compute":{
-            "cost":"10"
-        },
-        "input0":{
-            "dtype":"float16,float",
-            "format":"NHWC,NCHW",
-            "name":"x",
-            "paramType":"required",
-            "shapesType":"fix"
-        },
-        "kernel":{
-            "name":"square"
-        },
-        "output":{
-            "dtype":"float16,float",
-            "format":"NHWC,NCHW",
-            "name":"y",
             "paramType":"required",
             "shape":"all"
         },

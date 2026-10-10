@@ -10,10 +10,13 @@
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
+#include <fstream>
 #include <memory>
+#include <set>
 #include <string>
 #include <map>
 #include <utility>
+#include <vector>
 #include "fe_llt_utils.h"
 #define private public
 #define protected public
@@ -435,4 +438,104 @@ TEST_F(FEOpsKernelInfoStoreTest_2, set_atomic_op_attr) {
   bool atomic_node_flag = false;
   Status ret = fe_ops_kernel_info_store_ptr->SetAtomicOpAttr(op_desc_ptr, atomic_node_flag);
   EXPECT_EQ(fe::SUCCESS, ret);
+}
+
+namespace {
+// A JSON parser keeps only the last of the duplicated names within one object, so the shadowed
+// definition is dropped silently and the testcase no longer runs on the configuration it declares.
+class DuplicateKeySaxChecker : public nlohmann::json_sax<nlohmann::json> {
+ public:
+  bool null() override {
+    return true;
+  }
+  bool boolean(bool val) override {
+    (void)val;
+    return true;
+  }
+  bool number_integer(number_integer_t val) override {
+    (void)val;
+    return true;
+  }
+  bool number_unsigned(number_unsigned_t val) override {
+    (void)val;
+    return true;
+  }
+  bool number_float(number_float_t val, const string_t &s) override {
+    (void)val;
+    (void)s;
+    return true;
+  }
+  bool string(string_t &val) override {
+    (void)val;
+    return true;
+  }
+  bool binary(binary_t &val) override {
+    (void)val;
+    return true;
+  }
+  bool start_object(std::size_t elements) override {
+    (void)elements;
+    keys_of_cur_obj_.emplace_back();
+    return true;
+  }
+  bool key(string_t &val) override {
+    if (keys_of_cur_obj_.empty()) {
+      return true;
+    }
+    if (keys_of_cur_obj_.back().count(val) != 0U) {
+      dup_keys_.emplace_back(val);
+    } else {
+      (void)keys_of_cur_obj_.back().insert(val);
+    }
+    return true;
+  }
+  bool end_object() override {
+    if (!keys_of_cur_obj_.empty()) {
+      keys_of_cur_obj_.pop_back();
+    }
+    return true;
+  }
+  bool start_array(std::size_t elements) override {
+    (void)elements;
+    return true;
+  }
+  bool end_array() override {
+    return true;
+  }
+  bool parse_error(std::size_t position, const std::string &last_token,
+                   const nlohmann::detail::exception &ex) override {
+    (void)position;
+    (void)last_token;
+    (void)ex;
+    return false;
+  }
+  const std::vector<std::string> &GetDupKeys() const {
+    return dup_keys_;
+  }
+
+ private:
+  std::vector<std::set<std::string>> keys_of_cur_obj_;
+  std::vector<std::string> dup_keys_;
+};
+
+void ExpectNoDuplicateKey(const std::string &json_file) {
+  std::ifstream ifs(json_file);
+  ASSERT_TRUE(ifs.is_open()) << "open json file failed: " << json_file;
+  DuplicateKeySaxChecker checker;
+  ASSERT_TRUE(nlohmann::json::sax_parse(ifs, &checker)) << "parse json file failed: " << json_file;
+  EXPECT_TRUE(checker.GetDupKeys().empty())
+      << "duplicated names in one object of " << json_file
+      << ", the earlier ones are dropped: " << nlohmann::json(checker.GetDupKeys()).dump();
+}
+}  // namespace
+
+TEST(FEOpsInfoJsonStubTest, json_stub_has_no_duplicate_key) {
+  const std::vector<std::string> json_files = {
+      GetCodeDir() + "/tests/engines/nn_engine/st/stub/fe_config/tbe_opinfo/tbe_opinfo.json",
+      GetCodeDir() + "/tests/engines/te_fusion/st/stub/fe_config/tbe_opinfo/tbe_opinfo.json",
+      GetCodeDir() +
+          "/tests/engines/nn_engine/ut/testcase/fusion_engine/fusion_rule_parser/fusion_rule_json_node_test.json"};
+  for (const std::string &json_file : json_files) {
+    ExpectNoDuplicateKey(json_file);
+  }
 }

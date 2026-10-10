@@ -47,7 +47,6 @@
         "name":"node1"
     },
     "test_011":{
-        "name":"node4",
         "name":"node1",
         "type":[
             "min"
