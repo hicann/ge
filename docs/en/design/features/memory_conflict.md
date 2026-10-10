@@ -199,6 +199,7 @@ flowchart TD
 **Key Details**:
 
 - Subgraph processing uses reverse traversal, propagating RW type from innermost subgraph to outer layers
+- While subgraphs are not annotated with RW type due to circular dependency (body output is the next iteration's body input), `MarkRWTypeForAllSubgraph` skips While subgraphs; the main loop skips Identity split/remove rearrangement for nodes inside While subgraphs (to avoid breaking the structural isolation already established by SubgraphPass) but keeps conflict matrix insertion, covering semantic-level RW conflicts such as Const→ref/ScopeWrite inside While subgraphs
 - Nodes already marked with `_skip_rw_conflict` by `HcclMemcpyPass` will be skipped
 - Identity nodes are marked with `ATTR_NO_NEED_CONSTANT_FOLDING=false` and `ATTR_NAME_CANNOT_BE_DELETED=true` to prevent subsequent optimization Passes from deleting them
 

@@ -1027,13 +1027,10 @@ Status GraphOptimize::HandleMemoryRWConflict(ComputeGraphPtr &compute_graph) con
   }
   // 2.loop all node, including node in subgraph and handle memory rw conflict
   for (auto &node : compute_graph->GetAllNodes()) {
-    // ignore while subgraph node
     GE_CHECK_NOTNULL(node);
     GE_CHECK_NOTNULL(node->GetOwnerComputeGraph());
     const auto parent_node = node->GetOwnerComputeGraph()->GetParentNode();
-    if ((parent_node != nullptr) && (kWhileOpTypes.count(parent_node->GetType()) > 0)) {
-      continue;
-    }
+    const bool is_while_subgraph_node = (parent_node != nullptr) && (kWhileOpTypes.count(parent_node->GetType()) > 0);
     // ignore data / netoutput of subgraph
     if (IsSubgraphInputNode(node) || IsSubgraphOutputNode(node)) {
       continue;
@@ -1045,7 +1042,11 @@ Status GraphOptimize::HandleMemoryRWConflict(ComputeGraphPtr &compute_graph) con
       GELOGD("Identity [%s] need to be reserved", node->GetName().c_str());
       continue;
     }
-    if (node->GetType() == IDENTITY || node->GetType() == READVARIABLEOP) {
+    // while子图的RW类型因循环依赖未标注（MarkRWTypeForAllSubgraph跳过while子图），
+    // 对其内部已有Identity做拆分/删除重排会破坏SubgraphPass已建立的结构隔离
+    // （如while body的input_Memcpy/output_Memcpy），因此while子图内仅跳过重排，
+    // 保留冲突矩阵插入，覆盖while子图内Const->ref/ScopeWrite类语义级读写冲突
+    if ((node->GetType() == IDENTITY || node->GetType() == READVARIABLEOP) && !is_while_subgraph_node) {
       // split identity
       ret = SplitIdentity(node);
       if (ret != SUCCESS) {

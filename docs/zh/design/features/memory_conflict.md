@@ -196,6 +196,7 @@ flowchart TD
 
 **关键细节**：
 - 子图处理采用反向遍历，从最内层子图向外层传播 RW 类型
+- While 子图因循环依赖（body 输出即下一轮 body 输入）不做 RW 类型标注，`MarkRWTypeForAllSubgraph` 跳过 While 子图；主循环对 While 子图内节点跳过 Identity 拆分/删除重排（防止破坏 SubgraphPass 已建立的结构隔离），但保留冲突矩阵插入，覆盖 While 子图内 Const→ref/ScopeWrite 类语义级读写冲突
 - 已被 `HcclMemcpyPass` 标记 `_skip_rw_conflict` 的节点会被跳过
 - Identity 节点标记 `ATTR_NO_NEED_CONSTANT_FOLDING=false` 和 `ATTR_NAME_CANNOT_BE_DELETED=true`，防止后续优化 Pass 删除
 

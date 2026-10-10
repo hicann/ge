@@ -408,6 +408,156 @@ ComputeGraphPtr BuildGraph_ConstChainedReuseInputOps() {
   return builder.GetGraph();
 }
 
+void AddWhileCondSubgraph(const ComputeGraphPtr &root_graph, const NodePtr &while_node) {
+  ut::GraphBuilder builder("while_cond");
+  auto data = builder.AddNode("cond_data", DATA, 1, 1);
+  auto netoutput = builder.AddNode("cond_netoutput", NETOUTPUT, 1, 1);
+  AttrUtils::SetInt(data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  builder.AddDataEdge(data, 0, netoutput, 0);
+  auto sub_graph = builder.GetGraph();
+  sub_graph->SetParentGraph(root_graph);
+  sub_graph->SetParentNode(while_node);
+  while_node->GetOpDesc()->AddSubgraphName("while_cond");
+  while_node->GetOpDesc()->SetSubgraphInstanceName(0, "while_cond");
+  root_graph->AddSubgraph("while_cond", sub_graph);
+}
+
+ComputeGraphPtr AddWhileBodySubgraph(const ComputeGraphPtr &root_graph, const NodePtr &while_node) {
+  ut::GraphBuilder body_builder("while_body");
+  auto body_data = body_builder.AddNode("body_data", DATA, 1, 1);
+  auto const1 = body_builder.AddNode("const1", CONSTANT, 0, 1);
+  auto assign = body_builder.AddNode("assign", ASSIGN, 2, 1);
+  assign->GetOpDesc()->UpdateInputName({{"ref", 0}, {"value", 1}});
+  assign->GetOpDesc()->UpdateOutputName({{"ref", 0}});
+  auto body_netoutput = body_builder.AddNode("body_netoutput", NETOUTPUT, 2, 0);
+  AttrUtils::SetInt(body_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(body_netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(body_netoutput->GetOpDesc()->MutableInputDesc(1), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  body_builder.AddDataEdge(const1, 0, assign, 0);
+  body_builder.AddDataEdge(body_data, 0, assign, 1);
+  body_builder.AddDataEdge(assign, 0, body_netoutput, 0);
+  body_builder.AddDataEdge(body_data, 0, body_netoutput, 1);
+  auto body_graph = body_builder.GetGraph();
+  body_graph->SetParentGraph(root_graph);
+  body_graph->SetParentNode(while_node);
+  while_node->GetOpDesc()->AddSubgraphName("while_body");
+  while_node->GetOpDesc()->SetSubgraphInstanceName(1, "while_body");
+  root_graph->AddSubgraph("while_body", body_graph);
+  return body_graph;
+}
+
+/*
+ *        data0
+ *          |
+ *        while1
+ *          |
+ *      net_output
+ *
+ * subgraph cond               subgraph body
+ * +-------------------+     +------------------------------+
+ * | data--netoutput   |     | const1--assign(ref)--netoutput|
+ * +-------------------+     | body_data-----|------------- |
+ *                           |    |----------+
+ */
+ComputeGraphPtr BuildGraph_WhileBodyConstToRef() {
+  auto builder = ut::GraphBuilder("test");
+  auto data0 = builder.AddNode("data0", DATA, 0, 1);
+  auto while_node = builder.AddNode("while1", WHILE, 1, 1);
+  auto net_output = builder.AddNode("net_output", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data0, 0, while_node, 0);
+  builder.AddDataEdge(while_node, 0, net_output, 0);
+  auto root_graph = builder.GetGraph();
+
+  AddWhileCondSubgraph(root_graph, while_node);
+  AddWhileBodySubgraph(root_graph, while_node);
+  return root_graph;
+}
+
+/*
+ * while body 内 ref 输入来自子图 Data：
+ *   body_data --assign:0(ref)-- assign --netoutput
+ *   const1 ---------assign:1(value)
+ */
+ComputeGraphPtr BuildGraph_WhileBodyDataToRef() {
+  auto builder = ut::GraphBuilder("test");
+  auto data0 = builder.AddNode("data0", DATA, 0, 1);
+  auto while_node = builder.AddNode("while1", WHILE, 1, 1);
+  auto net_output = builder.AddNode("net_output", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data0, 0, while_node, 0);
+  builder.AddDataEdge(while_node, 0, net_output, 0);
+  auto root_graph = builder.GetGraph();
+
+  AddWhileCondSubgraph(root_graph, while_node);
+
+  ut::GraphBuilder body_builder("while_body");
+  auto body_data = body_builder.AddNode("body_data", DATA, 1, 1);
+  auto const1 = body_builder.AddNode("const1", CONSTANT, 0, 1);
+  auto assign = body_builder.AddNode("assign", ASSIGN, 2, 1);
+  assign->GetOpDesc()->UpdateInputName({{"ref", 0}, {"value", 1}});
+  assign->GetOpDesc()->UpdateOutputName({{"ref", 0}});
+  auto body_netoutput = body_builder.AddNode("body_netoutput", NETOUTPUT, 1, 0);
+  AttrUtils::SetInt(body_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(body_netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  body_builder.AddDataEdge(body_data, 0, assign, 0);
+  body_builder.AddDataEdge(const1, 0, assign, 1);
+  body_builder.AddDataEdge(assign, 0, body_netoutput, 0);
+  auto body_graph = body_builder.GetGraph();
+  body_graph->SetParentGraph(root_graph);
+  body_graph->SetParentNode(while_node);
+  while_node->GetOpDesc()->AddSubgraphName("while_body");
+  while_node->GetOpDesc()->SetSubgraphInstanceName(1, "while_body");
+  root_graph->AddSubgraph("while_body", body_graph);
+  return root_graph;
+}
+
+/*
+ * while body 内已有 Identity 且多消费者，不应被拆分/删除/重排：
+ *   body_data --identity-- relu --netoutput(in0)
+ *        |---------|---------netoutput(in1)
+ */
+ComputeGraphPtr BuildGraph_WhileBodyIdentityMultiConsumer() {
+  auto builder = ut::GraphBuilder("test");
+  auto data0 = builder.AddNode("data0", DATA, 0, 1);
+  auto while_node = builder.AddNode("while1", WHILE, 1, 1);
+  auto net_output = builder.AddNode("net_output", NETOUTPUT, 1, 0);
+  builder.AddDataEdge(data0, 0, while_node, 0);
+  builder.AddDataEdge(while_node, 0, net_output, 0);
+  auto root_graph = builder.GetGraph();
+
+  AddWhileCondSubgraph(root_graph, while_node);
+
+  ut::GraphBuilder body_builder("while_body");
+  auto body_data = body_builder.AddNode("body_data", DATA, 1, 1);
+  auto identity = body_builder.AddNode("body_identity", IDENTITY, 1, 1);
+  auto relu = body_builder.AddNode("relu", RELU, 1, 1);
+  auto body_netoutput = body_builder.AddNode("body_netoutput", NETOUTPUT, 2, 0);
+  AttrUtils::SetInt(body_data->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(body_netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  AttrUtils::SetInt(body_netoutput->GetOpDesc()->MutableInputDesc(1), ATTR_NAME_PARENT_NODE_INDEX, 0);
+  body_builder.AddDataEdge(body_data, 0, identity, 0);
+  body_builder.AddDataEdge(identity, 0, relu, 0);
+  body_builder.AddDataEdge(relu, 0, body_netoutput, 0);
+  body_builder.AddDataEdge(identity, 0, body_netoutput, 1);
+  auto body_graph = body_builder.GetGraph();
+  body_graph->SetParentGraph(root_graph);
+  body_graph->SetParentNode(while_node);
+  while_node->GetOpDesc()->AddSubgraphName("while_body");
+  while_node->GetOpDesc()->SetSubgraphInstanceName(1, "while_body");
+  root_graph->AddSubgraph("while_body", body_graph);
+  return root_graph;
+}
+
+size_t CountDirectNodeByType(const ComputeGraphPtr &graph, const std::string &type) {
+  size_t num = 0U;
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == type) {
+      num++;
+    }
+  }
+  return num;
+}
+
 }  // namespace
 // const -> allreduce
 // const -> Identity -> allreduce
@@ -819,6 +969,54 @@ TEST(UtestGraphPassesHcclMemcpyPass, TestConst2ScopeWriteNode) {
   GraphOptimize graph_optimizer;
   EXPECT_EQ(graph_optimizer.HandleMemoryRWConflict(graph), SUCCESS);
   EXPECT_EQ(allreduce->GetInDataNodes().at(0)->GetType(), IDENTITY);
+}
+
+// while子图内 Const -> ref算子：冲突矩阵 kReadOnlyConst x kWriteable 触发，插入 Identity 隔离
+TEST(UtestGraphPassesHcclMemcpyPass, WhileBodyConstToRef_InsertIdentity) {
+  ComputeGraphPtr graph = BuildGraph_WhileBodyConstToRef();
+  GraphOptimize graph_optimizer;
+  EXPECT_EQ(graph_optimizer.HandleMemoryRWConflict(graph), SUCCESS);
+  auto body_graph = graph->GetSubgraph("while_body");
+  ASSERT_NE(body_graph, nullptr);
+  auto assign = body_graph->FindNode("assign");
+  ASSERT_NE(assign, nullptr);
+  auto ref_in_node = assign->GetInDataNodes().at(0);
+  ASSERT_EQ(ref_in_node->GetType(), IDENTITY);
+  EXPECT_EQ(ref_in_node->GetInDataNodes().at(0)->GetType(), CONSTANT);
+  bool cannot_be_deleted = false;
+  EXPECT_TRUE(AttrUtils::GetBool(ref_in_node->GetOpDesc(), ATTR_NAME_CANNOT_BE_DELETED, cannot_be_deleted));
+  EXPECT_TRUE(cannot_be_deleted);
+}
+
+// while子图内 Data -> ref算子：子图输入由 SubgraphPass 结构隔离，矩阵不应重复插入
+TEST(UtestGraphPassesHcclMemcpyPass, WhileBodyDataToRef_NotInsertIdentity) {
+  ComputeGraphPtr graph = BuildGraph_WhileBodyDataToRef();
+  GraphOptimize graph_optimizer;
+  EXPECT_EQ(graph_optimizer.HandleMemoryRWConflict(graph), SUCCESS);
+  auto body_graph = graph->GetSubgraph("while_body");
+  ASSERT_NE(body_graph, nullptr);
+  auto assign = body_graph->FindNode("assign");
+  ASSERT_NE(assign, nullptr);
+  EXPECT_EQ(assign->GetInDataNodes().at(0)->GetType(), DATA);
+  EXPECT_EQ(assign->GetInDataNodes().at(1)->GetType(), CONSTANT);
+  EXPECT_EQ(CountDirectNodeByType(body_graph, IDENTITY), 0U);
+}
+
+// while子图内已有 Identity（多消费者）：不应被拆分/删除/直连重排，连接关系保持原样
+TEST(UtestGraphPassesHcclMemcpyPass, WhileBodyExistIdentity_NotSplitNotRemove) {
+  ComputeGraphPtr graph = BuildGraph_WhileBodyIdentityMultiConsumer();
+  GraphOptimize graph_optimizer;
+  EXPECT_EQ(graph_optimizer.HandleMemoryRWConflict(graph), SUCCESS);
+  auto body_graph = graph->GetSubgraph("while_body");
+  ASSERT_NE(body_graph, nullptr);
+  auto identity = body_graph->FindNode("body_identity");
+  ASSERT_NE(identity, nullptr);
+  ASSERT_EQ(identity->GetOutDataNodesSize(), 2U);
+  EXPECT_EQ(identity->GetInDataNodes().at(0)->GetType(), DATA);
+  const auto &out_nodes = identity->GetOutDataNodes();
+  EXPECT_EQ(out_nodes.at(0)->GetType(), RELU);
+  EXPECT_EQ(out_nodes.at(1)->GetType(), NETOUTPUT);
+  EXPECT_EQ(CountDirectNodeByType(body_graph, IDENTITY), 1U);
 }
 
 }  // namespace ge
