@@ -21,7 +21,10 @@
 #include <sys/stat.h> /* For mode constants */
 #include <fcntl.h>    /* For O_* constants */
 #include <arpa/inet.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <time.h>
+#include "dlog_pub.h"
 #include "rt_external_base.h"
 #include "rt_external_device.h"
 #include <map>
@@ -162,6 +165,18 @@ int dlog_getlevel(int moduleId, int *enableEvent) {
 
 int dlog_setlevel(int moduleId, int level, int enableEvent) {
   return 0;
+}
+
+void DlogRecord(int moduleId, int level, const char *fmt, ...) {
+  if (level != DLOG_ERROR) {
+    return;
+  }
+  va_list args;
+  va_start(args, fmt);
+  vprintf(fmt, args);
+  va_end(args);
+  printf("\n");
+  fflush(stdout);
 }
 
 /**
