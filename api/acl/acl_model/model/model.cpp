@@ -1639,18 +1639,10 @@ aclError aclmdlExecuteImpl(uint32_t modelId, const aclmdlDataset *input, aclmdlD
 
 namespace {
 static aclError AclMdlSetPriority(uint32_t model_id, const aclmdlAttrValue_t *value) {
-  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(value);
-  const uint32_t priority = value->mdlPriority;
-  int32_t least_priority = 0;
-  int32_t greatest_priority = 0;
-  aclError ret = aclrtDeviceGetStreamPriorityRange(&least_priority, &greatest_priority);
+  uint32_t priority = 0U;
+  const aclError ret = acl::GetAndCheckMdlPriority(value, priority);
   if (ret != ACL_SUCCESS) {
-    ACL_LOG_ERROR("[SetAttr][Priority] Failed to get priority range, ret=%d", ret);
     return ret;
-  }
-  if ((priority < static_cast<uint32_t>(greatest_priority)) || (priority > static_cast<uint32_t>(least_priority))) {
-    ACL_LOG_ERROR("[SetAttr][Priority] Priority %u out of range [%d, %d]", priority, greatest_priority, least_priority);
-    return ACL_ERROR_INVALID_PARAM;
   }
   ge::Status status = ge::GeExecutor().SetModelStreamPriority(model_id, priority);
   if (status != ge::SUCCESS) {

@@ -12,6 +12,7 @@
 #include <gmock/gmock.h>
 
 #include "acl/acl_base.h"
+#include "acl/acl_mdl.h"
 #include "model/model_desc_internal.h"
 #define protected public
 #define private public
@@ -19,6 +20,7 @@
 #undef private
 #undef protected
 #include "model/acl_model_router.h"
+#include "model/acl_model_impl_om2.h"
 #include "acl_stub.h"
 
 #include <memory>
@@ -521,6 +523,75 @@ TEST_F(UTEST_ACL_Resource_Manager_Om2, IsOm2ModelByConfig_PathTakesPrecedence) {
   AclIsOm2ModelByConfig(&handle, &result);
 
   EXPECT_TRUE(result);
+}
+
+// ============================================================================
+// OM2 模型 aclmdlSetAttribute/aclmdlGetAttribute（流优先级）测试
+// ============================================================================
+
+TEST_F(UTEST_ACL_Resource_Manager_Om2, SetAttributePriority_Om2_Success) {
+  auto executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+  uint32_t modelId = 0;
+  acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(modelId, std::move(executor));
+
+  aclmdlAttrValue_t value = {};
+  value.mdlPriority = 3U;
+  // 桩默认返回 priority range [0, 7]
+  EXPECT_EQ(aclmdlSetAttributeImplOm2(modelId, ACL_MDL_ATTR_PRIORITY_INT32, &value), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Resource_Manager_Om2, SetAttributePriority_Om2_OutOfRange) {
+  auto executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+  uint32_t modelId = 0;
+  acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(modelId, std::move(executor));
+
+  aclmdlAttrValue_t value = {};
+  value.mdlPriority = 8U;  // 超出 [0, 7]
+  EXPECT_EQ(aclmdlSetAttributeImplOm2(modelId, ACL_MDL_ATTR_PRIORITY_INT32, &value), ACL_ERROR_INVALID_PARAM);
+}
+
+TEST_F(UTEST_ACL_Resource_Manager_Om2, SetAttributePriority_Om2_NullValue) {
+  EXPECT_EQ(aclmdlSetAttributeImplOm2(1U, ACL_MDL_ATTR_PRIORITY_INT32, nullptr), ACL_ERROR_INVALID_PARAM);
+}
+
+TEST_F(UTEST_ACL_Resource_Manager_Om2, SetAttributePriority_Om2_ExecutorNotFound) {
+  aclmdlAttrValue_t value = {};
+  value.mdlPriority = 3U;
+  EXPECT_EQ(aclmdlSetAttributeImplOm2(999U, ACL_MDL_ATTR_PRIORITY_INT32, &value), ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
+}
+
+TEST_F(UTEST_ACL_Resource_Manager_Om2, SetAttributePriority_Om2_UnsupportedAttr) {
+  auto executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+  uint32_t modelId = 0;
+  acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(modelId, std::move(executor));
+
+  aclmdlAttrValue_t value = {};
+  EXPECT_EQ(aclmdlSetAttributeImplOm2(modelId, static_cast<aclmdlAttr>(-1), &value), ACL_ERROR_INVALID_PARAM);
+}
+
+TEST_F(UTEST_ACL_Resource_Manager_Om2, GetAttributePriority_Om2_Success) {
+  auto executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+  uint32_t modelId = 0;
+  acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(modelId, std::move(executor));
+
+  aclmdlAttrValue_t value = {};
+  // ge_stub 的 GetStreamPriority 桩固定回填 0
+  EXPECT_EQ(aclmdlGetAttributeImplOm2(modelId, ACL_MDL_ATTR_PRIORITY_INT32, &value), ACL_SUCCESS);
+  EXPECT_EQ(value.mdlPriority, 0U);
+}
+
+TEST_F(UTEST_ACL_Resource_Manager_Om2, GetAttributePriority_Om2_ExecutorNotFound) {
+  aclmdlAttrValue_t value = {};
+  EXPECT_EQ(aclmdlGetAttributeImplOm2(999U, ACL_MDL_ATTR_PRIORITY_INT32, &value), ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
+}
+
+TEST_F(UTEST_ACL_Resource_Manager_Om2, GetAttributePriority_Om2_UnsupportedAttr) {
+  auto executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+  uint32_t modelId = 0;
+  acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(modelId, std::move(executor));
+
+  aclmdlAttrValue_t value = {};
+  EXPECT_EQ(aclmdlGetAttributeImplOm2(modelId, static_cast<aclmdlAttr>(-1), &value), ACL_ERROR_INVALID_PARAM);
 }
 
 TEST_F(UTEST_ACL_Resource_Manager_Om2, DeleteBundleSubmodelId_NonexistentBundle_NoEntryCreated) {

@@ -1657,8 +1657,8 @@ TEST_F(ProgramGeneratorUt, GenerateResourcesSource_Ok) {
 #include "g1_internal.h"
 
 namespace om2 {
-Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority)
-  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), owns_total_dev_mem_(false), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), callbacks_(*callbacks), kernel_id_(0), session_scope_mem_ptr_(nullptr), priority_(priority), is_external_rt_model_(false), is_external_streams_(false), is_external_notifies_(false), is_external_events_(false), is_external_labels_(false) {
+Om2Model::Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks)
+  : constants_(constants), var_addrs_(var_addrs), total_dev_mem_ptr_(work_ptr), owns_total_dev_mem_(false), session_id_(session_id), model_id_(model_id), instance_handle_(instance_handle), callbacks_(*callbacks), kernel_id_(0), session_scope_mem_ptr_(nullptr), is_external_rt_model_(false), is_external_streams_(false), is_external_notifies_(false), is_external_events_(false), is_external_labels_(false) {
   for (size_t i = 0; (i < bin_num); ++i) {
     bin_info_map_[std::string(bin_files[i])] = {bin_data[i], bin_size[i]};
   }
@@ -1674,7 +1674,7 @@ Om2Model::~Om2Model() {
   (void)ReleaseResources();
 }
 
-aclError Om2Model::InitResources(uint64_t reuse_zero_copy, const GertModelExternalResources &external_resources) {
+aclError Om2Model::InitResources(int32_t priority, uint64_t reuse_zero_copy, const GertModelExternalResources &external_resources) {
   OM2_LOGI("InitResources begin");
   OM2_LOGI("model_id=%u, InitResources: work_ptr=%p, work_size=%zu, zero_copy_size=%zu", model_id_, total_dev_mem_ptr_, kModelWorkSize, kModelZeroCopySize);
   size_t required_work_size = kModelWorkSize;
@@ -1714,7 +1714,7 @@ aclError Om2Model::InitResources(uint64_t reuse_zero_copy, const GertModelExtern
     is_external_streams_ = true;
   } else {
     uint32_t stream0_flag = RT_STREAM_PERSISTENT;
-    OM2_CHK_RT(rtStreamCreateWithFlags(&stream_list_[0], priority_, stream0_flag));
+    OM2_CHK_RT(rtStreamCreateWithFlags(&stream_list_[0], priority, stream0_flag));
   }
   auto bind0_flag = RT_HEAD_STREAM;
   OM2_CHK_STATUS(aclmdlRIBindStream(model_handle_, stream_list_[0], bind0_flag));
@@ -1770,6 +1770,11 @@ aclError Om2Model::ReleaseResources() {
   owns_total_dev_mem_ = false;
   OM2_LOGI("ReleaseResources done");
   return ACL_SUCCESS;
+}
+
+void Om2Model::GetStreamList(aclrtStream **streams, uint64_t *stream_num) {
+  *streams = stream_list_.data();
+  *stream_num = static_cast<uint64_t>(stream_list_.size());
 }
 } // namespace om2)";
   ASSERT_EQ(outputs[GeneratedFileIndex::kResourcesFile], expected + "\n");
@@ -2428,9 +2433,9 @@ struct DispatchOpContext {
 
 class Om2Model {
   public:
-    Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority);
+    Om2Model(const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks);
     ~Om2Model();
-    aclError InitResources(uint64_t reuse_zero_copy, const GertModelExternalResources &external_resources);
+    aclError InitResources(int32_t priority, uint64_t reuse_zero_copy, const GertModelExternalResources &external_resources);
     aclError RegisterKernels();
     aclError Load(const GertModelLoadCallbacks *callbacks);
     aclmdlRI GetRtModelHandle();
@@ -2438,6 +2443,7 @@ class Om2Model {
     aclError Run(size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, const GertModelRunCallbacks *run_callbacks);
     aclError RunAsync(aclrtStream &exe_stream, size_t input_count, gert::Tensor **input_data, size_t output_count, gert::Tensor **output_data, const GertModelRunCallbacks *run_callbacks);
     aclError ReleaseResources();
+    void GetStreamList(aclrtStream **streams, uint64_t *stream_num);
   private:
     void **constants_;
     void **var_addrs_;
@@ -2473,7 +2479,6 @@ class Om2Model {
     void *overflow_addr_;
     std::vector<void *> dev_dynamic_mem_ptrs_;
     void *session_scope_mem_ptr_;
-    int32_t priority_;
 };
 } // namespace om2
 )";
@@ -3235,12 +3240,12 @@ int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle 
                                 static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                config->callbacks, static_cast<int32_t>(config->priority));
+                                config->callbacks);
   if (obj == nullptr) {
     OM2_LOGE("GertModelLoad: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
-  auto ret = obj->InitResources(config->reuse_zero_copy,
+  auto ret = obj->InitResources(static_cast<int32_t>(config->priority), config->reuse_zero_copy,
                                 {sizeof(GertModelExternalResources), config->external_rt_model,
                                  config->external_streams, config->external_stream_num,
                                  config->external_notifies, config->external_notify_num,
@@ -3332,6 +3337,14 @@ int32_t GertModelGetStreamDesc(uint32_t *stream_flags, uint64_t stream_num, void
     return ACL_ERROR_FAILURE;
   }
   stream_flags[0U] = RT_STREAM_PERSISTENT;
+  if (extended_attrs != nullptr) {
+    GertModelStreamDesc *desc = static_cast<GertModelStreamDesc *>(extended_attrs);
+    if (desc->model_handle == nullptr) {
+      OM2_LOGE("GertModelGetStreamDesc failed, invalid extended_attrs");
+      return ACL_ERROR_FAILURE;
+    }
+    static_cast<om2::Om2Model *>(desc->model_handle)->GetStreamList(&desc->streams, &desc->stream_num);
+  }
   return 0U;
 }
 
@@ -3911,12 +3924,12 @@ int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle 
                                 static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                config->callbacks, static_cast<int32_t>(config->priority));
+                                config->callbacks);
   if (obj == nullptr) {
     OM2_LOGE("GertModelLoad: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
-  auto ret = obj->InitResources(config->reuse_zero_copy,
+  auto ret = obj->InitResources(static_cast<int32_t>(config->priority), config->reuse_zero_copy,
                                 {sizeof(GertModelExternalResources), config->external_rt_model,
                                  config->external_streams, config->external_stream_num,
                                  config->external_notifies, config->external_notify_num,
@@ -4008,6 +4021,14 @@ int32_t GertModelGetStreamDesc(uint32_t *stream_flags, uint64_t stream_num, void
     return ACL_ERROR_FAILURE;
   }
   stream_flags[0U] = RT_STREAM_PERSISTENT;
+  if (extended_attrs != nullptr) {
+    GertModelStreamDesc *desc = static_cast<GertModelStreamDesc *>(extended_attrs);
+    if (desc->model_handle == nullptr) {
+      OM2_LOGE("GertModelGetStreamDesc failed, invalid extended_attrs");
+      return ACL_ERROR_FAILURE;
+    }
+    static_cast<om2::Om2Model *>(desc->model_handle)->GetStreamList(&desc->streams, &desc->stream_num);
+  }
   return 0U;
 }
 
@@ -4655,12 +4676,12 @@ int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle 
                                 static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                config->callbacks, static_cast<int32_t>(config->priority));
+                                config->callbacks);
   if (obj == nullptr) {
     OM2_LOGE("GertModelLoad: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
-  auto ret = obj->InitResources(config->reuse_zero_copy,
+  auto ret = obj->InitResources(static_cast<int32_t>(config->priority), config->reuse_zero_copy,
                                 {sizeof(GertModelExternalResources), config->external_rt_model,
                                  config->external_streams, config->external_stream_num,
                                  config->external_notifies, config->external_notify_num,
@@ -4752,6 +4773,14 @@ int32_t GertModelGetStreamDesc(uint32_t *stream_flags, uint64_t stream_num, void
     return ACL_ERROR_FAILURE;
   }
   stream_flags[0U] = RT_STREAM_PERSISTENT;
+  if (extended_attrs != nullptr) {
+    GertModelStreamDesc *desc = static_cast<GertModelStreamDesc *>(extended_attrs);
+    if (desc->model_handle == nullptr) {
+      OM2_LOGE("GertModelGetStreamDesc failed, invalid extended_attrs");
+      return ACL_ERROR_FAILURE;
+    }
+    static_cast<om2::Om2Model *>(desc->model_handle)->GetStreamList(&desc->streams, &desc->stream_num);
+  }
   return 0U;
 }
 
@@ -5351,12 +5380,12 @@ int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle 
                                 static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                config->callbacks, static_cast<int32_t>(config->priority));
+                                config->callbacks);
   if (obj == nullptr) {
     OM2_LOGE("GertModelLoad: new Om2Model failed");
     return ACL_ERROR_FAILURE;
   }
-  auto ret = obj->InitResources(config->reuse_zero_copy,
+  auto ret = obj->InitResources(static_cast<int32_t>(config->priority), config->reuse_zero_copy,
                                 {sizeof(GertModelExternalResources), config->external_rt_model,
                                  config->external_streams, config->external_stream_num,
                                  config->external_notifies, config->external_notify_num,
@@ -5448,6 +5477,14 @@ int32_t GertModelGetStreamDesc(uint32_t *stream_flags, uint64_t stream_num, void
     return ACL_ERROR_FAILURE;
   }
   stream_flags[0U] = RT_STREAM_PERSISTENT;
+  if (extended_attrs != nullptr) {
+    GertModelStreamDesc *desc = static_cast<GertModelStreamDesc *>(extended_attrs);
+    if (desc->model_handle == nullptr) {
+      OM2_LOGE("GertModelGetStreamDesc failed, invalid extended_attrs");
+      return ACL_ERROR_FAILURE;
+    }
+    static_cast<om2::Om2Model *>(desc->model_handle)->GetStreamList(&desc->streams, &desc->stream_num);
+  }
   return 0U;
 }
 

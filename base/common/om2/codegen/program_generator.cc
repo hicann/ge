@@ -131,6 +131,7 @@ Status ProgramGenerator::GenerateResourcesSource(Om2CodePrinter &code_printer) {
       resources_handler.BuildOm2ModelDestructor(),
       resources_handler.BuildInitResourcesMethod(codegen_model_, task_code_builder_list_),
       resources_handler.BuildReleaseResourcesMethod(codegen_model_),
+      resources_handler.BuildGetStreamListMethod(),
   };
   if (codegen_model_.runtime.has_label_switch) {
     resources_items.push_back(ast_.StablePart(StablePartId::kCreateLabelListForLabelSwitch));

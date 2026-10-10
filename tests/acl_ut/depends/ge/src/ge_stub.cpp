@@ -2198,6 +2198,18 @@ ge::Status Om2ModelExecutor::SetDynamicAippData(void *dynamic_input_addr, uint64
   return ge::SUCCESS;
 }
 
+ge::Status Om2ModelExecutor::SetStreamPriority(const int32_t priority) {
+  (void)priority;
+  return ge::SUCCESS;
+}
+
+ge::Status Om2ModelExecutor::GetStreamPriority(int32_t *priority) const {
+  if (priority != nullptr) {
+    *priority = 0;
+  }
+  return ge::SUCCESS;
+}
+
 uint64_t Om2ModelExecutor::SessionId() const {
   return 0U;
 }

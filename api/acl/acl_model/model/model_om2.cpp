@@ -1488,6 +1488,70 @@ aclError aclmdlExecuteImplOm2(uint32_t modelId, const aclmdlDataset *input, aclm
   return ret;
 }
 
+static aclError AclMdlSetPriorityOm2(uint32_t modelId, const aclmdlAttrValue_t *value) {
+  uint32_t priority = 0U;
+  const aclError ret = acl::GetAndCheckMdlPriority(value, priority);
+  if (ret != ACL_SUCCESS) {
+    return ret;
+  }
+  auto executor = acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId);
+  if (executor == nullptr) {
+    ACL_LOG_INNER_ERROR("[Check][Executor]Om2 executor not found, modelId[%u]", modelId);
+    return ACL_ERROR_GE_EXEC_MODEL_ID_INVALID;
+  }
+  const ge::Status status = executor->SetStreamPriority(static_cast<int32_t>(priority));
+  if (status != ge::SUCCESS) {
+    ACL_LOG_ERROR("[SetAttr][Priority] SetStreamPriority failed, modelId[%u], ret[%u]", modelId, status);
+    return ACL_GET_ERRCODE_GE(static_cast<int32_t>(status));
+  }
+  return ACL_SUCCESS;
+}
+
+static aclError AclMdlGetPriorityOm2(uint32_t modelId, aclmdlAttrValue_t *value) {
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(value);
+  auto executor = acl::AclResourceManagerOm2::GetInstance().GetOm2Executor(modelId);
+  if (executor == nullptr) {
+    ACL_LOG_INNER_ERROR("[Check][Executor]Om2 executor not found, modelId[%u]", modelId);
+    return ACL_ERROR_GE_EXEC_MODEL_ID_INVALID;
+  }
+  int32_t priority = 0;
+  const ge::Status status = executor->GetStreamPriority(&priority);
+  if (status != ge::SUCCESS) {
+    ACL_LOG_ERROR("[GetAttr][Priority] GetStreamPriority failed, modelId[%u], ret[%u]", modelId, status);
+    return ACL_GET_ERRCODE_GE(static_cast<int32_t>(status));
+  }
+  value->mdlPriority = static_cast<uint32_t>(priority);
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlSetAttributeImplOm2(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue) {
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(attrValue);
+  switch (attr) {
+    case ACL_MDL_ATTR_PRIORITY_INT32: {
+      ACL_LOG_INFO("start to execute aclmdlSetAttribute(OM2) for ACL_MDL_ATTR_PRIORITY_INT32, modelId[%u]", modelId);
+      return AclMdlSetPriorityOm2(modelId, attrValue);
+    }
+    default: {
+      ACL_LOG_ERROR("[SetAttr] Unsupported attr=%d", static_cast<int32_t>(attr));
+      return ACL_ERROR_INVALID_PARAM;
+    }
+  }
+}
+
+aclError aclmdlGetAttributeImplOm2(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue) {
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(attrValue);
+  switch (attr) {
+    case ACL_MDL_ATTR_PRIORITY_INT32: {
+      ACL_LOG_INFO("start to execute aclmdlGetAttribute(OM2) for ACL_MDL_ATTR_PRIORITY_INT32, modelId[%u]", modelId);
+      return AclMdlGetPriorityOm2(modelId, attrValue);
+    }
+    default: {
+      ACL_LOG_ERROR("[GetAttr] Unsupported attr=%d", static_cast<int32_t>(attr));
+      return ACL_ERROR_INVALID_PARAM;
+    }
+  }
+}
+
 aclError aclmdlExecuteV2ImplOm2(uint32_t modelId, const aclmdlDataset *input, aclmdlDataset *output, aclrtStream stream,
                                 const aclmdlExecConfigHandle *handle) {
   ACL_LOG_INFO("[OM2] start to execute aclmdlExecuteV2, modelId[%u]", modelId);

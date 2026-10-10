@@ -152,11 +152,11 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
            ast_.Var("uint64_t *", "bin_size"), ast_.Var("size_t", "bin_num"), ast_.Var("void **", "constants"),
            ast_.Var("void **", "var_addrs"), ast_.Var("void *", "work_ptr"), ast_.Var("uint64_t *", "session_id"),
            ast_.Var("uint32_t", "model_id"), ast_.Var("void *", "instance_handle"),
-           ast_.Var("const GertModelLoadCallbacks *", "callbacks"), ast_.Var("int32_t", "priority")},
+           ast_.Var("const GertModelLoadCallbacks *", "callbacks")},
           ""),
       ast_.DeclareMethod("~Om2Model", {}, ""),
       ast_.DeclareMethod("InitResources",
-                         {ast_.Var("uint64_t", "reuse_zero_copy"),
+                         {ast_.Var("int32_t", "priority"), ast_.Var("uint64_t", "reuse_zero_copy"),
                           ast_.Var("const GertModelExternalResources &", "external_resources")},
                          "aclError"),
       ast_.DeclareMethod("RegisterKernels", {}, "aclError"),
@@ -176,6 +176,8 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
            ast_.Var("gert::Tensor **", "output_data"), ast_.Var("const GertModelRunCallbacks *", "run_callbacks")},
           "aclError"),
       ast_.DeclareMethod("ReleaseResources", {}, "aclError"),
+      ast_.DeclareMethod("GetStreamList", {ast_.Var("aclrtStream **", "streams"), ast_.Var("uint64_t *", "stream_num")},
+                         "void"),
       ast_.Private(),
       ast_.Field("void **", "constants_"),
       ast_.Field("void **", "var_addrs_"),
@@ -198,7 +200,6 @@ ClassDecl *InterfaceFileCodeGenerator::BuildOm2ModelClass(const Om2CodegenModel 
   items.push_back(ast_.Field("void *", "overflow_addr_"));
   items.push_back(ast_.Field("std::vector<void *>", "dev_dynamic_mem_ptrs_"));
   items.push_back(ast_.Field("void *", "session_scope_mem_ptr_"));
-  items.push_back(ast_.Field("int32_t", "priority_"));
   return ast_.Class("Om2Model", items);
 }
 

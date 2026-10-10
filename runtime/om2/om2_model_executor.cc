@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstddef>
+#include <mutex>
 #include <string>
 #include <fstream>
 #include <regex>
@@ -63,6 +64,11 @@ using RunAsyncFunc = int (*)(GertModelHandle model_handle, aclrtStream stream, c
 using UnloadFunc = int (*)(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
                            struct GertModelUnloadOutput *output);
 using RefreshFeatureMapFunc = int (*)(GertModelHandle model_handle, uintptr_t base_addr);
+using GetStreamNumFunc = uint64_t (*)();
+using GetStreamDescFunc = int32_t (*)(uint32_t *, uint64_t, void *);
+
+constexpr int32_t kOm2StreamPriorityMin = 0;
+constexpr int32_t kOm2StreamPriorityMax = 7;
 
 struct CustSharedLibInfo {
   std::string so_file;
@@ -85,6 +91,9 @@ struct RunModelInfo {
   RunFunc run_func = nullptr;
   RunAsyncFunc run_async_func = nullptr;
   RefreshFeatureMapFunc refresh_feature_map_func = nullptr;
+  GetStreamNumFunc get_stream_num_func = nullptr;
+  GetStreamDescFunc get_stream_desc_func = nullptr;
+  int32_t load_priority = 0;
 };
 
 struct ModelMetaInfo {
@@ -542,6 +551,10 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_NOTNULL(run_model_info_.run_async_func);
     run_model_info_.refresh_feature_map_func =
         reinterpret_cast<RefreshFeatureMapFunc>(mmDlsym(run_model_info_.so_handle, "GertModelRefreshFeatureMap"));
+    run_model_info_.get_stream_num_func =
+        reinterpret_cast<GetStreamNumFunc>(mmDlsym(run_model_info_.so_handle, "GertModelGetStreamNum"));
+    run_model_info_.get_stream_desc_func =
+        reinterpret_cast<GetStreamDescFunc>(mmDlsym(run_model_info_.so_handle, "GertModelGetStreamDesc"));
     return ge::SUCCESS;
   }
 
@@ -660,6 +673,7 @@ class Om2ModelExecutor::Impl {
                                          .reuse_zero_copy = load_arg.reuse_zero_copy ? 1U : 0U};
     GE_ASSERT_SUCCESS(run_model_info_.load_func(&config, &run_model_info_.model_handle, nullptr));
     GE_ASSERT_NOTNULL(run_model_info_.model_handle);
+    run_model_info_.load_priority = load_arg.priority;
 
     return ge::GRAPH_SUCCESS;
   }
@@ -809,6 +823,82 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_NOTNULL(run_model_info_.refresh_feature_map_func, "[OM2][FeatureMap] Refresh interface is unavailable.");
     GE_ASSERT_NOTNULL(run_model_info_.model_handle);
     GE_ASSERT_SUCCESS(run_model_info_.refresh_feature_map_func(run_model_info_.model_handle, mem_base));
+    return ge::SUCCESS;
+  }
+
+  ge::Status QueryModelStreamDesc(GertModelStreamDesc &desc) const {
+    desc = GertModelStreamDesc();
+    desc.model_handle = run_model_info_.model_handle;
+    if ((run_model_info_.get_stream_num_func == nullptr) || (run_model_info_.get_stream_desc_func == nullptr)) {
+      return ACL_ERROR_API_NOT_SUPPORT;
+    }
+    const auto stream_num = run_model_info_.get_stream_num_func();
+    if (stream_num == 0U) {
+      return ACL_ERROR_API_NOT_SUPPORT;
+    }
+    std::vector<uint32_t> stream_flags(stream_num, 0U);
+    const auto ret = run_model_info_.get_stream_desc_func(stream_flags.data(), stream_num, &desc);
+    if (ret != 0) {
+      GELOGE(ge::FAILED, "[OM2][Stream][Priority] GertModelGetStreamDesc failed, ret=%d.", ret);
+      return ge::FAILED;
+    }
+    if (desc.stream_num == 0U) {
+      return ACL_ERROR_API_NOT_SUPPORT;
+    }
+    return ge::SUCCESS;
+  }
+
+  ge::Status SetStreamPriority(const int32_t priority) {
+    GE_ASSERT_TRUE(has_model_);
+    const std::lock_guard<std::mutex> lock(stream_attr_mutex_);
+    if ((priority < kOm2StreamPriorityMin) || (priority > kOm2StreamPriorityMax)) {
+      GELOGE(ge::PARAM_INVALID, "[OM2][Stream][Priority] Invalid priority value %d, should be in range [%d, %d].",
+             priority, kOm2StreamPriorityMin, kOm2StreamPriorityMax);
+      return ge::PARAM_INVALID;
+    }
+    GertModelStreamDesc desc;
+    const auto query_ret = QueryModelStreamDesc(desc);
+    if (query_ret != ge::SUCCESS) {
+      return query_ret;
+    }
+    for (uint64_t i = 0U; i < desc.stream_num; ++i) {
+      aclrtStreamAttrValue attr_value = {};
+      attr_value.streamPriority = priority;
+      const aclError acl_ret = aclrtSetStreamAttribute(desc.streams[i], ACL_STREAM_ATTR_PRIORITY, &attr_value);
+      if (acl_ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
+        GELOGW("[OM2][Stream][Priority] aclrtSetStreamAttribute not supported, stream[%lu], ret=%d.", i, acl_ret);
+        break;
+      } else if (acl_ret != ACL_SUCCESS) {
+        GELOGE(ge::FAILED, "[OM2][Stream][Priority] aclrtSetStreamAttribute failed, stream[%lu], ret=%d.", i, acl_ret);
+        return ge::FAILED;
+      }
+    }
+    GELOGI("[OM2][Stream][Priority] Set stream priority success, model_id=%u, priority=%d, streams=%lu.", model_id_,
+           priority, desc.stream_num);
+    return ge::SUCCESS;
+  }
+
+  ge::Status GetStreamPriority(int32_t *priority) const {
+    GE_ASSERT_TRUE(has_model_);
+    GE_ASSERT_NOTNULL(priority);
+    const std::lock_guard<std::mutex> lock(stream_attr_mutex_);
+    GertModelStreamDesc desc;
+    const auto query_ret = QueryModelStreamDesc(desc);
+    if (query_ret != ge::SUCCESS) {
+      return query_ret;
+    }
+    aclrtStreamAttrValue attr_value = {};
+    const aclError acl_ret = aclrtGetStreamAttribute(desc.streams[0], ACL_STREAM_ATTR_PRIORITY, &attr_value);
+    if (acl_ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
+      *priority = run_model_info_.load_priority;
+      GELOGW("[OM2][Stream][Priority] aclrtGetStreamAttribute not supported, ret=%d.", acl_ret);
+      return ge::SUCCESS;
+    }
+    if (acl_ret != ACL_SUCCESS) {
+      GELOGE(ge::FAILED, "[OM2][Stream][Priority] aclrtGetStreamAttribute failed, ret=%d.", acl_ret);
+      return ge::FAILED;
+    }
+    *priority = attr_value.streamPriority;
     return ge::SUCCESS;
   }
 
@@ -1185,6 +1275,7 @@ class Om2ModelExecutor::Impl {
   uint64_t step_id_ = 1U;
   aclrtStream prof_stream_ = nullptr;
   Om2ModelExecutor *owner_ = nullptr;
+  mutable std::mutex stream_attr_mutex_;
   // 当前档位维度值，由 SetDynamicSize 写入，GetCurrentShape 读取
   std::vector<uint64_t> cur_batch_size_;
   int32_t dynamic_type_ = 0;  // 0=FIXED
@@ -1337,6 +1428,14 @@ uint64_t Om2ModelExecutor::SessionId() const {
 
 ge::Status Om2ModelExecutor::UpdateFmMemBases(const uintptr_t mem_base, const size_t size) {
   return impl_->UpdateFmMemBases(mem_base, size);
+}
+
+ge::Status Om2ModelExecutor::SetStreamPriority(const int32_t priority) {
+  return impl_->SetStreamPriority(priority);
+}
+
+ge::Status Om2ModelExecutor::GetStreamPriority(int32_t *priority) const {
+  return impl_->GetStreamPriority(priority);
 }
 
 ge::Status LoadOm2DataFromFile(const std::string &model_path, ge::ModelData &model_data) {

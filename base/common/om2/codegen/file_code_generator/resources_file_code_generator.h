@@ -25,10 +25,11 @@ class ResourcesFileCodeGenerator : public Om2ModelClassGeneratorBase {
   MethodDef *BuildInitResourcesMethod(const Om2CodegenModel &codegen_model,
                                       const std::vector<TaskCodeBuilderPtr> &task_code_builders);
   MethodDef *BuildReleaseResourcesMethod(const Om2CodegenModel &codegen_model);
+  MethodDef *BuildGetStreamListMethod() const;
 
  private:
   void BuildInitStreamResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime,
-                                const VarRef &external_resources);
+                                const VarRef &external_resources, const VarRef &priority);
   void BuildInitNotifyResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime,
                                 const VarRef &external_resources);
   void BuildInitEventResources(std::vector<BodyItem> &body, const RuntimeResourceSemantic &runtime,

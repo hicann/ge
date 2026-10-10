@@ -26,7 +26,6 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
   auto model_id = ast_.Var("uint32_t", "model_id");
   auto instance_handle = ast_.Var("void *", "instance_handle");
   auto callbacks = ast_.Var("const GertModelLoadCallbacks *", "callbacks");
-  auto priority = ast_.Var("int32_t", "priority");
   auto i = ast_.Var("size_t", "i");
   std::vector<BodyItem> body = {
       ast_.For(ast_.VarDecl(i, 0), i < bin_num, ast_.PreInc(i),
@@ -56,16 +55,16 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelConstructor(const Om2Codegen
   return ast_.DefineMethod(
       "Om2Model", "Om2Model",
       {bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle,
-       callbacks, priority},
+       callbacks},
       "",
       {ast_.MemberInit("constants_", constants), ast_.MemberInit("var_addrs_", var_addrs),
        ast_.MemberInit("total_dev_mem_ptr_", work_ptr), ast_.MemberInit("owns_total_dev_mem_", false),
        ast_.MemberInit("session_id_", session_id), ast_.MemberInit("model_id_", model_id),
        ast_.MemberInit("instance_handle_", instance_handle), ast_.MemberInit("callbacks_", ast_.Deref(callbacks)),
        ast_.MemberInit("kernel_id_", 0), ast_.MemberInit("session_scope_mem_ptr_", nullptr),
-       ast_.MemberInit("priority_", priority), ast_.MemberInit("is_external_rt_model_", false),
-       ast_.MemberInit("is_external_streams_", false), ast_.MemberInit("is_external_notifies_", false),
-       ast_.MemberInit("is_external_events_", false), ast_.MemberInit("is_external_labels_", false)},
+       ast_.MemberInit("is_external_rt_model_", false), ast_.MemberInit("is_external_streams_", false),
+       ast_.MemberInit("is_external_notifies_", false), ast_.MemberInit("is_external_events_", false),
+       ast_.MemberInit("is_external_labels_", false)},
       body);
 }
 
@@ -79,6 +78,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildOm2ModelDestructor() const {
 
 MethodDef *ResourcesFileCodeGenerator::BuildInitResourcesMethod(
     const Om2CodegenModel &codegen_model, const std::vector<TaskCodeBuilderPtr> &task_code_builders) {
+  const auto priority = ast_.Var("int32_t", "priority");
   const auto reuse_zero_copy = ast_.Var("uint64_t", "reuse_zero_copy");
   const auto required_work_size = ast_.Var("size_t", "required_work_size");
   const auto model_work_size = ast_.Var("size_t", "kModelWorkSize");
@@ -113,7 +113,7 @@ MethodDef *ResourcesFileCodeGenerator::BuildInitResourcesMethod(
       ast_.Comment("3. 创建其他资源"),
   };
   const auto &runtime = codegen_model.runtime;
-  BuildInitStreamResources(body, runtime, external_resources);
+  BuildInitStreamResources(body, runtime, external_resources, priority);
   BuildInitNotifyResources(body, runtime, external_resources);
   BuildInitEventResources(body, runtime, external_resources);
   BuildInitLabelResources(body, runtime, external_resources);
@@ -125,12 +125,23 @@ MethodDef *ResourcesFileCodeGenerator::BuildInitResourcesMethod(
   (void)body.emplace_back(args_table_.Attr("Init")());
   (void)body.emplace_back(ast_.Call("OM2_LOGI", {ast_.Str("InitResources done")}));
   (void)body.emplace_back(ast_.Return("ACL_SUCCESS"));
-  return ast_.DefineMethod("Om2Model", "InitResources", {reuse_zero_copy, external_resources}, "aclError", body);
+  return ast_.DefineMethod("Om2Model", "InitResources", {priority, reuse_zero_copy, external_resources}, "aclError",
+                           body);
+}
+
+MethodDef *ResourcesFileCodeGenerator::BuildGetStreamListMethod() const {
+  auto streams = ast_.Var("aclrtStream **", "streams");
+  auto stream_num = ast_.Var("uint64_t *", "stream_num");
+  std::vector<BodyItem> body = {
+      ast_.Assign(ast_.Deref(streams), stream_list_.Data()),
+      ast_.Assign(ast_.Deref(stream_num), ast_.StaticCast("uint64_t", stream_list_.Size())),
+  };
+  return ast_.DefineMethod("Om2Model", "GetStreamList", {streams, stream_num}, "void", body);
 }
 
 void ResourcesFileCodeGenerator::BuildInitStreamResources(std::vector<BodyItem> &body,
                                                           const RuntimeResourceSemantic &runtime,
-                                                          const VarRef &external_resources) {
+                                                          const VarRef &external_resources, const VarRef &priority) {
   if (runtime.stream_num == 0U) {
     return;
   }
@@ -151,7 +162,7 @@ void ResourcesFileCodeGenerator::BuildInitStreamResources(std::vector<BodyItem> 
   for (uint32_t i = 0U; i < runtime.stream_num; ++i) {
     const auto stream_flag = ast_.Var("uint32_t", "stream" + std::to_string(i) + "_flag");
     (void)create_items.emplace_back(ast_.VarDecl(stream_flag, runtime.stream_flag_values[i]));
-    (void)create_items.emplace_back(ChkRt(RtStreamCreateWithFlags(stream_list_[i].Addr(), priority_, stream_flag)));
+    (void)create_items.emplace_back(ChkRt(RtStreamCreateWithFlags(stream_list_[i].Addr(), priority, stream_flag)));
   }
   (void)body.emplace_back(ast_.If(ext_stream_num != ast_.UInt(0U), ext_items, create_items));
   for (uint32_t i = 0U; i < runtime.stream_num; ++i) {

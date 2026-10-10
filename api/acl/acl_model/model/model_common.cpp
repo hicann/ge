@@ -15,6 +15,7 @@
 #include <queue>
 #include <sstream>
 #include <vector>
+#include "acl/acl_rt.h"
 #include "common/log_inner.h"
 #include "model_desc_internal.h"
 #include "framework/common/framework_types_internal.h"
@@ -796,6 +797,23 @@ ACL_FUNC_VISIBILITY size_t GetMaxShapeIndex(const std::vector<ge::InputOutputDim
   }
   ACL_LOG_INFO("GetMaxShapeIndex success, maxShapeIndex[%zu]", maxShapeIndex);
   return maxShapeIndex;
+}
+
+ACL_FUNC_VISIBILITY aclError GetAndCheckMdlPriority(const aclmdlAttrValue_t *value, uint32_t &priority) {
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(value);
+  priority = value->mdlPriority;
+  int32_t leastPriority = 0;
+  int32_t greatestPriority = 0;
+  const aclError ret = aclrtDeviceGetStreamPriorityRange(&leastPriority, &greatestPriority);
+  if (ret != ACL_SUCCESS) {
+    ACL_LOG_ERROR("[SetAttr][Priority] Failed to get priority range, ret=%d", ret);
+    return ret;
+  }
+  if ((priority < static_cast<uint32_t>(greatestPriority)) || (priority > static_cast<uint32_t>(leastPriority))) {
+    ACL_LOG_ERROR("[SetAttr][Priority] Priority %u out of range [%d, %d]", priority, greatestPriority, leastPriority);
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  return ACL_SUCCESS;
 }
 
 }  // namespace acl

@@ -128,6 +128,7 @@ class AclRuntimeStub {
   virtual aclError aclrtCheckArchCompatibility(const char *socVersion, int32_t *canCompatible);
   virtual aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode);
   virtual aclError aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *value);
+  virtual aclError aclrtGetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *value);
   virtual aclError aclrtActiveStream(aclrtStream activeStream, aclrtStream stream);
   virtual aclError aclrtCtxGetCurrentDefaultStream(aclrtStream *stream);
   virtual aclError aclrtDestroyLabel(aclrtLabel label);

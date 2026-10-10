@@ -50,7 +50,6 @@ class Om2ModelClassGeneratorBase : public CodeGeneratorBase {
   VarRef overflow_addr_;
   VarRef dev_dynamic_mem_ptrs_;
   VarRef session_scope_mem_ptr_;
-  VarRef priority_;
   VarRef is_external_rt_model_;
   VarRef is_external_streams_;
   VarRef is_external_notifies_;

@@ -12,7 +12,6 @@
 #include <sstream>
 #include "acl/acl_mdl.h"
 #include "common/prof_api_reg.h"
-#include "acl/acl_rt.h"
 #include "common/dynamic_aipp.h"
 #include "model_desc_internal.h"
 #include "common/log_inner.h"
@@ -889,18 +888,4 @@ aclError aclmdlSetAIPPByInputIndexImplOm2(uint32_t modelId, aclmdlDataset *datas
   }
   ACL_LOG_INFO("successfully execute aclmdlSetAIPPByInputIndex(OM2), modelId[%u], index[%zu]", modelId, index);
   return aclmdlSetInputAIPPImplOm2(modelId, dataset, dynamicAttachedDataIndex, aippParmsSet);
-}
-
-aclError aclmdlSetAttributeImplOm2(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue) {
-  (void)modelId;
-  (void)attr;
-  (void)attrValue;
-  return ACL_ERROR_API_NOT_SUPPORT;
-}
-
-aclError aclmdlGetAttributeImplOm2(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue) {
-  (void)modelId;
-  (void)attr;
-  (void)attrValue;
-  return ACL_ERROR_API_NOT_SUPPORT;
 }

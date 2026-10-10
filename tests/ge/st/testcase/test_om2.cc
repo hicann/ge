@@ -72,6 +72,7 @@
 #include "aicpu_engine_struct.h"
 #include "aicpu_task_struct.h"
 #include "engine/aicpu/kernel/aicpu_ext_info_handle.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "framework/common/gert_model_data_utils.h"
 
 namespace ge {
@@ -1016,6 +1017,74 @@ std::string MakeFakeOm2LoadAndRunCpp() {
   return MakeFakeOm2LoadAndRunCreateCpp() + MakeFakeOm2LoadAndRunExecuteCpp();
 }
 
+// fake SO 变体：额外导出 GertModelGetStreamNum/GertModelGetStreamDesc。
+// 默认不回填 desc（模拟旧版 SO）；设置环境变量 OM2_FAKE_STREAM_DESC_MODE=FILL 时回填（模拟新版 SO）。
+std::string MakeFakeOm2StreamDescCpp() {
+  return R"(#include <cstdlib>
+#include <string>
+
+namespace {
+// 与 executor 侧 GertModelStreamDesc 布局一致（成员偏移 0/8/16/24）
+struct FakeStreamDesc {
+  uint64_t struct_size;
+  void *model_handle;
+  void **streams;
+  uint64_t stream_num;
+};
+
+void *g_fake_streams[2] = {reinterpret_cast<void *>(0x11), reinterpret_cast<void *>(0x22)};
+}  // namespace
+
+extern "C" uint64_t GertModelGetStreamNum() {
+  return 2U;
+}
+
+extern "C" int32_t GertModelGetStreamDesc(uint32_t *stream_flags, uint64_t stream_num, void *extended_attrs) {
+  if ((stream_flags == nullptr) || (stream_num != 2U)) {
+    return 1;
+  }
+  stream_flags[0U] = 0U;
+  stream_flags[1U] = 0U;
+  const char *mode = std::getenv("OM2_FAKE_STREAM_DESC_MODE");
+  if ((mode == nullptr) || (std::string(mode) != "FILL") || (extended_attrs == nullptr)) {
+    return 0;  // 模拟旧版 SO：忽略 extended_attrs，不回填 desc
+  }
+  auto *desc = static_cast<FakeStreamDesc *>(extended_attrs);
+  if ((desc->struct_size < sizeof(FakeStreamDesc)) || (desc->model_handle == nullptr)) {
+    return 1;
+  }
+  desc->streams = g_fake_streams;
+  desc->stream_num = 2U;
+  return 0;
+}
+)";
+}
+
+// 记录 aclrtSetStreamAttribute 调用并支持 aclrtGetStreamAttribute 回读最近设置值的桩
+class RecordingStreamAttrStub : public AclRuntimeStub {
+ public:
+  aclError aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *value) override {
+    (void)attr;
+    set_streams_.push_back(stream);
+    set_priorities_.push_back(value == nullptr ? -1 : static_cast<int32_t>(value->streamPriority));
+    last_priority_ = set_priorities_.back();
+    return ACL_SUCCESS;
+  }
+
+  aclError aclrtGetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *value) override {
+    (void)stream;
+    (void)attr;
+    if (value != nullptr) {
+      value->streamPriority = last_priority_;
+    }
+    return ACL_SUCCESS;
+  }
+
+  int32_t last_priority_ = 0;
+  std::vector<aclrtStream> set_streams_;
+  std::vector<int32_t> set_priorities_;
+};
+
 std::string MakeFakeOm2EmptyCpp() {
   return R"(#include "g1_interface.h"
 )";
@@ -1225,6 +1294,46 @@ std::string BuildValidOm2ProtoTxt() {
   op->set_name("data0");
   op->set_type("Data");
   return model_def.DebugString();
+}
+
+// fake SO 变体打包：libg1_om2.so 额外导出 GertModelGetStreamNum/GertModelGetStreamDesc
+void CreateFakeOm2FileWithStreamDesc(const std::string &work_dir, const std::string &output_file) {
+  const std::string runtime_dir = PathUtils::Join({work_dir, "fake_om2_runtime_stream_desc"});
+  const std::string build_dir = PathUtils::Join({runtime_dir, "build"});
+  const std::string so_path = PathUtils::Join({runtime_dir, "libg1_om2.so"});
+  const std::string constant_path = PathUtils::Join({work_dir, "constant_stream_desc_0"});
+  const std::string constants_config_path = PathUtils::Join({work_dir, "model_stream_desc_constants_config.json"});
+
+  RemoveTestDir(runtime_dir);
+  ASSERT_EQ(CreateDir(runtime_dir), 0);
+  WriteTextFile(PathUtils::Join({runtime_dir, "g1_interface.h"}), MakeFakeOm2InterfaceHeader());
+  WriteTextFile(PathUtils::Join({runtime_dir, "g1_resources.cpp"}), MakeFakeOm2EmptyCpp());
+  WriteTextFile(PathUtils::Join({runtime_dir, "g1_kernel_reg.cpp"}), MakeFakeOm2EmptyCpp());
+  WriteTextFile(PathUtils::Join({runtime_dir, "g1_args_manager.cpp"}), MakeFakeOm2EmptyCpp());
+  WriteTextFile(PathUtils::Join({runtime_dir, "g1_load_and_run.cpp"}),
+                MakeFakeOm2LoadAndRunCpp() + MakeFakeOm2StreamDescCpp());
+  WriteTextFile(PathUtils::Join({runtime_dir, "CMakeLists.txt"}), MakeFakeOm2CMakeLists());
+
+  RunCommandOrAssert("cmake -S " + runtime_dir + " -B " + build_dir);
+  RunCommandOrAssert("cmake --build " + build_dir + " -j1");
+  ASSERT_EQ(mmAccess2(so_path.c_str(), M_F_OK), EOK);
+
+  WriteBinaryFile(constant_path, {1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U, 10U, 11U, 12U, 13U, 14U, 15U, 16U});
+  WriteTextFile(constants_config_path, MakeFakeOm2ConstantsConfigJson());
+
+  gert::ZipArchiveWriter zip_writer(output_file);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeFakeOm2ManifestJson();
+  const auto model_meta = MakeFakeOm2ModelMetaJson();
+  const auto op_attr = MakeFakeOm2OpAttrJson();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/op_attr.json", op_attr.data(), op_attr.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so", so_path, false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/constants/constant_0", constant_path, false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/constants_config.json", constants_config_path, false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 }
 
 void CreateMinimalOm2File(const std::string &path, const std::string &proto_content) {
@@ -1847,6 +1956,8 @@ class Om2St : public testing::Test {
     unsetenv("ASCEND_HOME_PATH");
     unsetenv("ASAN_OPTIONS");
     unsetenv("LSAN_OPTIONS");
+    unsetenv("OM2_FAKE_STREAM_DESC_MODE");
+    AclRuntimeStub::Reset();
   }
 
  public:
@@ -2348,6 +2459,15 @@ static GeRootModelPtr PrepareNoVarTestOm2(const std::string &output_file) {
   return ge_root_model;
 }
 
+static GeRootModelPtr PrepareStreamDescOm2(const std::string &output_file) {
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  Om2PackageHelper om2_packager;
+  ModelBufferData model_data;
+  SyncKernelNameForAllModels(ge_root_model);
+  EXPECT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  return ge_root_model;
+}
+
 void Om2St::SetUpTestSuite() {
   setenv("ASCEND_WORK_PATH", SuiteWorkDir().c_str(), 1);
   const auto ascend_install_path = EnvPath().GetAscendInstallPath();
@@ -2367,6 +2487,7 @@ void Om2St::SetUpTestSuite() {
   PrepareSuiteOm2("cust_aicpu", "fake_test.om2", PrepareCustAicpuOm2);
   PrepareSuiteOm2("tf_aicpu", "fake_test.om2", PrepareTfAicpuOm2);
   PrepareSuiteOm2("cmo_task", "fake_test.om2", PrepareCmoTaskOm2);
+  PrepareSuiteOm2("stream_desc", "fake_test_desc.om2", PrepareStreamDescOm2);
   PrepareSuiteOm2("barrier_task", "fake_test.om2", PrepareBarrierTaskOm2);
   PrepareSuiteOm2("mbatch_origin_dims", "test_origin_dims.om2", PrepareMbatchOriginDimsOm2);
   PrepareSuiteOm2("dynamic_batch", "test_dynamic_batch.om2", PrepareDynamicBatchOm2);
@@ -3378,6 +3499,113 @@ TEST_F(Om2St, LoadGeneratedOm2WithExternalResources_Ok) {
   ASSERT_NE(output_desc, nullptr);
   EXPECT_EQ(input_desc->size(), 2U);
   EXPECT_EQ(output_desc->size(), 1U);
+}
+
+TEST_F(Om2St, LoadGeneratedOm2WithStreamDesc_SetAndGetPriorityOk) {
+  // 新版 SO（desc 回填）：Set(3) 遍历全部自有流下发优先级，Get 回读一致
+  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_stream_prio.om2"});
+  CreateFakeOm2FileWithStreamDesc(test_work_dir, output_file);
+
+  ge::ModelData model_data;
+  ASSERT_EQ(gert::LoadOm2DataFromFile(output_file, model_data), SUCCESS);
+  std::shared_ptr<void> model_data_guard(model_data.model_data, [](const void *const p) {
+    if (p != nullptr) {
+      delete[] static_cast<const uint8_t *>(p);
+    }
+  });
+
+  gert::Om2ModelLoadArg load_arg;
+  load_arg.device_id = 0;
+  ge::Status error_code = SUCCESS;
+  auto executor = gert::LoadOm2ExecutorFromData(model_data, load_arg, error_code);
+  ASSERT_EQ(error_code, SUCCESS);
+  ASSERT_NE(executor, nullptr);
+
+  setenv("OM2_FAKE_STREAM_DESC_MODE", "FILL", 1);
+  auto stub = std::make_shared<RecordingStreamAttrStub>();
+  AclRuntimeStub::SetInstance(stub);
+  EXPECT_EQ(executor->SetStreamPriority(3), SUCCESS);
+  ASSERT_EQ(stub->set_streams_.size(), 2U);  // fake SO 导出 2 条流
+  EXPECT_EQ(stub->set_priorities_[0], 3);
+  EXPECT_EQ(stub->set_priorities_[1], 3);
+  int32_t priority = -1;
+  EXPECT_EQ(executor->GetStreamPriority(&priority), SUCCESS);
+  EXPECT_EQ(priority, 3);
+}
+
+TEST_F(Om2St, LoadGeneratedOm2WithStreamDesc_OldSoNotFilledReturnsNotSupport) {
+  // 旧版 SO 行为（导出符号但不回填 desc，stream_num 保持 0）：Set/Get 静默降级
+  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_stream_old.om2"});
+  CreateFakeOm2FileWithStreamDesc(test_work_dir, output_file);
+
+  ge::ModelData model_data;
+  ASSERT_EQ(gert::LoadOm2DataFromFile(output_file, model_data), SUCCESS);
+  std::shared_ptr<void> model_data_guard(model_data.model_data, [](const void *const p) {
+    if (p != nullptr) {
+      delete[] static_cast<const uint8_t *>(p);
+    }
+  });
+
+  gert::Om2ModelLoadArg load_arg;
+  load_arg.device_id = 0;
+  ge::Status error_code = SUCCESS;
+  auto executor = gert::LoadOm2ExecutorFromData(model_data, load_arg, error_code);
+  ASSERT_EQ(error_code, SUCCESS);
+  ASSERT_NE(executor, nullptr);
+
+  EXPECT_EQ(executor->SetStreamPriority(3), ACL_ERROR_API_NOT_SUPPORT);
+  int32_t priority = -1;
+  EXPECT_EQ(executor->GetStreamPriority(&priority), ACL_ERROR_API_NOT_SUPPORT);
+}
+
+TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithStreamDescSupport) {
+  // 真实 codegen 产物（suite 预构建）：GertModelGetStreamDesc 生成体含 extended_attrs 回填分支与
+  // GetStreamList 访问器，ABI 结构体 GertModelStreamDesc 经 om2_model_api.h 传导至生成 SO 源码。
+  // 注意：zip 内部以输出文件 basename（去扩展名）作为 entry 前缀。
+  const std::string base_name = kZipFileBaseName + "_desc";
+  const auto &output_file = SuiteOm2File("stream_desc");
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  gert::ZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  // g1_load_and_run.cpp：extended_attrs 激活分支（校验 + 类访问器回填）
+  size_t load_and_run_size = 0U;
+  const auto load_and_run_buf =
+      archive.ExtractToMem(base_name + "/data/model_0/runtime/csrc/g1_load_and_run.cpp", load_and_run_size);
+  ASSERT_NE(load_and_run_buf, nullptr);
+  const std::string load_and_run(reinterpret_cast<const char *>(load_and_run_buf.get()), load_and_run_size);
+  EXPECT_NE(load_and_run.find("GertModelStreamDesc *desc = static_cast<GertModelStreamDesc *>(extended_attrs);"),
+            std::string::npos);
+  EXPECT_NE(load_and_run.find("(desc->model_handle == nullptr)"), std::string::npos);
+  EXPECT_NE(load_and_run.find("->GetStreamList(&desc->streams, &desc->stream_num);"), std::string::npos);
+
+  // g1_resources.cpp：GetStreamList 定义
+  size_t resources_size = 0U;
+  const auto resources_buf =
+      archive.ExtractToMem(base_name + "/data/model_0/runtime/csrc/g1_resources.cpp", resources_size);
+  ASSERT_NE(resources_buf, nullptr);
+  const std::string resources(reinterpret_cast<const char *>(resources_buf.get()), resources_size);
+  EXPECT_NE(resources.find("void Om2Model::GetStreamList(aclrtStream **streams, uint64_t *stream_num)"),
+            std::string::npos);
+
+  // g1_internal.h：GetStreamList 声明
+  size_t interface_size = 0U;
+  const auto interface_buf =
+      archive.ExtractToMem(base_name + "/data/model_0/runtime/csrc/g1_internal.h", interface_size);
+  ASSERT_NE(interface_buf, nullptr);
+  const std::string interface_header(reinterpret_cast<const char *>(interface_buf.get()), interface_size);
+  EXPECT_NE(interface_header.find("void GetStreamList(aclrtStream **streams, uint64_t *stream_num);"),
+            std::string::npos);
+
+  // om2_model_api.h：ABI 结构体传导
+  size_t api_header_size = 0U;
+  const auto api_header_buf =
+      archive.ExtractToMem(base_name + "/data/model_0/runtime/csrc/om2_model_api.h", api_header_size);
+  ASSERT_NE(api_header_buf, nullptr);
+  const std::string api_header(reinterpret_cast<const char *>(api_header_buf.get()), api_header_size);
+  EXPECT_NE(api_header.find("struct GertModelStreamDesc"), std::string::npos);
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoTask) {

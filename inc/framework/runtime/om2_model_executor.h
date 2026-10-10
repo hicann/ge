@@ -82,6 +82,8 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
   aclrtStream GetOrCreateProfStream();
   uint64_t SessionId() const;
   ge::Status UpdateFmMemBases(const uintptr_t mem_base, const size_t size);
+  ge::Status SetStreamPriority(const int32_t priority);
+  ge::Status GetStreamPriority(int32_t *priority) const;
 
  private:
   class Impl;

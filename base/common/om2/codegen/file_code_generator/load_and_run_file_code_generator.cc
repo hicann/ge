@@ -514,6 +514,17 @@ std::vector<DeclNode *> LoadAndRunFileCodeGenerator::BuildQueryResourceApis(
     (void)stream_desc_body.emplace_back(
         ast_.Assign(stream_flags[ast_.UInt(static_cast<uint64_t>(i))], runtime.stream_flag_values[i]));
   }
+  auto stream_desc = ast_.Var("GertModelStreamDesc *", "desc");
+  (void)stream_desc_body.emplace_back(ast_.If(
+      stream_ext != nullptr,
+      {
+          ast_.VarDecl(stream_desc, ast_.StaticCast("GertModelStreamDesc *", stream_ext)),
+          ast_.If(stream_desc.Arrow("model_handle") == nullptr,
+                  {ast_.Call("OM2_LOGE", {ast_.Str("GertModelGetStreamDesc failed, invalid extended_attrs")}),
+                   ast_.Return("ACL_ERROR_FAILURE")}),
+          ast_.StaticCast("om2::Om2Model *", stream_desc.Arrow("model_handle"))
+              .Arrow("GetStreamList")(stream_desc.Arrow("streams").Addr(), stream_desc.Arrow("stream_num").Addr()),
+      }));
   (void)stream_desc_body.emplace_back(ast_.Return(ast_.UInt(0U)));
   items.push_back(ast_.DefineFunction("GertModelGetStreamDesc", {stream_flags, stream_num, stream_ext}, "int32_t",
                                       ast_.Body(stream_desc_body)));

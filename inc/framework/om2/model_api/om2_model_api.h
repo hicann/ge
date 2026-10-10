@@ -314,4 +314,12 @@ int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_
 }
 #endif
 
+/** @brief GertModelGetStreamDesc 的预留参数  */
+struct GertModelStreamDesc {
+  uint64_t struct_size = sizeof(GertModelStreamDesc);  // 输入，结构体版本号，布局变化时更新。
+  GertModelHandle model_handle = nullptr;              // 输入，GertModelLoad 成功返回、Unload 前的有效句柄。
+  aclrtStream *streams = nullptr;  // 输出，SO 回填，指向模型内部流数组，只读，Load 后至 Unload 前有效。
+  uint64_t stream_num;             // 输出，SO 回填的实际流个数；旧版本 SO 不回填，保持调用前值。
+};
+
 #endif  // OM2_MODEL_API_H_

@@ -226,6 +226,17 @@ TEST(Om2AbiStructCompatibility, CallbackAndRunInfoLayoutsAreFrozen) {
                                                         sizeof(GertModelRunCallbacks::report_run_info_postprocess));
 }
 
+TEST(Om2AbiStructCompatibility, StreamDescLayoutIsFrozen) {
+  EXPECT_STRUCT_LAYOUT(GertModelStreamDesc, 32U, 8U);
+  EXPECT_MEMBER_LAYOUT(GertModelStreamDesc, struct_size, uint64_t, 0U);
+  EXPECT_MEMBER_LAYOUT(GertModelStreamDesc, model_handle, GertModelHandle, 8U);
+  EXPECT_MEMBER_LAYOUT(GertModelStreamDesc, streams, aclrtStream *, 16U);
+  EXPECT_MEMBER_LAYOUT(GertModelStreamDesc, stream_num, uint64_t, 24U);
+  EXPECT_NO_IMPLICIT_PADDING(GertModelStreamDesc,
+                             sizeof(GertModelStreamDesc::struct_size) + sizeof(GertModelStreamDesc::model_handle) +
+                                 sizeof(GertModelStreamDesc::streams) + sizeof(GertModelStreamDesc::stream_num));
+}
+
 TEST(Om2AbiStructCompatibility, ApiConfigLayoutsAreFrozen) {
   EXPECT_STRUCT_LAYOUT(GertModelLoadConfig, 184U, 8U);
   EXPECT_MEMBER_LAYOUT(GertModelLoadConfig, struct_size, uint64_t, 0U);

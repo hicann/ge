@@ -51,6 +51,9 @@ aclError GetDims(const aclmdlDesc *const modelDesc, const TensorType tensorType,
 
 const char_t *GetRealTensorName(const aclmdlDesc *const modelDesc, const std::string &tensorName);
 
+// Get and check model stream priority from attr value, shared by model.cpp (v1) and model_om2.cpp (OM2)
+aclError GetAndCheckMdlPriority(const aclmdlAttrValue_t *value, uint32_t &priority);
+
 // Bundle 子模型信息
 struct BundleSubModelInfo {
   size_t workSize = 0U;
