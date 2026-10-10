@@ -76,7 +76,7 @@ void ScopedOpProtoLoadTxn::AppendClaimsNoexcept() noexcept {
   }
 }
 
-void ScopedOpProtoLoadTxn::FinalizeNoexcept() noexcept {
+void ScopedOpProtoLoadTxn::FinalizeNoexcept() const noexcept {
   std::vector<OpProtoClaimRecord> pending_batch;
   try {
     auto &ledger = OpProtoLedger::GetInstance();

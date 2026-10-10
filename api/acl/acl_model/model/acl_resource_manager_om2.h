@@ -57,6 +57,8 @@ class ACL_FUNC_VISIBILITY AclResourceManagerOm2 {
   bool enableRuntimeV2ForModel_ = true;
   bool enableRuntimeV2ForSingleOp_ = true;
   std::unordered_map<uint32_t, std::shared_ptr<gert::Om2ModelExecutor>> om2ExecutorMap_{{0U, nullptr}};
+  // modelId/bundleId 共用计数器。高位起点除避开低位保留 id 外，还使 bundle 的 session id
+  // （复用 bundleId）与 OM2 单模型 session id（GetNextSessionId，从 0 递增）区间隔离，勿改低起点
   std::atomic_uint32_t modelIdGenerator_{std::numeric_limits<uint32_t>::max() / 2U};
   std::unordered_map<uint32_t, BundleModelInfo> bundleInfos_;
   std::set<uint32_t> bundleInnerIds_;

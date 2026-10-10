@@ -32,6 +32,7 @@ class FuseCheckResult:
 
 
 report_fuse = _native.report_fuse
+report_match = _native.report_match
 
 
 def can_fuse(nodes: Iterable["Node"]) -> FuseCheckResult:

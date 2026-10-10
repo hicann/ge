@@ -37,3 +37,5 @@ static Status ReportMatch(const std::vector<GNode> &matched_nodes, CustomPassCon
 ## 约束说明
 
 该接口应在发现目标结构后、[CanFuse](CanFuse.md) 之前调用。
+
+注意：带ctx的 [SubgraphRewriter::Replace](../SubgraphRewriter/Replace.md) 重载内部已自动调用该接口上报结构匹配，调用方使用该重载时无需（不应）再手动调用，否则match_time会重复累计。手动改图（不走SubgraphRewriter）的场景仍需按上述约束手动调用。

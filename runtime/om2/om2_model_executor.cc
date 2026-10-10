@@ -585,6 +585,31 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
+  ge::Status PrepareVariablesFromStruct(const gert::GertModelDataModel &model_unit, const Om2ModelLoadArg &load_arg) {
+    const auto *variables_config = model_unit.variables_config.get();
+    if ((variables_config == nullptr) || variables_config->entries.empty()) {
+      return ge::SUCCESS;
+    }
+    auto var_manager = Om2RTVarManagerPool::Instance().GetManager(session_id_);
+    GE_ASSERT_NOTNULL(var_manager);
+    // 外部变量内存经 rt_session 透传，Bundle 子模型共享同一 Session 时幂等合并
+    void *external_var_addr = nullptr;
+    uint64_t external_var_size = 0U;
+    if (load_arg.rt_session != nullptr) {
+      load_arg.rt_session->GetExternalVar(external_var_addr, external_var_size);
+    }
+    GE_ASSERT_SUCCESS(var_manager->Init(variables_config->entries, external_var_addr, external_var_size));
+
+    std::vector<std::string> var_names;
+    for (const auto &meta : variables_config->var_metas) {
+      var_names.push_back(gert::GertGetStr(meta->var_name));
+    }
+    GE_ASSERT_SUCCESS(
+        var_manager->TransAllVarData(var_names, static_cast<uint32_t>(load_arg.device_id), variables_config->graph_id));
+    GE_ASSERT_SUCCESS(var_manager->CopyVarData(var_names, static_cast<uint32_t>(load_arg.device_id)));
+    return ge::SUCCESS;
+  }
+
   ge::Status CreateModelFromStruct(const gert::GertModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
                                    std::vector<KernelBinInfo> &kernel_bin_info, const Om2ModelLoadArg &load_arg,
                                    uint64_t session_id, std::vector<void *> &constants,
@@ -604,20 +629,7 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_TRUE(!model_data.models.empty(), "[OM2] models is empty");
     GE_ASSERT_SUCCESS(
         PrepareConstantsFromStruct(*model_data.models[0]->constants_config, weight_buf, load_arg, constants));
-    const auto *variables_config = model_data.models.empty() ? nullptr : model_data.models[0]->variables_config.get();
-    if ((variables_config != nullptr) && !variables_config->entries.empty()) {
-      auto var_manager = Om2RTVarManagerPool::Instance().GetManager(session_id);
-      GE_ASSERT_NOTNULL(var_manager);
-      GE_ASSERT_SUCCESS(var_manager->Init(variables_config->entries));
-
-      std::vector<std::string> var_names;
-      for (const auto &meta : variables_config->var_metas) {
-        var_names.push_back(gert::GertGetStr(meta->var_name));
-      }
-      GE_ASSERT_SUCCESS(var_manager->TransAllVarData(var_names, static_cast<uint32_t>(load_arg.device_id),
-                                                     variables_config->graph_id));
-      GE_ASSERT_SUCCESS(var_manager->CopyVarData(var_names, static_cast<uint32_t>(load_arg.device_id)));
-    }
+    GE_ASSERT_SUCCESS(PrepareVariablesFromStruct(*model_data.models[0], load_arg));
 
     GE_ASSERT_SUCCESS(PrepareVarAddrs(model_data, static_cast<uint32_t>(load_arg.device_id), var_addrs));
 
@@ -1173,6 +1185,10 @@ ge::Status Om2ModelExecutor::Load(ge::ModelData &model_data, const Om2ModelLoadA
   gert::GertModelData om2_data;
   GE_CHK_STATUS_RET_NOLOG(gert::DeserializeGertModelData(static_cast<const uint8_t *>(model_data.model_data),
                                                          model_data.model_len, &om2_data));
+  if ((om2_data.manifest != nullptr) && (om2_data.manifest->model_num > 1U)) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2] the archive is an OM2 bundle, please load it with aclmdlBundle* APIs.");
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
   Om2ModelLoadArg load_arg_with_path = load_arg;
   load_arg_with_path.om_path = model_data.om_path;
   load_arg_with_path.weight_path = model_data.weight_path;
@@ -1364,7 +1380,68 @@ std::unique_ptr<Om2ModelExecutor> LoadOm2ExecutorFromData(ge::ModelData &model_d
   return executor;
 }
 
+std::unique_ptr<Om2ModelExecutor> LoadOm2ExecutorFromBundleData(const void *model_data, const size_t model_size,
+                                                                const size_t model_index,
+                                                                const Om2ModelLoadArg &load_arg,
+                                                                ge::Status &error_code) {
+  error_code = ge::SUCCESS;
+  if ((model_data == nullptr) || (model_size == 0U)) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Bundle] bundle data is null or size is zero, index[%zu].", model_index);
+    error_code = ACL_ERROR_GE_PARAM_INVALID;
+    return nullptr;
+  }
+  gert::GertModelData sub_model_data;
+  const uint32_t deserialize_ret = gert::DeserializeGertModelData(static_cast<const uint8_t *>(model_data), model_size,
+                                                                  &sub_model_data, static_cast<uint32_t>(model_index));
+  if (deserialize_ret != 0U) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Bundle] deserialize sub model failed, index[%zu], ret[%u].", model_index,
+           deserialize_ret);
+    error_code = ACL_ERROR_GE_PARAM_INVALID;
+    return nullptr;
+  }
+  if ((sub_model_data.manifest == nullptr) || (sub_model_data.manifest->model_num <= 1U)) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Bundle] archive is not a bundle, index[%zu].", model_index);
+    error_code = ACL_ERROR_GE_PARAM_INVALID;
+    return nullptr;
+  }
+  // 反序列化将目标子模型单元放置在 models[model_index]（前序下标为空占位），
+  // 而 executor 内部按单模型语义访问 models[0]，此处将目标单元压缩搬移至下标 0
+  if ((sub_model_data.models.size() <= model_index) || (sub_model_data.models[model_index] == nullptr)) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Bundle] sub model unit is null, index[%zu].", model_index);
+    error_code = ACL_ERROR_GE_PARAM_INVALID;
+    return nullptr;
+  }
+  if (model_index > 0U) {
+    std::vector<std::unique_ptr<gert::GertModelDataModel>> compacted_models;
+    compacted_models.emplace_back(std::move(sub_model_data.models[model_index]));
+    sub_model_data.models = std::move(compacted_models);
+  }
+  auto executor = std::unique_ptr<Om2ModelExecutor>(new (std::nothrow) Om2ModelExecutor());
+  if (executor == nullptr) {
+    error_code = ge::FAILED;
+    GELOGE(ge::FAILED, "[OM2][Bundle] constructing Om2ModelExecutor failed, index[%zu].", model_index);
+    return executor;
+  }
+  const uint64_t session_id = ResolveSessionId(load_arg);
+  error_code = executor->Load(sub_model_data, load_arg, session_id);
+  if (error_code != ge::SUCCESS) {
+    GELOGE(error_code, "[OM2][Bundle] load sub model executor failed, index[%zu], ret[%u].", model_index, error_code);
+    return nullptr;
+  }
+  return executor;
+}
+
 namespace {
+
+// 单模型查询接口互斥校验：Bundle 归档必须走 aclmdlBundleQueryInfo* 接口
+ge::Status RejectBundleArchiveForSingleModelQuery(const gert::GertModelData &om2_data) {
+  if ((om2_data.manifest != nullptr) && (om2_data.manifest->model_num > 1U)) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID,
+           "[OM2][Query] the archive is an OM2 bundle, please query it with aclmdlBundleQueryInfo* APIs.");
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
+  return ge::SUCCESS;
+}
 
 // 通过按类别反序列化接口实现部分查询（原 GertQueryMemAndWeightSize 语义）
 ge::Status QueryMemAndWeightSizeFromData(const void *model_data, const size_t model_size, size_t &work_size,
@@ -1373,6 +1450,7 @@ ge::Status QueryMemAndWeightSizeFromData(const void *model_data, const size_t mo
   const uint32_t meta_ret =
       gert::DeserializeGertModelMeta(static_cast<const uint8_t *>(model_data), model_size, &meta_data);
   GE_ASSERT_TRUE(meta_ret == 0U, "[OM2][Query] Deserialize model meta failed, ret = %u.", meta_ret);
+  GE_CHK_STATUS_RET_NOLOG(RejectBundleArchiveForSingleModelQuery(meta_data));
   GE_ASSERT_TRUE(!meta_data.models.empty(), "[OM2][Query] models is empty");
   work_size = static_cast<size_t>(meta_data.models[0]->model_meta->work_size);
 
@@ -1392,6 +1470,7 @@ ge::Status QueryWorkspaceSizeFromData(const void *model_data, const size_t model
   gert::GertModelData om2_data;
   const uint32_t ret = gert::DeserializeGertModelMeta(static_cast<const uint8_t *>(model_data), model_size, &om2_data);
   GE_ASSERT_TRUE(ret == 0U, "[OM2][Query] Deserialize model meta failed, ret = %u.", ret);
+  GE_CHK_STATUS_RET_NOLOG(RejectBundleArchiveForSingleModelQuery(om2_data));
   GE_ASSERT_TRUE(!om2_data.models.empty(), "[OM2][Query] models is empty");
   work_size = static_cast<size_t>(om2_data.models[0]->model_meta->work_size);
   zero_copy_size = query_zero_copy_size ? static_cast<size_t>(om2_data.models[0]->model_meta->zero_copy_size) : 0U;
@@ -1412,6 +1491,7 @@ ge::Status QueryModelMetadataFromData(const void *model_data, const size_t model
   gert::GertModelData om2_data;
   const uint32_t ret = gert::DeserializeGertModelMeta(static_cast<const uint8_t *>(model_data), model_size, &om2_data);
   GE_ASSERT_TRUE(ret == 0U, "[OM2][Query] Deserialize model meta failed, ret = %u.", ret);
+  GE_CHK_STATUS_RET_NOLOG(RejectBundleArchiveForSingleModelQuery(om2_data));
   GE_ASSERT_TRUE(!om2_data.models.empty(), "[OM2][Query] models is empty");
   input_desc = std::move(om2_data.models[0]->model_meta->input_desc);
   input_desc_v2 = std::move(om2_data.models[0]->model_meta->input_desc_v2);
@@ -1476,6 +1556,102 @@ ge::Status GetOm2ModelMetadata(const void *model_data, size_t model_size, std::v
                                std::vector<gert::GertTensorDesc> &output_desc,
                                std::vector<gert::GertTensorDesc> &output_desc_v2) {
   return QueryModelMetadataFromData(model_data, model_size, input_desc, input_desc_v2, output_desc, output_desc_v2);
+}
+
+namespace {
+// 反序列化子模型 model_meta 并校验 Bundle manifest；index 为 0 时解析输出 model_num
+ge::Status QuerySubModelWorkSize(const uint8_t *bytes, const size_t size, const size_t index, size_t &work_size,
+                                 size_t &model_num) {
+  gert::GertModelData meta_data;
+  const uint32_t meta_ret = gert::DeserializeGertModelMeta(bytes, size, &meta_data, static_cast<uint32_t>(index));
+  if (meta_ret != 0U) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Bundle] deserialize sub model meta failed, index[%zu], ret[%u].", index,
+           meta_ret);
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
+  GE_ASSERT_NOTNULL(meta_data.manifest);
+  if (index == 0U) {
+    if (meta_data.manifest->model_num < 2U) {
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID,
+             "[OM2][Bundle] model data is not a bundle archive or model_num is invalid, model_num=%" PRIu64 ".",
+             meta_data.manifest->model_num);
+      return ACL_ERROR_GE_PARAM_INVALID;
+    }
+    model_num = static_cast<size_t>(meta_data.manifest->model_num);
+  }
+  GE_ASSERT_TRUE((meta_data.models.size() > index) && (meta_data.models[index] != nullptr),
+                 "[OM2][Bundle] sub model is empty, index[%zu].", index);
+  GE_ASSERT_NOTNULL(meta_data.models[index]->model_meta);
+  work_size = static_cast<size_t>(meta_data.models[index]->model_meta->work_size);
+  return ge::SUCCESS;
+}
+
+// 反序列化子模型 constants_config 与 variables_config（仅配置部分），输出内置权重与全局共享变量规模
+ge::Status QuerySubModelWeightAndVarSize(const uint8_t *bytes, const size_t size, const size_t index,
+                                         size_t &internal_weight_size, size_t &shared_var_size) {
+  gert::GertModelData config_data;
+  const uint32_t config_ret =
+      gert::DeserializeGertConstantsConfig(bytes, size, &config_data, static_cast<uint32_t>(index));
+  if (config_ret != 0U) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID,
+           "[OM2][Bundle] deserialize sub model constants config failed, index[%zu], "
+           "ret[%u].",
+           index, config_ret);
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
+  GE_ASSERT_TRUE((config_data.models.size() > index) && (config_data.models[index] != nullptr),
+                 "[OM2][Bundle] sub model is empty, index[%zu].", index);
+  GE_ASSERT_NOTNULL(config_data.models[index]->constants_config);
+  internal_weight_size = static_cast<size_t>(config_data.models[index]->constants_config->internal_weight_size);
+
+  shared_var_size = 0U;
+  gert::GertModelData vars_data;
+  const uint32_t vars_ret = gert::DeserializeGertVariablesConfig(bytes, size, &vars_data, static_cast<uint32_t>(index));
+  if (vars_ret != 0U) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID,
+           "[OM2][Bundle] deserialize sub model variables config failed, index[%zu], "
+           "ret[%u].",
+           index, vars_ret);
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
+  if ((vars_data.models.size() > index) && (vars_data.models[index] != nullptr) &&
+      (vars_data.models[index]->variables_config != nullptr)) {
+    shared_var_size = static_cast<size_t>(vars_data.models[index]->variables_config->global_shared_var_size);
+  }
+  return ge::SUCCESS;
+}
+
+// 逐子模型按类别反序列化（model_meta + constants_config + variables_config），收集规模信息与最大 global_shared_var_size
+ge::Status CollectBundleInfo(const void *data, const size_t size, std::vector<std::pair<size_t, size_t>> &model_sizes,
+                             size_t &var_size) {
+  if ((data == nullptr) || (size == 0U)) {
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[OM2][Bundle] model data is null or size is zero.");
+    return ACL_ERROR_GE_PARAM_INVALID;
+  }
+  const auto *bytes = static_cast<const uint8_t *>(data);
+  size_t model_num = 0U;
+  size_t index = 0U;
+  do {
+    size_t work_size = 0U;
+    const auto meta_status = QuerySubModelWorkSize(bytes, size, index, work_size, model_num);
+    GE_CHK_STATUS_RET_NOLOG(meta_status);
+    size_t internal_weight_size = 0U;
+    size_t shared_var_size = 0U;
+    const auto weight_status = QuerySubModelWeightAndVarSize(bytes, size, index, internal_weight_size, shared_var_size);
+    GE_CHK_STATUS_RET_NOLOG(weight_status);
+    model_sizes.emplace_back(work_size, internal_weight_size);
+    var_size = std::max(var_size, shared_var_size);
+    ++index;
+  } while (index < model_num);
+  return ge::SUCCESS;
+}
+}  // namespace
+
+ge::Status GetOm2BundleInfo(const void *data, const size_t size, std::vector<std::pair<size_t, size_t>> &model_sizes,
+                            size_t &var_size) {
+  model_sizes.clear();
+  var_size = 0U;
+  return CollectBundleInfo(data, size, model_sizes, var_size);
 }
 
 ge::Status IsOm2Model(const void *data, size_t size, bool &is_support) {

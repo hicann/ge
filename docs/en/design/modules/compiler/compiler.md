@@ -323,7 +323,7 @@ To lower custom `FusionBasePass` integration cost, `ge/fusion/graph_fuse_inspect
 - `ReportFuse(nodes_before_fuse, nodes_after_fuse, ctx)`: Called after graph modification and before releasing old nodes, use `pass_name` in `ctx` to mark new node fusion source, update cycle detector and record fusion debugging; when `nodes_after_fuse` is empty indicates only deleting nodes.
 - `ReportMatch(matched_nodes, ctx)`: Called when target subgraph structure is found during graph traversal (counted regardless of whether fusion conditions pass), internally increments `match_time`; combined with `effect_time` recorded by `ReportFuse` can calculate structure match hit rate, `match_time - effect_time` reflects fusions abandoned due to condition filtering.
 
-In `SubgraphRewriter` added `Replace(subgraph, replacement, ctx)` overload, chaining `CanFuse` and `ReportFuse` into unified graph modification flow: check fusionability before modification, report fusion result after modification, then delete old nodes.
+In `SubgraphRewriter` added `Replace(subgraph, replacement, ctx)` overload, chaining `ReportMatch`, `CanFuse` and `ReportFuse` into a unified graph modification flow: report the structure match before modification (increments `match_time`, counted regardless of whether fusion conditions pass), then check fusionability, report the fusion result after modification, then delete old nodes, thereby ensuring the `match_time >= effect_time` invariant; callers no longer need to manually call `ReportMatch`/`ReportFuse`, otherwise statistics will be double-counted.
 
 ### 3.4 Auto Fusion (AutofuseOptimize)
 

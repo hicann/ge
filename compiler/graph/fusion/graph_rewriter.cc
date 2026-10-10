@@ -320,6 +320,11 @@ Status SubgraphRewriter::Replace(const SubgraphBoundary &subgraph, const Graph &
   }
 
   const auto nodes_before_fuse = ToGNodes(boundary.GetNodes());
+  // 自动上报结构匹配（CanFuse 之前，无论融合条件是否通过均计入match_time），
+  // 避免调用方遗漏上报导致match_time/effect_time统计不对齐
+  if (GraphFuseInspectorUtils::ReportMatch(nodes_before_fuse, ctx) != SUCCESS) {
+    GELOGW("[REPLACE]Failed to report structure match, match_times statistic may be incomplete");
+  }
   AscendString failed_reason;
   if (!GraphFuseInspectorUtils::CanFuse(nodes_before_fuse, failed_reason)) {
     const auto *reason = failed_reason.GetString();

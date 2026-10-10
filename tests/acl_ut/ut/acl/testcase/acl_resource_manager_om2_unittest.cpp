@@ -522,3 +522,25 @@ TEST_F(UTEST_ACL_Resource_Manager_Om2, IsOm2ModelByConfig_PathTakesPrecedence) {
 
   EXPECT_TRUE(result);
 }
+
+TEST_F(UTEST_ACL_Resource_Manager_Om2, DeleteBundleSubmodelId_NonexistentBundle_NoEntryCreated) {
+  // 对不存在的 bundleId 删除子模型时，不应向 bundleInfos_ 插入空条目（operator[] 误插入修复）
+  auto &instance = acl::AclResourceManagerOm2::GetInstance();
+  instance.DeleteBundleSubmodelId(999U, 100U);
+  EXPECT_EQ(instance.bundleInfos_.count(999U), 0U);
+  EXPECT_FALSE(instance.IsBundleInnerId(100U));
+
+  // 已存在的 bundle：仅移除目标 modelId，不影响同 bundle 其他子模型
+  acl::BundleModelInfo bundleInfo;
+  ASSERT_EQ(instance.SetBundleInfo(1U, bundleInfo), ACL_SUCCESS);
+  instance.AddBundleSubmodelId(1U, 100U);
+  instance.AddBundleSubmodelId(1U, 101U);
+
+  instance.DeleteBundleSubmodelId(1U, 100U);
+  EXPECT_FALSE(instance.IsBundleInnerId(100U));
+  EXPECT_TRUE(instance.IsBundleInnerId(101U));
+  acl::BundleModelInfo retrieved;
+  ASSERT_EQ(instance.GetBundleInfo(1U, retrieved), ACL_SUCCESS);
+  EXPECT_EQ(retrieved.loadedSubModelIdSet.count(100U), 0U);
+  EXPECT_EQ(retrieved.loadedSubModelIdSet.count(101U), 1U);
+}

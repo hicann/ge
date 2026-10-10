@@ -42,3 +42,5 @@ static Status ReportFuse(const std::vector<GNode> &nodes_before_fuse, const std:
 ## Constraints
 
 This API must be called after modifying the graph and before releasing the deleted nodes.
+
+Note: The `SubgraphRewriter::Replace` overload with ctx internally calls this API automatically to report the fusion result. Callers using that overload do not need to (and should not) call this API manually, otherwise effect_time will be double-counted. For manual graph modification scenarios (not going through SubgraphRewriter), this API still needs to be called manually as described above.

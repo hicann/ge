@@ -29,6 +29,7 @@
 #include "framework/common/helper/pre_model_helper.h"
 #include "framework/common/helper/nano_model_save_helper.h"
 #include "framework/common/helper/om_file_helper.h"
+#include "framework/common/helper/om2_package_helper.h"
 #include "framework/common/util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_context.h"
@@ -410,6 +411,13 @@ class GeGenerator::Impl {
   explicit Impl(OmgContext &omg_context) : omg_context_(omg_context) {}
   ~Impl() = default;
 
+  struct SessionCleanupGuard {
+    Impl *impl;
+    ~SessionCleanupGuard() {
+      impl->CleanupPendingSession();
+    }
+  };
+
   Status BuildModel(const Graph &graph, const std::vector<GeTensor> &inputs, GeRootModelPtr &ge_root_model);
   Status SaveModel(const std::string &file_name_prefix, GeModelPtr &model, ModelBufferData &model_buff) const;
 
@@ -446,6 +454,18 @@ class GeGenerator::Impl {
   void SetHostEnvOsCpuInfo(const GeRootModelPtr &ge_root_model, AttrHolder &obj) const;
   void SetHcomGroupRanks(AttrHolder &obj) const;
 };
+
+namespace {
+Status InitializeHcclOfflineOptions() {
+  std::string soc_version;
+  std::string hccl_sub_comm_config;
+  std::string cluster_config;
+  (void)GetContext().GetOption(SOC_VERSION, soc_version);
+  (void)GetContext().GetOption(HCCL_SUB_COMM_CONFIG, hccl_sub_comm_config);
+  (void)GetContext().GetOption(CLUSTER_CONFIG, cluster_config);
+  return HcclOfflineOptionBuilder::Instance().Initialize(soc_version, cluster_config, hccl_sub_comm_config);
+}
+}  // namespace
 
 Status GeGenerator::Initialize(const std::map<std::string, std::string> &options) {
   return Initialize(options, domi::GetContext());
@@ -537,6 +557,26 @@ Status GeGenerator::GenerateOnlineModel(const Graph &graph, const std::vector<Ge
 Status GeGenerator::GenerateOnlineOm2Model(const Graph &graph, const std::vector<GeTensor> &inputs,
                                            ModelBufferData &model) {
   return GenerateModel(graph, "online", inputs, model, false, OfflineModelFormat::OM_FORMAT_OM2);
+}
+
+Status GeGenerator::GenerateOnlineGertModelData(const Graph &graph, const std::vector<GeTensor> &inputs,
+                                                std::shared_ptr<ge::GeRootModel> &ge_root_model) {
+  GE_CHECK_NOTNULL_EXEC(impl_, return PARAM_INVALID);
+  impl_->is_offline_ = false;
+  impl_->pending_cleanup_session_id_ = UINT64_MAX;
+  Impl::SessionCleanupGuard guard{impl_.get()};
+  GE_CHK_STATUS_RET_NOLOG(InitializeHcclOfflineOptions());
+
+  const Status ret = impl_->BuildModel(graph, inputs, ge_root_model);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Build][GertModelData] failed, ret:%u.", ret);
+    (void)impl_->graph_manager_.Finalize();
+    return ret;
+  }
+  GE_CHECK_NOTNULL(ge_root_model);
+  GE_ASSERT_SUCCESS(SetModelNameForDump(ge_root_model));
+  GE_ASSERT_SUCCESS(Om2PackageHelper::EnsureGertModelData(ge_root_model));
+  return SUCCESS;
 }
 
 Status GeGenerator::GenerateInfershapeGraph(const Graph &graph) {
@@ -687,22 +727,8 @@ Status GeGenerator::GenerateModel(const Graph &graph, const std::string &file_na
   GE_CHECK_NOTNULL_EXEC(impl_, return PARAM_INVALID);
   impl_->is_offline_ = is_offline;
   impl_->pending_cleanup_session_id_ = UINT64_MAX;  // reset
-
-  struct SessionCleanupGuard {
-    GeGenerator::Impl *impl;
-    ~SessionCleanupGuard() {
-      impl->CleanupPendingSession();
-    }
-  } guard{impl_.get()};
-
-  std::string soc_version;
-  std::string hccl_sub_comm_config;
-  std::string cluster_config;
-  (void)GetContext().GetOption(SOC_VERSION, soc_version);
-  (void)GetContext().GetOption(HCCL_SUB_COMM_CONFIG, hccl_sub_comm_config);
-  (void)GetContext().GetOption(CLUSTER_CONFIG, cluster_config);
-  GE_CHK_STATUS_RET_NOLOG(
-      HcclOfflineOptionBuilder::Instance().Initialize(soc_version, cluster_config, hccl_sub_comm_config));
+  Impl::SessionCleanupGuard guard{impl_.get()};
+  GE_CHK_STATUS_RET_NOLOG(InitializeHcclOfflineOptions());
   Status ret = impl_->BuildModel(graph, inputs, ge_root_model);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Build][Model] failed, ret:%u.", ret);

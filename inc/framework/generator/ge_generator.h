@@ -57,6 +57,12 @@ class GE_FUNC_VISIBILITY GeGenerator {
 
   Status GenerateOnlineOm2Model(const Graph &graph, const std::vector<GeTensor> &inputs, ge::ModelBufferData &model);
 
+  // Build an OM2 root model without serializing it to a standalone ZIP archive.
+  // The caller owns the returned root model and must keep it alive while the
+  // structured OM2 model data is being consumed.
+  Status GenerateOnlineGertModelData(const Graph &graph, const std::vector<GeTensor> &inputs,
+                                     std::shared_ptr<ge::GeRootModel> &ge_root_model);
+
   Status GenerateInfershapeGraph(const Graph &graph);
 
   ///

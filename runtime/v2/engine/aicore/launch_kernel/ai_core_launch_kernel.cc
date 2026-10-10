@@ -212,13 +212,12 @@ struct MixVectorProf {
 thread_local MixVectorProf mix_prof_data;
 
 // call after kernel launch
-std::string PrintStreamIdAndTaskId(const KernelContext *context) {
-  auto stream = context->GetInputValue<void *>(static_cast<int32_t>(InputCommon::kStream));
+std::string PrintStreamIdAndTaskId() {
   std::stringstream ss;
   uint32_t stream_id = 0U;
   uint32_t flip_task_id = 0U;
-  if ((aclrtGetThreadLastTaskId(&flip_task_id) == RT_ERROR_NONE) &&
-      (aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)) == ACL_SUCCESS)) {
+
+  if (aclrtGetThreadLastTaskIdAndStreamId(&flip_task_id, &stream_id) == ACL_SUCCESS) {
     const uint32_t task_id = flip_task_id & 0xFFFF;  // lower 16bits
     const uint32_t flip_num = flip_task_id >> 16U;   // high 16bits
     ss << "stream_id=" << stream_id << ", task_id=" << task_id << ", flip_num=" << flip_num
@@ -350,7 +349,7 @@ std::vector<std::string> PrintLaunchArgs(const KernelContext *context) {
      << stream << ", schedule mode: " << std::to_string(schedule_mode)
      << ", local mem size: " << std::to_string(local_mem_size);
   msgs.emplace_back(ss.str());
-  msgs.emplace_back(PrintStreamIdAndTaskId(context));
+  msgs.emplace_back(PrintStreamIdAndTaskId());
   msgs.emplace_back(PrintArgsGeneralInfo(args));
   msgs.emplace_back(PrintCompiledArgs(args));
   msgs.emplace_back(PrintIoAddresses(args));

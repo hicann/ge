@@ -12,6 +12,11 @@
 #define TESTS_GE_UT_GE_ONNX_PLUGIN_TEST_HELPER_H_
 
 #include <gtest/gtest.h>
+#include <unistd.h>
+
+#include <cstdio>
+#include <fstream>
+#include <string>
 
 #include "pybind11/embed.h"
 #include "pybind11/eval.h"
@@ -129,6 +134,38 @@ def decompose_invalid_return(source):
     del source
     return False
 )PY";
+
+// 提供真实存在的 Python 插件入口目录（含一个 .py 文件），用于把 ASCEND_CUSTOM_OPP_PATH
+// 指向它来触发桥接加载；析构时自动清理目录。
+class ScopedPluginEntryDir {
+ public:
+  ScopedPluginEntryDir() {
+    char dir_template[] = "/tmp/ge_onnx_plugin_entry_dir_XXXXXX";
+    const auto *created_dir = mkdtemp(dir_template);
+    if (created_dir == nullptr) {
+      ADD_FAILURE() << "mkdtemp failed for scoped plugin entry dir.";
+      return;
+    }
+    dir_ = created_dir;
+    std::ofstream entry_file(dir_ + "/plugin_entry.py");
+    entry_file << "# placeholder python plugin entry for bridge load tests\n";
+  }
+
+  ~ScopedPluginEntryDir() {
+    if (dir_.empty()) {
+      return;
+    }
+    (void)remove((dir_ + "/plugin_entry.py").c_str());
+    (void)rmdir(dir_.c_str());
+  }
+
+  const std::string &Path() const {
+    return dir_;
+  }
+
+ private:
+  std::string dir_;
+};
 
 class ScopedInMemoryPlugin {
  public:

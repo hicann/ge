@@ -121,7 +121,10 @@ void AclResourceManagerOm2::AddBundleSubmodelId(const uint32_t bundleId, uint32_
 
 void AclResourceManagerOm2::DeleteBundleSubmodelId(const uint32_t bundleId, uint32_t modelId) {
   const std::lock_guard<std::mutex> locker(mutex_);
-  bundleInfos_[bundleId].loadedSubModelIdSet.erase(modelId);
+  const auto bundle_iter = bundleInfos_.find(bundleId);
+  if (bundle_iter != bundleInfos_.end()) {
+    (void)bundle_iter->second.loadedSubModelIdSet.erase(modelId);
+  }
   (void)bundleInnerIds_.erase(modelId);
 }
 

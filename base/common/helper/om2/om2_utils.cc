@@ -191,7 +191,7 @@ Status SplitCommandTokens(const std::string &command, std::vector<std::string> &
       token.push_back(c);
       continue;
     }
-    if (std::isspace(static_cast<uint8_t>(c))) {
+    if (std::isspace(static_cast<uint8_t>(c)) != 0) {
       // 未加引号的空白字符：输出当前 token 作为分隔边界
       if (!token.empty()) {
         tokens.emplace_back(token);

@@ -149,6 +149,22 @@ DUMP_GE_GRAPH=3 DUMP_GRAPH_PATH="$(pwd)/graph_dump" atc \
 插件回调抛出Python异常或插件文件加载失败时，默认报错（E19999）中会包含Python侧的错误信息
 （异常类型、错误语句、插件文件与行号）；如需完整编译日志，再配合上述日志级别查看。
 
+算子未命中注册时，报"未注册插件/解析器"类错误（预检查阶段E13010、解析阶段E16002），其后跟随
+一条E19999诊断说明差在哪：所在域存在版本冲突时，诊断直接点名两侧来源与版本号（如
+`custom_opsets ('ai.onnx': 3) conflicts with opset_version (13)`），并给出修复建议（删除导出侧
+`custom_opsets`中`ai.onnx`的条目，或将其对齐为已注册的版本号）；无冲突时提示检查插件声明的
+`domain`/`opsets`是否覆盖该origin、`ASCEND_CUSTOM_OPP_PATH`能否发现插件文件。解析开始时若
+检测到同域多版本冲突，还会先打一条WARNING指明冲突与生效版本。
+
+**模型导出侧与插件侧的对接约定**（声明不匹配时按上述诊断排查）：
+
+| 环节 | 谁定 | 写什么 | 示例 |
+| ---- | ---- | ------ | ---- |
+| symbolic（导出侧） | 模型作者 | 自定义算子的`域::算子名` | `graph.op("example.domain::MyElu", ...)` |
+| custom_opsets（导出侧） | 模型作者 | 该域登记的版本号，自定义域惯例恒为`1` | `custom_opsets={"example.domain": 1}` |
+| onnx_plugin（插件侧） | 插件作者 | 对抄导出侧的域和版本 | `domain="example.domain", opsets=(1,)` |
+| `ai.onnx`标准域 | ONNX标准 | 官方算子专用，版本由`opset_version`自动登记；自定义算子请使用自定义域——为此域填写`custom_opsets`会使版本声明与默认域互相覆盖、连累官方算子解析 | — |
+
 ## 4、插件与回调写法
 
 接入一个自定义算子，插件要做两类事：
@@ -165,6 +181,11 @@ DUMP_GE_GRAPH=3 DUMP_GRAPH_PATH="$(pwd)/graph_dump" atc \
 同一个origin type（`domain::opset::source`）只能注册一个插件，即同一`source`（同`domain`）下
 不同插件的`opsets`不能重叠（例如`opsets=(1,)`与`opsets=(1,2)`同时存在会被拒绝）——
 冲突会在编译开始时报错退出。
+
+插件声明的`domain`与`opsets`必须与模型导出侧的声明一致：对抄symbolic里的域与`custom_opsets`
+里的版本（自定义域版本惯例恒为`1`）。自定义算子应使用自定义域：`ai.onnx`标准域的版本由
+`opset_version`自动登记，为其填写`custom_opsets`会使版本声明互相覆盖、连累官方算子解析。
+完整对接约定与报错排查见3.6节。
 
 ### 4.1、parse_node：按名字取属性
 

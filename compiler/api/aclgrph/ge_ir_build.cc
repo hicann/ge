@@ -11,6 +11,7 @@
 #include "ge/ge_ir_build.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstring>
 #include <map>
 #include <set>
@@ -19,6 +20,7 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "common/helper/file_saver.h"
 #include "common/model/ge_model.h"
+#include "common/model/ge_root_model.h"
 #include "graph_metadef/common/plugin/plugin_manager.h"
 #include "common/screen_printer.h"
 #include "ge/ge_api_types.h"
@@ -50,6 +52,7 @@
 #include "common/single_op_parser.h"
 #include "framework/common/helper/model_helper.h"
 #include "framework/common/helper/om2_package_helper.h"
+#include "framework/common/gert_model_data_serialize.h"
 #include "graph/utils/op_type_utils.h"
 #include "graph/manager/graph_var_manager.h"
 #include "common/option_supportion_checker/option_supportion_checker.h"
@@ -556,6 +559,12 @@ class Impl {
                                    ComputeGraphPtr &compute_graph) const;
 
   graphStatus BuildModel(const Graph &graph, const std::map<std::string, std::string> &options, ModelBufferData &model);
+  graphStatus BuildGertModelData(const Graph &graph, const std::map<std::string, std::string> &options,
+                                 ge::GeGenerator::GeRootModelPtr &ge_root_model);
+  graphStatus CheckBuildOptionsAndParseMode(const std::map<std::string, std::string> &options,
+                                            int32_t &offline_mode) const;
+  graphStatus PrepareGeneratorAndInputs(const Graph &graph, const std::map<std::string, std::string> &options,
+                                        std::vector<GeTensor> &inputs);
   graphStatus InitDomiOmgContext(const std::string &input_shape, const std::string &input_format,
                                  bool is_dynamic_input);
   graphStatus GetInputShapeRange(const std::string &input_shape_range,
@@ -1075,25 +1084,25 @@ graphStatus Impl::CheckAutoTuneMode(const std::map<std::string, std::string> &op
   return SUCCESS;
 }
 
-graphStatus Impl::BuildModel(const Graph &graph, const std::map<std::string, std::string> &options,
-                             ModelBufferData &model) {
+graphStatus Impl::CheckBuildOptionsAndParseMode(const std::map<std::string, std::string> &options,
+                                                int32_t &offline_mode) const {
   graphStatus ret = CheckAutoTuneMode(options);
   if (ret != GRAPH_SUCCESS) {
     GELOGE(ret, "[Check][option] AutoTune mode is not supported!");
     return ret;
   }
-  int32_t offline_mode = kOfflineModeOm;
+  offline_mode = kOfflineModeOm;
   ret = ParseOfflineMode(options, offline_mode);
   if (ret != GRAPH_SUCCESS) {
     GELOGE(ret, "[Init][GeGenerator]Parse model offline mode failed!");
     return ret;
   }
-  if (IsOm2BuildMode(offline_mode)) {
-    GE_ASSERT_SUCCESS(CheckOm2UnsupportedOptions(options), "[Check][OM2][BuildOptions] failed!");
-    GE_ASSERT_SUCCESS(CheckUserSpecifiedGlobalOptionsForOm2(), "[Check][OM2][GlobalOptions] failed!");
-  }
-  ge::PrintOptionMap(options, "BuildModel option");
-  ret = Init(graph, options);
+  return GRAPH_SUCCESS;
+}
+
+graphStatus Impl::PrepareGeneratorAndInputs(const Graph &graph, const std::map<std::string, std::string> &options,
+                                            std::vector<GeTensor> &inputs) {
+  graphStatus ret = Init(graph, options);
   if (ret != GRAPH_SUCCESS) {
     GELOGE(ret, "[Init][GeGenerator]Build ir model Init failed!");
     return ret;
@@ -1104,17 +1113,36 @@ graphStatus Impl::BuildModel(const Graph &graph, const std::map<std::string, std
   if (rebuild_state_ctrl_ != nullptr) {
     generator_.SetExternalGraphRebuildStateCtrl(rebuild_state_ctrl_.get());
   }
-  // 2. construct input
-  std::vector<GeTensor> inputs;
-  if (!omg_context_.is_dynamic_input) {  // if dynamic input , no need to creat inputs
+  // construct input, if dynamic input , no need to creat inputs
+  if (!omg_context_.is_dynamic_input) {
     ret = CreateInputsForIRBuild(graph, inputs);
     if (ret != GRAPH_SUCCESS) {
       GELOGE(ret, "[Create][InputsForIRBuild] failed!");
       return ret;
     }
   }
+  return GRAPH_SUCCESS;
+}
 
-  // 3. build IR model
+graphStatus Impl::BuildModel(const Graph &graph, const std::map<std::string, std::string> &options,
+                             ModelBufferData &model) {
+  int32_t offline_mode = kOfflineModeOm;
+  graphStatus ret = CheckBuildOptionsAndParseMode(options, offline_mode);
+  if (ret != GRAPH_SUCCESS) {
+    return ret;
+  }
+  if (IsOm2BuildMode(offline_mode)) {
+    GE_ASSERT_SUCCESS(CheckOm2UnsupportedOptions(options), "[Check][OM2][BuildOptions] failed!");
+    GE_ASSERT_SUCCESS(CheckUserSpecifiedGlobalOptionsForOm2(), "[Check][OM2][GlobalOptions] failed!");
+  }
+  ge::PrintOptionMap(options, "BuildModel option");
+  std::vector<GeTensor> inputs;
+  ret = PrepareGeneratorAndInputs(graph, options, inputs);
+  if (ret != GRAPH_SUCCESS) {
+    return ret;
+  }
+
+  // build IR model
   ret = IsOm2BuildMode(offline_mode) ? generator_.GenerateOnlineOm2Model(graph, inputs, model)
                                      : generator_.GenerateOnlineModel(graph, inputs, model);
   if (ret != GRAPH_SUCCESS) {
@@ -1125,6 +1153,34 @@ graphStatus Impl::BuildModel(const Graph &graph, const std::map<std::string, std
     GELOGE(GRAPH_FAILED, "[Check][ModelBufferData] OM2 model buffer is empty.");
     return GRAPH_FAILED;
   }
+  return GRAPH_SUCCESS;
+}
+
+graphStatus Impl::BuildGertModelData(const Graph &graph, const std::map<std::string, std::string> &options,
+                                     ge::GeGenerator::GeRootModelPtr &ge_root_model) {
+  int32_t offline_mode = kOfflineModeOm;
+  graphStatus ret = CheckBuildOptionsAndParseMode(options, offline_mode);
+  if (ret != GRAPH_SUCCESS) {
+    return ret;
+  }
+  GE_ASSERT_TRUE(IsOm2BuildMode(offline_mode), "[OM2][Bundle] structured build requires OM2 mode.");
+  GE_ASSERT_SUCCESS(CheckOm2UnsupportedOptions(options), "[Check][OM2][BuildOptions] failed!");
+  GE_ASSERT_SUCCESS(CheckUserSpecifiedGlobalOptionsForOm2(), "[Check][OM2][GlobalOptions] failed!");
+  ge::PrintOptionMap(options, "BuildGertModelData option");
+
+  std::vector<GeTensor> inputs;
+  ret = PrepareGeneratorAndInputs(graph, options, inputs);
+  if (ret != GRAPH_SUCCESS) {
+    return ret;
+  }
+  ret = generator_.GenerateOnlineGertModelData(graph, inputs, ge_root_model);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Generate][OM2ModelData] failed!");
+    return ret;
+  }
+  GE_CHECK_NOTNULL(ge_root_model);
+  const auto &gert_model_data = ge_root_model->GetOm2ModelData();
+  GE_ASSERT_NOTNULL(gert_model_data, "[OM2][Bundle] compiled model data is missing.");
   return GRAPH_SUCCESS;
 }
 
@@ -1431,22 +1487,83 @@ graphStatus CheckVarDesc(const vector<ge::GraphWithOptions> &graph_with_options,
   return GRAPH_SUCCESS;
 }
 
-graphStatus aclgrphBundleBuildModel(const std::vector<ge::GraphWithOptions> &graph_with_options,
-                                    ModelBufferData &model) {
-  GELOGD("Enter aclgrphBundleBuildModel process!");
-  if (graph_with_options.size() <= 1U) {
-    GELOGE(GRAPH_PARAM_INVALID, "graph_with_options size should be larger than 1");
-    return GRAPH_PARAM_INVALID;
+static graphStatus ConvertBundleBuildOptions(const std::vector<ge::GraphWithOptions> &graph_with_options,
+                                             std::vector<std::map<std::string, std::string>> &converted_options,
+                                             bool &all_requested_om2) {
+  all_requested_om2 = true;
+  converted_options.reserve(graph_with_options.size());
+  for (size_t i = 0UL; i < graph_with_options.size(); ++i) {
+    converted_options.emplace_back();
+    auto &options = converted_options.back();
+    for (const auto &option : graph_with_options[i].build_options) {
+      std::string key = option.first.GetString();
+      GE_ASSERT_TRUE(!key.empty());
+      std::string val = option.second.GetString();
+      GE_ASSERT_TRUE(!val.empty());
+      options[key] = val;
+    }
+    int32_t offline_mode = kOfflineModeOm;
+    if ((ParseOfflineMode(options, offline_mode) != GRAPH_SUCCESS) || !IsOm2BuildMode(offline_mode)) {
+      GELOGI("Graph[%zu] offline_mode[%d] is not OM2 mode, bundle falls back to OM1.", i, offline_mode);
+      all_requested_om2 = false;
+      break;
+    }
   }
+  return GRAPH_SUCCESS;
+}
+
+static graphStatus BuildOm2BundleModel(const std::vector<ge::GraphWithOptions> &graph_with_options,
+                                       const std::vector<std::map<std::string, std::string>> &converted_options,
+                                       const uint64_t session_id,
+                                       const std::shared_ptr<GraphRebuildStateCtrl> &graph_rebuild_state_ctrl,
+                                       ModelBufferData &model) {
+  GELOGI("[OM2][Bundle] Begin to build bundle model, graph_num:%zu, session_id:%" PRIu64 ".", graph_with_options.size(),
+         session_id);
+  std::vector<std::shared_ptr<Impl>> om2_builders;
+  std::vector<ge::GeGenerator::GeRootModelPtr> om2_root_models;
+  std::vector<std::shared_ptr<gert::GertModelData>> sub_models;
+  om2_root_models.reserve(graph_with_options.size());
+  sub_models.reserve(graph_with_options.size());
+  for (size_t i = 0UL; i < graph_with_options.size(); ++i) {
+    const auto impl = MakeShared<Impl>();
+    GE_ASSERT_NOTNULL(impl);
+    impl->session_id_ = session_id;
+    impl->rebuild_state_ctrl_ = graph_rebuild_state_ctrl;
+    ge::GeGenerator::GeRootModelPtr root_model;
+    GE_ASSERT_SUCCESS(impl->BuildGertModelData(graph_with_options[i].graph, converted_options[i], root_model));
+    GE_ASSERT_NOTNULL(root_model);
+    const auto &model_data = root_model->GetOm2ModelData();
+    GE_ASSERT_NOTNULL(model_data);
+    (void)sub_models.emplace_back(model_data);
+    (void)om2_root_models.emplace_back(root_model);
+    (void)om2_builders.emplace_back(impl);
+    AscendString graph_name;
+    (void)graph_with_options[i].graph.GetName(graph_name);
+    GELOGI("[OM2][Bundle] Build sub-model[%zu/%zu] success, graph_name:%s.", i + 1UL, graph_with_options.size(),
+           graph_name.GetString());
+  }
+
+  GE_ASSERT_SUCCESS(CheckVarDesc(graph_with_options, session_id));
+  const auto &var_manager = VarManager::Instance(session_id);
+  GE_CHECK_NOTNULL(var_manager);
+  const auto global_shared_var_size = static_cast<uint64_t>(var_manager->GetVarMemSize(RT_MEMORY_HBM));
+  GELOGI("[OM2][Bundle] Query var size from VarManager, session_id:%" PRIu64 ", global_shared_var_size:%" PRIu64 ".",
+         session_id, global_shared_var_size);
+  gert::GertModelData bundle_data;
+  GE_ASSERT_SUCCESS(ge::Om2PackageHelper::AssembleBundleModelData(sub_models, global_shared_var_size, bundle_data));
+  ModelBufferData built_bundle;
+  GE_ASSERT_SUCCESS(gert::SerializeGertModelData(bundle_data, built_bundle, false, "om2_bundle"));
+  GELOGI("[OM2][Bundle] Build bundle model success, model_num:%zu, buffer_size:%" PRIu64 ".", bundle_data.models.size(),
+         built_bundle.length);
+  model = std::move(built_bundle);
+  return GRAPH_SUCCESS;
+}
+
+static graphStatus BuildOm1BundleModel(const std::vector<ge::GraphWithOptions> &graph_with_options,
+                                       const uint64_t session_id,
+                                       const std::shared_ptr<GraphRebuildStateCtrl> &graph_rebuild_state_ctrl,
+                                       ModelBufferData &model) {
   std::vector<std::shared_ptr<Impl>> builders;
-  SessionId session_id = SessionIdManager::GetNextSessionId();
-  auto graph_rebuild_state_ctrl = MakeShared<GraphRebuildStateCtrl>();
-  GE_ASSERT_NOTNULL(graph_rebuild_state_ctrl);
-  GE_MAKE_GUARD(destroy_session_resource, [&session_id]() {
-    RtContextUtil::GetInstance().DestroyRtContexts(session_id);
-    Analyzer::GetInstance()->DestroySessionJsonObject(session_id);
-    VarManagerPool::Instance().RemoveVarManager(session_id);
-  });
   std::vector<ModelBufferData> models;
   for (size_t i = 0UL; i < graph_with_options.size(); ++i) {
     std::map<std::string, std::string> tmp_build_options;
@@ -1474,6 +1591,32 @@ graphStatus aclgrphBundleBuildModel(const std::vector<ge::GraphWithOptions> &gra
   GE_ASSERT_SUCCESS(ModelHelper::SaveBundleModelBufferToMem(models, var_size, model),
                     "Save models to bundle model failed.");
   return GRAPH_SUCCESS;
+}
+
+graphStatus aclgrphBundleBuildModel(const std::vector<ge::GraphWithOptions> &graph_with_options,
+                                    ModelBufferData &model) {
+  GELOGD("Enter aclgrphBundleBuildModel process!");
+  if (graph_with_options.size() <= 1U) {
+    GELOGE(GRAPH_PARAM_INVALID, "graph_with_options size should be larger than 1");
+    return GRAPH_PARAM_INVALID;
+  }
+  GELOGI("aclgrphBundleBuildModel graph_num:%zu.", graph_with_options.size());
+  SessionId session_id = SessionIdManager::GetNextSessionId();
+  auto graph_rebuild_state_ctrl = MakeShared<GraphRebuildStateCtrl>();
+  GE_ASSERT_NOTNULL(graph_rebuild_state_ctrl);
+  GE_MAKE_GUARD(destroy_session_resource, [&session_id]() {
+    RtContextUtil::GetInstance().DestroyRtContexts(session_id);
+    Analyzer::GetInstance()->DestroySessionJsonObject(session_id);
+    VarManagerPool::Instance().RemoveVarManager(session_id);
+  });
+
+  bool all_requested_om2 = false;
+  std::vector<std::map<std::string, std::string>> converted_options;
+  GE_ASSERT_SUCCESS(ConvertBundleBuildOptions(graph_with_options, converted_options, all_requested_om2));
+  GELOGI("Bundle build mode:%s.", all_requested_om2 ? "OM2" : "OM1");
+  return all_requested_om2
+             ? BuildOm2BundleModel(graph_with_options, converted_options, session_id, graph_rebuild_state_ctrl, model)
+             : BuildOm1BundleModel(graph_with_options, session_id, graph_rebuild_state_ctrl, model);
 }
 
 graphStatus aclgrphConvertToWeightRefreshableGraphs(const ge::Graph &origin_graph,
@@ -1541,6 +1684,17 @@ static graphStatus aclgrphSaveModelImpl(const std::string &output_file, const Mo
     ModelBufferData model_buffer;
     return model_helper.PackSoToModelData(model_data, output_file + ".om", model_buffer);
   }
+  return GRAPH_SUCCESS;
+}
+
+static graphStatus SaveOm2BundleToFile(const std::string &output_file, const ModelBufferData &model) {
+  const std::string output_file_name = output_file + ".om2";
+  ModelBufferData relocated_model;
+  bool relocated = false;
+  GE_ASSERT_SUCCESS(Om2PackageHelper::RelocateExternalWeights(output_file_name, model, relocated_model, relocated));
+  const auto &model_to_save = relocated ? relocated_model : model;
+  GE_ASSERT_SUCCESS(
+      SaveBinToFile(reinterpret_cast<const char *>(model_to_save.data.get()), model_to_save.length, output_file_name));
   return GRAPH_SUCCESS;
 }
 
@@ -1679,6 +1833,9 @@ graphStatus aclgrphBundleSaveModel(const char_t *output_file, const ModelBufferD
     return GRAPH_PARAM_INVALID;
   }
   std::string output_file_str = output_file;
+  if (IsOm2ModelData(model.data.get(), model.length)) {
+    return SaveOm2BundleToFile(output_file_str, model);
+  }
   return aclgrphBundleSaveModelImpl(output_file_str, model);
 }
 

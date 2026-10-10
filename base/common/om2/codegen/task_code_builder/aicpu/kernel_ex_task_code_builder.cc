@@ -413,7 +413,7 @@ Status KernelExTaskCodeBuilder::RenderDistHelper(std::vector<DeclNode *> &items)
   return SUCCESS;
 }
 
-Status KernelExTaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &items) {
+Status KernelExTaskCodeBuilder::RenderDispatchFunc(std::vector<DeclNode *> &items) const {
   std::vector<BodyItem> body;
   auto op = ast_.Var("const TaskDispatchInfo *", "op");
   auto ctx = ast_.Var("const DispatchOpContext &", "ctx");

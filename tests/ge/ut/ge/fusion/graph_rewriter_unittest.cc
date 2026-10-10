@@ -23,6 +23,7 @@
 #include "graph/debug/ge_attr_define.h"
 
 #include "ge/fusion/graph_rewriter.h"
+#include "register/graph_optimizer/fusion_common/fusion_statistic_recorder.h"
 
 namespace ge {
 namespace fusion {
@@ -645,6 +646,119 @@ TEST_F(UtestMatchReplacer, ReplaceWithCtxFailedWhenReportFuseFailed) {
 
   CustomPassContext ctx;
   EXPECT_NE(SubgraphRewriter::Replace(boundary, std::move(*replace_graph), ctx), SUCCESS);
+}
+
+/**
+ * replace with ctx auto-reports structure match and fusion result, match_time/effect_time should be aligned
+   target graph:            replacement graph:
+
+         data                   data
+          |                      |
+        abs1                  relu + abs
+        /  \
+     exp   relu
+       \   /
+       add
+        |
+     netoutput
+ */
+TEST_F(UtestMatchReplacer, ReplaceWithCtxReportsMatchAndEffectTimes) {
+  ComputeGraphPtr target_compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
+
+  SubgraphBoundary boundary;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    if (node->GetName() != "abs1") {
+      continue;
+    }
+    auto out_nodes = node->GetOutDataNodes();
+    EXPECT_EQ(out_nodes.size(), 2);
+    boundary = BuildBoundary({{{node, 0}}}, {{out_nodes.at(0), 0}, {out_nodes.at(1), 0}});
+  }
+
+  auto replace_graph_builder = es::EsGraphBuilder("replace");
+  auto replace_esb_graph = replace_graph_builder.GetCGraphBuilder();
+  auto data_replace = EsCreateGraphInput(replace_esb_graph, 0);
+  auto relu_r = EsRelu(data_replace);
+  auto abs_r = EsAbs(data_replace);
+  replace_esb_graph->SetGraphOutput(relu_r, 0);
+  replace_esb_graph->SetGraphOutput(abs_r, 1);
+  auto replace_graph = replace_graph_builder.BuildAndReset();
+
+  CustomPassContext ctx;
+  ctx.SetPassName("rewrite_ctx_stat_pass");
+  EXPECT_EQ(SubgraphRewriter::Replace(boundary, std::move(*replace_graph), ctx), SUCCESS);
+
+  const std::string key =
+      std::to_string(target_compute_graph->GetSessionID()) + "_" + std::to_string(target_compute_graph->GetGraphID());
+  std::map<std::string, fe::FusionInfo> graph_fusion_info_map;
+  std::map<std::string, fe::FusionInfo> buffer_fusion_info_map;
+  fe::FusionStatisticRecorder::Instance().GetFusionInfo(key, graph_fusion_info_map, buffer_fusion_info_map);
+  const auto iter = graph_fusion_info_map.find("rewrite_ctx_stat_pass");
+  ASSERT_NE(iter, graph_fusion_info_map.end());
+  EXPECT_EQ(iter->second.GetMatchTimes(), 1);
+  EXPECT_EQ(iter->second.GetEffectTimes(), 1);
+  fe::FusionStatisticRecorder::Instance().GetAndClearFusionInfo(key, graph_fusion_info_map, buffer_fusion_info_map);
+}
+
+/**
+ * replace with ctx reports structure match before CanFuse, match_time should be counted even if CanFuse failed
+   target graph:            replacement graph:
+
+         data                   data
+          |                      |
+        abs1(stream_a)          relu
+        /  \
+   exp(stream_b)  relu
+       \   /
+       add
+        |
+     netoutput
+ */
+TEST_F(UtestMatchReplacer, ReplaceWithCtxReportsMatchWhenCanFuseFailed) {
+  ComputeGraphPtr target_compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
+
+  NodePtr abs_node = nullptr;
+  NodePtr exp_node = nullptr;
+  NodePtr add_node = nullptr;
+  for (const auto &node : target_compute_graph->GetDirectNode()) {
+    if (node->GetType() == "Abs") {
+      abs_node = node;
+    } else if (node->GetType() == "Exp") {
+      exp_node = node;
+    } else if (node->GetType() == "Add") {
+      add_node = node;
+    }
+  }
+  ASSERT_NE(abs_node, nullptr);
+  ASSERT_NE(exp_node, nullptr);
+  ASSERT_NE(add_node, nullptr);
+
+  (void)AttrUtils::SetStr(abs_node->GetOpDesc(), public_attr::USER_STREAM_LABEL, "stream_a");
+  (void)AttrUtils::SetStr(exp_node->GetOpDesc(), public_attr::USER_STREAM_LABEL, "stream_b");
+
+  SubgraphBoundary boundary = BuildBoundary({{{abs_node, 0}}}, {{add_node, 0}});
+
+  auto replace_graph_builder = es::EsGraphBuilder("replace");
+  auto replace_esb_graph = replace_graph_builder.GetCGraphBuilder();
+  auto data_replace = EsCreateGraphInput(replace_esb_graph, 0);
+  auto relu_r = EsRelu(data_replace);
+  replace_esb_graph->SetGraphOutput(relu_r, 0);
+  auto replace_graph = replace_graph_builder.BuildAndReset();
+
+  CustomPassContext ctx;
+  ctx.SetPassName("rewrite_ctx_stat_cant_fuse_pass");
+  EXPECT_EQ(SubgraphRewriter::Replace(boundary, std::move(*replace_graph), ctx), FAILED);
+
+  const std::string key =
+      std::to_string(target_compute_graph->GetSessionID()) + "_" + std::to_string(target_compute_graph->GetGraphID());
+  std::map<std::string, fe::FusionInfo> graph_fusion_info_map;
+  std::map<std::string, fe::FusionInfo> buffer_fusion_info_map;
+  fe::FusionStatisticRecorder::Instance().GetFusionInfo(key, graph_fusion_info_map, buffer_fusion_info_map);
+  const auto iter = graph_fusion_info_map.find("rewrite_ctx_stat_cant_fuse_pass");
+  ASSERT_NE(iter, graph_fusion_info_map.end());
+  EXPECT_EQ(iter->second.GetMatchTimes(), 1);
+  EXPECT_EQ(iter->second.GetEffectTimes(), 0);
+  fe::FusionStatisticRecorder::Instance().GetAndClearFusionInfo(key, graph_fusion_info_map, buffer_fusion_info_map);
 }
 
 /**

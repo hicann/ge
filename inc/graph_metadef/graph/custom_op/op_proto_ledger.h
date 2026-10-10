@@ -75,7 +75,7 @@ class ScopedOpProtoLoadTxn {
  private:
   friend class OpProtoLedger;
   void AppendClaimsNoexcept() noexcept;
-  void FinalizeNoexcept() noexcept;
+  void FinalizeNoexcept() const noexcept;
   void RecordConflictLocked(const std::string &op_type, const OpProtoMapKind map_kind,
                             const std::string &incumbent_so_name, const std::string &incumbent_fingerprint);
 

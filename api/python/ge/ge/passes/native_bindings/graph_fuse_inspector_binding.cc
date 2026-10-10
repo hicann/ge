@@ -58,12 +58,29 @@ void ReportFuse(const py::iterable &nodes_before_objects, const py::iterable &no
     throw std::runtime_error(message);
   }
 }
+
+void ReportMatch(const py::iterable &matched_node_objects, CustomPassContext &context) {
+  const auto nodes = ParseNodes(matched_node_objects, "matched_nodes");
+  const auto status = fusion::GraphFuseInspectorUtils::ReportMatch(nodes, context);
+  if (status != SUCCESS) {
+    // 手动路径由调用方显式调用，上报失败抛异常交还处置权，与 report_fuse 行为一致
+    const auto pass_name = context.GetPassName();
+    const char *const pass_name_str = pass_name.GetString();
+    const std::string message =
+        "Failed to report structure match, pass_name=" + std::string(pass_name_str == nullptr ? "" : pass_name_str) +
+        ", status=" + std::to_string(static_cast<uint32_t>(status));
+    context.SetErrorMessage(AscendString(message.c_str()));
+    throw std::runtime_error(message);
+  }
+}
 }  // namespace
 
 void BindGraphFuseInspector(py::module_ &m) {
   m.def("can_fuse", &CanFuse, py::arg("nodes"), "Check whether nodes can be safely fused into one node");
   m.def("report_fuse", &ReportFuse, py::arg("nodes_before"), py::arg("nodes_after"), py::arg("context"),
         "Report the result of a graph fusion rewrite");
+  m.def("report_match", &ReportMatch, py::arg("matched_nodes"), py::arg("context"),
+        "Report one structure match regardless of whether fusion conditions pass");
 }
 
 }  // namespace python_pass_native

@@ -9,6 +9,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <unistd.h>
+
+#include <cstdlib>
 #include <iostream>
 #include "parser/common/op_parser_factory.h"
 #include "graph/operator_reg.h"
@@ -916,6 +919,63 @@ TEST_F(UtestOnnxParser, onnx_test_ModelParseToGraph) {
   EXPECT_EQ(ret, FAILED);
 }
 
+TEST_F(UtestOnnxParser, onnx_model_parse_with_cpp_only_custom_opp_path) {
+  // ASCEND_CUSTOM_OPP_PATH 指向纯 C++ 自定义算子目录（无 python 插件入口）时，
+  // ONNX Python 插件桥接应被跳过，模型解析不因环境不满足 Python 插件要求而失败。
+  char dir_template[] = "/tmp/ge_onnx_cpp_opp_ut_XXXXXX";
+  const auto *cpp_opp_dir = mkdtemp(dir_template);
+  ASSERT_NE(cpp_opp_dir, nullptr);
+  const char *old_opp_path = std::getenv("ASCEND_CUSTOM_OPP_PATH");
+  const std::string old_opp_path_value = old_opp_path == nullptr ? "" : old_opp_path;
+  const bool had_opp_path = old_opp_path != nullptr;
+  const char *old_python_path = std::getenv("PYTHONPATH");
+  const std::string old_python_path_value = old_python_path == nullptr ? "" : old_python_path;
+  const bool had_python_path = old_python_path != nullptr;
+  ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", cpp_opp_dir, 1), 0);
+  ASSERT_EQ(setenv("PYTHONPATH", "", 1), 0);
+
+  ge::onnx::ModelProto model_proto;
+  ge::onnx::OperatorSetIdProto *op_st = model_proto.add_opset_import();
+  op_st->set_domain("ai.onnx");
+  op_st->set_version(11);
+  ge::onnx::GraphProto *graph = model_proto.mutable_graph();
+  ge::onnx::ValueInfoProto *input_x = graph->add_input();
+  input_x->set_name("X");
+  auto tensor_type_x = input_x->mutable_type()->mutable_tensor_type();
+  tensor_type_x->set_elem_type(1);
+  auto shape_x = tensor_type_x->mutable_shape();
+  shape_x->add_dim()->set_dim_value(2);
+  shape_x->add_dim()->set_dim_value(8);
+  ge::onnx::ValueInfoProto *output_y = graph->add_output();
+  output_y->set_name("Y");
+  auto tensor_type_y = output_y->mutable_type()->mutable_tensor_type();
+  tensor_type_y->set_elem_type(1);
+  ge::onnx::NodeProto *node = graph->add_node();
+  node->set_name("RandomNormal_0");
+  node->set_op_type("RandomNormal");
+  node->add_output("Y");
+
+  OnnxModelParser model_parser;
+  ge::Graph root_graph("test_cpp_only_custom_opp_path");
+  Status ret = model_parser.ModelParseToGraph(model_proto, root_graph);
+  EXPECT_EQ(ret, SUCCESS);
+  auto compute_graph = ge::GraphUtilsEx::GetComputeGraph(root_graph);
+  ASSERT_NE(compute_graph, nullptr);
+  EXPECT_NE(compute_graph->FindNode("RandomNormal_0"), nullptr);
+
+  (void)rmdir(cpp_opp_dir);
+  if (had_opp_path) {
+    ASSERT_EQ(setenv("ASCEND_CUSTOM_OPP_PATH", old_opp_path_value.c_str(), 1), 0);
+  } else {
+    ASSERT_EQ(unsetenv("ASCEND_CUSTOM_OPP_PATH"), 0);
+  }
+  if (had_python_path) {
+    ASSERT_EQ(setenv("PYTHONPATH", old_python_path_value.c_str(), 1), 0);
+  } else {
+    ASSERT_EQ(unsetenv("PYTHONPATH"), 0);
+  }
+}
+
 TEST_F(UtestOnnxParser, onnx_test_SetExternalPath) {
   OnnxModelParser modelParser;
   ge::onnx::ModelProto model_proto;
@@ -1115,6 +1175,95 @@ TEST_F(UtestOnnxParser, ConstructOriType_empty_domain_empty_versions) {
   std::string ori_type;
   auto ret = parser.ConstructOriType(&node, ori_type);
   EXPECT_EQ(ret, PARAM_INVALID);
+}
+
+// ======================== opset version conflict and miss diagnosis tests ========================
+
+TEST_F(UtestOnnxParser, BuildDomainVersionMap_detects_conflicting_versions) {
+  OnnxModelParser parser;
+  ge::onnx::ModelProto model;
+  auto *import_default = model.add_opset_import();
+  import_default->set_domain("");
+  import_default->set_version(13);
+  auto *import_custom = model.add_opset_import();
+  import_custom->set_domain("ai.onnx");
+  import_custom->set_version(2);
+
+  parser.BuildDomainVersionMap(model);
+
+  EXPECT_EQ(parser.domain_verseion_["ai.onnx"], 2);
+  EXPECT_EQ(parser.default_domain_version_, 13);
+  const auto conflict_it = parser.domain_version_conflicts_.find("ai.onnx");
+  ASSERT_NE(conflict_it, parser.domain_version_conflicts_.end());
+  EXPECT_EQ(conflict_it->second.size(), 2U);
+  EXPECT_NE(conflict_it->second.find(13), conflict_it->second.end());
+  EXPECT_NE(conflict_it->second.find(2), conflict_it->second.end());
+}
+
+TEST_F(UtestOnnxParser, BuildDomainVersionMap_no_conflict_for_distinct_domains) {
+  OnnxModelParser parser;
+  ge::onnx::ModelProto model;
+  auto *import_default = model.add_opset_import();
+  import_default->set_domain("");
+  import_default->set_version(13);
+  auto *import_custom = model.add_opset_import();
+  import_custom->set_domain("example.domain");
+  import_custom->set_version(1);
+
+  parser.BuildDomainVersionMap(model);
+
+  EXPECT_EQ(parser.domain_verseion_["ai.onnx"], 13);
+  EXPECT_EQ(parser.domain_verseion_["example.domain"], 1);
+  EXPECT_TRUE(parser.domain_version_conflicts_.empty());
+}
+
+TEST_F(UtestOnnxParser, BuildOriginMissDiagnosis_reports_conflicting_registered_version) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 9;
+  parser.domain_version_conflicts_["ai.onnx"] = {9, 13};
+  parser.default_domain_version_ = 13;
+
+  const std::string diagnosis = parser.BuildOriginMissDiagnosis("/If", "ai.onnx::9::If");
+
+  EXPECT_NE(diagnosis.find("custom_opsets ('ai.onnx': 9) conflicts with opset_version (13)"), std::string::npos);
+  EXPECT_NE(diagnosis.find("Fix: remove the custom_opsets entry of 'ai.onnx' in torch.onnx.export, or set it to 13"),
+            std::string::npos);
+}
+
+TEST_F(UtestOnnxParser, BuildOriginMissDiagnosis_reports_conflict_without_registered_version) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 2;
+  parser.domain_version_conflicts_["ai.onnx"] = {13, 2};
+  parser.default_domain_version_ = 13;
+
+  const std::string diagnosis = parser.BuildOriginMissDiagnosis("/MyElu", "ai.onnx::2::MyElu");
+
+  EXPECT_NE(diagnosis.find("custom_opsets ('ai.onnx': 2) conflicts with opset_version (13)"), std::string::npos);
+  EXPECT_NE(diagnosis.find("make the plugin's opsets cover the effective version"), std::string::npos);
+  EXPECT_NE(diagnosis.find("set it to 13"), std::string::npos);
+}
+
+TEST_F(UtestOnnxParser, BuildOriginMissDiagnosis_fallback_without_default_domain_version) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["ai.onnx"] = 2;
+  parser.domain_version_conflicts_["ai.onnx"] = {13, 2};
+
+  const std::string diagnosis = parser.BuildOriginMissDiagnosis("/MyElu", "ai.onnx::2::MyElu");
+
+  EXPECT_NE(diagnosis.find("'ai.onnx' has conflicting versions 2 (in effect) and 13"), std::string::npos);
+  EXPECT_EQ(diagnosis.find("custom_opsets ('ai.onnx'"), std::string::npos);
+  EXPECT_NE(diagnosis.find("Fix: declare one consistent version for 'ai.onnx'"), std::string::npos);
+}
+
+TEST_F(UtestOnnxParser, BuildOriginMissDiagnosis_generic_hint_without_conflict) {
+  OnnxModelParser parser;
+  parser.domain_verseion_["example.domain"] = 1;
+
+  const std::string diagnosis = parser.BuildOriginMissDiagnosis("/MyElu", "example.domain::3::MyElu");
+
+  EXPECT_NE(diagnosis.find("not registered"), std::string::npos);
+  EXPECT_NE(diagnosis.find("ASCEND_CUSTOM_OPP_PATH"), std::string::npos);
+  EXPECT_NE(diagnosis.find("domain and opsets cover this origin"), std::string::npos);
 }
 
 // ======================== TransNodeToOperator IR not registered ========================

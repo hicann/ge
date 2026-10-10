@@ -43,12 +43,12 @@ void ReportTracingRecordDuration(const ge::TracingModule stage);
 
 // 记录代码片段耗时,START和END需要成对使用
 #define TRACING_DURATION_START(tag) const uint64_t CONCAT_(startUsec, tag) = CurrentTimeNanos()
-#define TRACING_DURATION_END(stage, tag, ...)                                                    \
-  do {                                                                                           \
-    const uint64_t CONCAT_(endUsec, tag) = CurrentTimeNanos();                                   \
-    const auto CONCAT_(duration, tag) = (CONCAT_(endUsec, tag) - CONCAT_(startUsec, tag));       \
-    TracingRecordDuration(stage, std::vector<std::string>{__VA_ARGS__}, CONCAT_(startUsec, tag), \
-                          CONCAT_(duration, tag));                                               \
+#define TRACING_DURATION_END(stage, tag, ...)                                                      \
+  do {                                                                                             \
+    const uint64_t CONCAT_(endUsec, tag) = CurrentTimeNanos();                                     \
+    const auto CONCAT_(duration, tag) = (CONCAT_(endUsec, tag) - CONCAT_(startUsec, tag));         \
+    TracingRecordDuration((stage), std::vector<std::string>{__VA_ARGS__}, CONCAT_(startUsec, tag), \
+                          CONCAT_(duration, tag));                                                 \
   } while (false)
 #define TRACING_COMPILE_DURATION_END(tag, ...) TRACING_DURATION_END(ge::TracingModule::kModelCompile, tag, __VA_ARGS__)
 #define TRACING_INIT_DURATION_END(tag, ...) TRACING_DURATION_END(ge::TracingModule::kCANNInitialize, tag, __VA_ARGS__)

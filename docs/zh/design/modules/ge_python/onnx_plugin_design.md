@@ -18,7 +18,7 @@ GE 通过 ONNX 解析器直接读取模型文件的 protobuf 内容完成图解�
 | Python | 3.12 | 临时要求：run 包编译时使用的 Python 版本，需要与执行插件的 Python 版本保持一致（即 ATC 编译进程使用的解释器） |
 | onnx | 1.21.0 | 与[样例](../../../../../examples/onnx_plugin/README.md)实测口径一致；onnx 包仅在 PyTorch 导出 ONNX 模型（`torch.onnx.export`）链路使用，GE 解析器不依赖该包 |
 
-Python 版本约束来自桥接产物的匹配机制：run 包内的桥接库与 native 模块按产物清单（`manifest.json`）记录 `python_tag`（如 `cp312`）、平台与 bridge ABI 版本；运行时从当前进程加载的 Python 符号读取版本号并计算 `python_tag`，仅加载与当前解释器标签一致的产物，找不到匹配产物时编译失败并报错 `No compatible ONNX Python plugin bridge artifact found for runtime ...`。相关实现位于 `base/common/python_runtime/python_artifact_utils.h` 与 `parser/parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.cc`。
+Python 版本约束来自桥接产物的匹配机制：run 包内的桥接库与 native 模块按产物清单（`manifest.json`）记录 `python_tag`（如 `cp312`）、平台与 bridge ABI 版本；运行时从当前进程加载的 Python 符号读取版本号并计算 `python_tag`，仅加载与当前解释器标签一致的产物，找不到匹配产物时编译失败并报错 `No compatible ONNX Python plugin bridge artifact found for runtime ...`，报错透出到 ATC 控制台，包含当前解释器的 runtime key、可用产物清单（python tag、平台、bridge ABI 与产物路径）以及版本对齐或安装匹配 `ge` Python 包的修复指引。相关实现位于 `base/common/python_runtime/python_artifact_utils.h` 与 `parser/parser/onnx/python_onnx_plugin_bridge/onnx_plugin_bridge_loader.cc`。
 
 因此，run 包使用 Python 3.12 编译时，执行 ATC 编译也必须使用 Python 3.12。约束解除前，请勿混用不同 Python 版本。
 
@@ -45,7 +45,7 @@ graph LR
 ### 3.2 编译期运行链路
 
 1. 用户设置 `ASCEND_CUSTOM_OPP_PATH` 指向插件目录，执行 ATC 编译 ONNX 模型；
-2. ONNX 解析器初始化：环境变量非空时按 runtime key（`python_tag` + 平台 + bridge ABI）匹配并加载桥接库 `libge_python_onnx_plugin_bridge.so`，准备 Python 运行时；环境变量未设置时不加载任何桥接代码，行为与不使用本特性完全一致；
+2. ONNX 解析器初始化：环境变量各路径段中存在可加载的 Python 插件入口（`.py` 文件，或目录下单层非下划线开头的 `.py` 文件 / 含 `__init__.py` 的子目录）时，按 runtime key（`python_tag` + 平台 + bridge ABI）匹配并加载桥接库 `libge_python_onnx_plugin_bridge.so`，准备 Python 运行时；环境变量未设置、或指向纯 C++ 自定义算子目录（仅含 so、ini 等交付物，无任何 Python 插件入口）时不加载任何桥接代码，行为与不使用本特性完全一致。`ASCEND_CUSTOM_OPP_PATH` 同时也是 C++ 自定义算子的标准交付变量，仅交付 C++ 算子的环境不应被本特性阻断；
 3. 桥接层进入 Python 解释器，import `ge.onnx_plugin._bridge`，调用 `load_and_get_onnx_plugin_descriptors()`：扫描插件文件并逐个 import 执行，插件代码中的 `onnx_plugin()` 调用把描述符写入 Python 进程级注册表；
 4. 描述符列表回传 C++ 侧，每个 origin type 生成一条 `domi::OpRegistrationData` 注册（`FrameworkType` 为 ONNX，`OriginOpType` 为 `domain::opset::source`），按回调类型分别挂接参数解析或分解入口；
 5. 解析每个 ONNX 节点时，非内置算子按 `<domain>::<opset>::<op_type>` 构造 origin type 查找注册项，命中后通过桥接层调用对应的 Python 回调；
@@ -134,6 +134,10 @@ onnx_plugin(*, source: str, domain: str, opsets: Collection[int], target: str) -
 ### 6.3 节点匹配与回调分发
 
 匹配使用的 origin type 由解析器从模型文件构造：`<节点domain>::<模型opset_import版本>::<节点op_type>`。节点的 `domain` 字段允许为空，按 ONNX 标准规定为空即标准域 `ai.onnx`；这里的 domain 与 opset 来自模型文件，而插件注册的 `domain` 是作者显式声明的映射键，两者只有取值相同时才匹配。
+
+解析器读入 `opset_import` 时把空 domain 归一化为 `ai.onnx`。同一归一化域被声明多个不同版本时（典型场景：导出侧通过 `custom_opsets` 给 `ai.onnx` 配置了与 `opset_version` 不同的版本号），解析器打印 WARNING 指明冲突版本与生效版本，匹配行为不变（后声明的版本生效）。
+
+origin type 未命中注册项时，解析器在原有报错（预检查阶段 E13010、解析阶段 E16002）之外追加一条 E19999 诊断：该域存在版本冲突时，诊断引用冲突信息并探测其它声明版本下的注册情况——例如模型解析为 `ai.onnx::2::Relu` 而其它声明版本下 `ai.onnx::13::Relu` 已注册，则指明是导出侧版本覆盖所致；无冲突时给出通用提示（检查插件声明的 domain/opsets 是否覆盖该 origin、`ASCEND_CUSTOM_OPP_PATH` 能否发现插件文件）。诊断只做信息补充，不改变解析行为。
 
 节点命中注册项后的分发规则：
 

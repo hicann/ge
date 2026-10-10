@@ -33,6 +33,7 @@
 #include "ge/ge_error_codes.h"
 #include "rt_external_mem.h"
 #include "framework/common/gert_model_data_utils.h"
+#include "runtime/om2/om2_rt_var_manager.h"
 
 namespace ge {
 namespace {
@@ -306,7 +307,7 @@ std::string MakeModelMetaJsonWithZeroCopySize() {
 })";
 }
 
-std::string MakeModelMetaJsonWithoutInputShape() {
+std::string MakeModelMetaJsonWithEmptyInputShape() {
   return R"({
     "inputs": [
         {
@@ -314,6 +315,7 @@ std::string MakeModelMetaJsonWithoutInputShape() {
             "format": 2,
             "index": 0,
             "name": "data1",
+            "shape": [],
             "shape_range": [],
             "size": 0
         }
@@ -1637,13 +1639,13 @@ TEST_F(Om2ModelExecutorUt, load_fallbacks_root_graph_name_to_model_name_when_met
   EXPECT_EQ(executor.Load(holder.model_data, load_arg, 1U), SUCCESS);
 }
 
-TEST_F(Om2ModelExecutorUt, load_failed_when_model_desc_is_invalid) {
-  const std::string om2_file_path = PathUtils::Join({test_work_dir_, "invalid_model_desc.om2"});
+TEST_F(Om2ModelExecutorUt, load_ok_when_input_shape_is_empty) {
+  const std::string om2_file_path = PathUtils::Join({test_work_dir_, "empty_input_shape.om2"});
   gert::ZipArchiveWriter zip_writer(om2_file_path);
   ASSERT_TRUE(zip_writer.IsMemFileOpened());
   const auto manifest = MakeManifestJson();
-  // Missing input shape should fail while parsing the cached model desc.
-  const auto model_meta = MakeModelMetaJsonWithoutInputShape();
+  // 标量输入（shape 为空数组）应正常反序列化并加载
+  const auto model_meta = MakeModelMetaJsonWithEmptyInputShape();
   ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
   ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
   const auto op_attr = MakeEmptyOpAttrJson();
@@ -1665,7 +1667,7 @@ TEST_F(Om2ModelExecutorUt, load_failed_when_model_desc_is_invalid) {
 
   gert::Om2ModelExecutor executor;
   auto load_arg = MakeOm2LoadArg();
-  EXPECT_NE(executor.Load(holder.model_data, load_arg, 1U), SUCCESS);
+  EXPECT_EQ(executor.Load(holder.model_data, load_arg, 1U), SUCCESS);
 }
 
 TEST_F(Om2ModelExecutorUt, load_generates_session_id_without_rt_session) {
@@ -3978,6 +3980,469 @@ TEST_F(Om2ModelExecutorUt, VersionCompat_Case17_UsedFeaturesWithData_Success) {
 
   gert::Om2ModelExecutor executor;
   EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), SUCCESS);
+}
+
+namespace {
+std::string MakeBundleManifestJson(const size_t model_num) {
+  ge::JsonFile compatibility_json;
+  (void)compatibility_json.Set("compiler_version", "1.0");
+  (void)compatibility_json.Set("required_executor_version", "");
+  (void)compatibility_json.Set("used_features", ge::JsonFile::json::object());
+  ge::JsonFile manifest_json;
+  (void)manifest_json.Set("model_num", model_num);
+  (void)manifest_json.Set("atc_command", "");
+  (void)manifest_json.Set("compatibility", compatibility_json.Raw());
+  return manifest_json.Dump();
+}
+
+std::string MakeBundleConstantsConfigJson(const size_t index) {
+  return R"({
+    "internal_weight_size": 16,
+    "consts": {
+      "fc1_weight": {
+        "file_name": "constant_)" +
+         std::to_string(index) + R"(",
+        "index": 0,
+        "type": "INTERNAL",
+        "offset": 0,
+        "size": 16
+      }
+    }
+  })";
+}
+
+// 合并格式的 Bundle variables_config JSON：logic_addr / size 参数化，用于 Bundle 共享变量与外部 arena 场景；
+// config_var_size > 0 时写入配置级 global_shared_var_size 字段（Bundle 外置变量内存总大小，查询时跨子模型取最大值）；
+// entry 的 file_name 指向 data/variables/ 下的权重文件
+std::string MakeBundleVariablesConfigJson(const uint64_t logic_addr, const uint64_t var_size,
+                                          const size_t init_data_offset, const size_t init_data_size,
+                                          const uint64_t config_var_size = 0U,
+                                          const std::string &var_weight_file_name = "var_weight_data_0") {
+  ge::JsonFile tensor_desc;
+  (void)tensor_desc.Set("name", "var_0");
+  (void)tensor_desc.Set("shape", std::vector<int64_t>{1});
+  (void)tensor_desc.Set("data_type", static_cast<int32_t>(ge::DT_FLOAT));
+  (void)tensor_desc.Set("format", static_cast<int32_t>(ge::FORMAT_ND));
+  (void)tensor_desc.Set("size", var_size);
+  (void)tensor_desc.Set("shape_range", std::vector<std::pair<int64_t, int64_t>>{});
+
+  const std::string var_key = "var_00_0";
+  ge::JsonFile entry;
+  (void)entry.Set("var_name", "var_0");
+  (void)entry.Set("file_name", var_weight_file_name);
+  (void)entry.Set("var_key", var_key);
+  (void)entry.Set("op_type", "VARIABLE");
+  (void)entry.Set("logic_addr", logic_addr);
+  (void)entry.Set("size", var_size);
+  (void)entry.Set("memory_type", static_cast<uint32_t>(RT_MEMORY_HBM));
+  (void)entry.Set("changed_graph_id", 7U);
+  (void)entry.Set("allocated_graph_id", 7U);
+  (void)entry.Set("tensor_desc", tensor_desc.Raw());
+  (void)entry.Set("trans_road", ge::JsonFile::json::array());
+  (void)entry.Set("copy_info", ge::JsonFile::json::object());
+  (void)entry.Set("init_data_offset", init_data_offset);
+  (void)entry.Set("init_data_size", init_data_size);
+
+  auto entries = ge::JsonFile::json::object();
+  entries[var_key] = entry.Raw();
+
+  ge::JsonFile meta;
+  (void)meta.Set("index", 0U);
+  (void)meta.Set("var_name", "var_0");
+  auto metas = ge::JsonFile::json::array();
+  metas.push_back(meta.Raw());
+
+  ge::JsonFile root;
+  (void)root.Set("graph_id", 7U);
+  if (config_var_size > 0U) {
+    (void)root.Set("global_shared_var_size", config_var_size);
+  }
+  (void)root.Set("var_metas", metas);
+  (void)root.Set("entries", entries);
+  return root.Dump();
+}
+
+void WriteBundleSubModelEntries(gert::ZipArchiveWriter &zip_writer, const size_t index, const std::string &so_path,
+                                const std::string &var_config_json, const std::vector<uint8_t> *var_weight) {
+  const std::string idx = std::to_string(index);
+  const std::string model_dir = "data/model_" + idx + "/";
+  const auto model_meta = MakeModelMetaJson();
+  EXPECT_TRUE(zip_writer.WriteBytes(model_dir + "model_meta.json", model_meta.data(), model_meta.size(), false));
+  const auto op_attr = MakeEmptyOpAttrJson();
+  EXPECT_TRUE(zip_writer.WriteBytes(model_dir + "op_attr.json", op_attr.data(), op_attr.size(), false));
+  EXPECT_TRUE(zip_writer.WriteFile(model_dir + "runtime/libg1_om2.so", so_path, false));
+  const auto constants_config = MakeBundleConstantsConfigJson(index);
+  EXPECT_TRUE(zip_writer.WriteBytes(model_dir + "constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
+  const std::vector<uint8_t> constant_blob(16U, static_cast<uint8_t>(index + 1U));
+  EXPECT_TRUE(
+      zip_writer.WriteBytes("data/constants/constant_" + idx, constant_blob.data(), constant_blob.size(), false));
+  if (!var_config_json.empty()) {
+    EXPECT_TRUE(zip_writer.WriteBytes(model_dir + "variables_config.json", var_config_json.data(),
+                                      var_config_json.size(), false));
+    if (var_weight != nullptr) {
+      EXPECT_TRUE(zip_writer.WriteBytes("data/variables/var_weight_data_" + idx, var_weight->data(), var_weight->size(),
+                                        false));
+    }
+  }
+}
+
+// 构造多子模型 Bundle 归档；var_config_jsons 按 index 提供合并变量配置（空串跳过该 index 的变量条目）
+ModelDataHolder MakeOm2BundleArchiveModelData(const std::string &work_dir, const std::string &case_name,
+                                              const size_t model_num, const std::vector<std::string> &var_config_jsons,
+                                              const std::vector<uint8_t> *var_weight) {
+  const auto so_path = PathUtils::Join({work_dir, "fake_runtime", "libg1_om2.so"});
+  gert::GertBuffer om2_buf;
+  const auto om_path = PathUtils::Join({work_dir, case_name + ".om2"});
+  gert::ZipArchiveWriter zip_writer(om_path);
+  EXPECT_TRUE(zip_writer.IsMemFileOpened());
+  for (size_t index = 0U; index < model_num; ++index) {
+    const std::string var_json = (index < var_config_jsons.size()) ? var_config_jsons[index] : std::string();
+    WriteBundleSubModelEntries(zip_writer, index, so_path, var_json, var_weight);
+  }
+  const std::vector<uint8_t> kernel_blob{0x7FU, 'E', 'L', 'F'};
+  EXPECT_TRUE(zip_writer.WriteBytes("data/kernels/shared_kernel.o", kernel_blob.data(), kernel_blob.size(), false));
+  const auto manifest = MakeBundleManifestJson(model_num);
+  EXPECT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  EXPECT_TRUE(zip_writer.SaveModelData(om2_buf, false));
+
+  ModelDataHolder holder;
+  holder.model_data.model_data = om2_buf.data.get();
+  holder.model_data.model_len = om2_buf.length;
+  holder.model_data.om_path = om_path;
+  holder.shared_buffer = om2_buf.data;
+  return holder;
+}
+}  // namespace
+
+TEST_F(Om2ModelExecutorUt, get_bundle_info_ok) {
+  PrepareOm2File();
+  const auto var_json = MakeBundleVariablesConfigJson(0U, 4U, 0U, 4U, 4096U);
+  auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_info_ok", 2U, {var_json, var_json}, nullptr);
+  std::vector<std::pair<size_t, size_t>> model_sizes;
+  size_t var_size = 0U;
+  ASSERT_EQ(gert::GetOm2BundleInfo(holder.model_data.model_data, holder.model_data.model_len, model_sizes, var_size),
+            SUCCESS);
+  ASSERT_EQ(model_sizes.size(), 2U);
+  EXPECT_EQ(model_sizes[0].first, 2048U);
+  EXPECT_EQ(model_sizes[0].second, 16U);
+  EXPECT_EQ(model_sizes[1].first, 2048U);
+  EXPECT_EQ(model_sizes[1].second, 16U);
+  EXPECT_EQ(var_size, 4096U);
+}
+
+TEST_F(Om2ModelExecutorUt, get_bundle_info_var_size_takes_max_across_sub_models) {
+  PrepareOm2File();
+  // global_shared_var_size 由各子模型 variables_config 携带，查询时取最大值；缺失字段/缺失文件按 0 处理
+  const auto var_json_small = MakeBundleVariablesConfigJson(0U, 4U, 0U, 4U, 1024U);
+  const auto var_json_large = MakeBundleVariablesConfigJson(0U, 4U, 0U, 4U, 4096U);
+  const auto var_json_no_size = MakeBundleVariablesConfigJson(0U, 4U, 0U, 4U);
+  std::vector<std::pair<size_t, size_t>> model_sizes;
+  size_t var_size = 0U;
+  {
+    const auto holder =
+        MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_var_max", 2U, {var_json_small, var_json_large}, nullptr);
+    ASSERT_EQ(gert::GetOm2BundleInfo(holder.model_data.model_data, holder.model_data.model_len, model_sizes, var_size),
+              SUCCESS);
+    EXPECT_EQ(var_size, 4096U);
+  }
+  {
+    var_size = 0U;
+    const auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_var_missing_field", 2U,
+                                                      {var_json_no_size, var_json_small}, nullptr);
+    ASSERT_EQ(gert::GetOm2BundleInfo(holder.model_data.model_data, holder.model_data.model_len, model_sizes, var_size),
+              SUCCESS);
+    EXPECT_EQ(var_size, 1024U);
+  }
+  {
+    var_size = 99U;
+    const auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_var_no_config", 2U, {}, nullptr);
+    ASSERT_EQ(gert::GetOm2BundleInfo(holder.model_data.model_data, holder.model_data.model_len, model_sizes, var_size),
+              SUCCESS);
+    EXPECT_EQ(var_size, 0U);
+  }
+}
+
+TEST_F(Om2ModelExecutorUt, get_bundle_info_rejects_single_model_archive) {
+  auto holder = LoadValidModelData();
+  std::vector<std::pair<size_t, size_t>> model_sizes;
+  size_t var_size = 0U;
+  EXPECT_EQ(gert::GetOm2BundleInfo(holder.model_data.model_data, holder.model_data.model_len, model_sizes, var_size),
+            ACL_ERROR_GE_PARAM_INVALID);
+  EXPECT_TRUE(model_sizes.empty());
+}
+
+TEST_F(Om2ModelExecutorUt, get_bundle_info_invalid_inputs) {
+  std::vector<std::pair<size_t, size_t>> model_sizes;
+  size_t var_size = 0U;
+  EXPECT_EQ(gert::GetOm2BundleInfo(nullptr, 0U, model_sizes, var_size), ACL_ERROR_GE_PARAM_INVALID);
+
+  const std::vector<uint8_t> garbage(64U, 0xABU);
+  EXPECT_EQ(gert::GetOm2BundleInfo(garbage.data(), garbage.size(), model_sizes, var_size), ACL_ERROR_GE_PARAM_INVALID);
+
+  PrepareOm2File();
+  // model_num 为 0
+  {
+    gert::GertBuffer om2_buf;
+    const auto om_path = PathUtils::Join({test_work_dir_, "bundle_zero_model_num.om2"});
+    gert::ZipArchiveWriter zip_writer(om_path);
+    ASSERT_TRUE(zip_writer.IsMemFileOpened());
+    const auto manifest = MakeBundleManifestJson(0U);
+    ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+    ASSERT_TRUE(zip_writer.SaveModelData(om2_buf, false));
+    EXPECT_EQ(gert::GetOm2BundleInfo(om2_buf.data.get(), om2_buf.length, model_sizes, var_size),
+              ACL_ERROR_GE_PARAM_INVALID);
+  }
+}
+
+TEST_F(Om2ModelExecutorUt, get_bundle_info_missing_sub_model_meta_fails) {
+  PrepareOm2File();
+  // manifest 声明 2 个子模型，但仅写入 model_0 条目
+  const auto so_path = PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"});
+  gert::GertBuffer om2_buf;
+  const auto om_path = PathUtils::Join({test_work_dir_, "bundle_missing_meta.om2"});
+  gert::ZipArchiveWriter zip_writer(om_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  WriteBundleSubModelEntries(zip_writer, 0U, so_path, "", nullptr);
+  const auto manifest = MakeBundleManifestJson(2U);
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.SaveModelData(om2_buf, false));
+
+  std::vector<std::pair<size_t, size_t>> model_sizes;
+  size_t var_size = 0U;
+  EXPECT_NE(gert::GetOm2BundleInfo(om2_buf.data.get(), om2_buf.length, model_sizes, var_size), SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, single_model_query_apis_reject_bundle) {
+  PrepareOm2File();
+  auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_reject_query", 2U, {}, nullptr);
+  size_t work_size = 0U;
+  size_t weight_size = 0U;
+  EXPECT_EQ(
+      gert::GetOm2MemAndWeightSize(holder.model_data.model_data, holder.model_data.model_len, work_size, weight_size),
+      ACL_ERROR_GE_PARAM_INVALID);
+  size_t zero_copy_size = 0U;
+  EXPECT_EQ(gert::GetOm2WorkspaceSize(holder.model_data.model_data, holder.model_data.model_len, true, work_size,
+                                      zero_copy_size),
+            ACL_ERROR_GE_PARAM_INVALID);
+
+  // 文件重载入口同样拒绝
+  std::vector<uint8_t> file_content(holder.model_data.model_len, 0U);
+  (void)std::memcpy(file_content.data(), holder.model_data.model_data, holder.model_data.model_len);
+  const auto bundle_file_path = PathUtils::Join({test_work_dir_, "bundle_reject_query_file.om2"});
+  WriteBinaryFile(bundle_file_path, file_content);
+  EXPECT_EQ(gert::GetOm2MemAndWeightSize(bundle_file_path, work_size, weight_size), ACL_ERROR_GE_PARAM_INVALID);
+  EXPECT_EQ(gert::GetOm2WorkspaceSize(bundle_file_path, true, work_size, zero_copy_size), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(Om2ModelExecutorUt, load_single_model_api_rejects_bundle) {
+  PrepareOm2File();
+  auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_reject_load", 2U, {}, nullptr);
+  gert::Om2ModelExecutor executor;
+  EXPECT_EQ(executor.Load(holder.model_data, MakeOm2LoadArg(), 1U), ACL_ERROR_GE_PARAM_INVALID);
+
+  ge::graphStatus error_code = ge::SUCCESS;
+  const auto loaded = gert::LoadOm2ExecutorFromData(holder.model_data, MakeOm2LoadArg(), error_code);
+  EXPECT_EQ(loaded, nullptr);
+  EXPECT_EQ(error_code, ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(Om2ModelExecutorUt, load_from_bundle_data_ok_both_indexes) {
+  PrepareOm2File();
+  auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_load_ok", 2U, {}, nullptr);
+  for (const size_t index : {0U, 1U}) {
+    ge::graphStatus error_code = ge::FAILED;
+    auto executor = gert::LoadOm2ExecutorFromBundleData(holder.model_data.model_data, holder.model_data.model_len,
+                                                        index, MakeOm2LoadArg(), error_code);
+    ASSERT_NE(executor, nullptr) << "index=" << index;
+    EXPECT_EQ(error_code, ge::SUCCESS) << "index=" << index;
+    const std::vector<gert::GertTensorDesc> *input_desc = nullptr;
+    const std::vector<gert::GertTensorDesc> *output_desc = nullptr;
+    ASSERT_EQ(executor->GetModelDescInfo(input_desc, output_desc, false), SUCCESS) << "index=" << index;
+    ASSERT_NE(input_desc, nullptr);
+    ASSERT_NE(output_desc, nullptr);
+    EXPECT_EQ(input_desc->size(), 2U) << "index=" << index;
+    EXPECT_EQ(output_desc->size(), 1U) << "index=" << index;
+  }
+}
+
+TEST_F(Om2ModelExecutorUt, load_from_bundle_data_invalid_inputs) {
+  PrepareOm2File();
+  auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_load_invalid", 2U, {}, nullptr);
+  // index 越界
+  ge::graphStatus error_code = ge::SUCCESS;
+  auto executor = gert::LoadOm2ExecutorFromBundleData(holder.model_data.model_data, holder.model_data.model_len, 2U,
+                                                      MakeOm2LoadArg(), error_code);
+  EXPECT_EQ(executor, nullptr);
+  EXPECT_EQ(error_code, ACL_ERROR_GE_PARAM_INVALID);
+
+  // 空数据
+  error_code = ge::SUCCESS;
+  executor = gert::LoadOm2ExecutorFromBundleData(nullptr, 0U, 0U, MakeOm2LoadArg(), error_code);
+  EXPECT_EQ(executor, nullptr);
+  EXPECT_EQ(error_code, ACL_ERROR_GE_PARAM_INVALID);
+
+  // 非法 zip 内容
+  const std::vector<uint8_t> garbage(64U, 0xABU);
+  error_code = ge::SUCCESS;
+  executor = gert::LoadOm2ExecutorFromBundleData(garbage.data(), garbage.size(), 0U, MakeOm2LoadArg(), error_code);
+  EXPECT_EQ(executor, nullptr);
+  EXPECT_EQ(error_code, ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(Om2ModelExecutorUt, load_from_bundle_data_missing_sub_model_entries_fails) {
+  PrepareOm2File();
+  // manifest 声明 2 个子模型，但仅写入 model_0 条目：index 0 可加载，index 1 加载失败
+  const auto so_path = PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"});
+  gert::GertBuffer om2_buf;
+  const auto om_path = PathUtils::Join({test_work_dir_, "bundle_missing_entries.om2"});
+  gert::ZipArchiveWriter zip_writer(om_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  WriteBundleSubModelEntries(zip_writer, 0U, so_path, "", nullptr);
+  const auto manifest = MakeBundleManifestJson(2U);
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.SaveModelData(om2_buf, false));
+
+  ge::graphStatus error_code = ge::SUCCESS;
+  const auto executor1 =
+      gert::LoadOm2ExecutorFromBundleData(om2_buf.data.get(), om2_buf.length, 1U, MakeOm2LoadArg(), error_code);
+  EXPECT_EQ(executor1, nullptr);
+  EXPECT_NE(error_code, ge::SUCCESS);
+
+  error_code = ge::FAILED;
+  const auto executor0 =
+      gert::LoadOm2ExecutorFromBundleData(om2_buf.data.get(), om2_buf.length, 0U, MakeOm2LoadArg(), error_code);
+  EXPECT_NE(executor0, nullptr);
+  EXPECT_EQ(error_code, ge::SUCCESS);
+}
+
+TEST_F(Om2ModelExecutorUt, load_from_bundle_data_deserializes_prefixed_var_entries) {
+  PrepareOm2File();
+  const auto var_json = MakeBundleVariablesConfigJson(0U, 4U, 0U, 4U);
+  const std::vector<uint8_t> weight{1U, 2U, 3U, 4U};
+  auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_vars", 2U, {var_json}, &weight);
+
+  ASSERT_EQ(setenv("OM2_EXPECT_VAR0_MODE", "NON_NULL", 1), 0);
+  VarInitDataRecordingAclRuntimeStub runtime_stub;
+  AclRuntimeStubGuard runtime_stub_guard(&runtime_stub);
+  ge::graphStatus error_code = ge::FAILED;
+  const auto executor = gert::LoadOm2ExecutorFromBundleData(holder.model_data.model_data, holder.model_data.model_len,
+                                                            0U, MakeOm2LoadArg(), error_code);
+  ASSERT_NE(executor, nullptr);
+  EXPECT_EQ(error_code, ge::SUCCESS);
+  // data/model_0/variables_config.json（含 entries）与 data/variables/ 下按 file_name 寻址的权重文件
+  // 被正确配对反序列化并完成 H2D 初始化（另有 1 条 INTERNAL 常量 H2D 记录，按内容过滤变量初始化记录）
+  size_t var_init_count = 0U;
+  for (const auto &record : runtime_stub.memcpy_records) {
+    if (record.data == weight) {
+      ++var_init_count;
+      EXPECT_EQ(record.kind, ACL_MEMCPY_HOST_TO_DEVICE);
+      EXPECT_EQ(record.dest_max, 4U);
+    }
+  }
+  EXPECT_EQ(var_init_count, 1U);
+}
+
+TEST_F(Om2ModelExecutorUt, load_from_bundle_data_shared_var_initialized_once) {
+  PrepareOm2File();
+  const auto var_json0 = MakeBundleVariablesConfigJson(kMemoryVarLogicBase, 4U, 0U, 4U, 0U, "var_weight_data_0");
+  const auto var_json1 = MakeBundleVariablesConfigJson(kMemoryVarLogicBase, 4U, 0U, 4U, 0U, "var_weight_data_1");
+  const std::vector<uint8_t> weight{5U, 6U, 7U, 8U};
+  auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_shared_var", 2U, {var_json0, var_json1}, &weight);
+
+  ASSERT_EQ(setenv("OM2_EXPECT_VAR0_MODE", "NON_NULL", 1), 0);
+  VarInitDataRecordingAclRuntimeStub runtime_stub;
+  AclRuntimeStubGuard runtime_stub_guard(&runtime_stub);
+  gert::RtSession session(4242U);
+  auto load_arg = MakeOm2LoadArg();
+  load_arg.rt_session = &session;
+
+  const auto count_var_init_records = [&runtime_stub, &weight]() {
+    size_t count = 0U;
+    for (const auto &record : runtime_stub.memcpy_records) {
+      if (record.data == weight) {
+        ++count;
+      }
+    }
+    return count;
+  };
+
+  // 两个子模型共享同一 var_key，绑定同一 Session：加载均成功且初始化数据只写入一次
+  ge::graphStatus error_code0 = ge::FAILED;
+  const auto executor0 = gert::LoadOm2ExecutorFromBundleData(holder.model_data.model_data, holder.model_data.model_len,
+                                                             0U, load_arg, error_code0);
+  ASSERT_NE(executor0, nullptr);
+  EXPECT_EQ(error_code0, ge::SUCCESS);
+  EXPECT_EQ(count_var_init_records(), 1U);
+
+  ge::graphStatus error_code1 = ge::FAILED;
+  const auto executor1 = gert::LoadOm2ExecutorFromBundleData(holder.model_data.model_data, holder.model_data.model_len,
+                                                             1U, load_arg, error_code1);
+  ASSERT_NE(executor1, nullptr);
+  EXPECT_EQ(error_code1, ge::SUCCESS);
+  EXPECT_EQ(count_var_init_records(), 1U);
+  gert::Om2RTVarManagerPool::Instance().RemoveManager(4242U);
+}
+
+TEST_F(Om2ModelExecutorUt, load_from_bundle_data_conflicting_shared_var_fails) {
+  PrepareOm2File();
+  const auto var_json0 = MakeBundleVariablesConfigJson(kMemoryVarLogicBase, 4U, 0U, 4U, 0U, "var_weight_data_0");
+  const auto var_json1 = MakeBundleVariablesConfigJson(kMemoryVarLogicBase, 8U, 0U, 4U, 0U, "var_weight_data_1");
+  const std::vector<uint8_t> weight{1U, 2U, 3U, 4U};
+  auto holder =
+      MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_conflict_var", 2U, {var_json0, var_json1}, &weight);
+
+  ASSERT_EQ(setenv("OM2_EXPECT_VAR0_MODE", "NON_NULL", 1), 0);
+  gert::RtSession session(4343U);
+  auto load_arg = MakeOm2LoadArg();
+  load_arg.rt_session = &session;
+
+  ge::graphStatus error_code0 = ge::FAILED;
+  const auto executor0 = gert::LoadOm2ExecutorFromBundleData(holder.model_data.model_data, holder.model_data.model_len,
+                                                             0U, load_arg, error_code0);
+  ASSERT_NE(executor0, nullptr);
+  EXPECT_EQ(error_code0, ge::SUCCESS);
+
+  // 同 var_key 但 size 不一致：共享变量一致性校验必须拒绝第二个子模型
+  ge::graphStatus error_code1 = ge::SUCCESS;
+  const auto executor1 = gert::LoadOm2ExecutorFromBundleData(holder.model_data.model_data, holder.model_data.model_len,
+                                                             1U, load_arg, error_code1);
+  EXPECT_EQ(executor1, nullptr);
+  EXPECT_EQ(error_code1, ge::PARAM_INVALID);
+  gert::Om2RTVarManagerPool::Instance().RemoveManager(4343U);
+}
+
+TEST_F(Om2ModelExecutorUt, load_from_bundle_data_external_var_arena) {
+  PrepareOm2File();
+  constexpr uint64_t kArenaOffset = 64U;
+  const auto var_json = MakeBundleVariablesConfigJson(kMemoryVarLogicBase + kArenaOffset, 4U, 0U, 4U);
+  const std::vector<uint8_t> weight{9U, 0xAU, 0xBU, 0xCU};
+  auto holder = MakeOm2BundleArchiveModelData(test_work_dir_, "bundle_external_var", 2U, {var_json}, &weight);
+
+  std::vector<uint8_t> arena(4096U, 0U);
+  gert::RtSession session(4444U);
+  session.SetExternalVar(arena.data(), arena.size());
+  auto load_arg = MakeOm2LoadArg();
+  load_arg.rt_session = &session;
+
+  ASSERT_EQ(setenv("OM2_EXPECT_VAR0_MODE", "NON_NULL", 1), 0);
+  VarInitDataRecordingAclRuntimeStub runtime_stub;
+  AclRuntimeStubGuard runtime_stub_guard(&runtime_stub);
+  ge::graphStatus error_code = ge::FAILED;
+  const auto executor = gert::LoadOm2ExecutorFromBundleData(holder.model_data.model_data, holder.model_data.model_len,
+                                                            0U, load_arg, error_code);
+  ASSERT_NE(executor, nullptr);
+  EXPECT_EQ(error_code, ge::SUCCESS);
+  // 变量设备地址 = 外部 arena 基址 + (logic_addr - 逻辑基址)，初始化数据写入 arena 内
+  size_t var_init_count = 0U;
+  for (const auto &record : runtime_stub.memcpy_records) {
+    if (record.data == weight) {
+      ++var_init_count;
+      EXPECT_EQ(record.dst, static_cast<void *>(arena.data() + kArenaOffset));
+    }
+  }
+  EXPECT_EQ(var_init_count, 1U);
+  gert::Om2RTVarManagerPool::Instance().RemoveManager(4444U);
 }
 
 }  // namespace ge

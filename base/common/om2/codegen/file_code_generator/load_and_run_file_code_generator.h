@@ -47,7 +47,7 @@ class LoadAndRunFileCodeGenerator : public Om2ModelClassGeneratorBase {
   void BuildRunBodyPhaseModelExecute(std::vector<BodyItem> &body, VarRef exe_stream, bool is_async,
                                      VarRef run_callbacks, bool is_need_va2pa);
   void BuildRunBodyPhaseOutputCopy(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
-                                   VarRef exe_stream, bool is_async);
+                                   VarRef exe_stream, bool is_async) const;
   void BuildRunBodyDeclareTensorIoVars(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,
                                        const VarRef &input_data, const VarRef &output_data) const;
   void BuildRunBodyProcessInputsAndAddrRefresh(std::vector<BodyItem> &body, const std::vector<ModelIoEntry> &entries,

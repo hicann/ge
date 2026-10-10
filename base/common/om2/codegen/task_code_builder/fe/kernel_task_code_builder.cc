@@ -1515,7 +1515,8 @@ Status KernelTaskCodeBuilder::RenderDispatchAicore(const VarRef &op, const VarRe
   return TaskCodeBuilderUtil::RenderDispatchFunc(ast_, "DispatchKernelAicore", body, items);
 }
 
-Status KernelTaskCodeBuilder::RenderDispatchAicpu(const VarRef &op, const VarRef &ctx, std::vector<DeclNode *> &items) {
+Status KernelTaskCodeBuilder::RenderDispatchAicpu(const VarRef &op, const VarRef &ctx,
+                                                  std::vector<DeclNode *> &items) const {
   std::vector<BodyItem> body;
   auto setup = RenderAicpuDispatchSetup(op, ctx);
   body.insert(body.end(), setup.begin(), setup.end());
@@ -1700,7 +1701,7 @@ std::vector<BodyItem> KernelTaskCodeBuilder::RenderDispatchSetup(const VarRef &o
   };
 }
 
-BodyItem KernelTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRef &ctx) {
+BodyItem KernelTaskCodeBuilder::RenderDispatchLoop(const VarRef &op, const VarRef &ctx) const {
   auto a = ast_.Var("const auto &", "a");
   return ast_.For(ast_.VarDecl("uint32_t", "j", ast_.UInt(0)),
                   ast_.Var("", "j") < op.Arrow("dispatch_info").Attr("aicore").Attr("args_info_num"),

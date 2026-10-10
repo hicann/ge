@@ -377,7 +377,7 @@ Status CustomPassHelper::Run(GraphPtr &graph, CustomPassContext &custom_pass_con
       continue;
     }
     if (!PassOptionUtils::IsPassEnable(pass_name_to_switches, item.GetPassName(), item.GetDefaultSwitch())) {
-      GELOGI("[CustomPass][SKIP] Pass [%s] is disabled by fusion switch config.", item.GetPassName().c_str());
+      GELOGI("[CustomPass][SKIP] Pass [%s] is disabled.", item.GetPassName().c_str());
       continue;
     }
     GELOGD("Starting custom pass [%s] in stage [%s]!", item.GetPassName().c_str(),

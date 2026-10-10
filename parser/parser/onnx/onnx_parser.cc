@@ -182,14 +182,56 @@ namespace {
 const std::map<std::string, std::string> kOnnxOpMap = {{ge::kOpTypeInput, ge::parser::DATA},
                                                        {ge::kOpTypeConstant, ge::parser::CONSTANT},
                                                        {ge::kFileConstant, ge::parser::FILECONSTANT}};
+const char kOriginTypeSeparator[] = "::";
+const size_t kOriginTypeSeparatorLen = 2U;
 const int64_t kDimValue = 1;
 
-struct ParseArg {
-  ge::onnx::GraphProto *onnx_graph;
-  ge::NodePtr parent_node;
-  std::string graph_name;
-  uint32_t subgraph_index;
-};
+bool SplitOriginType(const std::string &ori_type, std::string &domain, std::string &version, std::string &op_type) {
+  const size_t first_sep = ori_type.find(kOriginTypeSeparator);
+  const size_t last_sep = ori_type.rfind(kOriginTypeSeparator);
+  if ((first_sep == std::string::npos) || (last_sep == first_sep)) {
+    return false;
+  }
+  domain = ori_type.substr(0, first_sep);
+  version = ori_type.substr(first_sep + kOriginTypeSeparatorLen, last_sep - first_sep - kOriginTypeSeparatorLen);
+  op_type = ori_type.substr(last_sep + kOriginTypeSeparatorLen);
+  return true;
+}
+
+std::string BuildConflictReason(const std::string &domain, const std::string &version, const bool attributed,
+                                const int64_t default_version, const std::set<int64_t> &declared_versions,
+                                const int64_t effective_version) {
+  if (attributed) {
+    return ": custom_opsets ('" + domain + "': " + version + ") conflicts with opset_version (" +
+           std::to_string(default_version) + ")";
+  }
+  std::string other_versions;
+  for (const auto declared : declared_versions) {
+    if (declared == effective_version) {
+      continue;
+    }
+    if (!other_versions.empty()) {
+      other_versions += ", ";
+    }
+    other_versions += std::to_string(declared);
+  }
+  return ": '" + domain + "' has conflicting versions " + version + " (in effect) and " + other_versions;
+}
+
+int64_t FindRegisteredDeclaredVersion(const std::string &domain, const std::string &op_type,
+                                      const std::set<int64_t> &declared_versions, const int64_t effective_version) {
+  for (const auto declared : declared_versions) {
+    if (declared == effective_version) {
+      continue;
+    }
+    std::string om_type;
+    if (domi::OpRegistry::Instance()->GetOmTypeByOriOpType(
+            domain + kOriginTypeSeparator + std::to_string(declared) + kOriginTypeSeparator + op_type, om_type)) {
+      return declared;
+    }
+  }
+  return -1;
+}
 
 Status GenSubgraphParseTasks(const ge::ComputeGraphPtr &parent_graph, std::deque<ParseArg> &args) {
   GELOGI("Generate subgraph parse tasks start");
@@ -275,6 +317,45 @@ Status PostOpProcessForSubgraph(const ParseArg &arg, ge::ComputeGraphPtr sub_gra
     REPORT_INNER_ERR_MSG("E19999", "Failed to post-process subgraph %s on node %s type %s", arg.graph_name.c_str(),
                          arg.parent_node->GetName().c_str(), arg.parent_node->GetType().c_str());
     return FAILED;
+  }
+  return SUCCESS;
+}
+
+ge::onnx::GraphProto *FindOnnxGraphByName(const std::map<std::string, ge::onnx::GraphProto *> &name_to_onnx_graph,
+                                          const std::string &graph_name) {
+  const auto itr = name_to_onnx_graph.find(graph_name);
+  if (itr == name_to_onnx_graph.end()) {
+    GELOGI("Graph: %s is subgraph from plugin, no need parser", graph_name.c_str());
+    return nullptr;
+  }
+  return itr->second;
+}
+
+Status PostProcessParsedGraph(const ParseArg &arg, const ge::ComputeGraphPtr &cur_compute_graph,
+                              std::deque<ParseArg> &tasks) {
+  Status ret = PostOpProcessForSubgraph(arg, cur_compute_graph);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[PostProcess][Subgraph]Post Op for subgraph:%s failed.", cur_compute_graph->GetName().c_str());
+    REPORT_INNER_ERR_MSG("E19999", "Post Op for subgraph:%s failed.", cur_compute_graph->GetName().c_str());
+    return ret;
+  }
+
+  ret = BuildLinkForChildAndParentGraph(cur_compute_graph, arg);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[BuildLink][Graph] Build link for child graph:%s and parent graph failed.",
+           cur_compute_graph->GetName().c_str());
+    REPORT_INNER_ERR_MSG("E19999", "Build link for child graph:%s and parent graph failed.",
+                         cur_compute_graph->GetName().c_str());
+    return ret;
+  }
+
+  ret = GenSubgraphParseTasks(cur_compute_graph, tasks);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Generate][Task] Failed to gen tasks on graph %s for next iteration",
+           cur_compute_graph->GetName().c_str());
+    REPORT_INNER_ERR_MSG("E19999", "Failed to gen tasks on graph %s for next iteration",
+                         cur_compute_graph->GetName().c_str());
+    return ret;
   }
   return SUCCESS;
 }
@@ -451,6 +532,63 @@ Status OnnxModelParser::ConstructOriType(const ge::onnx::NodeProto *node_proto, 
   return SUCCESS;
 }
 
+void OnnxModelParser::BuildDomainVersionMap(const ge::onnx::ModelProto &onnx_model) {
+  domain_verseion_.clear();
+  domain_version_conflicts_.clear();
+  default_domain_version_ = -1;
+  for (auto it : onnx_model.opset_import()) {
+    const bool is_default_domain = it.domain().empty();
+    if (is_default_domain) {
+      default_domain_version_ = it.version();
+    }
+    const std::string domain = is_default_domain ? "ai.onnx" : it.domain();
+    const auto exist_it = domain_verseion_.find(domain);
+    if ((exist_it != domain_verseion_.end()) && (exist_it->second != it.version())) {
+      domain_version_conflicts_[domain].insert(exist_it->second);
+      domain_version_conflicts_[domain].insert(it.version());
+      GELOGW(
+          "Model opset_import declares conflicting versions for domain[%s]: %ld and %ld ('' and 'ai.onnx' are "
+          "the same domain per ONNX spec); version %ld takes effect for matching, which may break standard "
+          "operators. Check export-side custom_opsets.",
+          domain.c_str(), exist_it->second, it.version(), it.version());
+    }
+    domain_verseion_[domain] = it.version();
+    GELOGI("Domain:[%s], Version:[%ld].", domain.c_str(), it.version());
+  }
+}
+std::string OnnxModelParser::BuildOriginMissDiagnosis(const std::string &node_name, const std::string &ori_type) const {
+  const std::string prefix = "Origin '" + ori_type + "' for op '" + node_name + "' is not registered";
+  std::string domain;
+  std::string version;
+  std::string op_type;
+  if (!SplitOriginType(ori_type, domain, version, op_type)) {
+    return prefix + ". Fix: register a parser or plugin for this operator type.";
+  }
+  const auto conflict_it = domain_version_conflicts_.find(domain);
+  if (conflict_it == domain_version_conflicts_.end()) {
+    return prefix +
+           ". Fix: make the plugin's domain and opsets cover this origin (plugin path: "
+           "ASCEND_CUSTOM_OPP_PATH).";
+  }
+  const auto effective_it = domain_verseion_.find(domain);
+  const int64_t effective_version = (effective_it == domain_verseion_.end()) ? -1 : effective_it->second;
+  const bool attributed = (default_domain_version_ > 0) && (conflict_it->second.count(default_domain_version_) > 0U) &&
+                          (effective_version != -1) && (effective_version != default_domain_version_);
+  const std::string reason =
+      BuildConflictReason(domain, version, attributed, default_domain_version_, conflict_it->second, effective_version);
+  const int64_t registered_version =
+      FindRegisteredDeclaredVersion(domain, op_type, conflict_it->second, effective_version);
+  if (registered_version > 0) {
+    return prefix + reason + ". Fix: remove the custom_opsets entry of '" + domain +
+           "' in torch.onnx.export, or set it to " + std::to_string(registered_version) + ".";
+  }
+  if (attributed) {
+    return prefix + reason + ". Fix: remove the custom_opsets entry of '" + domain + "' or set it to " +
+           std::to_string(default_domain_version_) + ", and make the plugin's opsets cover the effective version.";
+  }
+  return prefix + reason + ". Fix: declare one consistent version for '" + domain +
+         "' on the export side, and make the plugin's opsets cover the effective version.";
+}
 Status OnnxModelParser::AdapterOpType(const ge::onnx::NodeProto *node_proto, std::string &ori_type,
                                       std::string &op_type) {
   GE_CHECK_NOTNULL(node_proto);
@@ -472,6 +610,7 @@ Status OnnxModelParser::AdapterOpType(const ge::onnx::NodeProto *node_proto, std
   if (!domi::OpRegistry::Instance()->GetOmTypeByOriOpType(ori_type, op_type)) {
     REPORT_PREDEFINED_ERR_MSG("E16002", std::vector<const char *>({"optype"}),
                               std::vector<const char *>({ori_type.c_str()}));
+    REPORT_INNER_ERR_MSG("E19999", "%s", BuildOriginMissDiagnosis(node_proto->name(), ori_type).c_str());
     GELOGE(PARAM_INVALID, "[Get][OmType] according ori_type : %s failed.", ori_type.c_str());
     return PARAM_INVALID;
   }
@@ -600,6 +739,10 @@ Status OnnxModelParser::Prechecker(ge::onnx::GraphProto &onnx_graph) {
         REPORT_INNER_ERR_MSG("E19999", "CheckType failed for node:%s", node->name().c_str());
         GELOGE(FAILED, "[Check][Type] failed, node name: %s.", node->name().c_str());
         return FAILED;
+      }
+      std::string om_type;
+      if (!domi::OpRegistry::Instance()->GetOmTypeByOriOpType(ori_type, om_type)) {
+        REPORT_INNER_ERR_MSG("E19999", "%s", BuildOriginMissDiagnosis(node->name(), ori_type).c_str());
       }
     }
   }
@@ -944,6 +1087,55 @@ Status OnnxModelParser::AdaptAndFindAllOnnxGraph(
   return SUCCESS;
 }
 
+Status OnnxModelParser::ParseSingleGraphTask(const ParseArg &arg, ge::Graph &root_graph, std::deque<ParseArg> &tasks,
+                                             bool &parse_finished) {
+  parse_finished = false;
+  const bool is_subgraph = (arg.parent_node != nullptr);
+  ge::Graph tmp_graph(arg.graph_name.c_str());
+  Status ret = ModelParseToGraphImpl(is_subgraph, *arg.onnx_graph, tmp_graph);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Parse][Model] Model parse to graph failed, graph name:%s.", arg.graph_name.c_str());
+    REPORT_INNER_ERR_MSG("E19999", "Model parse to graph failed, graph name:%s.", arg.graph_name.c_str());
+    return ret;
+  }
+  // To get the result for root graph
+  if (!is_subgraph) {
+    root_graph = tmp_graph;
+  }
+
+  ge::ComputeGraphPtr cur_compute_graph = ge::GraphUtilsEx::GetComputeGraph(tmp_graph);
+  if ((ge::GetParserContext().run_mode == ge::ONLY_PRE_CHECK) && (cur_compute_graph == nullptr)) {
+    GELOGD("Only prechecker.");
+    parse_finished = true;
+    return SUCCESS;
+  }
+  GE_CHECK_NOTNULL(cur_compute_graph);
+  return PostProcessParsedGraph(arg, cur_compute_graph, tasks);
+}
+
+Status OnnxModelParser::ProcessGraphParseTasks(std::deque<ParseArg> &tasks,
+                                               const std::map<std::string, ge::onnx::GraphProto *> &name_to_onnx_graph,
+                                               ge::Graph &root_graph, bool &parse_finished) {
+  while (!tasks.empty()) {
+    ParseArg arg = tasks.front();
+    tasks.pop_front();
+    if (arg.onnx_graph == nullptr) {
+      arg.onnx_graph = FindOnnxGraphByName(name_to_onnx_graph, arg.graph_name);
+      if (arg.onnx_graph == nullptr) {
+        continue;
+      }
+    }
+    const Status ret = ParseSingleGraphTask(arg, root_graph, tasks, parse_finished);
+    if (ret != SUCCESS) {
+      return ret;
+    }
+    if (parse_finished) {
+      return SUCCESS;
+    }
+  }
+  return SUCCESS;
+}
+
 Status OnnxModelParser::ModelParseToGraph(const ge::onnx::ModelProto &onnx_model, ge::Graph &root_graph) {
   // atc and other ModelParserFactory entries do not pass PrepareBeforeParse of aclgrphParseONNX,
   // load the ONNX Python plugin bridge on demand; no behavior change without ASCEND_CUSTOM_OPP_PATH.
@@ -968,75 +1160,19 @@ Status OnnxModelParser::ModelParseToGraph(const ge::onnx::ModelProto &onnx_model
     return FAILED;
   }
 
-  auto opset_import = onnx_model.opset_import();
-  for (auto it : opset_import) {
-    std::string domain = it.domain().empty() ? "ai.onnx" : it.domain();
-    domain_verseion_[domain] = it.version();
-    GELOGI("Domain:[%s], Version:[%ld].", domain.c_str(), it.version());
-  }
+  BuildDomainVersionMap(onnx_model);
 
   std::string root_graph_name =
       ParserUtils::GetGraphName(root_graph).empty() ? "default_graph" : ParserUtils::GetGraphName(root_graph);
   tasks.push_back({&root_onnx_graph, nullptr, root_graph_name, 0});
 
-  while (!tasks.empty()) {
-    ParseArg arg = tasks.front();
-    tasks.pop_front();
-    bool is_subgraph = (arg.parent_node != nullptr) ? true : false;
-
-    if (arg.onnx_graph == nullptr) {
-      std::map<std::string, ge::onnx::GraphProto *>::const_iterator itr = name_to_onnx_graph.find(arg.graph_name);
-      if (itr == name_to_onnx_graph.end()) {
-        GELOGI("Graph: %s is subgraph from plugin, no need parser", arg.graph_name.c_str());
-        continue;
-      }
-      arg.onnx_graph = itr->second;
-    }
-
-    ge::onnx::GraphProto *onnx_graph = arg.onnx_graph;
-    ge::Graph tmp_graph(arg.graph_name.c_str());
-    ret = ModelParseToGraphImpl(is_subgraph, *onnx_graph, tmp_graph);
-    if (ret != SUCCESS) {
-      GELOGE(ret, "[Parse][Model] Model parse to graph failed, graph name:%s.", arg.graph_name.c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Model parse to graph failed, graph name:%s.", arg.graph_name.c_str());
-      return ret;
-    }
-    // To get the result for root graph
-    if (!is_subgraph) {
-      root_graph = tmp_graph;
-    }
-
-    ge::ComputeGraphPtr cur_compute_graph = ge::GraphUtilsEx::GetComputeGraph(tmp_graph);
-    if ((ge::GetParserContext().run_mode == ge::ONLY_PRE_CHECK) && (cur_compute_graph == nullptr)) {
-      GELOGD("Only prechecker.");
-      return SUCCESS;
-    }
-    GE_CHECK_NOTNULL(cur_compute_graph);
-
-    ret = PostOpProcessForSubgraph(arg, cur_compute_graph);
-    if (ret != SUCCESS) {
-      GELOGE(ret, "[PostProcess][Subgraph]Post Op for subgraph:%s failed.", cur_compute_graph->GetName().c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Post Op for subgraph:%s failed.", cur_compute_graph->GetName().c_str());
-      return ret;
-    }
-
-    ret = BuildLinkForChildAndParentGraph(cur_compute_graph, arg);
-    if (ret != SUCCESS) {
-      GELOGE(ret, "[BuildLink][Graph] Build link for child graph:%s and parent graph failed.",
-             cur_compute_graph->GetName().c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Build link for child graph:%s and parent graph failed.",
-                           cur_compute_graph->GetName().c_str());
-      return ret;
-    }
-
-    ret = GenSubgraphParseTasks(cur_compute_graph, tasks);
-    if (ret != SUCCESS) {
-      GELOGE(ret, "[Generate][Task] Failed to gen tasks on graph %s for next iteration",
-             cur_compute_graph->GetName().c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Failed to gen tasks on graph %s for next iteration",
-                           cur_compute_graph->GetName().c_str());
-      return ret;
-    }
+  bool parse_finished = false;
+  ret = ProcessGraphParseTasks(tasks, name_to_onnx_graph, root_graph, parse_finished);
+  if (ret != SUCCESS) {
+    return ret;
+  }
+  if (parse_finished) {
+    return SUCCESS;
   }
   UpdateDataFormat(root_graph);
   return SUCCESS;

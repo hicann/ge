@@ -554,7 +554,7 @@ const char_t *const DSARANDOMUNIFORM = "DSARandomUniform";
 const std::set<std::string> kFixedAddrNodeTypes = {DSAGENBITMASK, DSARANDOMNORMAL, DSARANDOMTRUNCATEDNORMAL,
                                                    DSARANDOMUNIFORM};
 // @brief encryption type of the model file
-enum ModelEncryptType {
+enum ModelEncryptType : uint32_t {
   UNENCRYPTED,  // not encrypted
   ENCRYPTED     // encrypted
 };
@@ -562,7 +562,7 @@ enum ModelEncryptType {
 ///
 /// @brief signature verification
 ///
-enum ModelCheckType {
+enum ModelCheckType : uint32_t {
   CHECK,   // signature verification
   UNCHECK  // no verification
 };
@@ -570,7 +570,7 @@ enum ModelCheckType {
 ///
 /// @brief dynamic input type
 ///
-enum DynamicInputType {
+enum DynamicInputType : uint32_t {
   FIXED = 0,  // default mode
   DYNAMIC_BATCH = 1,
   DYNAMIC_IMAGE = 2,
@@ -700,7 +700,7 @@ constexpr uint8_t TARGET_TYPE_MINI_8BIT = 1U;
 // number of partitions in the current model
 constexpr uint32_t PARTITION_SIZE = 5U;
 
-enum ModelPartitionType {
+enum ModelPartitionType : uint32_t {
   MODEL_DEF = 0,
   WEIGHTS_DATA = 1,
   TASK_INFO = 2,
@@ -733,7 +733,7 @@ struct CustomKernelItemHeader {
 
 constexpr uint32_t kCustomKernelItemMagic = 0x4B43534BU;  // "KCSK"
 
-enum ModelHeaderType {
+enum ModelHeaderType : uint32_t {
   MODEL_TYPE_IR_MODEL = 0,
   MODEL_TYPE_STANDARD_MODEL = 1,
   MODEL_TYPE_OM_TINY_MODEL = 2,
@@ -773,7 +773,7 @@ inline uint64_t SizeOfModelPartitionTable(const ModelPartitionTable &table) {
   return sizeof(ModelPartitionTable) + (sizeof(ModelPartitionMemInfo) * static_cast<uint64_t>(table.num));
 }
 // mode of activation
-typedef enum tagDomiActivationMode {
+typedef enum tagDomiActivationMode : uint32_t {
   DOMI_ACTIVATION_SIGMOID = 0,   // sigmoid
   DOMI_ACTIVATION_RELU,          // ReLU
   DOMI_ACTIVATION_TANH,          // tanh
@@ -791,14 +791,14 @@ typedef enum tagDomiActivationMode {
   DOMI_ACTIVATION_RESERVED
 } domiActivationMode_t;
 
-enum class MemorySizeCalcType { NORMAL = 0, ALWAYS_EMPTY };
+enum class MemorySizeCalcType : uint32_t { NORMAL = 0, ALWAYS_EMPTY };
 
-enum AicpuWorkSpaceType { CUST_LOG = 0, INVALID_TYPE };
+enum AicpuWorkSpaceType : uint32_t { CUST_LOG = 0, INVALID_TYPE };
 }  // namespace ge
 
 namespace domi {
 /// @brief Data structure definition related to task sinking
-enum BuildMode {
+enum BuildMode : uint32_t {
   GEN_TASK_WITHOUT_L2FUSION = 3,  // Carrying task data (L2 convergence function disabled)
   GEN_TASK_WITHOUT_FUSION = 4,    // Carrying task data (all convergence functions disabled)
   GEN_TASK_WITH_FUSION = 5        // Carrying task data (with UB/L1/L2 enabled for all convergence functions)

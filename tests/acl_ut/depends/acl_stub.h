@@ -203,6 +203,12 @@ class aclStub {
   virtual std::unique_ptr<gert::Om2ModelExecutor> LoadOm2ExecutorFromData(ge::ModelData &model_data,
                                                                           const gert::Om2ModelLoadArg &load_arg,
                                                                           ge::Status &error_code);
+  virtual std::unique_ptr<gert::Om2ModelExecutor> LoadOm2ExecutorFromBundleData(const void *model_data,
+                                                                                size_t model_size, size_t model_index,
+                                                                                const gert::Om2ModelLoadArg &load_arg,
+                                                                                ge::graphStatus &error_code);
+  virtual ge::Status GetOm2BundleInfo(const void *data, size_t size,
+                                      std::vector<std::pair<size_t, size_t>> &model_sizes, size_t &var_size);
   virtual ge::Status GetOm2MemAndWeightSize(const std::string &path, size_t &mem_size, size_t &weight_size);
   virtual ge::Status GetOm2MemAndWeightSize(const void *model_data, size_t model_size, size_t &mem_size,
                                             size_t &weight_size);
@@ -476,6 +482,12 @@ class MockFunctionTest : public aclStub {
   MOCK_METHOD3(LoadOm2ExecutorFromData,
                std::unique_ptr<gert::Om2ModelExecutor>(ge::ModelData &model_data, const gert::Om2ModelLoadArg &load_arg,
                                                        ge::Status &error_code));
+  MOCK_METHOD5(LoadOm2ExecutorFromBundleData,
+               std::unique_ptr<gert::Om2ModelExecutor>(const void *model_data, size_t model_size, size_t model_index,
+                                                       const gert::Om2ModelLoadArg &load_arg,
+                                                       ge::graphStatus &error_code));
+  MOCK_METHOD4(GetOm2BundleInfo, ge::Status(const void *data, size_t size,
+                                            std::vector<std::pair<size_t, size_t>> &model_sizes, size_t &var_size));
   MOCK_METHOD3(GetOm2MemAndWeightSize, ge::Status(const std::string &path, size_t &mem_size, size_t &weight_size));
   MOCK_METHOD4(GetOm2MemAndWeightSize,
                ge::Status(const void *model_data, size_t model_size, size_t &mem_size, size_t &weight_size));

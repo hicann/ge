@@ -25,6 +25,7 @@ from ge.passes import (
     can_fuse,
     register_fusion_pass,
     report_fuse,
+    report_match,
 )
 
 TARGET_TYPES = frozenset({"Conv2D", "Conv2DV2"})
@@ -88,6 +89,8 @@ def _judge_transpose_perm(perm: list[int], cnt_holder: list[int]) -> bool:
 def _remove_transpose_and_relink(
     graph: Graph, transpose_node: Node, context: PassContext
 ) -> bool:
+    # 结构匹配上报，无论融合条件是否通过均计入match_time
+    report_match([transpose_node], context)
     result = can_fuse([transpose_node])
     if not result.ok:
         context.set_error_message(result.reason)

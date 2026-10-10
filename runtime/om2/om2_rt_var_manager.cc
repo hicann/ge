@@ -11,6 +11,7 @@
 #include "om2_rt_var_manager.h"
 
 #include <cinttypes>
+#include <cstring>
 #include <numeric>
 
 #include "acl/acl_rt.h"
@@ -77,6 +78,16 @@ RTVarEntry CopyVarEntry(const RTVarEntry &src) {
   }
   return copy;
 }
+
+// Bundle 共享变量一致性校验：同 var_key 的条目在多个子模型间定义必须完全一致
+// init_data 仅比较长度：内容级一致性由编译期同 session 保证，避免加载期大变量逐字节比较开销
+bool IsSameVarEntry(const RTVarEntry &lhs, const RTVarEntry &rhs) {
+  return (std::strcmp(gert::GertGetStr(lhs.var_name), gert::GertGetStr(rhs.var_name)) == 0) &&
+         (std::strcmp(gert::GertGetStr(lhs.var_key), gert::GertGetStr(rhs.var_key)) == 0) &&
+         (lhs.logic_addr == rhs.logic_addr) && (lhs.size == rhs.size) && (lhs.memory_type == rhs.memory_type) &&
+         (lhs.tensor_desc.shape == rhs.tensor_desc.shape) && (lhs.tensor_desc.data_type == rhs.tensor_desc.data_type) &&
+         (lhs.tensor_desc.format == rhs.tensor_desc.format) && (lhs.init_data.size() == rhs.init_data.size());
+}
 }  // namespace
 
 Om2RTVarManager::~Om2RTVarManager() {
@@ -89,6 +100,15 @@ ge::Status Om2RTVarManager::Init(const std::vector<RTVarEntry> &entries, void *c
   external_var_addr_ = external_var_addr;
   external_var_size_ = external_var_size;
   for (const auto &new_entry : entries) {
+    const std::string var_key(gert::GertGetStr(new_entry.var_key));
+    const auto *old_entry = var_resource_.GetEntry(var_key);
+    if (old_entry != nullptr) {
+      if (!IsSameVarEntry(*old_entry, new_entry)) {
+        GELOGE(ge::PARAM_INVALID, "[OM2][Var] inconsistent shared variable, var_key=%s.", var_key.c_str());
+        return ge::PARAM_INVALID;
+      }
+      continue;
+    }
     GE_RETURN_IF_ERROR(var_resource_.AddEntry(CopyVarEntry(new_entry)));
   }
   return ge::SUCCESS;
@@ -193,7 +213,11 @@ void Om2RTVarManager::Finalize() noexcept {
     }
     for (auto &[_, addr] : state.dev_addrs) {
       (void)_;
-      if (addr != nullptr && addr != entry->extern_dev_addr) {
+      const auto external_begin = reinterpret_cast<uintptr_t>(external_var_addr_);
+      const auto value = reinterpret_cast<uintptr_t>(addr);
+      const bool is_external =
+          external_var_addr_ != nullptr && value >= external_begin && (value - external_begin) < external_var_size_;
+      if (addr != nullptr && addr != entry->extern_dev_addr && !is_external) {
         (void)aclrtFree(addr);
       }
     }

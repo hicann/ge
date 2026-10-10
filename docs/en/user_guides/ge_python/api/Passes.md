@@ -20,6 +20,13 @@ from ge.passes import (
     register_decompose_pass,
     create_pattern,
     create_replacement,
+    SubgraphRewriter,
+    SubgraphBoundary,
+    SubgraphInput,
+    SubgraphOutput,
+    can_fuse,
+    report_fuse,
+    report_match,
 )
 ```
 
@@ -751,6 +758,10 @@ class SubgraphRewriter:
     @staticmethod
     def replace(boundary: SubgraphBoundary, replacement: Graph) -> int:
         ...
+
+    @staticmethod
+    def replace(boundary: SubgraphBoundary, replacement: Graph, *, context: PassContext) -> None:
+        ...
 ```
 
 #### Parameter Description
@@ -759,16 +770,20 @@ class SubgraphRewriter:
 | :---------- | :-------- | :---- |
 | boundary | Input | Subgraph boundary, type is ``SubgraphBoundary``, describes input/output of subgraph to be replaced. |
 | replacement | Input | Replacement graph, type is ``ge.graph.Graph``. |
+| context | Input | Pass context, type is ``PassContext``. Passing this parameter enables managed mode; raises ``RuntimeError`` when replacement fails. |
 
 #### Return Value Description
 
 | Type | Description |
 | :--- | :--- |
-| `int` | Returns C++ ``Status`` integer form. When fails can check logs about boundary completeness and index alignment information. |
+| `int` | The overload without ``context`` returns C++ ``Status`` integer form. When fails can check logs about boundary completeness and index alignment information. |
+| `None` | The overload with ``context`` has no return value; raises ``RuntimeError`` when replacement fails. |
 
 #### Constraint Description
 
 - ``replacement`` must be non-empty graph wrapper; this graph will be **copied** in C++ side, but still need to follow GE's rules for Python ``Graph`` ownership.
+- Overload without ``context``: only executes subgraph replacement, without fusionability check or fusion statistics reporting; the caller manages checking and statistics.
+- Overload with ``context``: automatically performs structure match reporting (``report_match``), fusionability check (``can_fuse``), subgraph replacement, fusion result reporting (``report_fuse``) and old node cleanup. The caller does not need to (and should not) manually call ``report_match``/``report_fuse`` afterwards, otherwise statistics will be double-counted.
 
 #### Example
 
@@ -782,7 +797,104 @@ b.add_output(0, SubgraphOutput(out_node, 0))
 ret = SubgraphRewriter.replace(b, replacement_graph)
 ```
 
-For more usage, refer to https://gitcode.com/cann/ge/tree/master/examples/fusion_pass .---
+For more usage, refer to https://gitcode.com/cann/ge/tree/master/examples/fusion_pass .
+
+---
+
+## Fusion Inspection Functions
+
+The passes module provides fusion inspection functions (``can_fuse``, ``report_match``, ``report_fuse``) for statistics of structure match hit rate and fusion effect count (persisted to ``fusion_result.json``), with the invariant ``match_time >= effect_time``.
+
+The two reporting paths are mutually exclusive; choose one according to how the graph is modified:
+
+- Automatic path: use ``SubgraphRewriter.replace(..., context=context)`` for managed replacement. The framework automatically performs structure match reporting, fusionability check, replacement and fusion result reporting; the caller does not need to (and should not) manually call ``report_match``/``report_fuse`` afterwards, otherwise statistics will be double-counted.
+- Manual path: when modifying the graph directly with ``Graph``/``Node`` interfaces (such as ``remove_edge``, ``add_data_edge``, ``remove_node``, ``set_attr``), the caller must call ``can_fuse``, ``report_match`` and ``report_fuse`` explicitly for checking and reporting.
+
+### can_fuse Function
+
+Check whether a set of nodes can be safely fused (attribute consistency + cycle detection).
+
+#### Function Prototype
+
+```python
+def can_fuse(nodes: Iterable[Node]) -> FuseCheckResult:
+    ...
+```
+
+#### Parameter Description
+
+| Parameter Name | Input/Output | Description |
+| :---------- | :-------- | :---- |
+| nodes | Input | Nodes to check; all nodes in the list must be connected. |
+
+#### Return Value Description
+
+| Type | Description |
+| :--- | :--- |
+| `FuseCheckResult` | Check result: ``ok`` (bool) indicates whether fusion is allowed; ``reason`` (str) is the failure reason when not allowed. |
+
+#### Constraint Description
+
+This function should be called after a target structure is found; when the check fails, the caller should abandon this fusion.
+
+### report_match Function
+
+Report one structure match, counted into ``match_time`` regardless of whether fusion conditions pass.
+
+#### Function Prototype
+
+```python
+def report_match(matched_nodes: Iterable[Node], context: PassContext) -> None:
+    ...
+```
+
+#### Parameter Description
+
+| Parameter Name | Input/Output | Description |
+| :---------- | :-------- | :---- |
+| matched_nodes | Input | Nodes hit by the structure match; all nodes in the list must be connected. |
+| context | Input | Pass context, used to record the pass name. |
+
+#### Return Value Description
+
+No return value. Raises ``RuntimeError`` on report failure, leaving the handling to the caller.
+
+#### Constraint Description
+
+- This function should be called after a target structure is found and before ``can_fuse``.
+- ``SubgraphRewriter.replace`` with ``context`` already calls this function internally; callers using that overload do not need to (and should not) call it manually, otherwise ``match_time`` will be double-counted.
+- For manual graph modification scenarios (not going through ``SubgraphRewriter``), this function must be called manually.
+
+### report_fuse Function
+
+Report one effective fusion, counted into ``effect_time``.
+
+#### Function Prototype
+
+```python
+def report_fuse(nodes_before: Iterable[Node], nodes_after: Iterable[Node], context: PassContext) -> None:
+    ...
+```
+
+#### Parameter Description
+
+| Parameter Name | Input/Output | Description |
+| :---------- | :-------- | :---- |
+| nodes_before | Input | Node list before fusion; all nodes in the list must be connected. |
+| nodes_after | Input | New node list after fusion. Passing an empty list indicates the delete-only scenario (no new nodes added). |
+| context | Input | Pass context, used to record the pass name and mark the fusion source of new nodes. |
+
+#### Return Value Description
+
+No return value. Raises ``RuntimeError`` on report failure, leaving the handling to the caller.
+
+#### Constraint Description
+
+- This function must be called after the graph is modified and before old nodes are deleted.
+- ``SubgraphRewriter.replace`` with ``context`` already calls this function internally; callers using that overload do not need to (and should not) call it manually, otherwise ``effect_time`` will be double-counted.
+- For manual graph modification scenarios (not going through ``SubgraphRewriter``), this function must be called manually.
+
+---
 
 ## get_registered_passes Function
 

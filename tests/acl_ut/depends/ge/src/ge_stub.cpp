@@ -329,6 +329,25 @@ std::unique_ptr<gert::Om2ModelExecutor> aclStub::LoadOm2ExecutorFromData(ge::Mod
   (void)load_arg;
   return nullptr;
 }
+std::unique_ptr<gert::Om2ModelExecutor> aclStub::LoadOm2ExecutorFromBundleData(const void *model_data,
+                                                                               size_t model_size, size_t model_index,
+                                                                               const gert::Om2ModelLoadArg &load_arg,
+                                                                               ge::graphStatus &error_code) {
+  (void)model_data;
+  (void)model_size;
+  (void)model_index;
+  (void)load_arg;
+  error_code = ge::FAILED;
+  return nullptr;
+}
+ge::Status aclStub::GetOm2BundleInfo(const void *data, size_t size, std::vector<std::pair<size_t, size_t>> &model_sizes,
+                                     size_t &var_size) {
+  (void)data;
+  (void)size;
+  (void)model_sizes;
+  (void)var_size;
+  return FAILED;
+}
 ge::Status aclStub::IsOm2Model(const void *data, size_t size, bool &is_support) {
   return SUCCESS;
 }
@@ -2202,6 +2221,17 @@ std::unique_ptr<gert::Om2ModelExecutor> LoadOm2ExecutorFromData(ge::ModelData &m
                                                                 const Om2ModelLoadArg &load_arg,
                                                                 ge::Status &error_code) {
   return MockFunctionTest::aclStubInstance().LoadOm2ExecutorFromData(model_data, load_arg, error_code);
+}
+std::unique_ptr<gert::Om2ModelExecutor> LoadOm2ExecutorFromBundleData(const void *model_data, size_t model_size,
+                                                                      size_t model_index,
+                                                                      const Om2ModelLoadArg &load_arg,
+                                                                      ge::graphStatus &error_code) {
+  return MockFunctionTest::aclStubInstance().LoadOm2ExecutorFromBundleData(model_data, model_size, model_index,
+                                                                           load_arg, error_code);
+}
+ge::Status GetOm2BundleInfo(const void *data, size_t size, std::vector<std::pair<size_t, size_t>> &model_sizes,
+                            size_t &var_size) {
+  return MockFunctionTest::aclStubInstance().GetOm2BundleInfo(data, size, model_sizes, var_size);
 }
 ge::Status GetOm2MemAndWeightSize(const std::string &model_path, size_t &work_size, size_t &weight_size) {
   return MockFunctionTest::aclStubInstance().GetOm2MemAndWeightSize(model_path, work_size, weight_size);

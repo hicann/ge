@@ -166,6 +166,9 @@ ge::Status SerializeVariablesData(const gert::GertModelDataModel &unit,
   const auto &variables_config = *unit.variables_config;
   ge::JsonFile json_file;
   (void)json_file.Set("graph_id", variables_config.graph_id);
+  if (variables_config.global_shared_var_size > 0U) {
+    (void)json_file.Set("global_shared_var_size", variables_config.global_shared_var_size);
+  }
   auto var_metas_json = ge::JsonFile::json::array();
   for (const auto &meta_ptr : variables_config.var_metas) {
     const auto &meta = *meta_ptr;

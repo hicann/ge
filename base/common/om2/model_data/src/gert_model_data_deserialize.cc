@@ -457,7 +457,6 @@ ge::Status ParseModelMetaInputs(const ge::JsonFile &json_file, gert::GertModelDa
       const ge::JsonFile input_file(inputs_json[i]);
       gert::GertTensorDesc desc;
       GE_ASSERT_SUCCESS(ParseTensorDescFromJson(input_file, desc));
-      GE_ASSERT_TRUE(!desc.shape.empty(), "[OM2] Input tensor at index %zu is missing 'shape' field", i);
       std::vector<int64_t> max_gear_shape;
       if (input_file.Get("max_gear_shape", max_gear_shape)) {
         model_meta.origin_input_dims.emplace_back(desc.shape);
@@ -692,25 +691,11 @@ ge::Status DeserializeOpAttr(const gert::ZipArchiveReader &archive, const std::s
   return ge::SUCCESS;
 }
 
-// data/model_%s/variables_config.json（graph_id/var_metas/entries）+ data/variables/var_weight_data_%s：
-// 解析 graph_id/var_metas 与 entries，按 entry 的 file_name 在 data/variables/ 下寻址权重文件，
-// 并按 init_data_offset/size 切片写入 entry.init_data
-ge::Status DeserializeVariablesData(const gert::ZipArchiveReader &archive, const std::string &relative_path,
-                                    gert::GertModelDataModel &unit) {
-  const auto full_path = archive.FindEntry(relative_path);
-  if (full_path.empty()) {
-    GELOGW("[OM2] Optional file [%s] not found in ZIP archive, skipped.", relative_path.c_str());
-    return ge::SUCCESS;
-  }
-  size_t buff_size = 0U;
-  auto buff_data = archive.ExtractToMem(full_path, buff_size);
-  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", full_path.c_str());
-  GE_ASSERT_TRUE(buff_size > 0U);
-  const ge::JsonFile json_file(buff_data.get(), buff_size);
-  GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid variables config JSON from entry %s", full_path.c_str());
-
-  unit.variables_config = std::make_unique<gert::GertModelDataVariablesConfig>();
+// 解析 variables_config.json 中的 graph_id/global_shared_var_size/var_metas 字段，写入 unit.variables_config
+ge::Status ParseVariablesConfigJson(const ge::JsonFile &json_file, gert::GertModelDataModel &unit) {
   (void)json_file.Get("graph_id", unit.variables_config->graph_id);
+  ge::JsonFile::TryGetAndApply<uint64_t>(json_file, "global_shared_var_size",
+                                         [&](const uint64_t &v) { unit.variables_config->global_shared_var_size = v; });
   ge::JsonFile::json var_metas_json;
   if (json_file.Get("var_metas", var_metas_json) && var_metas_json.is_array()) {
     for (const auto &meta_json : var_metas_json) {
@@ -720,6 +705,42 @@ ge::Status DeserializeVariablesData(const gert::ZipArchiveReader &archive, const
           std::make_unique<gert::GertModelDataVarMeta>(std::move(meta)));
     }
   }
+  return ge::SUCCESS;
+}
+
+// 定位并提取 variables_config.json，解析配置部分（graph_id/global_shared_var_size/var_metas）写入
+// unit.variables_config； 文件不存在时返回成功且 buff_data 保持为空；buff_data 非空时输出 JSON
+// 原文缓冲，供调用方继续解析 entries
+ge::Status ParseVariablesConfigEntry(const gert::ZipArchiveReader &archive, const std::string &relative_path,
+                                     gert::GertModelDataModel &unit, ge::ReadonlyByteBuffer &buff_data,
+                                     size_t &buff_size) {
+  const auto full_path = archive.FindEntry(relative_path);
+  if (full_path.empty()) {
+    GELOGW("[OM2] Optional file [%s] not found in ZIP archive, skipped.", relative_path.c_str());
+    return ge::SUCCESS;
+  }
+  buff_data = archive.ExtractToMem(full_path, buff_size);
+  GE_ASSERT_NOTNULL(buff_data, "[OM2] Failed to extract %s", full_path.c_str());
+  GE_ASSERT_TRUE(buff_size > 0U);
+  const ge::JsonFile json_file(buff_data.get(), buff_size);
+  GE_ASSERT_TRUE(json_file.IsValid(), "[OM2] Invalid variables config JSON from entry %s", full_path.c_str());
+  unit.variables_config = std::make_unique<gert::GertModelDataVariablesConfig>();
+  GE_ASSERT_SUCCESS(ParseVariablesConfigJson(json_file, unit));
+  return ge::SUCCESS;
+}
+
+// data/model_%s/variables_config.json（graph_id/var_metas/entries）+ data/variables/var_weight_data_%s：
+// 解析 graph_id/var_metas 与 entries，按 entry 的 file_name 在 data/variables/ 下寻址权重文件，
+// 并按 init_data_offset/size 切片写入 entry.init_data
+ge::Status DeserializeVariablesData(const gert::ZipArchiveReader &archive, const std::string &relative_path,
+                                    gert::GertModelDataModel &unit) {
+  ge::ReadonlyByteBuffer buff_data(nullptr, ge::ConditionalDeleter{false});
+  size_t buff_size = 0U;
+  GE_ASSERT_SUCCESS(ParseVariablesConfigEntry(archive, relative_path, unit, buff_data, buff_size));
+  if (buff_data == nullptr) {
+    return ge::SUCCESS;
+  }
+  const ge::JsonFile json_file(buff_data.get(), buff_size);
 
   ge::JsonFile::json entries_json;
   if (!json_file.Get("entries", entries_json) || !entries_json.is_object() || entries_json.empty()) {
@@ -903,6 +924,19 @@ ge::Status DeserializeGertVisualJsonFromArchive(gert::ZipArchiveReader &archive,
   return ge::SUCCESS;
 }
 
+// 仅反序列化 data/model_<index>/variables_config.json 的配置部分（graph_id/var_metas/global_shared_var_size），
+// 不解析 entries 与权重数据，供 Bundle 查询接口轻量读取 global_shared_var_size 使用
+ge::Status DeserializeGertVariablesConfigFromArchive(gert::ZipArchiveReader &archive, GertModelData &model_data,
+                                                     const uint32_t model_index) {
+  GE_ASSERT_SUCCESS(PrepareModelUnit(archive, model_data, model_index));
+  auto &unit = *model_data.models[model_index];
+  ge::ReadonlyByteBuffer buff_data(nullptr, ge::ConditionalDeleter{false});
+  size_t buff_size = 0U;
+  return ParseVariablesConfigEntry(
+      archive, gert::FormatOm2Path(gert::OM2_VARIABLES_CONFIG_PATH_FORMAT, std::to_string(model_index).c_str()), unit,
+      buff_data, buff_size);
+}
+
 // 公共入口前置校验 + 打开归档，执行指定归档级流程
 uint32_t RunDeserializeEntry(const uint8_t *data, const uint64_t data_size, GertModelData *model_data,
                              const uint32_t model_index,
@@ -943,6 +977,11 @@ uint32_t DeserializeGertConstantsConfig(const uint8_t *data, uint64_t data_size,
 uint32_t DeserializeGertVisualJson(const uint8_t *data, uint64_t data_size, GertModelData *model_data,
                                    const uint32_t model_index) {
   return RunDeserializeEntry(data, data_size, model_data, model_index, DeserializeGertVisualJsonFromArchive);
+}
+
+uint32_t DeserializeGertVariablesConfig(const uint8_t *data, uint64_t data_size, GertModelData *model_data,
+                                        const uint32_t model_index) {
+  return RunDeserializeEntry(data, data_size, model_data, model_index, DeserializeGertVariablesConfigFromArchive);
 }
 
 }  // namespace gert

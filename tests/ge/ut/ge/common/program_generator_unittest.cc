@@ -3218,60 +3218,6 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority, uint64_t reuse_zero_copy, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
-  OM2_LOGI("Om2ModelCreate");
-  if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
-    OM2_LOGE("Om2ModelCreate: invalid handle");
-    return ACL_ERROR_FAILURE;
-  }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, callbacks, priority);
-  if (obj == nullptr) {
-    OM2_LOGE("Om2ModelCreate: new Om2Model failed");
-    return ACL_ERROR_FAILURE;
-  }
-  auto ret = obj->InitResources(reuse_zero_copy, {sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
-  if (ret != ACL_SUCCESS) {
-    OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
-    delete obj;
-    return ret;
-  }
-  ret = obj->RegisterKernels();
-  if (ret != ACL_SUCCESS) {
-    OM2_LOGE("Om2ModelCreate: RegisterKernels failed, ret: %d", ret);
-    delete obj;
-    return ret;
-  }
-  *model_handle = reinterpret_cast<GertModelHandle>(obj);
-  *rt_model_handle = obj->GetRtModelHandle();
-  OM2_LOGI("Om2ModelCreate done");
-  return ACL_SUCCESS;
-}
-
-aclError Om2ModelLoad(GertModelHandle *model_handle) {
-  OM2_LOGI("Om2ModelLoad");
-  if ((model_handle == nullptr) || (*model_handle == nullptr)) {
-    OM2_LOGE("Om2ModelLoad: invalid handle");
-    return ACL_ERROR_FAILURE;
-  }
-  return static_cast<om2::Om2Model*>(*model_handle)->Load(nullptr);
-}
-
-aclError Om2ModelRunAsync(GertModelHandle *model_handle, aclrtStream stream, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, const GertModelRunCallbacks *run_callbacks) {
-  OM2_LOGI("Om2ModelRunAsync");
-  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, run_callbacks);
-}
-
-aclError Om2ModelRun(GertModelHandle *model_handle, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, const GertModelRunCallbacks *run_callbacks) {
-  OM2_LOGI("Om2ModelRun");
-  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, run_callbacks);
-}
-
-aclError Om2ModelDestroy(GertModelHandle *model_handle) {
-  OM2_LOGI("Om2ModelDestroy");
-  delete static_cast<om2::Om2Model*>(*model_handle);
-  return ACL_SUCCESS;
-}
-
 // ==================== model load/run/unload api ====================
 
 int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
@@ -3284,19 +3230,34 @@ int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle 
     OM2_LOGE("GertModelLoad: output is reserved, should be null");
     return ACL_ERROR_FAILURE;
   }
-  aclmdlRI rt_model_handle;
   // Create Model
-  OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
-                                config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
+  auto *obj = new om2::Om2Model(config->bin_files, config->bin_data, config->bin_size,
+                                static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                config->callbacks,
-                                static_cast<int32_t>(config->priority), config->reuse_zero_copy,
-                                config->external_rt_model,
-                                config->external_streams, config->external_stream_num,
-                                config->external_notifies, config->external_notify_num,
-                                config->external_events, config->external_event_num,
-                                config->external_labels, config->external_label_num));
+                                config->callbacks, static_cast<int32_t>(config->priority));
+  if (obj == nullptr) {
+    OM2_LOGE("GertModelLoad: new Om2Model failed");
+    return ACL_ERROR_FAILURE;
+  }
+  auto ret = obj->InitResources(config->reuse_zero_copy,
+                                {sizeof(GertModelExternalResources), config->external_rt_model,
+                                 config->external_streams, config->external_stream_num,
+                                 config->external_notifies, config->external_notify_num,
+                                 config->external_events, config->external_event_num,
+                                 config->external_labels, config->external_label_num});
+  if (ret != ACL_SUCCESS) {
+    OM2_LOGE("GertModelLoad: InitResources failed, ret: %d", ret);
+    delete obj;
+    return ret;
+  }
+  ret = obj->RegisterKernels();
+  if (ret != ACL_SUCCESS) {
+    OM2_LOGE("GertModelLoad: RegisterKernels failed, ret: %d", ret);
+    delete obj;
+    return ret;
+  }
+  *model_handle = reinterpret_cast<GertModelHandle>(obj);
   OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
            " bin_num=%" PRIu64 "", *model_handle, config->model_id,
            config->priority, config->bin_num);
@@ -3314,8 +3275,9 @@ int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
            " output_count=%" PRIu64 "", model_handle, stream, config->input_count,
            config->output_count);
   const GertModelRunCallbacks *run_callbacks = (config == nullptr ? nullptr : config->run_callbacks);
-  return Om2ModelRunAsync(&model_handle, stream, config->input_count, config->input_data, config->output_count,
-                          config->output_data, run_callbacks);
+  return static_cast<om2::Om2Model *>(model_handle)->RunAsync(stream, config->input_count,
+                                                              config->input_data, config->output_count,
+                                                              config->output_data, run_callbacks);
 }
 
 int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
@@ -3328,8 +3290,9 @@ int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConf
            " input_count=%" PRIu64 ", output_count=%" PRIu64 "", model_handle,
            config->stream_sync_timeout_ms, config->input_count, config->output_count);
   const GertModelRunCallbacks *run_callbacks = (config == nullptr ? nullptr : config->run_callbacks);
-  return Om2ModelRun(&model_handle, config->input_count, config->input_data, config->output_count,
-                     config->output_data, config->stream_sync_timeout_ms, run_callbacks);
+  return static_cast<om2::Om2Model *>(model_handle)->Run(config->input_count, config->input_data,
+                                                         config->output_count, config->output_data,
+                                                         config->stream_sync_timeout_ms, run_callbacks);
 }
 
 int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
@@ -3343,7 +3306,8 @@ int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnlo
     return ACL_ERROR_FAILURE;
   }
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
-  return Om2ModelDestroy(&model_handle);
+  delete static_cast<om2::Om2Model *>(model_handle);
+  return ACL_SUCCESS;
 }
 
 int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr) {
@@ -3930,60 +3894,6 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority, uint64_t reuse_zero_copy, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
-  OM2_LOGI("Om2ModelCreate");
-  if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
-    OM2_LOGE("Om2ModelCreate: invalid handle");
-    return ACL_ERROR_FAILURE;
-  }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, callbacks, priority);
-  if (obj == nullptr) {
-    OM2_LOGE("Om2ModelCreate: new Om2Model failed");
-    return ACL_ERROR_FAILURE;
-  }
-  auto ret = obj->InitResources(reuse_zero_copy, {sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
-  if (ret != ACL_SUCCESS) {
-    OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
-    delete obj;
-    return ret;
-  }
-  ret = obj->RegisterKernels();
-  if (ret != ACL_SUCCESS) {
-    OM2_LOGE("Om2ModelCreate: RegisterKernels failed, ret: %d", ret);
-    delete obj;
-    return ret;
-  }
-  *model_handle = reinterpret_cast<GertModelHandle>(obj);
-  *rt_model_handle = obj->GetRtModelHandle();
-  OM2_LOGI("Om2ModelCreate done");
-  return ACL_SUCCESS;
-}
-
-aclError Om2ModelLoad(GertModelHandle *model_handle) {
-  OM2_LOGI("Om2ModelLoad");
-  if ((model_handle == nullptr) || (*model_handle == nullptr)) {
-    OM2_LOGE("Om2ModelLoad: invalid handle");
-    return ACL_ERROR_FAILURE;
-  }
-  return static_cast<om2::Om2Model*>(*model_handle)->Load(nullptr);
-}
-
-aclError Om2ModelRunAsync(GertModelHandle *model_handle, aclrtStream stream, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, const GertModelRunCallbacks *run_callbacks) {
-  OM2_LOGI("Om2ModelRunAsync");
-  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, run_callbacks);
-}
-
-aclError Om2ModelRun(GertModelHandle *model_handle, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, const GertModelRunCallbacks *run_callbacks) {
-  OM2_LOGI("Om2ModelRun");
-  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, run_callbacks);
-}
-
-aclError Om2ModelDestroy(GertModelHandle *model_handle) {
-  OM2_LOGI("Om2ModelDestroy");
-  delete static_cast<om2::Om2Model*>(*model_handle);
-  return ACL_SUCCESS;
-}
-
 // ==================== model load/run/unload api ====================
 
 int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
@@ -3996,19 +3906,34 @@ int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle 
     OM2_LOGE("GertModelLoad: output is reserved, should be null");
     return ACL_ERROR_FAILURE;
   }
-  aclmdlRI rt_model_handle;
   // Create Model
-  OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
-                                config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
+  auto *obj = new om2::Om2Model(config->bin_files, config->bin_data, config->bin_size,
+                                static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                config->callbacks,
-                                static_cast<int32_t>(config->priority), config->reuse_zero_copy,
-                                config->external_rt_model,
-                                config->external_streams, config->external_stream_num,
-                                config->external_notifies, config->external_notify_num,
-                                config->external_events, config->external_event_num,
-                                config->external_labels, config->external_label_num));
+                                config->callbacks, static_cast<int32_t>(config->priority));
+  if (obj == nullptr) {
+    OM2_LOGE("GertModelLoad: new Om2Model failed");
+    return ACL_ERROR_FAILURE;
+  }
+  auto ret = obj->InitResources(config->reuse_zero_copy,
+                                {sizeof(GertModelExternalResources), config->external_rt_model,
+                                 config->external_streams, config->external_stream_num,
+                                 config->external_notifies, config->external_notify_num,
+                                 config->external_events, config->external_event_num,
+                                 config->external_labels, config->external_label_num});
+  if (ret != ACL_SUCCESS) {
+    OM2_LOGE("GertModelLoad: InitResources failed, ret: %d", ret);
+    delete obj;
+    return ret;
+  }
+  ret = obj->RegisterKernels();
+  if (ret != ACL_SUCCESS) {
+    OM2_LOGE("GertModelLoad: RegisterKernels failed, ret: %d", ret);
+    delete obj;
+    return ret;
+  }
+  *model_handle = reinterpret_cast<GertModelHandle>(obj);
   OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
            " bin_num=%" PRIu64 "", *model_handle, config->model_id,
            config->priority, config->bin_num);
@@ -4026,8 +3951,9 @@ int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
            " output_count=%" PRIu64 "", model_handle, stream, config->input_count,
            config->output_count);
   const GertModelRunCallbacks *run_callbacks = (config == nullptr ? nullptr : config->run_callbacks);
-  return Om2ModelRunAsync(&model_handle, stream, config->input_count, config->input_data, config->output_count,
-                          config->output_data, run_callbacks);
+  return static_cast<om2::Om2Model *>(model_handle)->RunAsync(stream, config->input_count,
+                                                              config->input_data, config->output_count,
+                                                              config->output_data, run_callbacks);
 }
 
 int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
@@ -4040,8 +3966,9 @@ int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConf
            " input_count=%" PRIu64 ", output_count=%" PRIu64 "", model_handle,
            config->stream_sync_timeout_ms, config->input_count, config->output_count);
   const GertModelRunCallbacks *run_callbacks = (config == nullptr ? nullptr : config->run_callbacks);
-  return Om2ModelRun(&model_handle, config->input_count, config->input_data, config->output_count,
-                     config->output_data, config->stream_sync_timeout_ms, run_callbacks);
+  return static_cast<om2::Om2Model *>(model_handle)->Run(config->input_count, config->input_data,
+                                                         config->output_count, config->output_data,
+                                                         config->stream_sync_timeout_ms, run_callbacks);
 }
 
 int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
@@ -4055,7 +3982,8 @@ int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnlo
     return ACL_ERROR_FAILURE;
   }
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
-  return Om2ModelDestroy(&model_handle);
+  delete static_cast<om2::Om2Model *>(model_handle);
+  return ACL_SUCCESS;
 }
 
 int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr) {
@@ -4710,60 +4638,6 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority, uint64_t reuse_zero_copy, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
-  OM2_LOGI("Om2ModelCreate");
-  if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
-    OM2_LOGE("Om2ModelCreate: invalid handle");
-    return ACL_ERROR_FAILURE;
-  }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, callbacks, priority);
-  if (obj == nullptr) {
-    OM2_LOGE("Om2ModelCreate: new Om2Model failed");
-    return ACL_ERROR_FAILURE;
-  }
-  auto ret = obj->InitResources(reuse_zero_copy, {sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
-  if (ret != ACL_SUCCESS) {
-    OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
-    delete obj;
-    return ret;
-  }
-  ret = obj->RegisterKernels();
-  if (ret != ACL_SUCCESS) {
-    OM2_LOGE("Om2ModelCreate: RegisterKernels failed, ret: %d", ret);
-    delete obj;
-    return ret;
-  }
-  *model_handle = reinterpret_cast<GertModelHandle>(obj);
-  *rt_model_handle = obj->GetRtModelHandle();
-  OM2_LOGI("Om2ModelCreate done");
-  return ACL_SUCCESS;
-}
-
-aclError Om2ModelLoad(GertModelHandle *model_handle) {
-  OM2_LOGI("Om2ModelLoad");
-  if ((model_handle == nullptr) || (*model_handle == nullptr)) {
-    OM2_LOGE("Om2ModelLoad: invalid handle");
-    return ACL_ERROR_FAILURE;
-  }
-  return static_cast<om2::Om2Model*>(*model_handle)->Load(nullptr);
-}
-
-aclError Om2ModelRunAsync(GertModelHandle *model_handle, aclrtStream stream, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, const GertModelRunCallbacks *run_callbacks) {
-  OM2_LOGI("Om2ModelRunAsync");
-  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, run_callbacks);
-}
-
-aclError Om2ModelRun(GertModelHandle *model_handle, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, const GertModelRunCallbacks *run_callbacks) {
-  OM2_LOGI("Om2ModelRun");
-  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, run_callbacks);
-}
-
-aclError Om2ModelDestroy(GertModelHandle *model_handle) {
-  OM2_LOGI("Om2ModelDestroy");
-  delete static_cast<om2::Om2Model*>(*model_handle);
-  return ACL_SUCCESS;
-}
-
 // ==================== model load/run/unload api ====================
 
 int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
@@ -4776,19 +4650,34 @@ int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle 
     OM2_LOGE("GertModelLoad: output is reserved, should be null");
     return ACL_ERROR_FAILURE;
   }
-  aclmdlRI rt_model_handle;
   // Create Model
-  OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
-                                config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
+  auto *obj = new om2::Om2Model(config->bin_files, config->bin_data, config->bin_size,
+                                static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                config->callbacks,
-                                static_cast<int32_t>(config->priority), config->reuse_zero_copy,
-                                config->external_rt_model,
-                                config->external_streams, config->external_stream_num,
-                                config->external_notifies, config->external_notify_num,
-                                config->external_events, config->external_event_num,
-                                config->external_labels, config->external_label_num));
+                                config->callbacks, static_cast<int32_t>(config->priority));
+  if (obj == nullptr) {
+    OM2_LOGE("GertModelLoad: new Om2Model failed");
+    return ACL_ERROR_FAILURE;
+  }
+  auto ret = obj->InitResources(config->reuse_zero_copy,
+                                {sizeof(GertModelExternalResources), config->external_rt_model,
+                                 config->external_streams, config->external_stream_num,
+                                 config->external_notifies, config->external_notify_num,
+                                 config->external_events, config->external_event_num,
+                                 config->external_labels, config->external_label_num});
+  if (ret != ACL_SUCCESS) {
+    OM2_LOGE("GertModelLoad: InitResources failed, ret: %d", ret);
+    delete obj;
+    return ret;
+  }
+  ret = obj->RegisterKernels();
+  if (ret != ACL_SUCCESS) {
+    OM2_LOGE("GertModelLoad: RegisterKernels failed, ret: %d", ret);
+    delete obj;
+    return ret;
+  }
+  *model_handle = reinterpret_cast<GertModelHandle>(obj);
   OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
            " bin_num=%" PRIu64 "", *model_handle, config->model_id,
            config->priority, config->bin_num);
@@ -4806,8 +4695,9 @@ int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
            " output_count=%" PRIu64 "", model_handle, stream, config->input_count,
            config->output_count);
   const GertModelRunCallbacks *run_callbacks = (config == nullptr ? nullptr : config->run_callbacks);
-  return Om2ModelRunAsync(&model_handle, stream, config->input_count, config->input_data, config->output_count,
-                          config->output_data, run_callbacks);
+  return static_cast<om2::Om2Model *>(model_handle)->RunAsync(stream, config->input_count,
+                                                              config->input_data, config->output_count,
+                                                              config->output_data, run_callbacks);
 }
 
 int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
@@ -4820,8 +4710,9 @@ int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConf
            " input_count=%" PRIu64 ", output_count=%" PRIu64 "", model_handle,
            config->stream_sync_timeout_ms, config->input_count, config->output_count);
   const GertModelRunCallbacks *run_callbacks = (config == nullptr ? nullptr : config->run_callbacks);
-  return Om2ModelRun(&model_handle, config->input_count, config->input_data, config->output_count,
-                     config->output_data, config->stream_sync_timeout_ms, run_callbacks);
+  return static_cast<om2::Om2Model *>(model_handle)->Run(config->input_count, config->input_data,
+                                                         config->output_count, config->output_data,
+                                                         config->stream_sync_timeout_ms, run_callbacks);
 }
 
 int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
@@ -4835,7 +4726,8 @@ int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnlo
     return ACL_ERROR_FAILURE;
   }
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
-  return Om2ModelDestroy(&model_handle);
+  delete static_cast<om2::Om2Model *>(model_handle);
+  return ACL_SUCCESS;
 }
 
 int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr) {
@@ -5442,60 +5334,6 @@ aclError Om2Model::Run(size_t input_count, gert::Tensor **input_data, size_t out
   return ACL_SUCCESS;
 }
 } // namespace om2
-aclError Om2ModelCreate(GertModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, uint64_t *bin_size, size_t bin_num, void **constants, void **var_addrs, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle, const GertModelLoadCallbacks *callbacks, int32_t priority, uint64_t reuse_zero_copy, aclmdlRI external_rt_model, aclrtStream *external_streams, uint64_t external_stream_num, aclrtNotify *external_notifies, uint64_t external_notify_num, aclrtEvent *external_events, uint64_t external_event_num, aclrtLabel *external_labels, uint64_t external_label_num) {
-  OM2_LOGI("Om2ModelCreate");
-  if ((model_handle == nullptr) || (rt_model_handle == nullptr) || (*model_handle != nullptr)) {
-    OM2_LOGE("Om2ModelCreate: invalid handle");
-    return ACL_ERROR_FAILURE;
-  }
-  auto *obj = new om2::Om2Model(bin_files, bin_data, bin_size, bin_num, constants, var_addrs, work_ptr, session_id, model_id, instance_handle, callbacks, priority);
-  if (obj == nullptr) {
-    OM2_LOGE("Om2ModelCreate: new Om2Model failed");
-    return ACL_ERROR_FAILURE;
-  }
-  auto ret = obj->InitResources(reuse_zero_copy, {sizeof(GertModelExternalResources), external_rt_model, external_streams, external_stream_num, external_notifies, external_notify_num, external_events, external_event_num, external_labels, external_label_num});
-  if (ret != ACL_SUCCESS) {
-    OM2_LOGE("Om2ModelCreate: InitResources failed, ret: %d", ret);
-    delete obj;
-    return ret;
-  }
-  ret = obj->RegisterKernels();
-  if (ret != ACL_SUCCESS) {
-    OM2_LOGE("Om2ModelCreate: RegisterKernels failed, ret: %d", ret);
-    delete obj;
-    return ret;
-  }
-  *model_handle = reinterpret_cast<GertModelHandle>(obj);
-  *rt_model_handle = obj->GetRtModelHandle();
-  OM2_LOGI("Om2ModelCreate done");
-  return ACL_SUCCESS;
-}
-
-aclError Om2ModelLoad(GertModelHandle *model_handle) {
-  OM2_LOGI("Om2ModelLoad");
-  if ((model_handle == nullptr) || (*model_handle == nullptr)) {
-    OM2_LOGE("Om2ModelLoad: invalid handle");
-    return ACL_ERROR_FAILURE;
-  }
-  return static_cast<om2::Om2Model*>(*model_handle)->Load(nullptr);
-}
-
-aclError Om2ModelRunAsync(GertModelHandle *model_handle, aclrtStream stream, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, const GertModelRunCallbacks *run_callbacks) {
-  OM2_LOGI("Om2ModelRunAsync");
-  return static_cast<om2::Om2Model*>(*model_handle)->RunAsync(stream, input_count, input_data, output_count, output_data, run_callbacks);
-}
-
-aclError Om2ModelRun(GertModelHandle *model_handle, int input_count, gert::Tensor **input_data, int output_count, gert::Tensor **output_data, int32_t stream_sync_timeout, const GertModelRunCallbacks *run_callbacks) {
-  OM2_LOGI("Om2ModelRun");
-  return static_cast<om2::Om2Model*>(*model_handle)->Run(input_count, input_data, output_count, output_data, stream_sync_timeout, run_callbacks);
-}
-
-aclError Om2ModelDestroy(GertModelHandle *model_handle) {
-  OM2_LOGI("Om2ModelDestroy");
-  delete static_cast<om2::Om2Model*>(*model_handle);
-  return ACL_SUCCESS;
-}
-
 // ==================== model load/run/unload api ====================
 
 int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle *model_handle,
@@ -5508,19 +5346,34 @@ int32_t GertModelLoad(const struct GertModelLoadConfig *config, GertModelHandle 
     OM2_LOGE("GertModelLoad: output is reserved, should be null");
     return ACL_ERROR_FAILURE;
   }
-  aclmdlRI rt_model_handle;
   // Create Model
-  OM2_CHK_STATUS(Om2ModelCreate(model_handle, &rt_model_handle, config->bin_files, config->bin_data,
-                                config->bin_size, static_cast<size_t>(config->bin_num), config->constants,
+  auto *obj = new om2::Om2Model(config->bin_files, config->bin_data, config->bin_size,
+                                static_cast<size_t>(config->bin_num), config->constants,
                                 config->var_addrs, config->work_ptr, config->session_id,
                                 static_cast<uint32_t>(config->model_id), config->instance_handle,
-                                config->callbacks,
-                                static_cast<int32_t>(config->priority), config->reuse_zero_copy,
-                                config->external_rt_model,
-                                config->external_streams, config->external_stream_num,
-                                config->external_notifies, config->external_notify_num,
-                                config->external_events, config->external_event_num,
-                                config->external_labels, config->external_label_num));
+                                config->callbacks, static_cast<int32_t>(config->priority));
+  if (obj == nullptr) {
+    OM2_LOGE("GertModelLoad: new Om2Model failed");
+    return ACL_ERROR_FAILURE;
+  }
+  auto ret = obj->InitResources(config->reuse_zero_copy,
+                                {sizeof(GertModelExternalResources), config->external_rt_model,
+                                 config->external_streams, config->external_stream_num,
+                                 config->external_notifies, config->external_notify_num,
+                                 config->external_events, config->external_event_num,
+                                 config->external_labels, config->external_label_num});
+  if (ret != ACL_SUCCESS) {
+    OM2_LOGE("GertModelLoad: InitResources failed, ret: %d", ret);
+    delete obj;
+    return ret;
+  }
+  ret = obj->RegisterKernels();
+  if (ret != ACL_SUCCESS) {
+    OM2_LOGE("GertModelLoad: RegisterKernels failed, ret: %d", ret);
+    delete obj;
+    return ret;
+  }
+  *model_handle = reinterpret_cast<GertModelHandle>(obj);
   OM2_LOGI("GertModelLoad: handle=%p, model_id=%" PRIu64 ", priority=%" PRIi64 ","
            " bin_num=%" PRIu64 "", *model_handle, config->model_id,
            config->priority, config->bin_num);
@@ -5538,8 +5391,9 @@ int32_t GertModelRunAsync(GertModelHandle model_handle, aclrtStream stream,
            " output_count=%" PRIu64 "", model_handle, stream, config->input_count,
            config->output_count);
   const GertModelRunCallbacks *run_callbacks = (config == nullptr ? nullptr : config->run_callbacks);
-  return Om2ModelRunAsync(&model_handle, stream, config->input_count, config->input_data, config->output_count,
-                          config->output_data, run_callbacks);
+  return static_cast<om2::Om2Model *>(model_handle)->RunAsync(stream, config->input_count,
+                                                              config->input_data, config->output_count,
+                                                              config->output_data, run_callbacks);
 }
 
 int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConfig *config,
@@ -5552,8 +5406,9 @@ int32_t GertModelRun(GertModelHandle model_handle, const struct GertModelRunConf
            " input_count=%" PRIu64 ", output_count=%" PRIu64 "", model_handle,
            config->stream_sync_timeout_ms, config->input_count, config->output_count);
   const GertModelRunCallbacks *run_callbacks = (config == nullptr ? nullptr : config->run_callbacks);
-  return Om2ModelRun(&model_handle, config->input_count, config->input_data, config->output_count,
-                     config->output_data, config->stream_sync_timeout_ms, run_callbacks);
+  return static_cast<om2::Om2Model *>(model_handle)->Run(config->input_count, config->input_data,
+                                                         config->output_count, config->output_data,
+                                                         config->stream_sync_timeout_ms, run_callbacks);
 }
 
 int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnloadConfig *config,
@@ -5567,7 +5422,8 @@ int32_t GertModelUnload(GertModelHandle model_handle, const struct GertModelUnlo
     return ACL_ERROR_FAILURE;
   }
   OM2_LOGI("GertModelUnload: handle=%p", model_handle);
-  return Om2ModelDestroy(&model_handle);
+  delete static_cast<om2::Om2Model *>(model_handle);
+  return ACL_SUCCESS;
 }
 
 int32_t GertModelRefreshFeatureMap(GertModelHandle model_handle, uintptr_t base_addr) {

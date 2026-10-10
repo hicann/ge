@@ -118,9 +118,7 @@ Status FusionPassExecutor::InitPassesIfNeed(CustomPassStage stage) {
   for (const auto &pass_reg : pass_creators) {
     const std::string pass_name = pass_reg.GetPassName().GetString();
     if (!PassOptionUtils::IsPassEnable(pass_name_to_switches_, pass_name, pass_reg.GetDefaultSwitch())) {
-      GELOGI("[FusionPass][SKIP] Pass [%s] is disabled by fusion switch config file, Option[%s][%s].",
-             pass_reg.ToString().GetString(), FUSION_SWITCH_FILE.c_str(),
-             FusionUtils::GetFusionSwitchFileFromOption().c_str());
+      GELOGI("[FusionPass][SKIP] Pass [%s] is disabled.", pass_reg.ToString().GetString());
       continue;
     }
     const auto iter = priority_map.find(pass_name);

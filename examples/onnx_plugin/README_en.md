@@ -173,6 +173,29 @@ output (E19999) already carries the Python-side information (exception type,
 failing statement, plugin file, and line number); use the log level above
 only when the full compilation log is needed.
 
+When an operator misses all registrations, a "no operator plugin/parser
+registered" error is reported (E13010 in the pre-check stage, E16002 in the
+parsing stage), followed by an E19999 diagnosis explaining the gap: if the
+domain has a version conflict, the diagnosis names both sides and their
+versions (for example, `custom_opsets ('ai.onnx': 3) conflicts with
+opset_version (13)`) and suggests a fix (remove the `ai.onnx` entry from
+export-side `custom_opsets`, or align it with the registered version);
+without a conflict, it suggests checking that the plugin's declared
+`domain`/`opsets` cover the origin and that the plugin file is discoverable
+via `ASCEND_CUSTOM_OPP_PATH`. A WARNING naming the conflicting and effective
+versions is also printed at parse start whenever a same-domain version
+conflict is detected.
+
+**Alignment contract between the model export side and the plugin side**
+(use the diagnosis above to troubleshoot mismatches):
+
+| Step | Decided by | What to write | Example |
+| -------- | ---------- | ------------- | ------- |
+| symbolic (export side) | model author | the custom operator's `domain::op name` | `graph.op("example.domain::MyElu", ...)` |
+| custom_opsets (export side) | model author | the version registered for the domain; custom domains conventionally stay at `1` | `custom_opsets={"example.domain": 1}` |
+| onnx_plugin (plugin side) | plugin author | copy the domain and version from the export side | `domain="example.domain", opsets=(1,)` |
+| the standard domain `ai.onnx` | the ONNX standard | reserved for official operators, with its version registered automatically by `opset_version`; use a custom domain for custom operators — filling `custom_opsets` for this domain overwrites the default domain's version declaration and breaks standard operator parsing | - |
+
 ## 4. Plugin and Callback Writing
 
 Integrating a custom operator involves two kinds of work:
@@ -193,6 +216,14 @@ plugin: for the same `source` (and the same `domain`), the `opsets` of
 different plugins must not overlap (for example, `opsets=(1,)` together with
 `opsets=(1, 2)` is rejected) - a conflict aborts compilation with an explicit
 error at startup.
+
+The plugin's declared `domain` and `opsets` must match the model export side:
+copy the domain from the symbolic and the version from `custom_opsets` (custom
+domains conventionally stay at version `1`). Custom operators should use a
+custom domain: the version of the standard domain `ai.onnx` is registered
+automatically by `opset_version`, and filling `custom_opsets` for it overwrites
+the version declaration and breaks standard operator parsing. See Section 3.6
+for the full alignment contract and error troubleshooting.
 
 ### 4.1 parse_node: Read Attributes by Name
 
